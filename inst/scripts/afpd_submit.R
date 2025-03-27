@@ -88,7 +88,7 @@ ligand_list <- tibble(uniprot_name = c("LUZP2", "LUZP2", "LUZP2", "LUZP2"),
 ligand_list <- readRDS(system.file("extdata/ligand_list.rds", package = "ligandFinder"))
 
 ligand_list <- ligand_list %>%
-                  mutate(model = paste0(uniprot_name, ",", start, "-", end)) %>%
+                  mutate(model = paste0(accession, ",", start, "-", end)) %>%
                   filter(ecb_cull == "y" & database %in% c("both", "gpcrdb"))
 
 ligand_list <- left_join(ligand_list, gpcr_list %>% dplyr::rename(receptor = uniprot_name), by = "receptor") %>%
@@ -123,7 +123,7 @@ submit_model_jobs(script = job_script,
                   protein_input_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/benchmarking",
                   output_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/benchmarking",
                   jobs = unique(to_run$group),
-                  start_from = 23,
+                  start_from = 25,
                   max_jobs = 16)
 
 

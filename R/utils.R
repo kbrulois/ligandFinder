@@ -80,6 +80,31 @@ cons_colors <- c(setNames("#C80813FF", "< 1"),
                  setNames("#46732E80", "3-4"),
                  setNames("#197EC0FF", "> 4"))
 
+factor_to_uniprotFeature <- function(tf,
+                                     source = "label1",
+                                     evidence = "label2") {
+
+  uni_tf <- unique(tf)
+
+  bind_rows(
+    lapply(uni_tf[!uni_tf == "-"], \(x) {
+      vec <- which(tf == x)
+
+      breaks <- c(0, which(diff(vec) != 1), length(vec))
+
+      sequences <- lapply(seq_along(breaks[-1]), \(i) vec[(breaks[i] + 1):breaks[i + 1]])
+
+      bind_rows(lapply(sequences, \(y) tibble(type = x,
+                                              evidence = evidence,
+                                              start = min(y),
+                                              end = max(y),
+                                              source = source)
+      ))
+
+    })
+  )
+
+}
 
 distance <- function(s, p) {
   sqrt(sum((s - p)^2))

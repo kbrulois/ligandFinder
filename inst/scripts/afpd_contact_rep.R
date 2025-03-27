@@ -7,16 +7,16 @@ library(dplyr)
 library(purrr)
 library(tidyr)
 
-#devtools::install_github("kbrulois/ligandFinder", auth_token = "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")
+devtools::install_github("kbrulois/ligandFinder", auth_token = "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")
 
 library(ligandFinder)
 
-input_path_models <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/benchmarking"
+input_path_models <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/mxrun"
 
 getwd()
 setwd("/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts")
 
-analysis_name <- "bm_analysis"
+analysis_name <- "mxrun_analysis"
 out_file_name <- paste0(analysis_name, "_contacts")
 
 
@@ -70,11 +70,16 @@ options(future.globals.maxSize = 10e9)
 
 furrr::future_map(jobs, \(job) {
 
-  tryCatch({
+  to_do <- readRDS(file = paste0("input/", job))
 
-    to_do <- readRDS(file = paste0("input/", job))
 
-    metrics <- import_raw_metrics(input_data = to_do)
+  lapply(1:nrow(to_do), \(sub_job) {
+
+    file_name <- to_do %>% slice(sub_job) %>% pull(og_file_name)
+
+    tryCatch({
+
+    metrics <- import_raw_metrics(input_data = to_do %>% slice(sub_job))
 
     metrics <- left_join(metrics,
                              gpcr_list %>%
@@ -107,10 +112,15 @@ furrr::future_map(jobs, \(job) {
                            filter(seq_match == "different"))
 
 
-    saveRDS(metrics %>% select(!where(is.list)), file = job)
-    message("completed ", job)
+    saveRDS(metrics %>% select(!where(is.list)),
+            file = paste0(input_path_models, "/", file_name, "/", "metrics_v1.rds"))
 
-  }, error = function(e) message("problem with ", job))
+
+  }, error = function(e) message("problem with ", job, file_name))
+
+})
+
+  message("completed ", job)
 
 })
 
@@ -142,158 +152,6 @@ res <- bind_rows(
 )
 
 res <- bind_rows(res, res2)
-
-
-
-known_pairs <- list(c("GPR25", "CXL17"),
-                    c("CCR9", "CCL25"),
-                    c("GPR15", "GP15L"),
-                    c("CML1", "RARR2"),
-                    c("CML2", "RARR2"),
-                    c("CCRL2", "RARR2"))
-
-res <- res %>%
-  rowwise %>%
-  mutate(known_pair = case_when(any(map_lgl(known_pairs, \(x) sum(c(p1_id, p2_id) %in% x) == 2)) ~ "known",
-                                TRUE ~ "unknown"), .after = "model") %>%
-  ungroup
-
-
-
-res <- res %>%
-  mutate(ligand_location = case_when(EC_lig1_mid < IC_lig1_mid ~ "EC",
-                                     EC_lig1_mid > IC_lig1_mid ~ "IC",
-                                     TRUE ~ "bw_not_available"), .after = "model") %>%
-  mutate(totalCP = replace_na(totalCP, 0))
-
-
-
-
-
-
-
-col_types <- list(all_bw = bw_align[["name"]],
-                  cp_bw = grep("_CP$", bw_align[["name"]], value = TRUE),
-                  orient = c("EC_lig\\d_mid", "IC_lig\\d_mid", "mid_lig\\d_CT", "mid_lig\\d_NT"),
-                  af_qc = c("^pLDDT", "^pae", "iptm", "iptm+ptm"),
-                  sum_contacts = c("^ligContacts", "totalCP"),
-                  sumcon_cp_bw = c(grep("_CP$", bw_align[["name"]], value = TRUE), c("^ligContacts", "totalCP")))
-
-
-
-
-pca_res <- list()
-nmf_res <- list()
-umap_res <- list()
-
-umap_config <- umap::umap.defaults
-umap_config$min_dist <- 0.5
-umap_config$metric <- "euclidean"
-umap_config$n_epochs <- 200
-
-
-
-for(col_type in names(col_types)) {
-
-subsetter <- res %>%
-  select(ligand_location,
-         matches(col_types[[col_type]])) %>%
-  select(!where(is.list)) %>%
-  rowwise() %>%
-  mutate(subsetter = anyNA(c_across(-ligand_location))) %>%
-  mutate(subsetter2 = ligand_location == "IC") %>%
-  mutate(subsetter = subsetter | subsetter2) %>%
-  pull(subsetter)
-
-dim_red_input <- res %>%
-  select(matches(col_types[[col_type]])) %>%
-  select(!where(is.list)) %>%
-  ungroup %>%
-  dplyr::filter(!subsetter) %>%
-  as.matrix
-
-
-pca_res[[col_type]] <- prcomp(t(dim_red_input), rank. = 10)
-
-for(i in 1:ncol(pca_res[[col_type]][["rotation"]])) {
-
-  dim_red_name <- paste0("PC", i, "_", col_type)
-
-  res[[dim_red_name]] <- NA
-
-  res[[dim_red_name]][!subsetter] <- pca_res[[col_type]][["rotation"]][,i]
-
-}
-
-
-
-nmf_res[[col_type]] <- NMFN::nnmf(x = dim_red_input, k = 8)
-
-for(i in 1:ncol(nmf_res[[col_type]][["W"]])) {
-
-  dim_red_name <- paste0("NMF", i, "_", col_type)
-
-  res[[dim_red_name]] <- NA
-
-  res[[dim_red_name]][!subsetter] <- nmf_res[[col_type]][["W"]][,i]
-
-}
-
-
-umap_res[[col_type]] <- umap::umap(d = nmf_res[[col_type]][["W"]], config = umap_config)
-
-for(i in 1:ncol(umap_res[[col_type]][["layout"]])) {
-
-  dim_red_name <- paste0("nmfUMAP", i, "_", col_type)
-
-  res[[dim_red_name]] <- NA
-
-  res[[dim_red_name]][!subsetter] <- umap_res[[col_type]][["layout"]][,i]
-
-}
-
-
-
-}
-
-
-
-
-gpcr_cols <- c("p1_id",
-               "ecb: Class or type",
-               "ecb: Prioritization Notes",
-               "gtp: Family name",
-               "gpcrdb: receptor_class",
-               "gpcrdb: receptor_family",
-               "gpcrdb: subfamily",
-               "bw_avail")
-
-res <- res %>%
-  relocate(starts_with("PC"), .after = "model") %>%
-  relocate(starts_with("UMAP"), .after = "model") %>%
-  relocate(starts_with("NMF"), .after = "model") %>%
-  {left_join(., gpcr_list %>% rename(p1_id = uniprot_name) %>% select(all_of(gpcr_cols)),
-             by = "p1_id")} %>%
-  relocate(all_of(gpcr_cols[-1]), .after = "model")
-
-
-
-
-
-
-saveRDS(pca_res, paste0(out_file_name, "_pca.rds"))
-saveRDS(umap_res, paste0(out_file_name, "_umap.rds"))
-saveRDS(nmf_res, paste0(out_file_name, "_nmf.rds"))
-
-
-data.table::fwrite(res %>%
-                     select(!where(is.list)),
-                   paste0(out_file_name, ".csv"))
-
-
-saveRDS(res, paste0(out_file_name, "_res.rds"))
-
-message("scp kbrulois@dtn.sherlock.stanford.edu:", getwd(), "/", out_file_name, ".csv", " ~/Desktop/", out_file_name, ".csv")
 
 
 
