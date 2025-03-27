@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SVG Circles with Exclusive Buttons</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      margin-top: 30px;
+    }
+    .container {
+      display: flex;
+      align-items: center, top;
+      flex-direction: column;
+    }
+    svg {
+      margin-left: 20px;
+      display: none;
+    }
+    .column {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+			margin-top: 20px;
+        }
+	.active-button {
+  	background-color: #d0d0d0; /* Shaded background */
+  	border-color: #808080;     /* Darker border */
+	}
+    
+    button {
+      width: fit-content;
+      margin: 5px;
+      padding: 3px 6px;
+      border-radius: 8px;
+      border: 1.5px solid #000000;
+      background-color: #f0f0f0;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    button:hover {
+      background-color: #e0e0e0;
+    }
+    .svg-container {
+    max-width: 100%; /* Ensure image scales with container width */
+            height: auto;
+    overflow: auto;
+      margin-left: 20px; /* Space between buttons and SVG */
+    }
+    header {
+  		padding: 1px;
+      	align-items: center;
+  		font-size:8px;
+      	font-weight: bold;
+      	flex-direction: column;
+}
+h2{
+  		padding: 1px;
+      	align-items: center;
+  		font-size:18px;
+      	font-weight: bold;
+      	flex-direction: column;
+}
+    .controls {
+      display: flex;
+      flex-direction: row;
+      gap: 10px;
+      align-items: left;
+    }
+    .controls2 {
+      display: flex;
+      flex-direction: row;
+      gap: 10px;
+      align-items: left;
+    }
+    .slider-container {
+      display: flex;
+      flex-direction: column;
+      align-items: left;
+    }
+  </style>
+</head>
+<body>
+	<div class = container>
+  		<header>
+  			<h1>
+  				<div class = controls>
+        			<button id="playButton">Play</button>
+        		</div>
+      			<div class="slider-container">
+        			<label for="durationSlider">Speed: <span id="sliderValue">1</span>s</label>
+        			<input type="range" id="durationSlider" min="0" max="11" value="2" step="1">
+      			</div>
+      		</h1>
+        </header>
+    <div class = controls2>
+    </div>
+    </div>
+    <div class = svg-container>
+    </div>
+  <script>
+    const buttons = document.querySelectorAll('button');
+  const svgElements = document.querySelectorAll('svg');
+  const slider = document.getElementById('durationSlider');
+  const sliderValue = document.getElementById('sliderValue');
+  const playButton = document.getElementById('playButton');
+  let animationDuration = 1000; // Default duration: 1 second
+  let animationInterval;
+  let currentIndex = 0;
+  let isPlaying = false;
+  
+  // Define the specific set of durations
+  const durations = [0.2, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+  function hideAllSVGs() {
+    svgElements.forEach(svg => svg.style.display = 'none');
+  }
+  
+  function showCurrentSVG() {
+    hideAllSVGs();
+    svgElements[currentIndex].style.display = 'block';
+    updateButtonStyles((currentIndex + 1));
+  }
+
+  function displayElementsSequentially() {
+    showCurrentSVG();
+
+    if (animationInterval) {
+      clearInterval(animationInterval);
+    }
+
+    animationInterval = setInterval(() => {
+      currentIndex = (currentIndex + 1) % svgElements.length;
+      showCurrentSVG();
+    }, animationDuration);
+  }
+
+  function updateAnimationDuration(newDuration) {
+    animationDuration = newDuration;
+    if (isPlaying) {
+      displayElementsSequentially();
+    }
+  }
+
+  function togglePlayPause() {
+    if (isPlaying) {
+      clearInterval(animationInterval);
+      playButton.textContent = 'Play';
+    } else {
+      displayElementsSequentially();
+      playButton.textContent = 'Pause';
+    }
+    isPlaying = !isPlaying;
+  }
+
+  function advanceSVG() {
+    currentIndex = (currentIndex + 1) % svgElements.length;
+    showCurrentSVG();
+  }
+
+  function goBackSVG() {
+    currentIndex = (currentIndex - 1 + svgElements.length) % svgElements.length;
+    showCurrentSVG();
+  }
+
+  function updateButtonStyles(index) {
+    buttons.forEach(button => button.classList.remove('active-button'));
+    const activeButton = buttons[index];
+    if (activeButton) {
+      activeButton.classList.add('active-button');
+    }
+  }
+
+  buttons.forEach((button, index) => {
+      button.addEventListener('click', () => {
+        if (button.id === 'playButton') {
+          togglePlayPause();
+        } else {
+          clearInterval(animationInterval);
+          isPlaying = false;
+          playButton.textContent = 'Play';
+          hideAllSVGs();
+          svgElements[index - 1].style.display = 'block';
+          currentIndex = index - 1;
+          updateButtonStyles(index);
+        }
+      });
+    });
+
+  slider.addEventListener('input', () => {
+    const newDuration = durations[slider.value] * 1000; // Convert seconds to milliseconds
+    sliderValue.textContent = durations[slider.value]; // Update the label to show current value
+    updateAnimationDuration(newDuration);
+  });
+
+  // Ensure SVGs are hidden initially
+  showCurrentSVG();
+
+  // Spacebar and Arrow Keys event listener
+  document.addEventListener('keydown', (event) => {
+    if (event.code === 'Space') {
+      event.preventDefault();  // Prevent default spacebar scrolling behavior
+      togglePlayPause();
+    } else if (event.code === 'ArrowRight') {
+    	event.preventDefault();
+      if (!isPlaying) advanceSVG();
+    } else if (event.code === 'ArrowLeft') {
+      event.preventDefault();
+      if (!isPlaying) goBackSVG();
+    }
+  });
+
+
+    // Ensure SVGs are hidden initially
+    showFirstSVG();
+  </script>
+</body>
+</html>

@@ -1,0 +1,836 @@
+Gene_human,Order of runs (priority),Exclude due to N term >160AA,Prioritization Notes,Class or type
+HTR1A,#6,,Small organic molecule,HT
+HTR1B,#6,,Small organic molecule,HT
+HTR1D,#6,,Small organic molecule,HT
+HTR1E,#6,,Small organic molecule,HT
+HTR1F,#6,,Small organic molecule,HT
+HTR2A,#6,,Small organic molecule,HT
+HTR2B,#6,,Small organic molecule,HT
+HTR2C,#6,,Small organic molecule,HT
+HTR4,#6,,Small organic molecule,HT
+HTR5A,#6,,Small organic molecule,HT
+HTR6,#6,,Small organic molecule,HT
+HTR7,#6,,Small organic molecule,HT
+ADORA1,#6,,Small organic molecule,ADORA
+ADORA2A,#6,,Small organic molecule,ADORA
+ADORA2B,#6,,Small organic molecule,ADORA
+ADORA3,#6,,Small organic molecule,ADORA
+ADGRA1,#2,,#2,Adhesion R
+ADGRA2,Exclude,,Exclude,Adhesion R
+ADGRA3,Exclude,,Exclude,Adhesion R
+ADGRB1,Exclude,,Exclude,Adhesion R
+ADGRB2,Exclude,,Exclude,Adhesion R
+ADGRB3,Exclude,,Exclude,Adhesion R
+CELSR1,Exclude,,Exclude,Adhesion R
+CELSR2,Exclude,,Exclude,Adhesion R
+CELSR3,Exclude,,Exclude,Adhesion R
+ADGRD1,Exclude,,Exclude,Adhesion R
+ADGRD2,Exclude,,Exclude,Adhesion R
+ADGRE1,Exclude,,Exclude,Adhesion R
+ADGRE2,Exclude,,Exclude,Adhesion R
+ADGRE3,Exclude,,Exclude,Adhesion R
+ADGRE4P,Exclude,,Exclude,Adhesion R
+ADGRE5,Exclude,,Exclude,Adhesion R
+ADGRF1,Exclude,,Exclude,Adhesion R
+ADGRF3,Exclude,,Exclude,Adhesion R
+ADGRF4,Exclude,,Exclude,Adhesion R
+ADGRF5,Exclude,,Exclude,Adhesion R
+ADGRG1,Exclude,,Exclude,Adhesion R
+ADGRG2,Exclude,,Exclude,Adhesion R
+ADGRG3,Exclude,,Exclude,Adhesion R
+ADGRG4,Exclude,,Exclude,Adhesion R
+ADGRG5,Exclude,,Exclude,Adhesion R
+ADGRG6,Exclude,,Exclude,Adhesion R
+ADGRG7,Exclude,,Exclude,Adhesion R
+ADGRL1,Exclude,,Exclude,Adhesion R
+ADGRL2,Exclude,,Exclude,Adhesion R
+ADGRL3,Exclude,,Exclude,Adhesion R
+ADGRL4,Exclude,,Exclude,Adhesion R
+ADGRV1,Exclude,,Exclude,Adhesion R
+ADRA1A,#6,,Small organic molecule,Adrenergic
+ADRA1B,#6,,Small organic molecule,Adrenergic
+ADRA1D,#6,,Small organic molecule,Adrenergic
+ADRA2A,#6,,Small organic molecule,Adrenergic
+ADRA2B,#6,,Small organic molecule,Adrenergic
+ADRA2C,#6,,Small organic molecule,Adrenergic
+ADRB1,#6,,Small organic molecule,Adrenergic
+ADRB2,#6,,Small organic molecule,Adrenergic
+ADRB3,#6,,Small organic molecule,Adrenergic
+AGTR1,#1,,#1,Angiotensin
+AGTR2,#1,,#1,Angiotensin
+AVPR1A,#2,,#2,
+AVPR1B,#2,,#2,
+AVPR2,#2,,#2,
+OXTR,#2,,#2,
+ACKR1,#2,,#2,Atypical chemokine R
+ACKR2,#2,,#2,Atypical chemokine R
+ACKR3,#2,,#2,Atypical chemokine R
+ACKR4,#2,,#2,Atypical chemokine R
+CCRL2,#2,,#2,Atypical chemokine R
+BDKRB1,#1,,#1,Bradykinin R
+BDKRB2,#1,,#1,Bradykinin R
+CCR1,#2,,#2,Chemokine R
+CCR10,#2,,#2,Chemokine R
+CCR2,#2,,#2,Chemokine R
+CCR3,#2,,#2,Chemokine R
+CCR4,#2,,#2,Chemokine R
+CCR5,#2,,#2,Chemokine R
+CCR6,#2,,#2,Chemokine R
+CCR7,#2,,#2,Chemokine R
+CCR8,#2,,#2,Chemokine R
+CCR9,#2,,#2,Chemokine R
+CX3CR1,#2,,#2,Chemokine R
+CXCR1,#2,,#2,Chemokine R
+CXCR2,#2,,#2,Chemokine R
+CXCR3,#2,,#2,Chemokine R
+CXCR4,#2,,#2,Chemokine R
+CXCR5,#2,,#2,Chemokine R
+CXCR6,#2,,#2,Chemokine R
+CALCR,#2,,#2,CALCR
+CALCRL,#2,,#2,CALCR
+CASR,#6,Exclude due to N term >160AA,Class C,Class C calcium sensing
+GPRC6A,#6,Exclude due to N term >160AA,Class C,Class C (Glutamate like orphan)
+CNR1,#6,,Small organic molecule,
+CNR2,#6,,Small organic molecule,
+CMKLR1,#1,,#1,CLCR
+CMKLR2,#1,,#1,CLCR
+CCKAR,#2,,#2,Cholecyst R
+CCKBR,#2,,#2,Cholecyst R
+CHRM1,#6,,Small organic molecule,Muscarinic
+CHRM2,#6,,Small organic molecule,Muscarinic
+CHRM3,#6,,Small organic molecule,Muscarinic
+CHRM4,#6,,Small organic molecule,Muscarinic
+CHRM5,#6,,Small organic molecule,Muscarinic
+C3AR1,#2,,#2,Complement
+C5AR1,#2,,#2,Complement
+C5AR2,#2,,#2,Complement
+CRHR1,#2,,#2,Corticotropin/urocortin R
+CRHR2,#2,,#2,Corticotropin/urocortin R
+DRD1,#6,,Small organic molecule,Dopamine R
+DRD2,#6,,Small organic molecule,Dopamine R
+DRD3,#6,,Small organic molecule,Dopamine R
+DRD4,#6,,Small organic molecule,Dopamine R
+DRD5,#6,,Small organic molecule,Dopamine R
+EDNRA,#2,,#2,Endothelin
+EDNRB,#2,,#2,Endothelin
+F2R,#2,,#2,PAR
+F2RL1,#2,,#2,PAR
+F2RL2,#2,,#2,PAR
+F2RL3,#2,,#2,PAR
+FPR1,#2,,#2,FPR
+FPR2,#2,,#2,FPR
+FPR3,#2,,#2,FPR
+FFAR1,#6,,Fatty acid,FFAR
+FFAR2,#6,,Fatty acid,FFAR
+FFAR3,#6,,Fatty acid,FFAR
+FFAR4,#6,,Fatty acid,FFAR
+GPBAR1,#2,,#2,
+GPER1,#2,,#2,
+GPR101,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR119,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR12,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR132,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR135,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR139,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR141,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR142,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR146,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR148,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR149,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR15,#1,,#1,CLRL
+GPR150,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR151,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR152,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR153,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR160,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR161,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR162,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR17,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR171,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR173,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR174,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR176,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR18,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR182,#2,,#2,Atypical chemokine R
+GPR183,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR19,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR20,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR21,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR22,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR25,#1,,#1,CLRL
+GPR26,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR27,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR3,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR31,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR32,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR33,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR34,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR35,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR37,#2 Irina orphan,Exclude due to N term >160AA,#3 GPR orphan,GPR orphan
+GPR37L1,#2 Irina orphan,,#3 GPR orphan,GPR orphan
+GPR39,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR4,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR42,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR45,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR50,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR52,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR55,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR6,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR61,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR62,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR63,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR65,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR68,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR75,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR78,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR82,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR83,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR84,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR85,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR87,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+GPR88,#3 GPR orphan,,#3 GPR orphan,GPR orphan
+LGR4,#4,Exclude due to N term >160AA,#4,LGR
+LGR5,#4,Exclude due to N term >160AA,#4,LGR
+LGR6,#4,Exclude due to N term >160AA,#4,LGR
+MAS1,#2,,#2,MAS
+MAS1L,#2,,#2,MAS
+MRGPRD,#2,,#2,MRGPR
+MRGPRE,#2,,#2,MRGPR
+MRGPRF,#2,,#2,MRGPR
+MRGPRG,#2,,#2,MRGPR
+MRGPRX1,#2,,#2,MRGPR
+MRGPRX2,#2,,#2,MRGPR
+MRGPRX3,#2,,#2,MRGPR
+MRGPRX4,#2,,#2,MRGPR
+P2RY10,#2,,#2,P2Ry
+P2RY8,#2,,#2,P2Ry
+GPR156,#6,,Class C,Class C (Glutamate like orphan)
+GPR158,#6,Exclude due to N term >160AA,Class C,Class C (Glutamate like orphan)
+GPR179,#6,Exclude due to N term >160AA,Class C,Class C (Glutamate like orphan)
+GPRC5A,#6,,Class C,Class C (Glutamate like orphan)
+GPRC5B,#6,,Class C,Class C (Glutamate like orphan)
+GPRC5C,#6,,Class C,Class C (Glutamate like orphan)
+GPRC5D,#6,,Class C,Class C (Glutamate like orphan)
+FZD1,#6,Exclude due to N term >160AA,FZD,FZD
+FZD10,#6,Exclude due to N term >160AA,FZD,FZD
+SMO,#6,Exclude due to N term >160AA,FZD,FZD
+FZD2,#6,Exclude due to N term >160AA,FZD,FZD
+FZD3,#6,Exclude due to N term >160AA,FZD,FZD
+FZD4,#6,Exclude due to N term >160AA,FZD,FZD
+FZD5,#6,Exclude due to N term >160AA,FZD,FZD
+FZD6,#6,Exclude due to N term >160AA,FZD,FZD
+FZD7,#6,Exclude due to N term >160AA,FZD,FZD
+FZD8,#6,Exclude due to N term >160AA,FZD,FZD
+FZD9,#6,Exclude due to N term >160AA,FZD,FZD
+GALR1,#1,,#1,GALR
+GALR2,#1,,#1,GALR
+GALR3,#1,,#1,GALR
+GABBR1,#6,Exclude due to N term >160AA,Class C,Class C GabaR
+GABBR2,#6,Exclude due to N term >160AA,Class C,Class C GabaR
+GCGR,#2,,#2,Glucagon
+GHRHR,#2,,#2, GHRH (somatorelin) R
+GIPR,#2,,#2,Gastric inhibitory peptide R
+GLP1R,#2,,#2,GLPR
+GLP2R,#2,Exclude due to N term >160AA,#2,GLPR
+SCTR,#2,,#2,Secretin R (B1)
+GRM1,#6,Exclude due to N term >160AA,Class C,Class C metabotropic glutamate receptor
+GRM2,#6,Exclude due to N term >160AA,Class C,Class C metabotropic glutamate receptor
+GRM3,#6,Exclude due to N term >160AA,Class C,Class C metabotropic glutamate receptor
+GRM4,#6,Exclude due to N term >160AA,Class C,Class C metabotropic glutamate receptor
+GRM5,#6,Exclude due to N term >160AA,Class C,Class C metabotropic glutamate receptor
+GRM6,#6,Exclude due to N term >160AA,Class C,Class C metabotropic glutamate receptor
+GRM7,#6,Exclude due to N term >160AA,Class C,Class C metabotropic glutamate receptor
+GRM8,#6,Exclude due to N term >160AA,Class C,Class C metabotropic glutamate receptor
+FSHR,#4,Exclude due to N term >160AA,#4,
+LHCGR,#4,Exclude due to N term >160AA,#4,
+TSHR,#4,Exclude due to N term >160AA,#4,
+GNRHR,#4,,#4,
+GNRHR2,#4,,#4,
+HRH1,#6,,Small organic molecule,Histamine R
+HRH2,#6,,Small organic molecule,Histamine R
+HRH3,#6,,Small organic molecule,Histamine R
+HRH4,#6,,Small organic molecule,Histamine R
+HCAR1,#2,,#2,Hydroxycarboxylic acid
+HCAR2,#2,,#2,Hydroxycarboxylic acid
+HCAR3,#2,,#2,Hydroxycarboxylic acid
+HCRTR1,#2,,#2,Orexin (hypocretin)
+HCRTR2,#2,,#2,Orexin (hypocretin)
+CYSLTR1,#2,,#2,CYSLTR/LTBR
+CYSLTR2,#2,,#2,CYSLTR/LTBR
+LTB4R,#2,,#2,CYSLTR/LTBR
+LTB4R2,#2,,#2,CYSLTR/LTBR
+OXER1,#2,,#2,
+LPAR1,#6,,Small organic molecule,LPAR
+LPAR2,#6,,Small organic molecule,LPAR
+LPAR3,#6,,Small organic molecule,LPAR
+LPAR4,#6,,Small organic molecule,LPAR
+LPAR5,#6,,Small organic molecule,LPAR
+LPAR6,#6,,Small organic molecule,LPAR
+MCHR1,#2,,#2,Melanin concentrating hormone R
+MCHR2,#2,,#2,Melanin concentrating hormone R
+MC1R,#1,,#1,"MSH (alpha, beta and gamma) and ACTH"
+MC2R,#1,,#1,"MSH (alpha, beta and gamma) and ACTH"
+MC3R,#1,,#1,"MSH (alpha, beta and gamma) and ACTH"
+MC4R,#1,,#1,"MSH (alpha, beta and gamma) and ACTH"
+MC5R,#1,,#1,"MSH (alpha, beta and gamma) and ACTH"
+MTNR1A,#2,,#2,Melatonin R
+MTNR1B,#2,,#2,Melatonin R
+NMUR1,#2,,#2,NeuromedinR
+NMUR2,#2,,#2,NeuromedinR
+NPFFR1,#2,,#2,Neuropeptide receptor
+NPFFR2,#2,,#2,Neuropeptide receptor
+NPSR1,#2,,#2,
+NPY1R,#2,,#2,NPY R
+NPY2R,#2,,#2,NPY R
+NPY4R,#2,,#2,NPY R
+NPY5R,#2,,#2,NPY R
+NPY6R,#2,,#2,NPY R
+NPBWR1,#2,,#2,NPBWR
+NPBWR2,#2,,#2,NPBWR
+NTSR1,#2,,#2,Neurotensin
+NTSR2,#2,,#2,Neurotensin
+OR1A1,Exclude,,Exclude,Olfactory
+OR1A2,Exclude,,Exclude,Olfactory
+OR1B1,Exclude,,Exclude,Olfactory
+OR1C1,Exclude,,Exclude,Olfactory
+OR1D2,Exclude,,Exclude,Olfactory
+OR1D4,Exclude,,Exclude,Olfactory
+OR1D5,Exclude,,Exclude,Olfactory
+OR1E1,Exclude,,Exclude,Olfactory
+OR1E2,Exclude,,Exclude,Olfactory
+OR1E3,Exclude,,Exclude,Olfactory
+OR1F1,Exclude,,Exclude,Olfactory
+OR1F12P,Exclude,,Exclude,Olfactory
+OR1F2P,Exclude,,Exclude,Olfactory
+OR1G1,Exclude,,Exclude,Olfactory
+OR1I1,Exclude,,Exclude,Olfactory
+OR1J1,Exclude,,Exclude,Olfactory
+OR1J2,Exclude,,Exclude,Olfactory
+OR1J4,Exclude,,Exclude,Olfactory
+OR1K1,Exclude,,Exclude,Olfactory
+OR1L1,Exclude,,Exclude,Olfactory
+OR1L3,Exclude,,Exclude,Olfactory
+OR1L4,Exclude,,Exclude,Olfactory
+OR1L6,Exclude,,Exclude,Olfactory
+OR1L8,Exclude,,Exclude,Olfactory
+OR1M1,Exclude,,Exclude,Olfactory
+OR1N1,Exclude,,Exclude,Olfactory
+OR1N2,Exclude,,Exclude,Olfactory
+OR1P1,Exclude,,Exclude,Olfactory
+OR1Q1,Exclude,,Exclude,Olfactory
+OR1R1P,Exclude,,Exclude,Olfactory
+OR1S1,Exclude,,Exclude,Olfactory
+OR1S2,Exclude,,Exclude,Olfactory
+OR10A2,Exclude,,Exclude,Olfactory
+OR10A3,Exclude,,Exclude,Olfactory
+OR10A4,Exclude,,Exclude,Olfactory
+OR10A5,Exclude,,Exclude,Olfactory
+OR10A6,Exclude,,Exclude,Olfactory
+OR10A7,Exclude,,Exclude,Olfactory
+OR10AC1,Exclude,,Exclude,Olfactory
+OR10AD1,Exclude,,Exclude,Olfactory
+OR10AG1,Exclude,,Exclude,Olfactory
+OR10C1,Exclude,,Exclude,Olfactory
+OR10D3,Exclude,,Exclude,Olfactory
+OR10D4P,Exclude,,Exclude,Olfactory
+OR10G2,Exclude,,Exclude,Olfactory
+OR10G3,Exclude,,Exclude,Olfactory
+OR10G4,Exclude,,Exclude,Olfactory
+OR10G6,Exclude,,Exclude,Olfactory
+OR10G7,Exclude,,Exclude,Olfactory
+OR10G8,Exclude,,Exclude,Olfactory
+OR10G9,Exclude,,Exclude,Olfactory
+OR10H1,Exclude,,Exclude,Olfactory
+OR10H2,Exclude,,Exclude,Olfactory
+OR10H3,Exclude,,Exclude,Olfactory
+OR10H4,Exclude,,Exclude,Olfactory
+OR10H5,Exclude,,Exclude,Olfactory
+OR10J1,Exclude,,Exclude,Olfactory
+OR10J3,Exclude,,Exclude,Olfactory
+OR10J4,Exclude,,Exclude,Olfactory
+OR10J5,Exclude,,Exclude,Olfactory
+OR10J6P,Exclude,,Exclude,Olfactory
+OR10K1,Exclude,,Exclude,Olfactory
+OR10K2,Exclude,,Exclude,Olfactory
+OR10P1,Exclude,,Exclude,Olfactory
+OR10Q1,Exclude,,Exclude,Olfactory
+OR10R2,Exclude,,Exclude,Olfactory
+OR10S1,Exclude,,Exclude,Olfactory
+OR10T2,Exclude,,Exclude,Olfactory
+OR10V1,Exclude,,Exclude,Olfactory
+OR10W1,Exclude,,Exclude,Olfactory
+OR10X1,Exclude,,Exclude,Olfactory
+OR10Z1,Exclude,,Exclude,Olfactory
+OR11A1,Exclude,,Exclude,Olfactory
+OR11G2,Exclude,,Exclude,Olfactory
+OR11H1,Exclude,,Exclude,Olfactory
+OR11H12,Exclude,,Exclude,Olfactory
+OR11H2,Exclude,,Exclude,Olfactory
+OR11H4,Exclude,,Exclude,Olfactory
+OR11H6,Exclude,,Exclude,Olfactory
+OR11H7,Exclude,,Exclude,Olfactory
+OR11L1,Exclude,,Exclude,Olfactory
+OR12D1,Exclude,,Exclude,Olfactory
+OR12D2,Exclude,,Exclude,Olfactory
+OR12D3,Exclude,,Exclude,Olfactory
+OR13A1,Exclude,,Exclude,Olfactory
+OR13C2,Exclude,,Exclude,Olfactory
+OR13C3,Exclude,,Exclude,Olfactory
+OR13C4,Exclude,,Exclude,Olfactory
+OR13C5,Exclude,,Exclude,Olfactory
+OR13C7,Exclude,,Exclude,Olfactory
+OR13C8,Exclude,,Exclude,Olfactory
+OR13C9,Exclude,,Exclude,Olfactory
+OR13D1,Exclude,,Exclude,Olfactory
+OR13F1,Exclude,,Exclude,Olfactory
+OR13G1,Exclude,,Exclude,Olfactory
+OR13H1,Exclude,,Exclude,Olfactory
+OR13J1,Exclude,,Exclude,Olfactory
+OR14A16,Exclude,,Exclude,Olfactory
+OR14A2,Exclude,,Exclude,Olfactory
+OR14C36,Exclude,,Exclude,Olfactory
+OR14I1,Exclude,,Exclude,Olfactory
+OR14J1,Exclude,,Exclude,Olfactory
+OR14K1,Exclude,,Exclude,Olfactory
+OR14L1,Exclude,,Exclude,Olfactory
+OR2A1,Exclude,,Exclude,Olfactory
+OR2A12,Exclude,,Exclude,Olfactory
+OR2A14,Exclude,,Exclude,Olfactory
+OR2A2,Exclude,,Exclude,Olfactory
+OR2A25,Exclude,,Exclude,Olfactory
+OR2A4,Exclude,,Exclude,Olfactory
+OR2A42,Exclude,,Exclude,Olfactory
+OR2A5,Exclude,,Exclude,Olfactory
+OR2A7,Exclude,,Exclude,Olfactory
+OR2AE1,Exclude,,Exclude,Olfactory
+OR2AG1,Exclude,,Exclude,Olfactory
+OR2AG2,Exclude,,Exclude,Olfactory
+OR2AJ1,Exclude,,Exclude,Olfactory
+OR2AK2,Exclude,,Exclude,Olfactory
+OR2AP1,Exclude,,Exclude,Olfactory
+OR2AT4,Exclude,,Exclude,Olfactory
+OR2B11,Exclude,,Exclude,Olfactory
+OR2B2,Exclude,,Exclude,Olfactory
+OR2B3,Exclude,,Exclude,Olfactory
+OR2B6,Exclude,,Exclude,Olfactory
+OR2B8P,Exclude,,Exclude,Olfactory
+OR2C1,Exclude,,Exclude,Olfactory
+OR2C3,Exclude,,Exclude,Olfactory
+OR2D2,Exclude,,Exclude,Olfactory
+OR2D3,Exclude,,Exclude,Olfactory
+OR2F1,Exclude,,Exclude,Olfactory
+OR2F2,Exclude,,Exclude,Olfactory
+OR2G2,Exclude,,Exclude,Olfactory
+OR2G3,Exclude,,Exclude,Olfactory
+OR2G6,Exclude,,Exclude,Olfactory
+OR2H1,Exclude,,Exclude,Olfactory
+OR2H2,Exclude,,Exclude,Olfactory
+OR2I1P,Exclude,,Exclude,Olfactory
+OR2J1,Exclude,,Exclude,Olfactory
+OR2J2,Exclude,,Exclude,Olfactory
+OR2J3,Exclude,,Exclude,Olfactory
+OR2K2,Exclude,,Exclude,Olfactory
+OR2L13,Exclude,,Exclude,Olfactory
+OR2L2,Exclude,,Exclude,Olfactory
+OR2L3,Exclude,,Exclude,Olfactory
+OR2L5,Exclude,,Exclude,Olfactory
+OR2L8,Exclude,,Exclude,Olfactory
+OR2M2,Exclude,,Exclude,Olfactory
+OR2M3,Exclude,,Exclude,Olfactory
+OR2M4,Exclude,,Exclude,Olfactory
+OR2M5,Exclude,,Exclude,Olfactory
+OR2M7,Exclude,,Exclude,Olfactory
+OR2S2,Exclude,,Exclude,Olfactory
+OR2T1,Exclude,,Exclude,Olfactory
+OR2T10,Exclude,,Exclude,Olfactory
+OR2T11,Exclude,,Exclude,Olfactory
+OR2T12,Exclude,,Exclude,Olfactory
+OR2T2,Exclude,,Exclude,Olfactory
+OR2T27,Exclude,,Exclude,Olfactory
+OR2T29,Exclude,,Exclude,Olfactory
+OR2T3,Exclude,,Exclude,Olfactory
+OR2T33,Exclude,,Exclude,Olfactory
+OR2T34,Exclude,,Exclude,Olfactory
+OR2T35,Exclude,,Exclude,Olfactory
+OR2T4,Exclude,,Exclude,Olfactory
+OR2T5,Exclude,,Exclude,Olfactory
+OR2T6,Exclude,,Exclude,Olfactory
+OR2T7,Exclude,,Exclude,Olfactory
+OR2T8,Exclude,,Exclude,Olfactory
+OR2V1,Exclude,,Exclude,Olfactory
+OR2V2,Exclude,,Exclude,Olfactory
+OR2W1,Exclude,,Exclude,Olfactory
+OR2W3,Exclude,,Exclude,Olfactory
+OR2W5P,Exclude,,Exclude,Olfactory
+OR2W6P,Exclude,,Exclude,Olfactory
+OR2Y1,Exclude,,Exclude,Olfactory
+OR2Z1,Exclude,,Exclude,Olfactory
+OR3A1,Exclude,,Exclude,Olfactory
+OR3A2,Exclude,,Exclude,Olfactory
+OR3A3,Exclude,,Exclude,Olfactory
+OR3A4P,Exclude,,Exclude,Olfactory
+OR3A5P,Exclude,,Exclude,Olfactory
+OR4A15,Exclude,,Exclude,Olfactory
+OR4A16,Exclude,,Exclude,Olfactory
+OR4A47,Exclude,,Exclude,Olfactory
+OR4A4P,Exclude,,Exclude,Olfactory
+OR4A5,Exclude,,Exclude,Olfactory
+OR4A8,Exclude,,Exclude,Olfactory
+OR4B1,Exclude,,Exclude,Olfactory
+OR4C11,Exclude,,Exclude,Olfactory
+OR4C12,Exclude,,Exclude,Olfactory
+OR4C13,Exclude,,Exclude,Olfactory
+OR4C15,Exclude,,Exclude,Olfactory
+OR4C16,Exclude,,Exclude,Olfactory
+OR4C3,Exclude,,Exclude,Olfactory
+OR4C45,Exclude,,Exclude,Olfactory
+OR4C46,Exclude,,Exclude,Olfactory
+OR4C5,Exclude,,Exclude,Olfactory
+OR4C6,Exclude,,Exclude,Olfactory
+OR4D1,Exclude,,Exclude,Olfactory
+OR4D10,Exclude,,Exclude,Olfactory
+OR4D11,Exclude,,Exclude,Olfactory
+OR4D2,Exclude,,Exclude,Olfactory
+OR4D5,Exclude,,Exclude,Olfactory
+OR4D6,Exclude,,Exclude,Olfactory
+OR4D9,Exclude,,Exclude,Olfactory
+OR4E1,Exclude,,Exclude,Olfactory
+OR4E2,Exclude,,Exclude,Olfactory
+OR4F15,Exclude,,Exclude,Olfactory
+OR4F16,Exclude,,Exclude,Olfactory
+OR4F17,Exclude,,Exclude,Olfactory
+OR4F21,Exclude,,Exclude,Olfactory
+OR4F29,Exclude,,Exclude,Olfactory
+OR4F3,Exclude,,Exclude,Olfactory
+OR4F4,Exclude,,Exclude,Olfactory
+OR4F5,Exclude,,Exclude,Olfactory
+OR4F6,Exclude,,Exclude,Olfactory
+OR4K1,Exclude,,Exclude,Olfactory
+OR4K13,Exclude,,Exclude,Olfactory
+OR4K14,Exclude,,Exclude,Olfactory
+OR4K15,Exclude,,Exclude,Olfactory
+OR4K17,Exclude,,Exclude,Olfactory
+OR4K2,Exclude,,Exclude,Olfactory
+OR4K3,Exclude,,Exclude,Olfactory
+OR4K5,Exclude,,Exclude,Olfactory
+OR4L1,Exclude,,Exclude,Olfactory
+OR4M1,Exclude,,Exclude,Olfactory
+OR4M2,Exclude,,Exclude,Olfactory
+OR4M2B,Exclude,,Exclude,Olfactory
+OR4N2,Exclude,,Exclude,Olfactory
+OR4N4,Exclude,,Exclude,Olfactory
+OR4N4C,Exclude,,Exclude,Olfactory
+OR4N5,Exclude,,Exclude,Olfactory
+OR4P4,Exclude,,Exclude,Olfactory
+OR4Q2,Exclude,,Exclude,Olfactory
+OR4Q3,Exclude,,Exclude,Olfactory
+OR4S1,Exclude,,Exclude,Olfactory
+OR4S2,Exclude,,Exclude,Olfactory
+OR4X1,Exclude,,Exclude,Olfactory
+OR4X2,Exclude,,Exclude,Olfactory
+OR5A1,Exclude,,Exclude,Olfactory
+OR5A2,Exclude,,Exclude,Olfactory
+OR5AC1,Exclude,,Exclude,Olfactory
+OR5AC2,Exclude,,Exclude,Olfactory
+OR5AK2,Exclude,,Exclude,Olfactory
+OR5AK3P,Exclude,,Exclude,Olfactory
+OR5AL1,Exclude,,Exclude,Olfactory
+OR5AN1,Exclude,,Exclude,Olfactory
+OR5AP2,Exclude,,Exclude,Olfactory
+OR5AR1,Exclude,,Exclude,Olfactory
+OR5AS1,Exclude,,Exclude,Olfactory
+OR5AU1,Exclude,,Exclude,Olfactory
+OR5B12,Exclude,,Exclude,Olfactory
+OR5B17,Exclude,,Exclude,Olfactory
+OR5B2,Exclude,,Exclude,Olfactory
+OR5B21,Exclude,,Exclude,Olfactory
+OR5B3,Exclude,,Exclude,Olfactory
+OR5BS1P,Exclude,,Exclude,Olfactory
+OR5C1,Exclude,,Exclude,Olfactory
+OR5D13,Exclude,,Exclude,Olfactory
+OR5D14,Exclude,,Exclude,Olfactory
+OR5D16,Exclude,,Exclude,Olfactory
+OR5D18,Exclude,,Exclude,Olfactory
+OR5D3P,Exclude,,Exclude,Olfactory
+OR5F1,Exclude,,Exclude,Olfactory
+OR5G3,Exclude,,Exclude,Olfactory
+OR5H1,Exclude,,Exclude,Olfactory
+OR5H14,Exclude,,Exclude,Olfactory
+OR5H15,Exclude,,Exclude,Olfactory
+OR5H2,Exclude,,Exclude,Olfactory
+OR5H6,Exclude,,Exclude,Olfactory
+OR5H8,Exclude,,Exclude,Olfactory
+OR5I1,Exclude,,Exclude,Olfactory
+OR5J2,Exclude,,Exclude,Olfactory
+OR5K1,Exclude,,Exclude,Olfactory
+OR5K2,Exclude,,Exclude,Olfactory
+OR5K3,Exclude,,Exclude,Olfactory
+OR5K4,Exclude,,Exclude,Olfactory
+OR5L1,Exclude,,Exclude,Olfactory
+OR5L2,Exclude,,Exclude,Olfactory
+OR5M1,Exclude,,Exclude,Olfactory
+OR5M10,Exclude,,Exclude,Olfactory
+OR5M11,Exclude,,Exclude,Olfactory
+OR5M3,Exclude,,Exclude,Olfactory
+OR5M8,Exclude,,Exclude,Olfactory
+OR5M9,Exclude,,Exclude,Olfactory
+OR5P2,Exclude,,Exclude,Olfactory
+OR5P3,Exclude,,Exclude,Olfactory
+OR5T1,Exclude,,Exclude,Olfactory
+OR5T2,Exclude,,Exclude,Olfactory
+OR5T3,Exclude,,Exclude,Olfactory
+OR5V1,Exclude,,Exclude,Olfactory
+OR5W2,Exclude,,Exclude,Olfactory
+OR51A2,Exclude,,Exclude,Olfactory
+OR51A4,Exclude,,Exclude,Olfactory
+OR51A7,Exclude,,Exclude,Olfactory
+OR51B2,Exclude,,Exclude,Olfactory
+OR51B4,Exclude,,Exclude,Olfactory
+OR51B5,Exclude,,Exclude,Olfactory
+OR51B6,Exclude,,Exclude,Olfactory
+OR51C1P,Exclude,,Exclude,Olfactory
+OR51D1,Exclude,,Exclude,Olfactory
+OR51E1,Exclude,,Exclude,Olfactory
+OR51E2,Exclude,,Exclude,Olfactory
+OR51F1,Exclude,,Exclude,Olfactory
+OR51F2,Exclude,,Exclude,Olfactory
+OR51G1,Exclude,,Exclude,Olfactory
+OR51G2,Exclude,,Exclude,Olfactory
+OR51H1,Exclude,,Exclude,Olfactory
+OR51I1,Exclude,,Exclude,Olfactory
+OR51I2,Exclude,,Exclude,Olfactory
+OR51J1,Exclude,,Exclude,Olfactory
+OR51L1,Exclude,,Exclude,Olfactory
+OR51M1,Exclude,,Exclude,Olfactory
+OR51Q1,Exclude,,Exclude,Olfactory
+OR51S1,Exclude,,Exclude,Olfactory
+OR51T1,Exclude,,Exclude,Olfactory
+OR51V1,Exclude,,Exclude,Olfactory
+OR52A1,Exclude,,Exclude,Olfactory
+OR52A4P,Exclude,,Exclude,Olfactory
+OR52A5,Exclude,,Exclude,Olfactory
+OR52B2,Exclude,,Exclude,Olfactory
+OR52B4,Exclude,,Exclude,Olfactory
+OR52B6,Exclude,,Exclude,Olfactory
+OR52D1,Exclude,,Exclude,Olfactory
+OR52E1,Exclude,,Exclude,Olfactory
+OR52E2,Exclude,,Exclude,Olfactory
+OR52E4,Exclude,,Exclude,Olfactory
+OR52E5,Exclude,,Exclude,Olfactory
+OR52E6,Exclude,,Exclude,Olfactory
+OR52E8,Exclude,,Exclude,Olfactory
+OR52H1,Exclude,,Exclude,Olfactory
+OR52I1,Exclude,,Exclude,Olfactory
+OR52I2,Exclude,,Exclude,Olfactory
+OR52J3,Exclude,,Exclude,Olfactory
+OR52K1,Exclude,,Exclude,Olfactory
+OR52K2,Exclude,,Exclude,Olfactory
+OR52L1,Exclude,,Exclude,Olfactory
+OR52L2P,Exclude,,Exclude,Olfactory
+OR52M1,Exclude,,Exclude,Olfactory
+OR52N1,Exclude,,Exclude,Olfactory
+OR52N2,Exclude,,Exclude,Olfactory
+OR52N4,Exclude,,Exclude,Olfactory
+OR52N5,Exclude,,Exclude,Olfactory
+OR52P1,Exclude,,Exclude,Olfactory
+OR52R1,Exclude,,Exclude,Olfactory
+OR52W1,Exclude,,Exclude,Olfactory
+OR52Z1P,Exclude,,Exclude,Olfactory
+OR56A1,Exclude,,Exclude,Olfactory
+OR56A3,Exclude,,Exclude,Olfactory
+OR56A4,Exclude,,Exclude,Olfactory
+OR56A5,Exclude,,Exclude,Olfactory
+OR56B1,Exclude,,Exclude,Olfactory
+OR56B2P,Exclude,,Exclude,Olfactory
+OR56B4,Exclude,,Exclude,Olfactory
+OR6A2,Exclude,,Exclude,Olfactory
+OR6B1,Exclude,,Exclude,Olfactory
+OR6B2,Exclude,,Exclude,Olfactory
+OR6B3,Exclude,,Exclude,Olfactory
+OR6C1,Exclude,,Exclude,Olfactory
+OR6C2,Exclude,,Exclude,Olfactory
+OR6C3,Exclude,,Exclude,Olfactory
+OR6C4,Exclude,,Exclude,Olfactory
+OR6C6,Exclude,,Exclude,Olfactory
+OR6C65,Exclude,,Exclude,Olfactory
+OR6C68,Exclude,,Exclude,Olfactory
+OR6C70,Exclude,,Exclude,Olfactory
+OR6C74,Exclude,,Exclude,Olfactory
+OR6C75,Exclude,,Exclude,Olfactory
+OR6C76,Exclude,,Exclude,Olfactory
+OR6F1,Exclude,,Exclude,Olfactory
+OR6J1,Exclude,,Exclude,Olfactory
+OR6K2,Exclude,,Exclude,Olfactory
+OR6K3,Exclude,,Exclude,Olfactory
+OR6K6,Exclude,,Exclude,Olfactory
+OR6M1,Exclude,,Exclude,Olfactory
+OR6N1,Exclude,,Exclude,Olfactory
+OR6N2,Exclude,,Exclude,Olfactory
+OR6P1,Exclude,,Exclude,Olfactory
+OR6Q1,Exclude,,Exclude,Olfactory
+OR6S1,Exclude,,Exclude,Olfactory
+OR6T1,Exclude,,Exclude,Olfactory
+OR6V1,Exclude,,Exclude,Olfactory
+OR6X1,Exclude,,Exclude,Olfactory
+OR6Y1,Exclude,,Exclude,Olfactory
+OR7A10,Exclude,,Exclude,Olfactory
+OR7A17,Exclude,,Exclude,Olfactory
+OR7A2P,Exclude,,Exclude,Olfactory
+OR7A5,Exclude,,Exclude,Olfactory
+OR7C1,Exclude,,Exclude,Olfactory
+OR7C2,Exclude,,Exclude,Olfactory
+OR7D2,Exclude,,Exclude,Olfactory
+OR7D4,Exclude,,Exclude,Olfactory
+OR7E24,Exclude,,Exclude,Olfactory
+OR7G1,Exclude,,Exclude,Olfactory
+OR7G2,Exclude,,Exclude,Olfactory
+OR7G3,Exclude,,Exclude,Olfactory
+OR8A1,Exclude,,Exclude,Olfactory
+OR8B12,Exclude,,Exclude,Olfactory
+OR8B2,Exclude,,Exclude,Olfactory
+OR8B3,Exclude,,Exclude,Olfactory
+OR8B4,Exclude,,Exclude,Olfactory
+OR8B8,Exclude,,Exclude,Olfactory
+OR8D1,Exclude,,Exclude,Olfactory
+OR8D2,Exclude,,Exclude,Olfactory
+OR8D4,Exclude,,Exclude,Olfactory
+OR8G1,Exclude,,Exclude,Olfactory
+OR8G2P,Exclude,,Exclude,Olfactory
+OR8G3P,Exclude,,Exclude,Olfactory
+OR8G5,Exclude,,Exclude,Olfactory
+OR8H1,Exclude,,Exclude,Olfactory
+OR8H2,Exclude,,Exclude,Olfactory
+OR8H3,Exclude,,Exclude,Olfactory
+OR8I2,Exclude,,Exclude,Olfactory
+OR8J1,Exclude,,Exclude,Olfactory
+OR8J2,Exclude,,Exclude,Olfactory
+OR8J3,Exclude,,Exclude,Olfactory
+OR8K1,Exclude,,Exclude,Olfactory
+OR8K3,Exclude,,Exclude,Olfactory
+OR8K5,Exclude,,Exclude,Olfactory
+OR8S1,Exclude,,Exclude,Olfactory
+OR8U1,Exclude,,Exclude,Olfactory
+OR8U3,Exclude,,Exclude,Olfactory
+OR8U8,Exclude,,Exclude,Olfactory
+OR8U9,Exclude,,Exclude,Olfactory
+OR9A1P,Exclude,,Exclude,Olfactory
+OR9A2,Exclude,,Exclude,Olfactory
+OR9A4,Exclude,,Exclude,Olfactory
+OR9G1,Exclude,,Exclude,Olfactory
+OR9G4,Exclude,,Exclude,Olfactory
+OR9G9,Exclude,,Exclude,Olfactory
+OR9I1,Exclude,,Exclude,Olfactory
+OR9K2,Exclude,,Exclude,Olfactory
+OR9Q1,Exclude,,Exclude,Olfactory
+OR9Q2,Exclude,,Exclude,Olfactory
+OPRD1,#2,,#2,Opioid
+OPRK1,#2,,#2,Opioid
+OPRL1,#2,,#2,Opioid
+OPRM1,#2,,#2,Opioid
+OPN1LW,Exclude,,Exclude,Opsin
+OPN1MW,Exclude,,Exclude,Opsin
+OPN1MW2,Exclude,,Exclude,Opsin
+OPN1MW3,Exclude,,Exclude,Opsin
+OPN1SW,Exclude,,Exclude,Opsin
+RHO,Exclude,,Exclude,
+OPN3,Exclude,,Exclude,
+OPN4,Exclude,,Exclude,
+OPN5,Exclude,,Exclude,
+RGR,#2,,#2,
+RRH,#2,,#2,
+OXGR1,#2,,#2,
+P2RY1,#2,,#2,Purinergic R
+P2RY11,#2,,#2,Purinergic R
+P2RY12,#2,,#2,Purinergic R
+P2RY13,#2,,#2,Purinergic R
+P2RY14,#2,,#2,Purinergic R
+P2RY2,#2,,#2,Purinergic R
+P2RY4,#2,,#2,Purinergic R
+P2RY6,#2,,#2,Purinergic R
+PTH1R,#2,,#2,PTH
+PTH2R,#2,,#2,PTH
+GHSR,#2,,#2,
+KISS1R,#2,,#2,
+MLNR,#2,,#2,
+PRLHR,#2,,#2,
+QRFPR,#2,,#2,
+TRHR,#2,,#2,
+UTS2R,#2,,#2,Urotensin R
+PTAFR,#2,,#2,
+PROKR1,#2,,#2,Prokineticin
+PROKR2,#2,,#2,Prokineticin
+PTGDR,#2,,#2,PTG
+PTGDR2,#2,,#2,PTG
+PTGER1,#2,,#2,PTG
+PTGER2,#2,,#2,PTG
+PTGER3,#2,,#2,PTG
+PTGER4,#2,,#2,PTG
+PTGFR,#2,,#2,PTG
+PTGIR,#2,,#2,PTG
+TBXA2R,#2,,#2,
+RXFP1,#2,Exclude due to N term >160AA,#2,RXFP
+RXFP2,#2,Exclude due to N term >160AA,#2,RXFP
+RXFP3,#2,,#2,RXFP
+RXFP4,#2,,#2,RXFP
+SSTR1,#2,,#2,SSTR
+SSTR2,#2,,#2,SSTR
+SSTR3,#2,,#2,SSTR
+SSTR4,#2,,#2,SSTR
+SSTR5,#2,,#2,SSTR
+S1PR1,#6,,Small organic molecule,S1PR
+S1PR2,#6,,Small organic molecule,S1PR
+S1PR3,#6,,Small organic molecule,S1PR
+S1PR4,#6,,Small organic molecule,S1PR
+S1PR5,#6,,Small organic molecule,S1PR
+SUCNR1,#2,,#2,Succinate
+TACR1,#2,,#2,Tachykinin R (Subst P Neurokinin)
+TACR2,#2,,#2,Tachykinin R (Subst P Neurokinin)
+TACR3,#2,,#2,Tachykinin R (Subst P Neurokinin)
+TAS1R1,#5 taste,Exclude due to N term >160AA,#5 taste,Taste
+TAS1R2,#5 taste,Exclude due to N term >160AA,#5 taste,Taste
+TAS1R3,#5 taste,Exclude due to N term >160AA,#5 taste,Taste
+TAS2R1,#5 taste,,#5 taste,Taste
+TAS2R10,#5 taste,,#5 taste,Taste
+TAS2R13,#5 taste,,#5 taste,Taste
+TAS2R14,#5 taste,,#5 taste,Taste
+TAS2R16,#5 taste,,#5 taste,Taste
+TAS2R19,#5 taste,,#5 taste,Taste
+TAS2R20,#5 taste,,#5 taste,Taste
+TAS2R3,#5 taste,,#5 taste,Taste
+TAS2R30,#5 taste,,#5 taste,Taste
+TAS2R31,#5 taste,,#5 taste,Taste
+TAS2R33,#5 taste,,#5 taste,Taste
+TAS2R36,#5 taste,,#5 taste,Taste
+TAS2R38,#5 taste,,#5 taste,Taste
+TAS2R39,#5 taste,,#5 taste,Taste
+TAS2R4,#5 taste,,#5 taste,Taste
+TAS2R40,#5 taste,,#5 taste,Taste
+TAS2R41,#5 taste,,#5 taste,Taste
+TAS2R42,#5 taste,,#5 taste,Taste
+TAS2R43,#5 taste,,#5 taste,Taste
+TAS2R45,#5 taste,,#5 taste,Taste
+TAS2R46,#5 taste,,#5 taste,Taste
+TAS2R5,#5 taste,,#5 taste,Taste
+TAS2R50,#5 taste,,#5 taste,Taste
+TAS2R60,#5 taste,,#5 taste,Taste
+TAS2R7,#5 taste,,#5 taste,Taste
+TAS2R8,#5 taste,,#5 taste,Taste
+TAS2R9,#5 taste,,#5 taste,Taste
+TAAR1,#6,,Small organic molecule,TAAR
+TAAR2,#6,,Small organic molecule,TAAR
+TAAR3P,#6,,Small organic molecule,TAAR
+TAAR5,#6,,Small organic molecule,TAAR
+TAAR6,#6,,Small organic molecule,TAAR
+TAAR8,#6,,Small organic molecule,TAAR
+TAAR9,#6,,Small organic molecule,TAAR
+ADCYAP1R1,#2,,#2,Class B pituitary activ peptide R
+VIPR1,#2,,#2,VIP R
+VIPR2,#2,,#2,VIP R
+VN1R1,#6,,Small organic molecule,Vomeronasal
+VN1R17P,#6,,Small organic molecule,Vomeronasal
+VN1R2,#6,,Small organic molecule,Vomeronasal
+VN1R3,#6,,Small organic molecule,Vomeronasal
+VN1R4,#6,,Small organic molecule,Vomeronasal
+VN1R5,#6,,Small organic molecule,Vomeronasal
+XCR1,#2,,#2,Chemokine
+APLNR,#2,,#2,Apln
