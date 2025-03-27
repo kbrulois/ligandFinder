@@ -33,13 +33,13 @@ import_raw_metrics <- function(input_data) {
 
   input_data %>%
 
-    mutate(model = map(og_file_name, ~list.files(paste0(dir_path, "/", .)) %>%
+    mutate(model = map(og_file_name, ~list.files(paste0(input_path_models, "/", .)) %>%
                          stringr::str_extract(., "model_\\d_.*_pred_\\d") %>%
                          unique(.) %>%
                          .[!is.na(.)])) %>%
     mutate(iptm = map(og_file_name, \(x) {
       tryCatch({
-        tmp <- jsonlite::read_json(paste(dir_path, x, "ranking_debug.json", sep = "/"))
+        tmp <- jsonlite::read_json(paste(input_path_models, x, "ranking_debug.json", sep = "/"))
         tmp %>% as_tibble %>% unnest(everything()) %>% select(-order)
       }, error = function(e) {rep(NA, 5)})
     })) %>%
@@ -48,12 +48,12 @@ import_raw_metrics <- function(input_data) {
 
     mutate(pdb = map2(.x = og_file_name,
                       .y = model,
-                      ~bio3d::read.pdb(paste(dir_path, .x, paste0("unrelaxed_", .y, ".pdb"), sep = "/")))) %>%
+                      ~bio3d::read.pdb(paste(input_path_models, .x, paste0("unrelaxed_", .y, ".pdb"), sep = "/")))) %>%
 
     mutate(pdb.xyz = map(pdb, parse_pdb)) %>%
 
     mutate(pae = map2(.x = og_file_name, .y = model, \(.x, .y) {
-      tmp <- jsonlite::read_json(paste(dir_path, .x, paste0("pae_", .y, ".json"), sep = "/"))
+      tmp <- jsonlite::read_json(paste(input_path_models, .x, paste0("pae_", .y, ".json"), sep = "/"))
       tmp[[1]][["predicted_aligned_error"]]
     }))
 

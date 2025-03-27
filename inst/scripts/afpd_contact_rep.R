@@ -28,6 +28,7 @@ dists_to_comp <- tibble(receptor = c("EC", "IC", "mid", "mid"),
                         ligand = c("mid", "mid", "CT", "NT"))
 
 #gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
+gpcr_list <- readRDS("/oak/stanford/groups/ebutcher/deorphan-AI-ze/uniprot/gpcrdb_receptor_list_KB_250304_final.rds")
 
 bw_align <- summarize_bw(gpcr_list = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/uniprot/gpcrdb_receptor_list_KB_250304_final.rds")
 
@@ -36,56 +37,16 @@ id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 
 comp_jobs <- tibble(og_file_name = list.files(input_path_models))
 
-comp_jobs %>%
+comp_jobs <- comp_jobs %>%
 mutate(parse_proteins(og_file_name,
                       delim_proteins = "_and_",
                       delim_ranges = "_",
                       delim_start_end = "-")) %>%
   mutate(across(ends_with("_id"), ~setNames(id_map[["Entry Name"]], id_map[["Entry"]])[.])) %>%
-  mutate(new_file_name = paste(paste0("h", p1_id, p1_range_type), paste(p2_id, p2_range, sep = "x"), sep = "_"))
-
-
-
-
-if(FALSE) {
-
-  all(grepl("_and_", comp_jobs[["file_name"]]))
-
-  tmp <- comp_jobs %>%
-
-  tmp %>% select(file_name, p1_id, p2_id, new_file_name)
-
-
-  ###execute with caution
-  tmp %>%
-    mutate(file.rename(paste0(input_path_models, "/", file_name),
-                       paste0(input_path_models, "/", new_file_name)))
-
-
-  comp_jobs <- tibble(og_file_name = list.files(input_path_models))
-
-
-  rm(tmp)
-
-
-  tmp <- comp_jobs %>%
-    mutate(new_file_name = paste(paste0(p1_id), paste(p2_id, sub("-", "x", p2_range), sep = "x"), sep = "_"))
-
-
-}
-
-comp_jobs <- comp_jobs %>%
-  mutate(parse_proteins(og_file_name,
-                        delim_proteins = "_",
-                        delim_ranges = "x",
-                        delim_start_end = "x",
-                        p1_range_type = "dT")) %>%
-  mutate(p1_id = sub("^h", "", p1_id)) %>%
-  mutate(p1_id = sub("dT$", "", p1_id))
-
+  mutate(new_file_name = paste(paste0("h", p1_id, p1_range_type), paste(p2_id, p2_range, sep = "x"), sep = "_"), .after = "og_file_name")
 
 comp_jobs_sub <- comp_jobs %>%
-  mutate(num_files = map_int(file_name, ~length(list.files(paste0(input_path_models, "/", .))))) %>%
+  mutate(num_files = map_int(og_file_name, ~length(list.files(paste0(input_path_models, "/", .))))) %>%
   filter(num_files == get_mode(num_files)) %>%
   filter(p1_id %in% (gpcr_list %>% filter(bw_avail == "available") %>% pull(uniprot_name)))
 
