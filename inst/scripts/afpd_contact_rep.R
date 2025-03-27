@@ -7,17 +7,16 @@ library(dplyr)
 library(purrr)
 library(tidyr)
 
-#source("path/to/utils.R")
-#source("path/to/name_parsing.R")
+#devtools::install_github("kbrulois/ligandFinder", auth_token = "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")
 
-#dir_path <- "~/oak/deorphan-AI-ze/models/pocForGrant"
-dir_path <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/pocForGrantdT"
+library(ligandFinder)
+
+input_path_models <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/benchmarking"
 
 getwd()
-#setwd("~/peptide_alg/contact_test")
 setwd("/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts")
 
-analysis_name <- "pocForGrantdT3"
+analysis_name <- "bm_analysis"
 out_file_name <- paste0(analysis_name, "_contacts")
 
 
@@ -28,16 +27,24 @@ dir.create("input")
 dists_to_comp <- tibble(receptor = c("EC", "IC", "mid", "mid"),
                         ligand = c("mid", "mid", "CT", "NT"))
 
-gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
+#gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 
-bw_align <- summarize_bw()
+bw_align <- summarize_bw(gpcr_list = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/uniprot/gpcrdb_receptor_list_KB_250304_final.rds")
 
 id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 
 
-comp_jobs <- tibble(file_name = list.files(dir_path))
+comp_jobs <- tibble(og_file_name = list.files(input_path_models))
 
-if(any(grepl("_and_", comp_jobs[["file_name"]]))) { stop("files need to be renamed") }
+comp_jobs %>%
+mutate(parse_proteins(og_file_name,
+                      delim_proteins = "_and_",
+                      delim_ranges = "_",
+                      delim_start_end = "-")) %>%
+  mutate(across(ends_with("_id"), ~setNames(id_map[["Entry Name"]], id_map[["Entry"]])[.])) %>%
+  mutate(new_file_name = paste(paste0("h", p1_id, p1_range_type), paste(p2_id, p2_range, sep = "x"), sep = "_"))
+
+
 
 
 if(FALSE) {
@@ -45,24 +52,17 @@ if(FALSE) {
   all(grepl("_and_", comp_jobs[["file_name"]]))
 
   tmp <- comp_jobs %>%
-    mutate(parse_proteins(file_name,
-                          delim_proteins = "_and_",
-                          delim_ranges = "_",
-                          delim_start_end = "-",
-                          p1_range_type = "dT")) %>%
-    mutate(across(ends_with("_id"), ~setNames(id_map[["Entry Name"]], id_map[["Entry"]])[.])) %>%
-    mutate(new_file_name = paste(paste0("h", p1_id, p1_range_type), paste(p2_id, p2_range, sep = "x"), sep = "_"))
 
   tmp %>% select(file_name, p1_id, p2_id, new_file_name)
 
 
   ###execute with caution
   tmp %>%
-    mutate(file.rename(paste0(dir_path, "/", file_name),
-                       paste0(dir_path, "/", new_file_name)))
+    mutate(file.rename(paste0(input_path_models, "/", file_name),
+                       paste0(input_path_models, "/", new_file_name)))
 
 
-  comp_jobs <- tibble(file_name = list.files(dir_path))
+  comp_jobs <- tibble(og_file_name = list.files(input_path_models))
 
 
   rm(tmp)
@@ -75,7 +75,7 @@ if(FALSE) {
 }
 
 comp_jobs <- comp_jobs %>%
-  mutate(parse_proteins(file_name,
+  mutate(parse_proteins(og_file_name,
                         delim_proteins = "_",
                         delim_ranges = "x",
                         delim_start_end = "x",
@@ -85,7 +85,7 @@ comp_jobs <- comp_jobs %>%
 
 
 comp_jobs_sub <- comp_jobs %>%
-  mutate(num_files = map_int(file_name, ~length(list.files(paste0(dir_path, "/", .))))) %>%
+  mutate(num_files = map_int(file_name, ~length(list.files(paste0(input_path_models, "/", .))))) %>%
   filter(num_files == get_mode(num_files)) %>%
   filter(p1_id %in% (gpcr_list %>% filter(bw_avail == "available") %>% pull(uniprot_name)))
 

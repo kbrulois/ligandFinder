@@ -45,6 +45,33 @@ get_codes(10)
 
 
 
+if(FALSE) {
+
+  all(grepl("_and_", comp_jobs[["file_name"]]))
+
+  tmp <- comp_jobs %>%
+
+    tmp %>% select(file_name, p1_id, p2_id, new_file_name)
+
+
+  ###execute with caution
+  tmp %>%
+    mutate(file.rename(paste0(input_path_models, "/", file_name),
+                       paste0(input_path_models, "/", new_file_name)))
+
+
+  comp_jobs <- tibble(og_file_name = list.files(input_path_models))
+
+
+  rm(tmp)
+
+
+  tmp <- comp_jobs %>%
+    mutate(new_file_name = paste(paste0(p1_id), paste(p2_id, sub("-", "x", p2_range), sep = "x"), sep = "_"))
+
+
+}
+
 
 
 
