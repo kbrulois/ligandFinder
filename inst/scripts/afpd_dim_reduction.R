@@ -1,4 +1,12 @@
 
+run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
+
+out_file_name <- "deeperCXCL14_param_opt"
+
+res <- bind_rows(
+  map(list.files(run_analysis_dir),
+      ~readRDS(paste0(run_analysis_dir, "/", .)))
+)
 
 
 known_pairs <- list(c("GPR25", "CXL17"),
@@ -8,6 +16,20 @@ known_pairs <- list(c("GPR25", "CXL17"),
                     c("CML2", "RARR2"),
                     c("CCRL2", "RARR2"))
 
+ligand_list <- readRDS(system.file("extdata/ligand_list.rds", package = "ligandFinder"))
+
+known_pairs2 <- ligand_list %>%
+                    rowwise %>%
+                    mutate(known = map2(.x = uniprot_name,
+                         .y = receptor,
+                         .f = \(x, y) {c(x, y)})) %>%
+                    ungroup %>%
+                    mutate(known_lgl = map_lgl(known, ~any(is.na(.)))) %>%
+                    filter(!known_lgl) %>%
+                    pull(known) %>%
+                    unname
+
+known_pairs <- c(known_pairs, known_pairs2)
 
 
 
@@ -17,14 +39,6 @@ res <- res %>%
   mutate(known_pair = case_when(any(map_lgl(known_pairs, \(x) sum(c(p1_id, p2_id) %in% x) == 2)) ~ "known",
                                 TRUE ~ "unknown"), .after = "model") %>%
   ungroup
-
-
-
-res <- res %>%
-  mutate(ligand_location = case_when(EC_lig1_mid < IC_lig1_mid ~ "EC",
-                                     EC_lig1_mid > IC_lig1_mid ~ "IC",
-                                     TRUE ~ "bw_not_available"), .after = "model") %>%
-  mutate(totalCP = replace_na(totalCP, 0))
 
 
 col_types <- list(all_bw = bw_align[["name"]],
@@ -79,7 +93,7 @@ for(col_type in names(col_types)) {
 
 
 
-  nmf_res[[col_type]] <- NMFN::nnmf(x = dim_red_input, k = 8)
+  nmf_res[[col_type]] <- NMFN::nnmf(x = dim_red_input, k = 6)
 
   for(i in 1:ncol(nmf_res[[col_type]][["W"]])) {
 
@@ -136,6 +150,11 @@ res <- res %>%
 saveRDS(pca_res, paste0(out_file_name, "_pca.rds"))
 saveRDS(umap_res, paste0(out_file_name, "_umap.rds"))
 saveRDS(nmf_res, paste0(out_file_name, "_nmf.rds"))
+
+if(stringr::str_detect(run_id, "deeperCXCL14")) {
+res <- res %>%
+  mutate(p2_index_wo_sp = as.character(as.numeric(stringr::str_remove(p2_range, "35-")) - 34), .after = p2_range)
+}
 
 
 data.table::fwrite(res %>%

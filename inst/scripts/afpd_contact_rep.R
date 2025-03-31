@@ -11,14 +11,16 @@ devtools::install_github("kbrulois/ligandFinder", auth_token = "ghp_Hcwhpbw1cVDT
 
 library(ligandFinder)
 
-input_path_models <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/mxrun"
+run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
 
-getwd()
+run_id <- "mm_wo"
+
+input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/deeperCXCL14", "/", run_id)
+
 setwd("/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts")
 
-analysis_name <- "mxrun_analysis"
+analysis_name <- run_id
 out_file_name <- paste0(analysis_name, "_contacts")
-
 
 dir.create(analysis_name)
 setwd(analysis_name)
@@ -116,9 +118,20 @@ furrr::future_map(jobs, \(job) {
             file = paste0(input_path_models, "/", file_name, "/", "metrics_v1.rds"))
 
 
-  }, error = function(e) message("problem with ", job, file_name))
+  }, error = function(e) message("problem with ", job, " ", file_name))
 
 })
+
+  to_do <- to_do %>%
+    mutate(metrics = file.exists(paste0(input_path_models, "/", og_file_name, "/metrics_v1.rds")))
+
+
+  res <- bind_rows(
+    map(to_do[["og_file_name"]][to_do[["metrics"]]],
+           ~readRDS(paste0(input_path_models, "/", ., "/metrics_v1.rds")))
+  )
+
+  saveRDS(res, job)
 
   message("completed ", job)
 
@@ -130,28 +143,25 @@ end - start
 
 yo()
 
-nums <- list(1:4, 5:8, 9:12, 13:16)
-
-for(x in seq_along(nums)) {
-
-test <- lapply(paste0("job", x, ".rds"), readRDS)
-
-test2 <- lapply(test, \(x) {x %>% select(!where(is.list))})
-
-saveRDS(bind_rows(test2), paste0("consolidated", x, ".rds"))
-
-}
-
-res2 <- bind_rows(
-  lapply(paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/pocForGrant7/consolidated", 0:3, ".rds"), readRDS)
-)
-
+comp_jobs_sub <- comp_jobs_sub %>%
+  mutate(metrics = file.exists(paste0(input_path_models, "/", og_file_name, "/metrics_v1.rds")))
 
 res <- bind_rows(
-  lapply(jobs, readRDS)
+  map(comp_jobs_sub[["og_file_name"]][comp_jobs_sub[["metrics"]]],
+      ~readRDS(paste0(input_path_models, "/", ., "/metrics_v1.rds")))
 )
 
-res <- bind_rows(res, res2)
+
+res <- res %>%
+  mutate(ligand_location = case_when(EC_lig1_mid < IC_lig1_mid ~ "EC",
+                                     EC_lig1_mid > IC_lig1_mid ~ "IC",
+                                     TRUE ~ "bw_not_available"), .after = "model") %>%
+  mutate(totalCP = replace_na(totalCP, 0)) %>%
+  mutate(run_name = run_id, .after = "og_file_name")
+
+file_name <- paste0(run_analysis_dir, "/", run_id, ".rds")
+
+if(!file.exists(file_name)) saveRDS(res, file_name)
 
 
 

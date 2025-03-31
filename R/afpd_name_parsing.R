@@ -2,6 +2,8 @@
 
 generate_random_codes <- function() {
 
+  message("initializing random codes file")
+
   alphanumeric <- c(letters, 0:9)
 
   ids <- expand.grid(letters,
@@ -15,31 +17,45 @@ generate_random_codes <- function() {
 
   ids <- ids %>%
     mutate(id = paste0(Var5, Var4, Var3, Var2, Var1, sep = "")) %>%
-    mutate(has_numbers = if_else(str_detect(id, "\\d"), "alphanumericeric", "letters_only")) %>%
+    mutate(has_numbers = if_else(stringr::str_detect(id, "\\d"), "alphanumericeric", "letters_only")) %>%
     arrange(desc(has_numbers)) %>%
+    mutate(usage = factor("unused", levels = c("unused", "used"))) %>%
+    select(-Var1, -Var2, -Var3, -Var4, -Var5) %>%
     as_tibble
 
-  data.table::fwrite(ids[["id"]], "~/random_codes.txt")
+  file_path <- paste0(system.file("extdata", package = "ligandFinder"), "/random_codes.csv")
 
+  data.table::fwrite(ids, file_path)
+
+  message("random codes file saved in package directory:\n", file_path)
 
 }
 
+generate_random_codes()
 
-get_codes <- function(n, codes_file = "~/random_codes.txt") {
+
+get_codes <- function(n, codes_file = system.file("extdata/random_codes.csv", package = "ligandFinder")) {
   codes <- read_lines(codes_file)
   write_lines(codes[-c(1:n)], codes_file)
   return(codes[1:n])
 }
 
-# .onLoad <- function() {
-#   file_path <- system.file("data/random_codes.txt", package = "ligandFinder")
-#   if (file_path == "") {
-#     message("random_codes.txt not initialized. Generating now...")
-#     generate_random_codes()
-#   } else {
-#     message()
-#   }
-# }
+check_random_codes <- function(codes_file = system.file("extdata/random_codes.csv", package = "ligandFinder")) {
+    codes <- data.table::fread(codes_file)
+    code_usage <- table(codes[["usage"]])
+
+    message()
+}
+
+.onLoad <- function() {
+  file_path <- system.file("extdata/random_codes.txt", package = "ligandFinder")
+  if (file_path == "") {
+    message("random_codes.txt not initialized. Generating now...")
+    generate_random_codes()
+  } else {
+    message()
+  }
+}
 
 
 
