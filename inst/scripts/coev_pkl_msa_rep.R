@@ -25,8 +25,8 @@ chain <- do.call(c, lapply(seq_along(seqs), \(x) rep(chain_names[x], nchar(seqs[
 seq_cat <- stringr::str_split_1(stringr::str_flatten(seqs), "")
 
 
-pdb_dat <- parse_pdb(pdb_path = pdb_path) %>% 
-  nest_by(chain, .key = "pdb_dat") %>% 
+pdb_dat <- parse_pdb(pdb_path = pdb_path) %>%
+  nest_by(chain, .key = "pdb_dat") %>%
   ungroup %>%
   mutate(chain = chain_names)
 
@@ -35,14 +35,14 @@ pkl_dat <- tibble(files = list.files(pkl_dir)) %>%
               filter(grepl(".npy$", files)) %>%
               mutate(data = map(files, ~ np$load(paste0(pkl_dir, "/", .))))
 
-funcs <- list(mean = mean, 
+funcs <- list(mean = mean,
               sd = sd)
 
 bind_cols(
 lapply(names(funcs), \(x) {
 
-apply(keras3::op_softmax(pkl_dat$data[pkl_dat$files == "masked_msa.logits.npy"][[1]]), 
-      MARGIN = c(2,3), 
+apply(keras3::op_softmax(pkl_dat$data[pkl_dat$files == "masked_msa.logits.npy"][[1]]),
+      MARGIN = c(2,3),
       funcs[[x]]) %>%
   as_tibble %>%
   rename(all_of(msa_names)) %>%
@@ -55,11 +55,12 @@ apply(keras3::op_softmax(pkl_dat$data[pkl_dat$files == "masked_msa.logits.npy"][
 
 
 
-pq_path <- "~/peptide_alg/residue_db"
+pq_path <- paste0(get_db_path(), "/residue_db")
+
 
 res_db <- arrow::open_dataset(source = pq_path)
 
-residue_anno <- res_db %>% 
+residue_anno <- res_db %>%
   filter(gene %in% chain_names) %>%
   group_by(gene_grp) %>%
   collect() %>%
@@ -80,7 +81,7 @@ residue_anno <- residue_anno %>%
                                      .f = map_table))
 
 residue_anno <- residue_anno %>%
-  mutate(across(all_of(c("msa_mean", "msa_sd", "pdb_dat")), 
+  mutate(across(all_of(c("msa_mean", "msa_sd", "pdb_dat")),
                 .fns = list(tagtoremove = ~map(.x, .f = ~`[[`(., "ms")),
                             score = ~map_dbl(.x, .f = ~`[[`(., "score"))),
                 .unpack = TRUE)) %>%
@@ -90,7 +91,7 @@ residue_anno <- residue_anno %>%
 
 
 residue_anno <- residue_anno %>%
-  mutate(across(all_of(c("msa_mean", "msa_sd")), 
+  mutate(across(all_of(c("msa_mean", "msa_sd")),
                 .fns = ~map(.x, \(x) {
                   x %>%
                     mutate(AA_mean = rowMeans(select(., all_of(names(msa_names)[1:20])), na.rm = TRUE))
@@ -106,8 +107,8 @@ res_sub <- residue_anno %>%
               #mutate(residue_name = paste0(gene, "_", pdb_dat_AA, 1:n())) %>% #index by pdb #index by uniprot
               #ungroup() %>%
               filter(!is.na(pdb_dat_x)) %>%
-              mutate(NearestDifferentNeighbor(data = tibble(pdb_dat_CA_x,pdb_dat_CA_y,pdb_dat_CA_z), 
-                         g = gene, 
+              mutate(NearestDifferentNeighbor(data = tibble(pdb_dat_CA_x,pdb_dat_CA_y,pdb_dat_CA_z),
+                         g = gene,
                          k = 3)) %>%
               group_by(gene) %>%
               mutate(residue_name = paste0(gene, "_", pdb_dat_AA, 1:n())) %>% #index by pdb
@@ -124,7 +125,7 @@ to_plot <- res_sub %>%
             rowwise() %>%
             reframe(stack_interacting_residues(data = res_sub, idx1 = idx1, idx2 = idx2, idx3 = idx3)) %>%
             dplyr::select(starts_with("msa_"),
-                          starts_with("cons_frequency_scaled"), 
+                          starts_with("cons_frequency_scaled"),
                           starts_with("dssp_relASA"),
                           starts_with("af_missense_"),
                           starts_with("dist"),
@@ -148,8 +149,8 @@ interaction_plot <- ggplot2::ggplot(to_plot) +
   ggplot2::theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
   ggplot2::scale_fill_viridis_c(option = "H")
 
-ggsave(filename = "~/Desktop/interacting_residues.svg", 
-       plot = interaction_plot, 
+ggsave(filename = "~/Desktop/interacting_residues.svg",
+       plot = interaction_plot,
        device = svglite::svglite, width = 30, height = 14)
 
 

@@ -1,13 +1,14 @@
 
 
-pq_path <- "~/peptide_alg/residue_db"
+pq_path <- paste0(get_db_path(), "/residue_db")
+
 
 secretome <- arrow::open_dataset(source = pq_path)
 
 combine_scores <- function(scoreA, scoreB) {
   penalty <- ifelse(scoreB < 0.75, (1.6*(0.75 - scoreB))^2,
                     ifelse(scoreB > 0.9, (1.6*(scoreB - 0.9))^2, 0))
-  
+
   combined_score <- scoreA * (1 - penalty)
   return(combined_score)
 }
@@ -50,17 +51,17 @@ interval_to_factor <- function(type, start, end, dat_size) {
 
 secretome %>%
   mutate(factorized_features = map2(.x = features, .y = sequence_uni, .f = \(.x, .y) {
-    
+
     dat <- tibble(.rows = nchar(.y))
-    
+
     for(feat in to_expand) {
       dat[[feat]] <- .x %>%
         filter(source == feat) %>%
         {factorize_intervals_c(.[["type"]], .[["start"]], .[["end"]], nrow(dat))}
     }
-    
+
     dat
-    
+
   })) %>%
   select(29) -> test
 
@@ -71,11 +72,11 @@ secretome %>%
 
 
 expand_by_AA <- \(sequence_uni, accession, gene, af_mapped, features, cons, af_missense, af_xyz) {
-  
+
   aa_sequence <- strsplit(sequence_uni, "")[[1]]
-  
+
   dat_size <- length(aa_sequence)
-  
+
   if("frequency" %in% names(cons$ms)) {
     conservation <- cons$ms
   } else {
@@ -83,7 +84,7 @@ expand_by_AA <- \(sequence_uni, accession, gene, af_mapped, features, cons, af_m
     catch_mapping <- to_map %>% reframe(across(everything(), \(x) dd))
     conservation <- rep(NA, dat_size)
   }
-  
+
   if("relASA" %in% names(af_mapped$ms)) {
     asa <- af_mapped$ms %>%
       select(-AA, -index, -relASA_s, -relASA_ss, -relASA_sss) %>%
@@ -92,24 +93,24 @@ expand_by_AA <- \(sequence_uni, accession, gene, af_mapped, features, cons, af_m
       })
   } else {
     asa <- Map(\(x) {rep(NA, dat_size)},
-               c("SS", "relASA", "AF_Phi", "AF_Psi", "AF_NH->O_1_relidx", "AF_NH->O_1_energy", 
-                 "AF_O->NH_1_relidx", "AF_O->NH_1_energy", "AF_NH->O_2_relidx", 
-                 "AF_NH->O_2_energy", "AF_O->NH_2_relidx", "AF_O->NH_2_energy")) %>% 
+               c("SS", "relASA", "AF_Phi", "AF_Psi", "AF_NH->O_1_relidx", "AF_NH->O_1_energy",
+                 "AF_O->NH_1_relidx", "AF_O->NH_1_energy", "AF_NH->O_2_relidx",
+                 "AF_NH->O_2_energy", "AF_O->NH_2_relidx", "AF_O->NH_2_energy")) %>%
       as_tibble
   }
-  
+
   if("mean_af_missense" %in% names(af_missense[["ms"]])) {
     afm <- af_missense$ms$mean_af_missense
   } else {
     afm <- rep(NA, dat_size)
   }
-  
+
   if("AA" %in% names(af_xyz[["ms"]])) {
     afxyz <- af_xyz[["ms"]] %>% select(-AA)
   } else {
     afxyz <- rep(NA, dat_size)
   }
-  
+
   dat <- tibble(AA = aa_sequence,
                 conservation = as.numeric(conservation),
                 pathogenicity = as.numeric(afm),
@@ -120,12 +121,12 @@ expand_by_AA <- \(sequence_uni, accession, gene, af_mapped, features, cons, af_m
                 known_peptide_c = 0,
                 signal_peptide_or_Strand = 0,
                 dibasic_Cys_W_T = as.character(NA))
-  
+
   dat <- bind_cols(dat, asa, afxyz)
-  
+
   gtp <- features %>%
     filter(source == "gtps")
-  
+
   if(nrow(gtp) > 0) {
     gtp_pep <- gtp %>%
       rowwise() %>%
@@ -133,12 +134,12 @@ expand_by_AA <- \(sequence_uni, accession, gene, af_mapped, features, cons, af_m
       pull(locations) %>%
       do.call(c, .) %>%
       unique(.)
-    
+
     dat[["known_peptide"]][gtp_pep] <- 1
     dat[["known_peptide_n"]][gtp[["start"]]] <- 1
     dat[["known_peptide_c"]][gtp[["end"]]] <- 1
   }
-  
+
   # offlimits <- features %>%
   #   filter(type == "signal peptide" | type == "E") %>%
   #   rowwise() %>%
@@ -146,19 +147,19 @@ expand_by_AA <- \(sequence_uni, accession, gene, af_mapped, features, cons, af_m
   #   pull(locations) %>%
   #   do.call(c, .) %>%
   #   unique(.)
-  # 
+  #
   # offlimits <- offlimits[offlimits %in% 1:nrow(dat)]
-  # 
+  #
   # dat[["signal_peptide_or_Strand"]][offlimits] <- 1
-  
+
   for(feat in to_expand) {
     dat[[feat]] <- features %>%
       filter(source == feat) %>%
       {factorize_intervals(.[["type"]], .[["start"]], .[["end"]], dat_size)}
   }
-  
+
   dat
-  
+
 }
 
 
@@ -183,7 +184,7 @@ secretome <- secretome %>%
 
 curl::curl_download(
   "https://drive.usercontent.google.com/download?id=1jPkj0fK0QIQM5JKcosQ-mZ_VZjKm57_w&authuser=0&confirm=xxx",
-  destfile = "~/peptide_alg/residue_data.parquet", 
+  destfile = "~/peptide_alg/residue_data.parquet",
   quiet = FALSE)
 
 
@@ -203,7 +204,7 @@ test2 <- arrow::open_dataset(source = pq_path)
 
 chain_names <- c("BDKRB2", "CXCL14") #get from file name once formalized
 
-residue_anno <- test2 %>% 
+residue_anno <- test2 %>%
   filter(gene %in% chain_names) %>%
   group_by(gene_grp) %>%
   collect()
@@ -213,6 +214,6 @@ residue_anno %>%
   unnest(cols = any_of(lists_to_unpack), names_sep = "_") %>%
   select(c(21,25,30,32, 40,49,50,60, 61, 62))
 
-  
-  
-  
+
+
+

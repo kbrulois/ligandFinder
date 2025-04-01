@@ -6,8 +6,8 @@ library(dplyr)
 library(tidyr)
 library(purrr)
 
-#tools::R_user_dir()
-pq_path <- "~/peptide_alg/residue_db"
+pq_path <- paste0(get_db_path(), "/residue_db")
+
 
 
 
