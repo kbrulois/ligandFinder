@@ -1,6 +1,6 @@
 
 
-pq_path <- paste0(get_db_path(), "/residue_db")
+pq_path <- paste0(ligandFinder:::get_db_path(), "/residue_db")
 
 
 secretome <- arrow::open_dataset(source = pq_path)

@@ -3,7 +3,7 @@ compute_coev <- function(a3m_file = "~/peptide_alg/boltz_results_CCR9_ccl25_shor
                          pdb_path = paste0("~/peptide_alg/models/CCR9_CCL25xP1_keep_pkl/ranked_", 0:4, ".pdb"),
                          pdb_names = stringr::str_extract(pdb_path, ".{8}(?=\\.pdb$)") %>% stringr::str_remove_all(., "_"),
                          out_path = dirname(a3m_file),
-                         pq_path = paste0(get_db_path(), "/residue_db"),
+                         pq_path = paste0(ligandFinder:::get_db_path(), "/residue_db"),
                          chain_names = c("CCR9", "CCL25")) {
 
   names(pdb_path) <- pdb_names
