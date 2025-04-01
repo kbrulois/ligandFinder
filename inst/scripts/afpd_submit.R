@@ -8,7 +8,7 @@ library(purrr)
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 
 gpcr_list %>%
-select(where(~ "arrow" %in% class(.)))
+select(where(~ "character" %in% class(.)))
 
 gpcr_sub <- gpcr_list %>%
               filter(grepl("^#", `ecb: Order of runs (priority)`)) %>%
@@ -19,7 +19,7 @@ ligand_list <- tibble(uniprot_name = c("GP15L", "GP15L", "CXL17", "CCL25", "RARR
                       start = c(25, 71, 64, 24, 21, 21, 21,21),
                       end = c(81, 81, 119, 150, 163, 157, 158, 156))
 
-ligand_list <- tibble(end = 88:107,
+ligand_list <- tibble(end = c(87,95:104),
                       uniprot_name = "CXL14",
                       start = 35)
 

@@ -13,7 +13,7 @@ library(ligandFinder)
 
 run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
 
-run_id <- "mm_wo"
+run_id <- "jh_w"
 
 input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/deeperCXCL14", "/", run_id)
 

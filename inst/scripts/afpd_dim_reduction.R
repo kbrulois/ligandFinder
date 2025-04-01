@@ -2,9 +2,14 @@
 run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
 
 out_file_name <- "deeperCXCL14_param_opt"
+reindex <- TRUE
+
+input_files <- list.files(run_analysis_dir)
+
+input_files <- paste0(c("jh_w", "jh_wo", "mm_w", "mm_wo"), ".rds")
 
 res <- bind_rows(
-  map(list.files(run_analysis_dir),
+  map(input_files,
       ~readRDS(paste0(run_analysis_dir, "/", .)))
 )
 
@@ -151,11 +156,15 @@ saveRDS(pca_res, paste0(out_file_name, "_pca.rds"))
 saveRDS(umap_res, paste0(out_file_name, "_umap.rds"))
 saveRDS(nmf_res, paste0(out_file_name, "_nmf.rds"))
 
-if(stringr::str_detect(run_id, "deeperCXCL14")) {
+if(reindex) {
 res <- res %>%
   mutate(p2_index_wo_sp = as.character(as.numeric(stringr::str_remove(p2_range, "35-")) - 34), .after = p2_range)
 }
 
+res <- res %>%
+  dplyr::rename(model_full = model) %>%
+  mutate(model = stringr::str_extract(model_full, "model_\\d"), .after = "model_full") %>%
+  mutate(pred = stringr::str_extract(model_full, "pred_\\d"), .after = "model")
 
 data.table::fwrite(res %>%
                      select(!where(is.list)),
