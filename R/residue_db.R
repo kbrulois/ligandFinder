@@ -12,7 +12,7 @@ set_db_path <- function(path) {
 
 
 
-ligandFinder::get_db_path <- function() {
+get_db_path <- function() {
   config_file <- file.path(tools::R_user_dir("ligandFinder", which = "config"), "config.txt")
 
   if (file.exists(config_file)) {
