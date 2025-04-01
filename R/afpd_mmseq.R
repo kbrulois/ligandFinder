@@ -3,7 +3,7 @@
 
 proteins <- c("CXCL14", "AGTR1", "AGTR2", "BDKRB1", "BDKRB2")
 
-pq_path <- paste0(ligandFinder:::get_db_path(), "/residue_db")
+pq_path <- paste0(ligandFinder::get_db_path(), "/residue_db")
 
 res_db <- arrow::open_dataset(source = pq_path)
 

@@ -6,7 +6,7 @@ library(dplyr)
 library(tidyr)
 library(purrr)
 
-pq_path <- paste0(ligandFinder:::get_db_path(), "/residue_db")
+pq_path <- paste0(ligandFinder::get_db_path(), "/residue_db")
 
 
 
