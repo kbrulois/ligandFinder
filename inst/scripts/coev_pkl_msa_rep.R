@@ -55,7 +55,7 @@ apply(keras3::op_softmax(pkl_dat$data[pkl_dat$files == "masked_msa.logits.npy"][
 
 
 
-pq_path <- paste0(ligandFinder::get_db_path(), "/residue_db")
+pq_path <- paste0(get_db_path(), "/residue_db")
 
 
 res_db <- arrow::open_dataset(source = pq_path)

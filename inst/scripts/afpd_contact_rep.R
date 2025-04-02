@@ -8,10 +8,12 @@ library(purrr)
 library(tidyr)
 
 devtools::install_github("kbrulois/ligandFinder", auth_token = "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")
-set_db_path("~/ligandFinder_data")
-paste0(ligandFinder::get_db_path(), "/residue_db")
 
 library(ligandFinder)
+
+set_db_path("~/ligandFinder_data")
+paste0(get_db_path(), "/residue_db")
+
 
 run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
 

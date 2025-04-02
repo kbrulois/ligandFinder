@@ -11,7 +11,7 @@ set_db_path <- function(path) {
 }
 
 
-#' @export
+
 get_db_path <- function() {
   config_file <- file.path(tools::R_user_dir("ligandFinder", which = "config"), "config.txt")
 
@@ -23,7 +23,7 @@ get_db_path <- function() {
 }
 
 
-download_residue_db <- function(dest_dir = ligandFinder::get_db_path()) {
+download_residue_db <- function(dest_dir = get_db_path()) {
 
   db_url <- "https://stacks.stanford.edu/file/sc075gg6264/residue_db.tar.gz"
 
