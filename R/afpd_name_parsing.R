@@ -31,7 +31,7 @@ generate_random_codes <- function() {
 
 }
 
-generate_random_codes()
+#generate_random_codes()
 
 
 get_codes <- function(n, codes_file = system.file("extdata/random_codes.csv", package = "ligandFinder")) {
@@ -46,17 +46,17 @@ check_random_codes <- function(codes_file = system.file("extdata/random_codes.cs
 
     message()
 }
-
-.onLoad <- function() {
-  file_path <- system.file("extdata/random_codes.txt", package = "ligandFinder")
-  if (file_path == "") {
-    message("random_codes.txt not initialized. Generating now...")
-    generate_random_codes()
-  } else {
-    message()
-  }
-}
-
+#
+# .onLoad <- function() {
+#   file_path <- system.file("extdata/random_codes.txt", package = "ligandFinder")
+#   if (file_path == "") {
+#     message("random_codes.txt not initialized. Generating now...")
+#     generate_random_codes()
+#   } else {
+#     message()
+#   }
+# }
+#
 
 
 
