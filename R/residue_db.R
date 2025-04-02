@@ -11,7 +11,7 @@ set_db_path <- function(path) {
 }
 
 
-
+#' @export
 get_db_path <- function() {
   config_file <- file.path(tools::R_user_dir("ligandFinder", which = "config"), "config.txt")
 
