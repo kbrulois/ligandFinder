@@ -1,12 +1,14 @@
 
 run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
 
-out_file_name <- "deeperCXCL14_param_opt"
+out_file_name <- "CXCL14vGPCRs"
 reindex <- TRUE
 
 input_files <- list.files(run_analysis_dir)
 
 input_files <- paste0(c("jh_w", "jh_wo", "mm_w", "mm_wo"), ".rds")
+
+input_files <- paste0("CXCL14vGPCRs", ".rds")
 
 res <- bind_rows(
   map(input_files,

@@ -7,9 +7,6 @@ library(purrr)
 
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 
-gpcr_list %>%
-select(where(~ "character" %in% class(.)))
-
 gpcr_sub <- gpcr_list %>%
               filter(grepl("^#", `ecb: Order of runs (priority)`)) %>%
               filter(`ecb: Exclude due to N term >160AA` != "Exclude due to N term >160AA") %>%
@@ -38,12 +35,16 @@ ligand_list <- tibble(uniprot_name = c("LUZP2", "LUZP2", "LUZP2", "LUZP2"),
 ligand_list <- readRDS(system.file("extdata/ligand_list.rds", package = "ligandFinder"))
 
 ligand_list <- ligand_list %>%
-                  mutate(model = paste0(uniprot_name, ",", start, "-", end)) %>%
                   filter(ecb_cull == "y" & database %in% c("both", "gpcrdb"))
 
 ligand_list <- left_join(ligand_list, gpcr_list %>% dplyr::rename(receptor = uniprot_name), by = "receptor") %>%
                   mutate(known_model = paste0(model_name, ";", model))
 
+
+
+
+ligand_list <- ligand_list %>%
+                mutate(model = paste0(uniprot_name, ",", start, "-", end))
 
 to_run <- expand.grid(ligand = ligand_list[["model"]],
                       receptor = gpcr_sub[["model_name"]],
@@ -56,7 +57,7 @@ to_run <- to_run %>%
               mutate(known = if_else(model %in% ligand_list$known_model, "known", "unknown")) %>%
               arrange(known)
 
-group_size <- 16
+group_size <- 48
 
 to_run <- to_run %>%
     mutate(group = rep(paste0("job", 1:ceiling(n() / group_size), ".txt"), each = group_size, length.out = n()))
@@ -82,15 +83,31 @@ job_script <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/alphapulldow
 submit_model_jobs(script = job_script,
                   protein_input_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/benchmarking",
                   output_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/benchmarking",
-                  jobs = paste0("job", 1:299, ".txt"),
-                  start_from = 83,
+                  jobs = paste0("job", c(711:999), ".txt"),
+                  start_from = 1,
+                  max_jobs = 16)
+
+submit_model_jobs(script = job_script,
+                  protein_input_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/CXCL14vGPCRs",
+                  output_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/CXCL14vGPCRs",
+                  jobs = paste0("job", 71, ".txt"),
+                  start_from = 1,
                   max_jobs = 16)
 
 
 
+###Tanya
+submit_model_jobs(script = job_script,
+                  protein_input_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/benchmarking",
+                  output_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/benchmarking",
+                  jobs = paste0("job", 450:599, ".txt"),
+                  start_from = 1,
+                  max_jobs = 8)
 
 
-comp_jobs <- tibble(afpd_file_name = list.files("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/deeperCXCL14/jh_w"))
+
+
+comp_jobs <- tibble(afpd_file_name = list.files("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/CXCL14vGPCRs"))
 
 id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 
@@ -116,7 +133,7 @@ left_join(to_still_run, id_map %>% rename(receptor_id = `Entry Name`), by = "rec
 
 
 
-group_size <- 3
+group_size <- 48
 to_still_run <- to_still_run %>%
   mutate(group = rep(paste0("job", 1:ceiling(n() / group_size), ".txt"), each = group_size, length.out = n()))
 
@@ -127,13 +144,13 @@ to_still_run %>%
 
 
 
-job_script <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/alphapulldown_deepCXCL14.sh"
+job_script <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/alphapulldown.sh"
 
 submit_model_jobs(script = job_script,
-                  protein_input_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/deeperCXCL14_new",
-                  output_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/deeperCXCL14_jh_wo",
+                  protein_input_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/CXCL14vGPCRs/cleanup",
+                  output_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/CXCL14vGPCRs",
                   jobs = unique(to_still_run$group),
-                  start_from = 2,
+                  start_from = 1,
                   max_jobs = 16)
 
 

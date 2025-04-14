@@ -1,0 +1,34 @@
+#!/usr/bin/env Rscript
+
+.libPaths('/home/groups/ebutcher/programs/pipeline/R_libs4.1')
+library(ligandFinder)
+library(optparse)
+
+option_list <- list(
+  make_option(c("-i", "--input"), type = "character", help="input", default = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/benchmarking", metavar="INPUT"),
+  make_option(c("-i", "--input"), type = "character", help="input", default = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/benchmarking", metavar="OUTPUT"),
+  make_option(c("-s", "--script"), type="character", help="alphapulldown script", default = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/alphapulldown.sh", metavar="SCRIPT"),
+  make_option(c("-b", "--first"), type="integer", help="first job number", default = 1, metavar="FIRST"),
+  make_option(c("-b", "--last"), type="integer", help="last job number", default = 100, metavar="LAST"),
+  make_option(c("-m", "--max_jobs"), type = "integer", help="maximum number of jobs running or in queue", default=16, metavar="MAXJOBS"),
+  make_option(c("-v", "--verbose"), action="store_true", default=FALSE, help="Print extra output")
+)
+
+opt_parser <- OptionParser(option_list=option_list)
+opt <- parse_args(opt_parser)
+
+if (opt$verbose) {
+  message("Running script with:")
+  print(opt)
+}
+
+submit_model_jobs(script = opt[["script"]],
+                  protein_input_path = opt[["input"]],
+                  output_path = opt[["output"]],
+                  jobs = paste0("job", c(opt[["first"]]:opt[["last"]]), ".txt"),
+                  start_from = 1,
+                  max_jobs = opt[["max_jobs"]])
+
+
+
+

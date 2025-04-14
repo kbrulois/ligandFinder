@@ -1,76 +1,109 @@
 
 
-#mutate(p2_id = paste(p2_id, p3_id, sep = "_")) %>%
-#mutate(p3_id = paste(p4_id, p5_id, sep = "_")) %>%
-#select(-p4_id, -p5_id) %>%
-#mutate(across(ends_with("_id"), ~gsub("[^A-Z0-9]", "", .))) %>%
-#mutate(across(ends_with("_id"), ~setNames(id_map[["Entry Name"]], id_map[["Gene Names (primary)"]])[.])) %>%
-#mutate(new_file_name = paste(p1_id, paste(p2_id, p2_range, sep = "x"), sep = "_"))
 
 
+parse_afpd_files <- function(input,
+                             dir_name = "afpd_dir_name",
+                             run_dir = "~/peptide_alg/rename_test") {
 
+  dat <- input %>%
+    mutate(files = map(!!sym(dir_name), ~list.files(paste0(run_dir, "/", .)))) %>%
+    mutate(ranks = map(!!sym(dir_name), \(x) {tryCatch({
+      jsonlite::read_json(paste(run_dir, x, "ranking_debug.json", sep = "/")) %>%
+        as_tibble %>%
+        select(order) %>%
+        tidyr::unnest(order) %>%
+        dplyr::rename(model = order) %>%
+        mutate(rank = 1:n() - 1) %>%
+        arrange(model)
+    })}))
 
+  dat <- dat %>%
+    mutate(files = map2(files, ranks, \(x, y) {
+      rank_mapping <- setNames(paste0("ranked_", y[["model"]]),
+                               paste0("ranked_", y[["rank"]]))
+      ranked_files <- grep("ranked_\\d+", x, value = TRUE)
+      for(i in ranked_files) {
+        rank <- stringr::str_extract(x[x == i], "ranked_\\d+")
+        x[x == i] <- stringr::str_replace(x[x == i], pattern = rank, replacement = rank_mapping[rank])
+      }
+      x
+    }))
 
-
-
-# ids <- ids %>%
-#   mutate(has_numbers = if_else(str_detect(id, "\\d"), "alphanumericeric", "letters_only")) %>%
-#   arrange(desc(has_numbers))
-
-chars <- c(letters, 0:9)
-
-ids <- expand.grid(letters, letters, letters, letters, letters, stringsAsFactors = FALSE)
-
-library(dtplyr)
-
-ids <- dtplyr::lazy_dt(ids)
-
-ids <- ids %>%
-  mutate(id = paste0(Var5, Var4, Var3, Var2, Var1, sep = "")) %>%
-  as_tibble
-
-write_lines(ids$id, "~/random_codes.txt")
-
-get_codes <- function(n, codes_file = "~/random_codes.txt") {
-  codes <- read_lines(codes_file)
-  write_lines(codes[-c(1:n)], codes_file)
-  return(codes[1:n])
-}
-
-get_codes(10)
-
-get_codes(10)
-
-
-
-
-
-if(FALSE) {
-
-  all(grepl("_and_", comp_jobs[["file_name"]]))
-
-  tmp <- comp_jobs %>%
-
-    tmp %>% select(file_name, p1_id, p2_id, new_file_name)
-
-
-  ###execute with caution
-  tmp %>%
-    mutate(file.rename(paste0(input_path_models, "/", file_name),
-                       paste0(input_path_models, "/", new_file_name)))
-
-
-  comp_jobs <- tibble(og_file_name = list.files(input_path_models))
-
-
-  rm(tmp)
-
-
-  tmp <- comp_jobs %>%
-    mutate(new_file_name = paste(paste0(p1_id), paste(p2_id, sub("-", "x", p2_range), sep = "x"), sep = "_"))
-
+  dat %>%
+    mutate(files = map2(files, ranks, \(x, y) {
+      tibble(file_name = x,
+             model = stringr::str_extract(file_name, "model_\\d+_.*_pred_\\d+"),
+             file_type = stringr::str_remove(file_name, "model_\\d+_.*_pred_\\d+\\.[^.]+$") %>% stringr::str_remove(., "_$"),
+             file_extension = stringr::str_extract(file_name, "\\.[^.]+$"),
+             model_num = stringr::str_extract(model, "model_\\d+") %>% stringr::str_remove(., "model_"),
+             pred_num = stringr::str_extract(model, "pred_\\d+") %>% stringr::str_remove(., "pred_"),
+             rank = if_else(!is.na(model), setNames(y[["rank"]], y[["model"]])[model], NA)) %>%
+      mutate(file_type = if_else(file_type == "ranked", paste0(file_type, file_extension), file_type))
+    }))
 
 }
+
+
+
+make_new_file_names <- function(input,
+                                random_seed = 42,
+                                algorithm = "AF2mV3",#options "AF3", "boltz?"
+                                site = "SU",#options "AP", "SD"
+                                submitter = "KB") {
+
+  test <- table(input$files[[1]]$file_type)
+
+  rc <- get_codes(n = nrow(input))
+
+  input %>%
+    mutate(files = map(files, \(x) {
+        uni_mods <- unique(x[["model"]])
+
+
+    }))
+
+}
+
+tmp <- parse_dirname()
+
+
+tmp <- make_new_dirname(tmp)
+
+tmp2 <- parse_afpd_files(input = tmp,
+                         dir_name = "afpd_dir_name",
+                         run_dir = "~/peptide_alg/rename_test")
+
+
+
+
+
+
+
+
+rename_dir(run_dir = "~/peptide_alg/rename_test",
+           input = tmp,
+           from = "afpd_dir_name",
+           to = "new_dir_name")
+
+
+rename_dir(run_dir = "~/peptide_alg/rename_test",
+           input = tmp,
+           to = "afpd_dir_name",
+           from = "new_dir_name")
+
+
+
+
+
+
+tmp2 <- parse_dirname(delim_proteins = "_",
+                      delim_ranges = "x",
+                      delim_start_end = "x")
+
+tmp3 <- make_new_dirname(input = tmp2)
+
+
 
 
 

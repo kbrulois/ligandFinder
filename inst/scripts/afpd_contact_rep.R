@@ -17,9 +17,9 @@ paste0(get_db_path(), "/residue_db")
 
 run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
 
-run_id <- "jh_w"
+run_id <- "CXCL14vGPCRs"
 
-input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/deeperCXCL14", "/", run_id)
+input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models", "/", run_id)
 
 setwd("/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts")
 
