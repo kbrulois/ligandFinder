@@ -2,14 +2,14 @@ Package: ligandFinder
 Type: Package
 Title: What the Package Does (Title Case)
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Author: Kevin Brulois
+Maintainer: The package maintainer <kevin.brulois@gmail.com>
+Description: Run and Analyze AlphaFold2 predictions of GPCRs with putative ligands.
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
 Imports:
+  optparse,
   dplyr,
   tibble,
   ggplot2,
