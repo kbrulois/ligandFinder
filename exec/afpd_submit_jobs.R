@@ -6,10 +6,10 @@ library(optparse)
 
 option_list <- list(
   make_option(c("-i", "--input"), type = "character", help="input", default = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/benchmarking", metavar="INPUT"),
-  make_option(c("-i", "--input"), type = "character", help="input", default = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/benchmarking", metavar="OUTPUT"),
+  make_option(c("-o", "--output"), type = "character", help="input", default = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/benchmarking", metavar="OUTPUT"),
   make_option(c("-s", "--script"), type="character", help="alphapulldown script", default = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/alphapulldown.sh", metavar="SCRIPT"),
-  make_option(c("-b", "--first"), type="integer", help="first job number", default = 1, metavar="FIRST"),
-  make_option(c("-b", "--last"), type="integer", help="last job number", default = 100, metavar="LAST"),
+  make_option(c("-f", "--first"), type="integer", help="first job number", default = 1, metavar="FIRST"),
+  make_option(c("-l", "--last"), type="integer", help="last job number", default = 100, metavar="LAST"),
   make_option(c("-m", "--max_jobs"), type = "integer", help="maximum number of jobs running or in queue", default=16, metavar="MAXJOBS"),
   make_option(c("-v", "--verbose"), action="store_true", default=FALSE, help="Print extra output")
 )
