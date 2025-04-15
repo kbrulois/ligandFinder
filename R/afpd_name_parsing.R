@@ -65,7 +65,7 @@ check_random_codes <- function(codes = system.file("extdata/random_codes.csv", p
 
 
 .onAttach <- function(libname = .libPaths(), pkgname = "ligandFinder") {
-  file_path <- system.file("extdata/random_codes.txt", package = "ligandFinder")
+  file_path <- system.file("extdata/random_codes.csv", package = "ligandFinder")
   if (file_path == "") {
     message("Generating random codes file")
     generate_random_codes()
