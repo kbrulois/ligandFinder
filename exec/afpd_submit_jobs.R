@@ -23,7 +23,7 @@ if (opt$verbose) {
 }
 
 submit_model_jobs(script = opt[["script"]],
-                  protein_input_path = opt[["input"]],
+                  input_path = opt[["input"]],
                   output_path = opt[["output"]],
                   jobs = paste0("job", c(opt[["first"]]:opt[["last"]]), ".txt"),
                   max_jobs = opt[["max_jobs"]])

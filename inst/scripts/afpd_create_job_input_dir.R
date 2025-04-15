@@ -76,6 +76,13 @@ saveRDS(to_run, "to_run.rds")
 
 
 
+
+
+
+
+
+
+
 comp_jobs <- tibble(afpd_file_name = list.files("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/CXCL14vGPCRs"))
 
 id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
