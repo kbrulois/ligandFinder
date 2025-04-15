@@ -68,41 +68,10 @@ to_run %>%
       group_walk(~ write.table(.x$model, file = .y$group,
                                row.names = FALSE, col.names = FALSE, quote = FALSE))
 
-job_script <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/alphapulldown_deepCXCL14.sh"
-
-submit_model_jobs(script = job_script,
-                  protein_input_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/deeperCXCL14_new",
-                  output_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/deeperCXCL14_jh_wo",
-                  jobs = unique(to_run$group),
-                  start_from = 1,
-                  max_jobs = 16)
-
-
-job_script <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/alphapulldown.sh"
-
-submit_model_jobs(script = job_script,
-                  protein_input_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/benchmarking",
-                  output_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/benchmarking",
-                  jobs = paste0("job", c(711:999), ".txt"),
-                  start_from = 1,
-                  max_jobs = 16)
-
-submit_model_jobs(script = job_script,
-                  protein_input_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/CXCL14vGPCRs",
-                  output_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/CXCL14vGPCRs",
-                  jobs = paste0("job", 71, ".txt"),
-                  start_from = 1,
-                  max_jobs = 16)
+saveRDS(to_run, "to_run.rds")
 
 
 
-###Tanya
-submit_model_jobs(script = job_script,
-                  protein_input_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/benchmarking",
-                  output_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/benchmarking",
-                  jobs = paste0("job", 450:599, ".txt"),
-                  start_from = 1,
-                  max_jobs = 8)
 
 
 
@@ -147,7 +116,7 @@ to_still_run %>%
 job_script <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/alphapulldown.sh"
 
 submit_model_jobs(script = job_script,
-                  protein_input_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/CXCL14vGPCRs/cleanup",
+                  input_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/CXCL14vGPCRs/cleanup",
                   output_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/CXCL14vGPCRs",
                   jobs = unique(to_still_run$group),
                   start_from = 1,

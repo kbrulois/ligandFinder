@@ -1,7 +1,7 @@
 
 
 submit_model_jobs <- function(script = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/alphapulldown.sh",
-                              protein_input_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/mxrun",
+                              input_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/mxrun",
                               output_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/mxrun",
                               jobs = unique(to_run$group),
                               start_from = 1,
@@ -28,7 +28,7 @@ submit_model_jobs <- function(script = "/oak/stanford/groups/ebutcher/deorphan-A
           system(paste("sbatch",
                        paste0("--job-name=", sub(".txt$", "", jobs[ind])),
                        script,
-                       paste0(protein_input_path, "/", jobs[ind]),
+                       paste0(input_path, "/", jobs[ind]),
                        output_path))
           message("Submitted a new job: ", jobs[ind])
         } else {
