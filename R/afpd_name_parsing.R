@@ -32,6 +32,13 @@ generate_random_codes <- function(file_path) {
 
 get_codes <- function(n, codes_file = paste0(get_db_path(), "/random_codes.csv")) {
 
+  if (!file.exists(codes_file)) {
+    message("Generating random codes file")
+    generate_random_codes(file_path = codes_file)
+  } else {
+    message("using random codes file:\n", codes_file)
+  }
+
   codes_table <- data.table::fread(file = codes_file)
 
   unused_idx <- which(codes_table$usage == "unused")
@@ -62,18 +69,6 @@ check_random_codes <- function(codes = paste0(get_db_path(), "/random_codes.csv"
 
   message(sapply(names(code_usage)[2:1], \(x) {paste0(x, ": ", round(code_usage[[x]]/1000000, 2), "M\n")}))
 
-}
-
-
-
-.onAttach <- function(libname = .libPaths(), pkgname = "ligandFinder") {
-  rc_file <- paste0(get_db_path(), "/random_codes.csv")
-  if (!file.exists(rc_file)) {
-    message("Generating random codes file")
-    generate_random_codes(file_path = rc_file)
-  } else {
-    message("random codes file:\n", rc_file)
-  }
 }
 
 
@@ -174,10 +169,7 @@ parse_dirname <- function(run_dir = "~/peptide_alg/rename_test",
 
   tmp <- tibble(afpd_dir_name = list.files(run_dir)) %>%
 
-    mutate(parse_proteins(afpd_dir_name,
-                          delim_proteins = "_",
-                          delim_ranges = "x",
-                          delim_start_end = "x"))
+    mutate(parse_proteins(afpd_dir_name, ...))
 
   all_ids <- unique(do.call(c, tmp %>% select(ends_with("_id"))))
 
@@ -387,19 +379,21 @@ make_new_file_names <- function(input,
         rowwise %>%
         mutate(new_file_name = if_else(is.na(model),
                                        file_type,
-                                       paste(dir_name,
-                                             file_type,
-                                             run_name,
-                                             site,
-                                             submitter,
-                                             random_code,
-                                             model_code,
-                                             algorithm,
-                                             paste0("s", model_seed),
-                                             paste0("m", model_num),
-                                             paste0("p", pred_num),
-                                             paste0("r", rank),
-                                             rlx, sep = "_"))) %>%
+                                       stringr::str_flatten(c(dir_name,
+                                                              file_type,
+                                                              run_name,
+                                                              site,
+                                                              submitter,
+                                                              random_code,
+                                                              model_code,
+                                                              algorithm,
+                                                              paste0("s", model_seed),
+                                                              paste0("m", model_num),
+                                                              paste0("p", pred_num),
+                                                              paste0("r", rank),
+                                                              rlx),
+                                                            collapse = "_",
+                                                            na.rm = TRUE))) %>%
         mutate(new_file_name = if_else(is.na(model),
                                        new_file_name,
                                        paste0(new_file_name, file_extension)))
@@ -414,18 +408,42 @@ make_new_file_names <- function(input,
 
 rename_files <- function(run_dir = "~/peptide_alg/rename_test",
                          input,
+                         dir_name = "new_dir_name",
                          from = "og_file_name",
                          to = "new_file_name") {
 
   tmp <- input %>%
-    mutate(rename_status = map2(afpd_dir_name, files, \(x, y) {
+    mutate(rename_status = map2(!!sym(dir_name), files, \(x, y) {
       file.rename(paste(run_dir, x, y[[from]], sep = "/"),
-                  paste(run_dir, x, y[[to]], sep = "/"))}))
+                  paste(run_dir, x, y[[to]], sep = "/"))
+      data.table::fwrite(y, file = paste(run_dir, x, "file_name_log.csv", sep = "/"))}))
 
   invisible(tmp)
 
 }
 
 
+download_rename_demo <- function(dest_dir = get_db_path()) {
+
+  rd_url <- "https://stacks.stanford.edu/file/sc075gg6264/rename_test.tar.gz"
+
+  db_path <- fs::path_expand(paste0(dest_dir, "/rename_test.tar.gz"))
+
+  if (!dir.exists(dest_dir)) {
+    dir.create(dest_dir, recursive = TRUE)
+  }
+
+  if (!file.exists(db_path)) {
+    message("Downloading rename demo data...")
+    download.file(rd_url, db_path, mode = "wb")
+    untar(db_path, exdir = fs::path_expand(dest_dir))
+    fs::file_delete(db_path)
+    message("Rename demo data downloaded to: ", paste0(dest_dir, "/rename_test"))
+  } else {
+    message("Rename demo data already exists at: ", paste0(dest_dir, "/rename_test"))
+  }
+
+  return(invisible(paste0(dest_dir, "/rename_test")))
+}
 
 

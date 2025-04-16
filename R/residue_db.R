@@ -43,7 +43,7 @@ download_residue_db <- function(dest_dir = get_db_path()) {
     message("Database already exists at: ", db_path)
   }
 
-  return(db_path)
+  return(invisible(db_path))
 }
 
 

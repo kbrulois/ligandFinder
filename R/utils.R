@@ -117,9 +117,13 @@ get_mode <- function(x) {
 
 unique_non_na <- function(x) unique(x[!is.na(x)])
 
-mod_codes <- expand.grid(letters, letters) %>%
-                mutate(codes = paste0(Var2, Var1)) %>%
-                pull(codes)
+mod_codes <- function() {
+  expand.grid(letters, letters) %>%
+                dplyr::mutate(codes = paste0(Var2, Var1)) %>%
+                dplyr::pull(codes)
+}
+
+mod_codes <- mod_codes()
 
 rlx_conv <- c(setNames("ulx", "unrelaxed"),
               setNames("rlx", "relaxed"))
