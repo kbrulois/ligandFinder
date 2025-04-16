@@ -144,12 +144,12 @@ split_name <- function(x) {
 }
 
 
-make_model_names <- function(x, model_type) {
+make_model_names <- function(x) {
   x <- x %>%
     filter(!annotation %in% c("idprefix", "idsuffix"))
 
   bind_cols(
-    lapply(unname(model_type), \(z) {
+    lapply(c("name", "id"), \(z) {
       new_col_name <- paste0("model_", z)
       x %>%
         filter(annotation %in% c(z, "range")) %>%
@@ -223,7 +223,7 @@ parse_dirname <- function(run_dir = "~/peptide_alg/rename_test",
         mutate(value = if_else(annotation == "range", sub("\\D+", "-", value), value)) %>%
         select(any_of(c("protein", "annotation", "value")))
     })) %>%
-    mutate(map_df(parsed_pair, make_model_names(., model_type = model_type)))
+    mutate(map_df(parsed_pair, make_model_names))
 
   return(tmp)
 }
@@ -374,11 +374,11 @@ make_new_file_names <- function(input,
                random_code = y,
                model_code = mc[model],
                model_seed = ms[model]) %>%
-        mutate(file_type = if_else(file_type %in% c("relaxed", "unrelaxed"), "", file_type)) %>%
+        mutate(file_type = if_else(file_type %in% c("relaxed", "unrelaxed"), NA, file_type)) %>%
         mutate(rlx = rlx_conv[rlx]) %>%
         rowwise %>%
         mutate(new_file_name = if_else(is.na(model),
-                                       file_type,
+                                       og_file_name,
                                        stringr::str_flatten(c(dir_name,
                                                               file_type,
                                                               run_name,
@@ -429,21 +429,23 @@ download_rename_demo <- function(dest_dir = get_db_path()) {
 
   db_path <- fs::path_expand(paste0(dest_dir, "/rename_test.tar.gz"))
 
+  downloaded_path <- paste0(dest_dir, "/rename_test")
+
   if (!dir.exists(dest_dir)) {
     dir.create(dest_dir, recursive = TRUE)
   }
 
-  if (!file.exists(db_path)) {
+  if (!file.exists(downloaded_path)) {
     message("Downloading rename demo data...")
     download.file(rd_url, db_path, mode = "wb")
     untar(db_path, exdir = fs::path_expand(dest_dir))
     fs::file_delete(db_path)
-    message("Rename demo data downloaded to: ", paste0(dest_dir, "/rename_test"))
+    message("Rename demo data downloaded to: ", downloaded_path)
   } else {
-    message("Rename demo data already exists at: ", paste0(dest_dir, "/rename_test"))
+    message("Rename demo data already exists at: ", downloaded_path)
   }
 
-  return(invisible(paste0(dest_dir, "/rename_test")))
+  return(invisible(downloaded_path))
 }
 
 
