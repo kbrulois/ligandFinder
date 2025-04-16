@@ -1,6 +1,10 @@
 
 
-generate_random_codes <- function() {
+generate_random_codes <- function(file_path) {
+
+  if(file.exists(file_path)) {
+    message("random codes file already exists")
+  } else {
 
   alphanumeric <- c(letters, 0:9)
 
@@ -20,15 +24,13 @@ generate_random_codes <- function() {
     dplyr::mutate(usage = factor("unused", levels = c("unused", "used"))) %>%
     dplyr::select(-Var1, -Var2, -Var3, -Var4, -Var5)
 
-  file_path <- paste0(system.file("extdata", package = "ligandFinder"), "/random_codes.csv")
-
   data.table::fwrite(ids, file_path)
 
-  message("random codes file saved:\n", file_path)
-
+  message("random codes saved to:\n", file_path)
+}
 }
 
-get_codes <- function(n, codes_file = system.file("extdata/random_codes.csv", package = "ligandFinder")) {
+get_codes <- function(n, codes_file = paste0(get_db_path(), "/random_codes.csv")) {
 
   codes_table <- data.table::fread(file = codes_file)
 
@@ -48,7 +50,7 @@ get_codes <- function(n, codes_file = system.file("extdata/random_codes.csv", pa
   return(codes)
 }
 
-check_random_codes <- function(codes = system.file("extdata/random_codes.csv", package = "ligandFinder")) {
+check_random_codes <- function(codes = paste0(get_db_path(), "/random_codes.csv")) {
 
   if(is.character(codes)) {
     codes_table <- data.table::fread(codes_file)
@@ -65,12 +67,12 @@ check_random_codes <- function(codes = system.file("extdata/random_codes.csv", p
 
 
 .onAttach <- function(libname = .libPaths(), pkgname = "ligandFinder") {
-  file_path <- system.file("extdata/random_codes.csv", package = "ligandFinder")
-  if (file_path == "") {
+  rc_file <- paste0(get_db_path(), "/random_codes.csv")
+  if (!file.exists(rc_file)) {
     message("Generating random codes file")
-    generate_random_codes()
+    generate_random_codes(file_path = rc_file)
   } else {
-    message("random codes file:\n", file_path)
+    message("random codes file:\n", rc_file)
   }
 }
 
