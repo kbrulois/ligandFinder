@@ -144,7 +144,7 @@ split_name <- function(x) {
 }
 
 
-make_model_names <- function(x) {
+make_model_names <- function(x, model_type) {
   x <- x %>%
     filter(!annotation %in% c("idprefix", "idsuffix"))
 
@@ -223,7 +223,7 @@ parse_dirname <- function(run_dir = "~/peptide_alg/rename_test",
         mutate(value = if_else(annotation == "range", sub("\\D+", "-", value), value)) %>%
         select(any_of(c("protein", "annotation", "value")))
     })) %>%
-    mutate(map_df(parsed_pair, make_model_names))
+    mutate(map_df(parsed_pair, make_model_names(., model_type = model_type)))
 
   return(tmp)
 }
