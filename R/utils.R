@@ -115,6 +115,16 @@ get_mode <- function(x) {
   uniq_vals[which.max(tabulate(match(x, uniq_vals)))]
 }
 
+unique_non_na <- function(x) unique(x[!is.na(x)])
+
+mod_codes <- expand.grid(letters, letters) %>%
+                mutate(codes = paste0(Var2, Var1)) %>%
+                pull(codes)
+
+rlx_conv <- c(setNames("ulx", "unrelaxed"),
+              setNames("rlx", "relaxed"))
+
+
 yo <- function(text = "something happened with some code") {
   temp.file <- paste0(tempdir(), "/error.txt")
   file.create(temp.file)
