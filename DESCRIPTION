@@ -21,7 +21,8 @@ Imports:
   rlang,
   httr,
   jsonlite,
-  arrow,
-  Biostrings,
   dtplyr
+Suggests:
+  arrow,
+  Biostrings
 RoxygenNote: 7.3.1

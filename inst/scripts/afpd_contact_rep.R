@@ -7,10 +7,14 @@ library(dplyr)
 library(purrr)
 library(tidyr)
 
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+BiocManager::install("Biostrings")
 devtools::install_github("kbrulois/ligandFinder", auth_token = "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")
 
 library(ligandFinder)
-set_db_path("/oak/stanford/groups/ebutcher/kevin/ligandFinder_data")
+set_db_path("~/ligandFinder_data")
 demo("afpd_rename_files", package = "ligandFinder")
 
 paste0(get_db_path(), "/residue_db")
