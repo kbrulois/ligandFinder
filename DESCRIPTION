@@ -21,6 +21,8 @@ Imports:
   rlang,
   jsonlite,
   dtplyr
+Depends:
+  R (>= 4.2.0)
 Suggests:
   arrow,
   Biostrings
