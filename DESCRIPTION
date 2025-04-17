@@ -18,7 +18,6 @@ Imports:
   data.table,
   stringr,
   rlang,
-  httr2,
   jsonlite,
   dtplyr
 Suggests:
