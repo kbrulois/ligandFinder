@@ -30,7 +30,7 @@ rename_data <- parse_afpd_files(input = rename_data,
 
 rename_data <- make_new_file_names(input = rename_data,
                                    dir_name = "new_dir_name",
-                                   run_name = "testRename",
+                                   run_name = "nameOfRun",
                                    site = "SU",
                                    submitter = "KB",
                                    algorithm = "AF2multV3",

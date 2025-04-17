@@ -16,10 +16,9 @@ Imports:
   purrr,
   tidyr,
   data.table,
-  bio3d,
   stringr,
   rlang,
-  httr,
+  httr2,
   jsonlite,
   dtplyr
 Suggests:

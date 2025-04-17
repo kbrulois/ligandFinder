@@ -320,10 +320,10 @@ parse_afpd_files <- function(input,
   dat %>%
     mutate(files = pmap(list(files, files2, ranks), \(x, y, z) {
       tmp <- tibble(og_file_name = x,
-                    file_name = y,
-                    model = stringr::str_extract(file_name, "model_\\d+_.*_pred_\\d+"),
-                    file_type = stringr::str_remove(file_name, "model_\\d+_.*_pred_\\d+\\.[^.]+$") %>% stringr::str_remove(., "_$"),
-                    file_extension = stringr::str_extract(file_name, "\\.[^.]+$"),
+                    file_mod = y,
+                    model = stringr::str_extract(file_mod, "model_\\d+_.*_pred_\\d+"),
+                    file_type = stringr::str_remove(file_mod, "model_\\d+_.*_pred_\\d+\\.[^.]+$") %>% stringr::str_remove(., "_$"),
+                    file_extension = stringr::str_extract(file_mod, "\\.[^.]+$"),
                     model_num = stringr::str_extract(model, "model_\\d+") %>% stringr::str_remove(., "model_"),
                     pred_num = stringr::str_extract(model, "pred_\\d+") %>% stringr::str_remove(., "pred_"),
                     rank = if_else(!is.na(model), setNames(z[["rank"]], z[["model"]])[model], NA)) %>%
@@ -331,11 +331,17 @@ parse_afpd_files <- function(input,
 
       rlx_mods <- tmp %>% filter(rlx == "relaxed") %>% pull(model)
 
-      tmp %>%
+      tmp <- tmp %>%
         mutate(rlx = case_when(grepl("ranked", file_type) & model %in% rlx_mods ~ "relaxed",
                                grepl("ranked", file_type) & !model %in% rlx_mods ~ "unrelaxed",
                                !grepl("ranked", file_type) & !file_type %in% c("unrelaxed", "relaxed") ~ "unrelaxed",
-                               TRUE ~ rlx))
+                               TRUE ~ rlx)) %>%
+        mutate(model_rlx = paste(model, rlx, sep = "_"))
+
+      ranked_mods <- tmp %>% filter(file_type == "ranked") %>% pull(model_rlx) %>% unique(.)
+
+      tmp %>%
+        mutate(rank2 = if_else(model_rlx %in% ranked_mods, as.character(rank), ""))
 
     }))
 
@@ -390,10 +396,10 @@ make_new_file_names <- function(input,
                                                               paste0("s", model_seed),
                                                               paste0("m", model_num),
                                                               paste0("p", pred_num),
-                                                              paste0("r", rank),
+                                                              paste0("r", rank2),
                                                               rlx),
                                                             collapse = "_",
-                                                            na.rm = TRUE))) %>%
+                                                            na.rm = TRUE)), .after = "og_file_name") %>%
         mutate(new_file_name = if_else(is.na(model),
                                        new_file_name,
                                        paste0(new_file_name, file_extension)))
