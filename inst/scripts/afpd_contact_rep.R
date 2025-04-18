@@ -18,7 +18,7 @@ if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
 remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
 
 library(ligandFinder)
-set_db_path("~/testligandFinder_data")
+set_db_path("/home/groups/ebutcher/kevin/ligandFinder")
 demo("afpd_rename_files", package = "ligandFinder")
 
 paste0(get_db_path(), "/residue_db")
@@ -63,6 +63,14 @@ comp_jobs <- parse_dirname(run_dir = input_path_models) %>%
                                    dir_name = "new_dir_name",
                                    run_name = run_id)
 
+
+comp_jobs <- parse_afpd_files(input = tibble(new_dir_name = list.files(input_path_models)),
+                 dir_name = "new_dir_name",
+                 run_dir = input_path_models) %>%
+  make_new_file_names(input = .,
+                      dir_name = "new_dir_name",
+                      run_name = run_id)
+
 comp_jobs %>%
   rename_files(run_dir = input_path_models,
                input = .,
@@ -104,7 +112,7 @@ furrr::future_map(jobs, \(job) {
 
     tryCatch({
 
-    metrics <- import_raw_metrics(input_data = to_do %>% slice(sub_job))
+    metrics <- import_raw_metrics(dir_name = to_do %>% slice(sub_job))
 
     metrics <- left_join(metrics,
                              gpcr_list %>%

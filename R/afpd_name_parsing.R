@@ -356,7 +356,7 @@ make_new_file_names <- function(input,
                                 run_name = "run12",
                                 site = "SU",
                                 submitter = "KB",
-                                algorithm = "AF2multV3",
+                                algorithm = "AF2v3",
                                 random_seed = 42) {
 
   rc <- get_codes(n = nrow(input))
@@ -366,7 +366,7 @@ make_new_file_names <- function(input,
   input %>%
     mutate(files = pmap(list(files, random_code, !!sym(dir_name)), \(x, y, z) {
 
-      uni_mods <- unique_non_na(x[["model"]])
+      uni_mods <- unique_non_na(x %>% arrange(rank) %>% pull(model))
       num_models <- length(uni_mods)
       mc <- setNames(mod_codes[1:num_models], uni_mods)
 
@@ -379,7 +379,8 @@ make_new_file_names <- function(input,
                random_code = y,
                model_code = mc[model],
                model_seed = ms[model]) %>%
-        mutate(file_type = if_else(file_type %in% c("relaxed", "unrelaxed"), NA, file_type)) %>%
+        mutate(file_type = if_else(file_type %in% c("relaxed", "unrelaxed"), "dup", file_type)) %>%
+        mutate(file_type = if_else(file_type == "ranked", "rkd", file_type)) %>%
         mutate(rlx = rlx_conv[rlx]) %>%
         mutate(final_code = paste0(site,
                                    submitter,
@@ -452,6 +453,16 @@ download_rename_demo <- function(dest_dir = get_db_path()) {
   }
 
   return(invisible(downloaded_path))
+}
+
+condense_model_names <- function(model_names) {
+
+  tibble(model_names = model_names,
+         model_num = stringr::str_extract(model_names, "model_\\d+") %>% stringr::str_remove(., "model_"),
+         pred_num = stringr::str_extract(model_names, "pred_\\d+") %>% stringr::str_remove(., "pred_"),
+         model_names_c = paste0("m", model_num, "_", "p", pred_num)) %>%
+    pull(model_names_c)
+
 }
 
 

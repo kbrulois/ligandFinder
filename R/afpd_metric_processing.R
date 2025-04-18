@@ -27,24 +27,33 @@ parse_pdb <- function(pdb) {
 
 }
 
-import_raw_metrics <- function(dir_name) {
+import_raw_metrics <- function(dir_name,
+                               files = "ranked") {
 
-  message("importing raw metrics")
+  message("importing raw metrics for ", dir_name)
 
-  tibble(dir_name = dir_name) %>%
+  file_dat <- data.table::fread(paste(input_path_models, dir_name, "file_name_log.csv", sep = "/")) %>%
+                    as_tibble
 
-    mutate(model = map(dir_name, ~list.files(paste0(input_path_models, "/", .)) %>%
-                         stringr::str_extract(., "s\\d+_m\\d+_p_\\d+") %>%
-                         unique(.) %>%
-                         .[!is.na(.)])) %>%
-    mutate(iptm = map(dir_name, \(x) {
-      tryCatch({
-        tmp <- jsonlite::read_json(paste(input_path_models, x, "ranking_debug.json", sep = "/"))
-        tmp %>% as_tibble %>% unnest(everything()) %>% select(-order)
-      }, error = function(e) {rep(NA, 5)})
-    })) %>%
+  uni_models <- file_dat %>% filter(model != "" & !is.na(model)) %>% pull(model) %>% unique
 
-    unnest(cols = c("model", "iptm")) %>%
+  dat <- jsonlite::read_json(paste(input_path_models, dir_name, "ranking_debug.json", sep = "/"))
+
+  dat <- tibble(model_names = names(dat[["iptm"]]),
+                model_names_c = condense_model_names(model_names),
+                iptm = unlist(dat[["iptm"]]),
+                `iptm+ptm` = unlist(dat[["iptm+ptm"]]))
+
+  if(sum(uni_models %in% dat[["model_names"]]) != length(uni_models)) warning("file name models do not match ranking_debug.json")
+
+  pdb_files <- file_dat %>%
+                filter(file_type == "ranked" & file_extension == ".pdb") %>%
+                select(new_file_name, model)
+
+  pdb_files <- setNames(pdb_files[["new_file_name"]], pdb_files[["model"]])
+
+  dat %>%
+    mutate(pdb_files = )
 
     mutate(pdb = map2(.x = og_file_name,
                       .y = model,
