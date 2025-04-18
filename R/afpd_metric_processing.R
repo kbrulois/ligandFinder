@@ -34,7 +34,7 @@ import_raw_metrics <- function(dir_name) {
   tibble(dir_name = dir_name) %>%
 
     mutate(model = map(dir_name, ~list.files(paste0(input_path_models, "/", .)) %>%
-                         stringr::str_extract(., "model_\\d_.*_pred_\\d") %>%
+                         stringr::str_extract(., "s\\d+_m\\d+_p_\\d+") %>%
                          unique(.) %>%
                          .[!is.na(.)])) %>%
     mutate(iptm = map(dir_name, \(x) {
