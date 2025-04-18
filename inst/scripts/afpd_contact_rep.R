@@ -26,7 +26,7 @@ paste0(get_db_path(), "/residue_db")
 
 run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
 
-run_id <- "CXCL14vGPCRs"
+run_id <- "MC4R_CART"
 
 input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models", "/", run_id)
 
@@ -42,23 +42,33 @@ dir.create("input")
 dists_to_comp <- tibble(receptor = c("EC", "IC", "mid", "mid"),
                         ligand = c("mid", "mid", "CT", "NT"))
 
-#gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
-gpcr_list <- readRDS("/oak/stanford/groups/ebutcher/deorphan-AI-ze/uniprot/gpcrdb_receptor_list_KB_250304_final.rds")
+gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 
-bw_align <- summarize_bw(gpcr_list = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/uniprot/gpcrdb_receptor_list_KB_250304_final.rds")
+bw_align <- summarize_bw(gpcr_list = system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 
 id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 
 
-comp_jobs <- tibble(og_file_name = list.files(input_path_models))
 
-comp_jobs <- comp_jobs %>%
-mutate(parse_proteins(og_file_name,
-                      delim_proteins = "_and_",
-                      delim_ranges = "_",
-                      delim_start_end = "-")) %>%
-  mutate(across(ends_with("_id"), ~setNames(id_map[["Entry Name"]], id_map[["Entry"]])[.])) %>%
-  mutate(new_file_name = paste(paste0("h", p1_id, p1_range_type), paste(p2_id, p2_range, sep = "x"), sep = "_"), .after = "og_file_name")
+comp_jobs <- parse_dirname(run_dir = input_path_models) %>%
+             make_new_dirname(input = .) %>%
+             rename_dir(run_dir = input_path_models,
+                        input = .,
+                        from = "afpd_dir_name",
+                        to = "new_dir_name") %>%
+              parse_afpd_files(input = .,
+                               dir_name = "new_dir_name",
+                               run_dir = input_path_models) %>%
+               make_new_file_names(input = .,
+                                   dir_name = "new_dir_name",
+                                   run_name = run_id)
+
+comp_jobs %>%
+  rename_files(run_dir = input_path_models,
+               input = .,
+               from = "og_file_name",
+               to = "new_file_name")
+
 
 comp_jobs_sub <- comp_jobs %>%
   mutate(num_files = map_int(og_file_name, ~length(list.files(paste0(input_path_models, "/", .))))) %>%

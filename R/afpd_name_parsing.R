@@ -124,7 +124,6 @@ parse_proteins <- function(file_name,
                            protein_names = paste0("p", 1:(1 + max(stringr::str_count(file_name, delim_proteins))))
                            ) {
 
-
   tmp <- stringr::str_split(file_name, delim_proteins, simplify = TRUE)
   colnames(tmp) <- protein_names
   tmp %>%
@@ -169,7 +168,7 @@ parse_dirname <- function(run_dir = "~/peptide_alg/rename_test",
 
   tmp <- tibble(afpd_dir_name = list.files(run_dir)) %>%
 
-    mutate(parse_proteins(afpd_dir_name, ...))
+    mutate(parse_proteins(file_name = afpd_dir_name, ...))
 
   all_ids <- unique(do.call(c, tmp %>% select(ends_with("_id"))))
 
@@ -334,14 +333,14 @@ parse_afpd_files <- function(input,
       tmp <- tmp %>%
         mutate(rlx = case_when(grepl("ranked", file_type) & model %in% rlx_mods ~ "relaxed",
                                grepl("ranked", file_type) & !model %in% rlx_mods ~ "unrelaxed",
-                               !grepl("ranked", file_type) & !file_type %in% c("unrelaxed", "relaxed") ~ "unrelaxed",
+                               !grepl("ranked", file_type) & !file_type %in% c("unrelaxed", "relaxed") ~ NA,
                                TRUE ~ rlx)) %>%
         mutate(model_rlx = paste(model, rlx, sep = "_"))
 
       ranked_mods <- tmp %>% filter(file_type == "ranked") %>% pull(model_rlx) %>% unique(.)
 
       tmp %>%
-        mutate(rank2 = if_else(model_rlx %in% ranked_mods, as.character(rank), ""))
+        mutate(rank2 = if_else(model_rlx %in% ranked_mods, paste0("r", as.character(rank)), NA))
 
     }))
 
@@ -382,21 +381,22 @@ make_new_file_names <- function(input,
                model_seed = ms[model]) %>%
         mutate(file_type = if_else(file_type %in% c("relaxed", "unrelaxed"), NA, file_type)) %>%
         mutate(rlx = rlx_conv[rlx]) %>%
+        mutate(final_code = paste0(site,
+                                   submitter,
+                                   random_code,
+                                   model_code)) %>%
         rowwise %>%
         mutate(new_file_name = if_else(is.na(model),
                                        og_file_name,
                                        stringr::str_flatten(c(dir_name,
-                                                              file_type,
                                                               run_name,
-                                                              site,
-                                                              submitter,
-                                                              random_code,
-                                                              model_code,
+                                                              final_code,
                                                               algorithm,
+                                                              file_type,
                                                               paste0("s", model_seed),
                                                               paste0("m", model_num),
                                                               paste0("p", pred_num),
-                                                              paste0("r", rank2),
+                                                              rank2,
                                                               rlx),
                                                             collapse = "_",
                                                             na.rm = TRUE)), .after = "og_file_name") %>%

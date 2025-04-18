@@ -1,6 +1,6 @@
 Package: ligandFinder
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Finds Ligands for GPCRs
 Version: 0.1.0
 Author: Kevin Brulois
 Maintainer: The package maintainer <kevin.brulois@gmail.com>

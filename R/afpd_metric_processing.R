@@ -27,17 +27,17 @@ parse_pdb <- function(pdb) {
 
 }
 
-import_raw_metrics <- function(input_data) {
+import_raw_metrics <- function(dir_name) {
 
   message("importing raw metrics")
 
-  input_data %>%
+  tibble(dir_name = dir_name) %>%
 
-    mutate(model = map(og_file_name, ~list.files(paste0(input_path_models, "/", .)) %>%
+    mutate(model = map(dir_name, ~list.files(paste0(input_path_models, "/", .)) %>%
                          stringr::str_extract(., "model_\\d_.*_pred_\\d") %>%
                          unique(.) %>%
                          .[!is.na(.)])) %>%
-    mutate(iptm = map(og_file_name, \(x) {
+    mutate(iptm = map(dir_name, \(x) {
       tryCatch({
         tmp <- jsonlite::read_json(paste(input_path_models, x, "ranking_debug.json", sep = "/"))
         tmp %>% as_tibble %>% unnest(everything()) %>% select(-order)
