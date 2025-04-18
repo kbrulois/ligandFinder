@@ -379,7 +379,7 @@ make_new_file_names <- function(input,
                random_code = y,
                model_code = mc[model],
                model_seed = ms[model]) %>%
-        mutate(file_type = if_else(file_type %in% c("relaxed", "unrelaxed"), "urk", file_type)) %>%
+        mutate(file_type = if_else(file_type %in% c("relaxed", "unrelaxed"), "xtra", file_type)) %>%
         mutate(file_type = if_else(file_type == "ranked", "rkd", file_type)) %>%
         mutate(rlx = rlx_conv[rlx]) %>%
         mutate(final_code = paste0(site,

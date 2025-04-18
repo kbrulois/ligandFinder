@@ -33,7 +33,7 @@ rename_data <- make_new_file_names(input = rename_data,
                                    run_name = "nameOfRun",
                                    site = "SU",
                                    submitter = "KB",
-                                   algorithm = "AF2multV3",
+                                   algorithm = "AF2v3",
                                    random_seed = 42)
 
 rename_data <- rename_files(run_dir = rename_test_dir,
