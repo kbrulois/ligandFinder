@@ -372,7 +372,7 @@ make_new_file_names <- function(input,
 
       ms <- random_seed * num_models
       ms <- seq.int(from = ms, length.out = num_models)
-      names(ms) <- uni_mods
+      names(ms) <- unique_non_na(x %>% pull(model))
 
       x %>%
         mutate(dir_name = z,
