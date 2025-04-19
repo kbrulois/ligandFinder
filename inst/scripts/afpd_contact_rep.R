@@ -70,7 +70,7 @@ comp_jobs <- parse_afpd_files(input = tibble(new_dir_name = list.files(input_pat
                  run_dir = input_path_models) %>%
   make_new_file_names(input = .,
                       dir_name = "new_dir_name",
-                      run_name = run_id)
+                      run_name = NA)
 
 comp_jobs %>%
   rename_files(run_dir = input_path_models,

@@ -125,8 +125,8 @@ mod_codes <- function() {
 
 mod_codes <- mod_codes()
 
-rlx_conv <- c(setNames("ulx", "unrelaxed"),
-              setNames("rlx", "relaxed"))
+rlx_conv <- c(setNames("u", "unrelaxed"),
+              setNames("r", "relaxed"))
 
 
 yo <- function(text = "something happened with some code") {
