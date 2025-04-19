@@ -28,7 +28,7 @@ parse_pdb <- function(pdb) {
 }
 
 import_raw_metrics <- function(dir_name,
-                               files = "ranked") {
+                               files = "rkd") {
 
   message("importing raw metrics for ", dir_name)
 
@@ -47,7 +47,7 @@ import_raw_metrics <- function(dir_name,
   if(sum(uni_models %in% dat[["model_names"]]) != length(uni_models)) warning("file name models do not match ranking_debug.json")
 
   pdb_files <- file_dat %>%
-                filter(file_type == "ranked" & file_extension == ".pdb") %>%
+                filter(file_type == files & file_extension == ".pdb") %>%
                 select(new_file_name, model)
 
   pdb_files <- setNames(pdb_files[["new_file_name"]], pdb_files[["model"]])
