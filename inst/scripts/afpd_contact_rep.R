@@ -109,11 +109,11 @@ furrr::future_map(jobs, \(job) {
 
   lapply(1:nrow(to_do), \(sub_job) {
 
-    file_name <- to_do %>% slice(sub_job) %>% pull(og_file_name)
+    dir_name <- to_do %>% slice(sub_job) %>% pull(og_file_name)
 
     tryCatch({
 
-    metrics <- import_raw_metrics(dir_name = to_do %>% slice(sub_job))
+    metrics <- import_raw_metrics(dir_name = dir_name)
 
     metrics <- left_join(metrics,
                              gpcr_list %>%
@@ -147,7 +147,7 @@ furrr::future_map(jobs, \(job) {
 
 
     saveRDS(metrics %>% select(!where(is.list)),
-            file = paste0(input_path_models, "/", file_name, "/", "metrics_v1.rds"))
+            file = paste0(input_path_models, "/", dir_name, "/", "metrics_v1.rds"))
 
 
   }, error = function(e) message("problem with ", job, " ", file_name))
@@ -189,7 +189,7 @@ res <- res %>%
                                      EC_lig1_mid > IC_lig1_mid ~ "IC",
                                      TRUE ~ "bw_not_available"), .after = "model") %>%
   mutate(totalCP = replace_na(totalCP, 0)) %>%
-  mutate(run_name = run_id, .after = "og_file_name")
+  mutate(run_name = run_id, .after = "pdb_files")
 
 file_name <- paste0(run_analysis_dir, "/", run_id, ".rds")
 

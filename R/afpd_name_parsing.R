@@ -460,7 +460,7 @@ condense_model_names <- function(model_names) {
   tibble(model_names = model_names,
          model_num = stringr::str_extract(model_names, "model_\\d+") %>% stringr::str_remove(., "model_"),
          pred_num = stringr::str_extract(model_names, "pred_\\d+") %>% stringr::str_remove(., "pred_"),
-         model_names_c = paste0("m", model_num, "_", "p", pred_num)) %>%
+         model_names_c = paste0("m", model_num, "p", pred_num)) %>%
     pull(model_names_c)
 
 }

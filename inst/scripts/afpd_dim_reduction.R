@@ -1,8 +1,8 @@
 
 run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
 
-out_file_name <- "CXCL14vGPCRs"
-reindex <- TRUE
+out_file_name <- "MC4R_CART"
+reindex <- FALSE
 
 input_files <- list.files(run_analysis_dir)
 
@@ -138,8 +138,7 @@ gpcr_cols <- c("p1_id",
                "gtp: Family name",
                "gpcrdb: receptor_class",
                "gpcrdb: receptor_family",
-               "gpcrdb: subfamily",
-               "bw_avail")
+               "gpcrdb: subfamily")
 
 res <- res %>%
   relocate(starts_with("PC"), .after = "model") %>%

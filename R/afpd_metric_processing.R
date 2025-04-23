@@ -39,30 +39,42 @@ import_raw_metrics <- function(dir_name,
 
   dat <- jsonlite::read_json(paste(input_path_models, dir_name, "ranking_debug.json", sep = "/"))
 
-  dat <- tibble(model_names = names(dat[["iptm"]]),
-                model_names_c = condense_model_names(model_names),
+  dat <- tibble(model = names(dat[["iptm"]]),
                 iptm = unlist(dat[["iptm"]]),
                 `iptm+ptm` = unlist(dat[["iptm+ptm"]]))
 
-  if(sum(uni_models %in% dat[["model_names"]]) != length(uni_models)) warning("file name models do not match ranking_debug.json")
+  if(sum(uni_models %in% dat[["model"]]) != length(uni_models)) warning("file name models do not match ranking_debug.json")
 
   pdb_files <- file_dat %>%
                 filter(file_type == files & file_extension == ".pdb") %>%
-                select(new_file_name, model)
+                select(new_file_name, model, final_code, rank, model_num, pred_num)
 
-  pdb_files <- setNames(pdb_files[["new_file_name"]], pdb_files[["model"]])
+  pdb_map <- setNames(pdb_files[["new_file_name"]], pdb_files[["model"]])
+
+  pairing_info <- parse_proteins(dir_name,
+                                 delim_proteins = "_",
+                                 delim_ranges = "x",
+                                 delim_start_end = "x") %>%
+                    select(where(~ !all(is.na(.) | . == "")))
+
+  dat <- bind_cols(dat, pairing_info)
+
+  dat <- left_join(dat, pdb_files, by = "model")
 
   dat %>%
-    mutate(pdb_files = )
+    mutate(pdb_files = pdb_map[model]) %>%
 
-    mutate(pdb = map2(.x = og_file_name,
-                      .y = model,
-                      ~bio3d::read.pdb(paste(input_path_models, .x, paste0("unrelaxed_", .y, ".pdb"), sep = "/")))) %>%
+    mutate(pdb = map(pdb_files, ~bio3d::read.pdb(paste(input_path_models, dir_name, ., sep = "/")))) %>%
 
     mutate(pdb.xyz = map(pdb, parse_pdb)) %>%
 
-    mutate(pae = map2(.x = og_file_name, .y = model, \(.x, .y) {
-      tmp <- jsonlite::read_json(paste(input_path_models, .x, paste0("pae_", .y, ".json"), sep = "/"))
+    mutate(pae = map(model, \(x) {
+
+      file_dat %>%
+        filter(model == x & file_type == "pae") %>%
+        pull(new_file_name) -> pae_file
+
+      tmp <- jsonlite::read_json(paste(input_path_models, dir_name, pae_file, sep = "/"))
       tmp[[1]][["predicted_aligned_error"]]
     }))
 
