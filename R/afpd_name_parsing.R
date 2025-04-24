@@ -162,11 +162,18 @@ make_model_names <- function(x) {
 
 
 parse_dirname <- function(run_dir = "~/peptide_alg/rename_test",
+                          pairing_dir = NULL,
                           ...) {
 
   id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 
-  tmp <- tibble(afpd_dir_name = list.files(run_dir)) %>%
+  if(!is.null(pairing_dir)) {
+    tmp <- tibble(afpd_dir_name = pairing_dir)
+  } else {
+    tmp <- tibble(afpd_dir_name = list.files(run_dir))
+  }
+
+  tmp <- tmp %>%
 
     mutate(parse_proteins(file_name = afpd_dir_name, ...))
 

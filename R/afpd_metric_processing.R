@@ -51,10 +51,10 @@ import_raw_metrics <- function(dir_name,
 
   pdb_map <- setNames(pdb_files[["new_file_name"]], pdb_files[["model"]])
 
-  pairing_info <- parse_proteins(dir_name,
-                                 delim_proteins = "_",
-                                 delim_ranges = "x",
-                                 delim_start_end = "x") %>%
+  pairing_info <- parse_dirname(pairing_dir = dir_name,
+                                delim_proteins = "_",
+                                delim_ranges = "x",
+                                delim_start_end = "x") %>%
                     select(where(~ !all(is.na(.) | . == "")))
 
   dat <- bind_cols(dat, pairing_info)

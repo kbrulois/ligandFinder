@@ -7,7 +7,7 @@ library(dplyr)
 library(purrr)
 library(tidyr)
 remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
-
+library(ligandFinder)
 
 if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
 BiocManager::install("Biostrings")
@@ -27,7 +27,7 @@ paste0(get_db_path(), "/residue_db")
 
 run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
 
-run_id <- "MC4R_CART"
+run_id <- "deepX14"
 
 input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models", "/", run_id)
 
@@ -50,39 +50,15 @@ bw_align <- summarize_bw(gpcr_list = system.file("extdata/gpcr_list.rds", packag
 id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 
 
-
-comp_jobs <- parse_dirname(run_dir = input_path_models) %>%
-             make_new_dirname(input = .) %>%
-             rename_dir(run_dir = input_path_models,
-                        input = .,
-                        from = "afpd_dir_name",
-                        to = "new_dir_name") %>%
-              parse_afpd_files(input = .,
-                               dir_name = "new_dir_name",
-                               run_dir = input_path_models) %>%
-               make_new_file_names(input = .,
-                                   dir_name = "new_dir_name",
-                                   run_name = run_id)
-
-
-comp_jobs <- parse_afpd_files(input = tibble(new_dir_name = list.files(input_path_models)),
-                 dir_name = "new_dir_name",
-                 run_dir = input_path_models) %>%
-  make_new_file_names(input = .,
-                      dir_name = "new_dir_name",
-                      run_name = NA)
-
-comp_jobs %>%
-  rename_files(run_dir = input_path_models,
-               input = .,
-               from = "og_file_name",
-               to = "new_file_name")
-
+comp_jobs <- parse_dirname(run_dir = input_path_models,
+                           delim_proteins = "_",
+                           delim_ranges = "x",
+                           delim_start_end = "x") %>%
+              mutate(parsed_pair = map(parsed_pair, ~pivot_wider(., names_from=c("protein", "annotation"), values_from=value))) %>%
+              unnest(parsed_pair)
 
 comp_jobs_sub <- comp_jobs %>%
-  mutate(num_files = map_int(og_file_name, ~length(list.files(paste0(input_path_models, "/", .))))) %>%
-  filter(num_files == get_mode(num_files)) %>%
-  filter(p1_id %in% (gpcr_list %>% filter(bw_avail == "available") %>% pull(uniprot_name)))
+  mutate(num_files = map_int(afpd_dir_name, ~length(list.files(paste0(input_path_models, "/", .)))))
 
 num_of_grps <- 16
 comp_jobs_sub <- comp_jobs_sub %>%
@@ -116,10 +92,10 @@ furrr::future_map(jobs, \(job) {
     metrics <- import_raw_metrics(dir_name = dir_name)
 
     metrics <- left_join(metrics,
-                             gpcr_list %>%
+                         gpcr_list %>%
                                rename(p1_id = uniprot_name) %>%
                                select(p1_id, `bw: full_table`),
-                             by = "p1_id")
+                         by = "p1_id")
 
     metrics <- process_metrics(input_data = metrics)
 
