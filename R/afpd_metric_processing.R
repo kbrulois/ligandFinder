@@ -55,7 +55,11 @@ import_raw_metrics <- function(dir_name,
                                 delim_proteins = "_",
                                 delim_ranges = "x",
                                 delim_start_end = "x") %>%
-                    select(where(~ !all(is.na(.) | . == "")))
+                  mutate(parsed_pair = map(parsed_pair,
+                                           ~pivot_wider(.,
+                                                        names_from=c("protein", "annotation"),
+                                                        values_from=value))) %>%
+                  unnest(parsed_pair)
 
   dat <- bind_cols(dat, pairing_info)
 
