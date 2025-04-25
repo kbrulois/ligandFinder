@@ -12,6 +12,6 @@ python "$exec_path/generate_spoc_json.py" $1
 
 Rscript "$exec_path/afpd_rename_files_cli.R" \
 --input=$1 \
---name=deepX14 \
+--name=$2 \
 --person=KB \
 --location=SU

@@ -9,25 +9,14 @@ library(tidyr)
 remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
 library(ligandFinder)
 
-if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
-BiocManager::install("Biostrings")
-if (!requireNamespace("arrow", quietly = TRUE)) install.packages("arrow")
-install.packages("bio3d", dependencies=TRUE)
-install.packages("httr", dependencies=TRUE)
-
-if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
-remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
-
-library(ligandFinder)
 set_db_path("/home/groups/ebutcher/kevin/ligandFinder")
-demo("afpd_rename_files", package = "ligandFinder")
-
-paste0(get_db_path(), "/residue_db")
+#demo("afpd_rename_files", package = "ligandFinder")
 
 
 run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
 
-run_id <- "deepX14"
+run_id <- "test2"
+alg <- "AF2v3"
 
 input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models", "/", run_id)
 
@@ -44,9 +33,7 @@ dists_to_comp <- tibble(receptor = c("EC", "IC", "mid", "mid"),
                         ligand = c("mid", "mid", "CT", "NT"))
 
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
-
 bw_align <- summarize_bw(gpcr_list = system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
-
 id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 
 
@@ -171,8 +158,7 @@ res <- bind_rows(
 
 
 res <- res %>%
-  mutate(totalCP = replace_na(totalCP, 0)) %>%
-  mutate(run_name = run_id, .after = "pdb_files")
+  mutate(totalCP = replace_na(totalCP, 0))
 
 file_name <- paste0(run_analysis_dir, "/", run_id, ".rds")
 

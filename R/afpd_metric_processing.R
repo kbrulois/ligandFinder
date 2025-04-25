@@ -28,30 +28,32 @@ parse_pdb <- function(pdb) {
 }
 
 import_raw_metrics <- function(dir_name,
-                               pdb = "_rkd_[ru]_.*.pdb$",
+                               run_name = run_id,
+                               algorithm = alg,
+                               pdb = "_ark_[ru]_.*.pdb$",
                                pae = "_pae_.*.json$",
-                               code_alg = "_[A-Z]{4}[a-z]{7}_AF\\d(.*?)_",
-                               model_rank = "_s\\d+m\\d+p\\d+_r\\d+") {
+                               code_model_rank = "_[A-Z]{4}[a-z]{7}_s\\d+m\\d+p\\d+_r\\d+") {
 
   message("importing raw metrics for ", dir_name)
 
   files <- list.files(paste(input_path_models, dir_name, sep = "/"))
 
-  pdb_files <- grep(pdb, files, value = TRUE)
-
   models <- tibble(pdb_files = grep(pdb, files, value = TRUE),
                    pae_files = grep(pae, files, value = TRUE),
-                   model_rank = stringr::str_extract(pdb_files, model_rank) %>% stringr::str_remove(., "^_"),
-                   rlx = stringr::str_extract(pdb_files, "_rkd_[ru]_") %>% stringr::str_remove(., "_rkd_") %>% stringr::str_remove(., "_$"),
-                   model_c = stringr::str_remove(model_rank, "_r\\d+"),
-                   rank = stringr::str_extract(model_rank, "_r\\d+$") %>% stringr::str_remove(., "^_r"),
+                   code_model_rank = stringr::str_extract(pdb_files, code_model_rank),
+                   rlx = stringr::str_extract(pdb_files, "_ark_[ru]_") %>%
+                         stringr::str_remove(., "_ark_") %>%
+                         stringr::str_remove(., "_$"),
+                   model_c = stringr::str_extract(code_model_rank, "s\\d+m\\d+p\\d+"),
+                   rank = stringr::str_extract(code_model_rank, "_r\\d+$") %>% stringr::str_remove(., "^_r"),
                    model_num = stringr::str_extract(model_c, "m\\d+") %>% stringr::str_remove(., "^m"),
                    pred_num = stringr::str_extract(model_c, "p\\d+") %>% stringr::str_remove(., "^p"),
-                   model_e = paste0("model_", model_num, "_multimer_v3_", "pred_", pred_num),
-                   code_alg = stringr::str_extract(pdb_files, code_alg),
-                   code = stringr::str_split(code_alg, "_", simplify = TRUE)[,2],
-                   algorithm = stringr::str_split(code_alg, "_", simplify = TRUE)[,3]) %>%
-              select(-model_rank, -code_alg)
+                   model_e = paste0("model_", model_num, "_multimer_v3_", "pred_", pred_num)) %>%
+                   mutate(code = stringr::str_extract(code_model_rank, "[A-Z]{4}[a-z]{7}"), .before = "pdb_files") %>%
+                   mutate(algorithm = algorithm, .before = "pdb_files") %>%
+                   mutate(run_name = run_name, .before = "pdb_files") %>%
+              select(-code_model_rank) %>%
+
 
   dat <- jsonlite::read_json(paste(input_path_models, dir_name, "ranking_debug.json", sep = "/"))
 
@@ -73,7 +75,7 @@ import_raw_metrics <- function(dir_name,
 
   dat <- bind_cols(dat, pairing_info)
 
-  dat <- left_join(dat, models, by = "model_e")
+  dat <- left_join(models, dat, by = "model_e")
 
   dat %>%
     mutate(pdb_files = setNames(models[["pdb_files"]], models[["model_e"]])[model_e]) %>%
