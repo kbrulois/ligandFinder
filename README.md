@@ -7,7 +7,6 @@ ligandFinder is a tool to run large-scale screening to identify GPCR ligands
 From within R:
 
 	```
-	
   if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
   BiocManager::install("Biostrings")
   if (!requireNamespace("arrow", quietly = TRUE)) install.packages("arrow")
@@ -16,7 +15,6 @@ From within R:
 
   if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
   remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
-
 	```
 
 ## Tutorial
