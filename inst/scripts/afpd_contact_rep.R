@@ -93,9 +93,9 @@ furrr::future_map(jobs, \(job) {
 
     metrics <- left_join(metrics,
                          gpcr_list %>%
-                               rename(p1_id = uniprot_name) %>%
-                               select(p1_id, `bw: full_table`),
-                         by = "p1_id")
+                               rename(p1_name = uniprot_name) %>%
+                               select(p1_name, `bw: full_table`),
+                         by = "p1_name")
 
     metrics <- process_metrics(input_data = metrics)
 
@@ -107,8 +107,6 @@ furrr::future_map(jobs, \(job) {
 
     metrics <- metrics %>%
                   mutate(pw_dist = map(pdb, bio3d::dm.pdb))
-
-
 
     metrics <- bind_rows(
                   metrics %>%
@@ -122,7 +120,19 @@ furrr::future_map(jobs, \(job) {
                            filter(seq_match == "different"))
 
 
-    saveRDS(metrics %>% select(!where(is.list)),
+
+    metrics <- metrics %>% select(!where(is.list))
+
+    if("lig1_location" %in% colnames(metrics)) {
+
+
+
+    }
+
+    data.table::fwrite(metrics,
+                       file = paste0(input_path_models, "/", dir_name, "/", "metrics_v1.csv"))
+
+    saveRDS(metrics,
             file = paste0(input_path_models, "/", dir_name, "/", "metrics_v1.rds"))
 
 
@@ -161,9 +171,6 @@ res <- bind_rows(
 
 
 res <- res %>%
-  mutate(ligand_location = case_when(EC_lig1_mid < IC_lig1_mid ~ "EC",
-                                     EC_lig1_mid > IC_lig1_mid ~ "IC",
-                                     TRUE ~ "bw_not_available"), .after = "model") %>%
   mutate(totalCP = replace_na(totalCP, 0)) %>%
   mutate(run_name = run_id, .after = "pdb_files")
 

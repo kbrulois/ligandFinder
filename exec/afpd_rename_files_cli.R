@@ -9,7 +9,7 @@ option_list <- list(
   make_option(c("-n", "--name"), type="character", help="name of run", metavar="NAME"),
   make_option(c("-p", "--person"), type="character", help="person submitting job", metavar="PERSON"),
   make_option(c("-l", "--location"), type="character", help="location of run", metavar="LOCATION"),
-  make_option(c("-a", "--algorithm"), type="character", help="algorithm", defaul="AF2multV3", metavar="ALGORITHM"),
+  make_option(c("-a", "--algorithm"), type="character", help="algorithm", defaul="AF2v3", metavar="ALGORITHM"),
   make_option(c("-s", "--seed"), type = "integer", help="random seed", default=42, metavar="SEED"),
   make_option(c("-v", "--verbose"), action="store_true", default=FALSE, help="Print extra output")
 )

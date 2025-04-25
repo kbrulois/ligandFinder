@@ -28,28 +28,38 @@ parse_pdb <- function(pdb) {
 }
 
 import_raw_metrics <- function(dir_name,
-                               files = "rkd") {
+                               pdb = "_rkd_[ru]_.*.pdb$",
+                               pae = "_pae_.*.json$",
+                               code_alg = "_[A-Z]{4}[a-z]{7}_AF\\d(.*?)_",
+                               model_rank = "_s\\d+m\\d+p\\d+_r\\d+") {
 
   message("importing raw metrics for ", dir_name)
 
-  file_dat <- data.table::fread(paste(input_path_models, dir_name, "file_name_log.csv", sep = "/")) %>%
-                    as_tibble
+  files <- list.files(paste(input_path_models, dir_name, sep = "/"))
 
-  uni_models <- file_dat %>% filter(model != "" & !is.na(model)) %>% pull(model) %>% unique
+  pdb_files <- grep(pdb, files, value = TRUE)
+
+  models <- tibble(pdb_files = grep(pdb, files, value = TRUE),
+                   pae_files = grep(pae, files, value = TRUE),
+                   model_rank = stringr::str_extract(pdb_files, model_rank) %>% stringr::str_remove(., "^_"),
+                   rlx = stringr::str_extract(pdb_files, "_rkd_[ru]_") %>% stringr::str_remove(., "_rkd_") %>% stringr::str_remove(., "_$"),
+                   model_c = stringr::str_remove(model_rank, "_r\\d+"),
+                   rank = stringr::str_extract(model_rank, "_r\\d+$") %>% stringr::str_remove(., "^_r"),
+                   model_num = stringr::str_extract(model_c, "m\\d+") %>% stringr::str_remove(., "^m"),
+                   pred_num = stringr::str_extract(model_c, "p\\d+") %>% stringr::str_remove(., "^p"),
+                   model_e = paste0("model_", model_num, "_multimer_v3_", "pred_", pred_num),
+                   code_alg = stringr::str_extract(pdb_files, code_alg),
+                   code = stringr::str_split(code_alg, "_", simplify = TRUE)[,2],
+                   algorithm = stringr::str_split(code_alg, "_", simplify = TRUE)[,3]) %>%
+              select(-model_rank, -code_alg)
 
   dat <- jsonlite::read_json(paste(input_path_models, dir_name, "ranking_debug.json", sep = "/"))
 
-  dat <- tibble(model = names(dat[["iptm"]]),
+  dat <- tibble(model_e = names(dat[["iptm"]]),
                 iptm = unlist(dat[["iptm"]]),
                 `iptm+ptm` = unlist(dat[["iptm+ptm"]]))
 
-  if(sum(uni_models %in% dat[["model"]]) != length(uni_models)) warning("file name models do not match ranking_debug.json")
-
-  pdb_files <- file_dat %>%
-                filter(file_type == files & file_extension == ".pdb") %>%
-                select(new_file_name, model, final_code, rank, model_num, pred_num)
-
-  pdb_map <- setNames(pdb_files[["new_file_name"]], pdb_files[["model"]])
+  if(sum(models[["model_e"]] %in% dat[["model_e"]]) != nrow(models)) warning("file name models do not match ranking_debug.json")
 
   pairing_info <- parse_dirname(pairing_dir = dir_name,
                                 delim_proteins = "_",
@@ -63,22 +73,18 @@ import_raw_metrics <- function(dir_name,
 
   dat <- bind_cols(dat, pairing_info)
 
-  dat <- left_join(dat, pdb_files, by = "model")
+  dat <- left_join(dat, models, by = "model_e")
 
   dat %>%
-    mutate(pdb_files = pdb_map[model]) %>%
+    mutate(pdb_files = setNames(models[["pdb_files"]], models[["model_e"]])[model_e]) %>%
 
     mutate(pdb = map(pdb_files, ~bio3d::read.pdb(paste(input_path_models, dir_name, ., sep = "/")))) %>%
 
     mutate(pdb.xyz = map(pdb, parse_pdb)) %>%
 
-    mutate(pae = map(model, \(x) {
-
-      file_dat %>%
-        filter(model == x & file_type == "pae") %>%
-        pull(new_file_name) -> pae_file
-
-      tmp <- jsonlite::read_json(paste(input_path_models, dir_name, pae_file, sep = "/"))
+    mutate(pae = map(setNames(models[["pae_files"]], models[["model_e"]])[model_e],
+                     \(x) {
+      tmp <- jsonlite::read_json(paste(input_path_models, dir_name, x, sep = "/"))
       tmp[[1]][["predicted_aligned_error"]]
     }))
 
@@ -165,7 +171,7 @@ compute_RLdists <- function(input_data) {
       ligands <- unique(.x[["chain"]])[-1]
       dist_dat <- .x %>% select(CA_x, CA_y, CA_z)
 
-      ligands <- factor_to_uniprotFeature(.x[["chain"]]) %>%
+      ligand_dat <- factor_to_uniprotFeature(.x[["chain"]]) %>%
         filter(type %in% ligands) %>%
         mutate(mid = (start + end) %/% 2) %>%
         pivot_longer(c("start", "end", "mid")) %>%
@@ -185,7 +191,6 @@ compute_RLdists <- function(input_data) {
         ungroup() %>%
         mutate(ligand_name = paste(type, name, sep = "_"))
 
-      dists_to_comp
 
       receptors <- .y %>%
         mutate(dist_dat %>% slice(value))
@@ -193,14 +198,14 @@ compute_RLdists <- function(input_data) {
       all_dists <- bind_rows(
         map(1:nrow(dists_to_comp), \(i)
             cross_join(receptors %>% filter(TM_type2 == dists_to_comp$receptor[i]),
-                       ligands %>% filter(name == dists_to_comp$ligand[i]), suffix = c(".rec", ".lig"))
+                       ligand_dat %>% filter(name == dists_to_comp$ligand[i]), suffix = c(".rec", ".lig"))
         )) %>%
         rowwise() %>%
         mutate(distance = distance(s = c_across(all_of(c("CA_x.rec", "CA_y.rec", "CA_z.rec"))),
                                    p = c_across(all_of(c("CA_x.lig", "CA_y.lig", "CA_z.lig"))))) %>%
         mutate(final_name = paste0(TM_name, "_", ligand_name))
 
-      bind_rows(
+      all_dists <- bind_rows(
         all_dists %>%
           group_by(TM_type2, name.lig, type.lig) %>%
           summarise(distance = mean(distance), .groups = "drop") %>%
@@ -209,7 +214,38 @@ compute_RLdists <- function(input_data) {
         all_dists %>%
           select(final_name, distance)
       ) %>%
-        pivot_wider(names_from = final_name, values_from = distance)
+        pivot_wider(names_from = final_name, values_from = distance) %>%
+        mutate(lig1_location = case_when(EC_lig1_mid < IC_lig1_mid ~ "E",
+                                         EC_lig1_mid > IC_lig1_mid ~ "I",
+                                         TRUE ~ NA), .before = everything())
+
+
+      receptor_mid <- receptors %>%
+                        filter(TM_type2 == "mid") %>%
+                        summarise(across(all_of(c("CA_x", "CA_y", "CA_z")), mean))
+
+      if(length(ligands) > 1) {
+        stop
+      } else {
+      lig_dat <- .x %>%
+        filter(chain == ligands) %>%
+        rowwise %>%
+        mutate(mid_dist = distance(s = c_across(all_of(c("CA_x", "CA_y", "CA_z"))),
+                                   p = receptor_mid)) %>%
+        ungroup
+
+      closest_res <- which.min(lig_dat[["mid_dist"]])
+
+      lig_end <- c(N = closest_res - 1,
+                   C = nrow(lig_dat) - closest_res)
+
+      lig_end <- lig_end[which.min(lig_end)]
+
+      lig_end <- tibble(lig1_end = paste0(lig_end, names(lig_end)))
+
+      }
+
+      bind_cols(lig_end, all_dists)
 
     })) %>%
 
@@ -272,3 +308,6 @@ get_contacts <- function(pw_dist, bw, pdb.xyz, pae) {
 
 
 }
+
+
+

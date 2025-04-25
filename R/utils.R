@@ -128,6 +128,15 @@ mod_codes <- mod_codes()
 rlx_conv <- c(setNames("u", "unrelaxed"),
               setNames("r", "relaxed"))
 
+file_type_conv <- c(setNames("pae", "pae"),
+                    setNames("con", "confidence"),
+                    setNames("ark", "ranked"),
+                    setNames("xtr", "unrelaxed"),
+                    setNames("xtr", "relaxed"),
+                    setNames("res", "result"),
+                    setNames("plt", "pae_plot_ranked"),
+                    setNames("spc", "paeSPOC"))
+
 
 yo <- function(text = "something happened with some code") {
   temp.file <- paste0(tempdir(), "/error.txt")

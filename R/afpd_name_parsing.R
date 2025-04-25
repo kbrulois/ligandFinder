@@ -386,8 +386,8 @@ make_new_file_names <- function(input,
                random_code = y,
                model_code = mc[model],
                model_seed = ms[model]) %>%
-        mutate(file_type = if_else(file_type %in% c("relaxed", "unrelaxed"), "xtr", file_type)) %>%
-        mutate(file_type = if_else(file_type == "ranked", "rkd", file_type)) %>%
+        mutate(file_type_og = file_type) %>%
+        mutate(file_type = file_type_conv[file_type]) %>%
         mutate(rlx = rlx_conv[rlx]) %>%
         mutate(final_code = paste0(site,
                                    submitter,
@@ -398,10 +398,10 @@ make_new_file_names <- function(input,
                                        og_file_name,
                                        stringr::str_flatten(c(dir_name,
                                                               run_name,
-                                                              final_code,
                                                               algorithm,
                                                               file_type,
                                                               rlx,
+                                                              final_code,
                                                               paste0("s", model_seed,
                                                                      "m", model_num,
                                                                      "p", pred_num),
@@ -437,6 +437,7 @@ rename_files <- function(run_dir = "~/peptide_alg/rename_test",
 }
 
 
+
 download_rename_demo <- function(dest_dir = get_db_path()) {
 
   rd_url <- "https://stacks.stanford.edu/file/sc075gg6264/rename_test.tar.gz"
@@ -469,6 +470,60 @@ condense_model_names <- function(model_names) {
          pred_num = stringr::str_extract(model_names, "pred_\\d+") %>% stringr::str_remove(., "pred_"),
          model_names_c = paste0("m", model_num, "p", pred_num)) %>%
     pull(model_names_c)
+
+}
+
+
+
+
+modify_file_names <- function(run_name = "deepX14",
+                              algorithm = "AF2v3") {
+
+  rename_data <- data.table::fread(paste(input_path_models, dir_name, "file_name_log.csv", sep = "/")) %>% as_tibble
+
+  rename_data <- left_join(rename_data, metrics %>% rename(model = model_e) %>% select(model, lig1_location, lig1_end), by = "model") %>%
+    mutate(across(where(is.character), ~na_if(., ""))) %>%
+    rowwise %>%
+    mutate(mod_file_name = if_else(is.na(model),
+                                   og_file_name,
+                                   stringr::str_flatten(c(dir_name,
+                                                          run_name,
+                                                          algorithm,
+                                                          file_type,
+                                                          rlx,
+                                                          lig1_location,
+                                                          final_code,
+                                                          paste0("s", model_seed,
+                                                                 "m", model_num,
+                                                                 "p", pred_num),
+                                                          rank2,
+                                                          lig1_end),
+                                                        collapse = "_",
+                                                        na.rm = TRUE)), .after = "new_file_name") %>%
+    mutate(mod_file_name = if_else(is.na(model),
+                                   mod_file_name,
+                                   paste0(mod_file_name, file_extension)))
+
+
+
+  rename_data <- rename_files(run_dir = input_path_models,
+                              input = tibble(new_dir_name = dir_name, files = list(as_tibble(rename_data))),
+                              from = "new_file_name",
+                              to = "mod_file_name")
+
+}
+
+add_new_file_type <- function(file_type = "spc") {
+
+  file_log <- data.table::fread(paste(input_path_models, dir_name, "file_name_log.csv", sep = "/")) %>%
+                  as_tibble
+
+  new_files <- tibble()
+
+  new_file <- file_log %>%
+                filter(file_type == "res") %>%
+                mutate(file_type = !!sym(file_type))
+
 
 }
 
