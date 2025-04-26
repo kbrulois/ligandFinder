@@ -29,8 +29,6 @@ dir.create(analysis_name)
 setwd(analysis_name)
 dir.create("input")
 
-dists_to_comp <- tibble(receptor = c("EC", "IC", "mid", "mid"),
-                        ligand = c("mid", "mid", "CT", "NT"))
 
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 bw_align <- summarize_bw(gpcr_list = system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
@@ -68,7 +66,6 @@ options(future.globals.maxSize = 10e9)
 furrr::future_map(jobs, \(job) {
 
   to_do <- readRDS(file = paste0("input/", job))
-
 
   lapply(1:nrow(to_do), \(sub_job) {
 

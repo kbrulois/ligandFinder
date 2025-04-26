@@ -194,6 +194,9 @@ compute_RLdists <- function(input_data) {
         mutate(ligand_name = paste(type, name, sep = "_"))
 
 
+      dists_to_comp <- tibble(receptor = c("EC", "IC", "mid", "mid"),
+                              ligand = c("mid", "mid", "CT", "NT"))
+
       receptors <- .y %>%
         mutate(dist_dat %>% slice(value))
 
