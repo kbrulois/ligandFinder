@@ -476,7 +476,9 @@ condense_model_names <- function(model_names) {
 
 
 
-modify_file_names <- function(run_name = "deepX14",
+modify_file_names <- function(input_path_models,
+                              dir_name,
+                              run_name = "deepX14",
                               algorithm = "AF2v3") {
 
   rename_data <- data.table::fread(paste(input_path_models, dir_name, "file_name_log.csv", sep = "/")) %>% as_tibble
@@ -504,7 +506,7 @@ modify_file_names <- function(run_name = "deepX14",
                                    mod_file_name,
                                    paste0(mod_file_name, file_extension)))
 
-
+  data.table::fwrite(rename_data, paste(input_path_models, dir_name, "file_name_log.csv", sep = "/"))
 
   rename_data <- rename_files(run_dir = input_path_models,
                               input = tibble(new_dir_name = dir_name, files = list(as_tibble(rename_data))),

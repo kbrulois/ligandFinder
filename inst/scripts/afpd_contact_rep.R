@@ -92,35 +92,32 @@ furrr::future_map(jobs, \(job) {
                         metrics %>%
                          filter(seq_match == "different"))
 
-    metrics <- metrics %>%
-                  mutate(pw_dist = map(pdb, bio3d::dm.pdb))
+    if("lig1_location" %in% colnames(metrics)) {
 
     metrics <- bind_rows(
                   metrics %>%
-                    filter(seq_match == "match") %>%
-                     mutate(contacts = pmap(list(pw_dist = pw_dist,
+                    filter(seq_match == "match" & lig1_location != "I") %>%
+                    mutate(pw_dist = map(pdb, bio3d::dm.pdb)) %>%
+                    mutate(contacts = pmap(list(pw_dist = pw_dist,
                                   bw = `bw: full_table`,
                                   pdb.xyz = pdb.xyz,
                                   pae = pae), get_contacts)) %>%
-                                  unnest(contacts),
+                    unnest(contacts),
                     metrics %>%
-                           filter(seq_match == "different"))
+                           filter(seq_match == "different" | lig1_location == "I")
+                  )
 
-
-
-    metrics <- metrics %>% select(!where(is.list))
-
-    if("lig1_location" %in% colnames(metrics)) {
-
-
+    modify_file_names(input_path_models = input_path_models,
+                      dir_name = dir_name,
+                      run_name = run_id,
+                      algorithm = "AF2v3")
 
     }
 
+    metrics <- metrics %>% select(!where(is.list))
+
     data.table::fwrite(metrics,
                        file = paste0(input_path_models, "/", dir_name, "/", "metrics_v1.csv"))
-
-    saveRDS(metrics,
-            file = paste0(input_path_models, "/", dir_name, "/", "metrics_v1.rds"))
 
 
   }, error = function(e) message("problem with ", job, " ", file_name))
@@ -155,10 +152,6 @@ res <- bind_rows(
   map(comp_jobs_sub[["og_file_name"]][comp_jobs_sub[["metrics"]]],
       ~readRDS(paste0(input_path_models, "/", ., "/metrics_v1.rds")))
 )
-
-
-res <- res %>%
-  mutate(totalCP = replace_na(totalCP, 0))
 
 file_name <- paste0(run_analysis_dir, "/", run_id, ".rds")
 

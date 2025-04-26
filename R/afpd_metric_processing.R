@@ -52,7 +52,7 @@ import_raw_metrics <- function(dir_name,
                    mutate(code = stringr::str_extract(code_model_rank, "[A-Z]{4}[a-z]{7}"), .before = "pdb_files") %>%
                    mutate(algorithm = algorithm, .before = "pdb_files") %>%
                    mutate(run_name = run_name, .before = "pdb_files") %>%
-              select(-code_model_rank) %>%
+                   select(-code_model_rank)
 
 
   dat <- jsonlite::read_json(paste(input_path_models, dir_name, "ranking_debug.json", sep = "/"))
@@ -238,8 +238,8 @@ compute_RLdists <- function(input_data) {
 
       closest_res <- which.min(lig_dat[["mid_dist"]])
 
-      lig_end <- c(N = closest_res - 1,
-                   C = nrow(lig_dat) - closest_res)
+      lig_end <- c(N = closest_res,
+                   C = nrow(lig_dat) - closest_res + 1)
 
       lig_end <- lig_end[which.min(lig_end)]
 
@@ -305,7 +305,8 @@ get_contacts <- function(pw_dist, bw, pdb.xyz, pae) {
     pivot_wider(names_from = name, values_from = contact)
 
   bind_cols(pae_summary, grped_contacts, binary_contact) %>%
-    mutate(totalCP = sum(contacts[["CP"]] == "CP", na.rm = TRUE), .before = everything())
+    mutate(totalCP = sum(contacts[["CP"]] == "CP", na.rm = TRUE), .before = everything()) %>%
+    mutate(totalCP = replace_na(totalCP, 0))
 
 
 
