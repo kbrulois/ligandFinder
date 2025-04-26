@@ -299,17 +299,22 @@ parse_afpd_files <- function(input,
                              dir_name = "afpd_dir_name",
                              run_dir = "~/peptide_alg/rename_test") {
 
+
   dat <- input %>%
     mutate(files = map(!!sym(dir_name), ~list.files(paste0(run_dir, "/", .)))) %>%
-    mutate(ranks = map(!!sym(dir_name), \(x) {tryCatch({
-      jsonlite::read_json(paste(run_dir, x, "ranking_debug.json", sep = "/")) %>%
+    mutate(complete = map_lgl(!!sym(dir_name), \(x) {
+      file.exists(paste(run_dir, x, "ranking_debug.json", sep = "/"))
+    })) %>%
+    filter(complete) %>%
+    mutate(ranks = map(!!sym(dir_name), \(x) {
+        jsonlite::read_json(paste(run_dir, x, "ranking_debug.json", sep = "/")) %>%
         as_tibble %>%
         select(order) %>%
         tidyr::unnest(order) %>%
         dplyr::rename(model = order) %>%
         mutate(rank = 1:n() - 1) %>%
         arrange(model)
-    })}))
+    }))
 
   dat <- dat %>%
     mutate(files2 = map2(files, ranks, \(x, y) {
@@ -494,8 +499,8 @@ modify_file_names <- function(input_path_models,
                                                           run_name,
                                                           algorithm,
                                                           file_type,
-                                                          rlx,
                                                           lig1_location,
+                                                          rlx,
                                                           final_code,
                                                           paste0("s", model_seed,
                                                                  "m", model_num,
