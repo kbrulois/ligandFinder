@@ -15,10 +15,10 @@ set_db_path("/home/groups/ebutcher/kevin/ligandFinder")
 
 run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
 
-run_id <- "deepX14_2"
+run_id <- "bm"
 alg <- "AF2v3"
 
-input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models", "/", run_id)
+input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models", "/", "benchmarking")
 
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 bw_align <- summarize_bw(gpcr_list = system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
@@ -37,15 +37,20 @@ comp_jobs_sub <- comp_jobs %>%
 
 
 
-jobs <- tibble(dir_name = list.files(input_path_models))
+jobs <- tibble(dir_name = list.files(input_path_models)) %>%
+  mutate(complete = map_lgl(dir_name, \(x) {
+    file.exists(paste(input_path_models, x, "ranking_debug.json", sep = "/"))
+  }))
 
-num_of_grps <- 16
+jobs <- readRDS("bm_rename.rds") %>% select(new_dir_name)
+jobs %>% rename(dir_name = new_dir_name) -> jobs
+num_of_grps <- 32
 
 jobs <- jobs %>%
   mutate(group = paste0("job", ntile(n = num_of_grps)))
 
 
-future::plan(strategy = future::multicore(workers = 16))
+future::plan(strategy = future::multicore(workers = num_of_grps))
 
 start <- Sys.time()
 
@@ -58,7 +63,7 @@ furrr::future_map(unique(jobs[["group"]]), \(job) {
 
   dirs <- to_do %>% pull(dir_name)
 
-  lapply(dirs[3], \(directory) {
+  lapply(dirs, \(directory) {
 
     tryCatch({
 
@@ -66,20 +71,11 @@ furrr::future_map(unique(jobs[["group"]]), \(job) {
                                   run_name = run_id,
                                   algorithm = alg)
 
-    message("number rows after import ", nrow(metrics))
-
-    message("run id ", run_id)
-
-    message("alg ", alg)
-
     metrics <- left_join(metrics,
                          gpcr_list %>%
                                rename(p1_name = uniprot_name) %>%
                                select(p1_name, `bw: full_table`),
                          by = "p1_name")
-
-    message("number rows of gpcr_list ", nrow(gpcr_list))
-
     metrics <- process_metrics(input_data = metrics)
 
     metrics <- bind_rows(
@@ -87,8 +83,6 @@ furrr::future_map(unique(jobs[["group"]]), \(job) {
                                     filter(seq_match == "match")),
                         metrics %>%
                          filter(seq_match == "different"))
-
-    message("lig location computed ", "lig1_location" %in% colnames(metrics))
 
     if("lig1_location" %in% colnames(metrics)) {
 
@@ -105,24 +99,15 @@ furrr::future_map(unique(jobs[["group"]]), \(job) {
                            filter(seq_match == "different" | lig1_location == "I")
                   )
 
-    message("number rows before renaming ", nrow(metrics))
-
-    message("directory: ", directory)
-
     modify_file_names(input_path_models = input_path_models,
                       dir_name = directory,
                       run_name = run_id,
                       algorithm = alg,
                       metrics = metrics)
 
-    message("renameing done")
-
     }
 
     metrics <- metrics %>% select(!where(is.list))
-
-    message("number rows of metrics before saving ", nrow(metrics))
-
 
     data.table::fwrite(metrics,
                        file = paste(input_path_models, directory, "metrics_v1.csv", sep = "/"))

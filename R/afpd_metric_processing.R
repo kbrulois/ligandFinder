@@ -268,7 +268,7 @@ get_contacts <- function(pw_dist, bw, pdb.xyz, pae) {
   contacts <- cbind(expand.grid(residue1 = 1:nrow(pw_dist), residue2 = 1:nrow(pw_dist)), dist = c(pw_dist)) %>%
     as_tibble %>%
     filter(!is.na(dist)) %>%
-    filter(dist > 2 & dist < 5) %>%
+    filter(dist > 2 & dist < 4) %>%
     mutate(type1 = chains[residue1]) %>%
     mutate(type2 = chains[residue2]) %>%
     mutate(type = paste(type1, type2, sep = "_")) %>%

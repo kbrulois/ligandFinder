@@ -1,7 +1,7 @@
 
-run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
+run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/bm_april26"
 
-out_file_name <- "MC4R_CART"
+out_file_name <- "bm_update"
 reindex <- FALSE
 
 input_files <- list.files(run_analysis_dir)
@@ -9,6 +9,8 @@ input_files <- list.files(run_analysis_dir)
 input_files <- paste0(c("jh_w", "jh_wo", "mm_w", "mm_wo"), ".rds")
 
 input_files <- paste0("CXCL14vGPCRs", ".rds")
+
+input_files <- paste0("job", 1:32, ".rds")
 
 res <- bind_rows(
   map(input_files,
@@ -43,8 +45,8 @@ known_pairs <- c(known_pairs, known_pairs2)
 
 res <- res %>%
   rowwise %>%
-  mutate(known_pair = case_when(any(map_lgl(known_pairs, \(x) sum(c(p1_id, p2_id) %in% x) == 2)) ~ "known",
-                                TRUE ~ "unknown"), .after = "model") %>%
+  mutate(known_pair = case_when(any(map_lgl(known_pairs, \(x) sum(c(p1_name, p2_name) %in% x) == 2)) ~ "known",
+                                TRUE ~ "unknown"), .after = "iptm") %>%
   ungroup
 
 
@@ -66,25 +68,29 @@ umap_config$n_epochs <- 200
 
 
 
-for(col_type in names(col_types)) {
+for(col_type in names(col_types)[4:6]) {
 
   subsetter <- res %>%
-    select(ligand_location,
+    select(lig1_location,
            matches(col_types[[col_type]])) %>%
     select(!where(is.list)) %>%
     rowwise() %>%
-    mutate(subsetter = anyNA(c_across(-ligand_location))) %>%
-    mutate(subsetter2 = ligand_location == "IC") %>%
+    mutate(subsetter = anyNA(c_across(!any_of(c("lig1_location", "pae_files"))))) %>%
+    mutate(subsetter2 = lig1_location == "I") %>%
     mutate(subsetter = subsetter | subsetter2) %>%
     pull(subsetter)
 
   dim_red_input <- res %>%
+    select(-pae_files) %>%
     select(matches(col_types[[col_type]])) %>%
     select(!where(is.list)) %>%
     ungroup %>%
     dplyr::filter(!subsetter) %>%
     as.matrix
 
+  message("dim red columns ", colnames(dim_red_input))
+
+  message("doing PCA")
 
   pca_res[[col_type]] <- prcomp(t(dim_red_input), rank. = 10)
 
@@ -98,6 +104,7 @@ for(col_type in names(col_types)) {
 
   }
 
+  message("doing NMF")
 
 
   nmf_res[[col_type]] <- NMFN::nnmf(x = dim_red_input, k = 6)
@@ -112,6 +119,7 @@ for(col_type in names(col_types)) {
 
   }
 
+  message("doing UMAP")
 
   umap_res[[col_type]] <- umap::umap(d = nmf_res[[col_type]][["W"]], config = umap_config)
 
@@ -132,7 +140,7 @@ for(col_type in names(col_types)) {
 
 
 
-gpcr_cols <- c("p1_id",
+gpcr_cols <- c("p1_name",
                "ecb: Class or type",
                "ecb: Prioritization Notes",
                "gtp: Family name",
@@ -141,12 +149,12 @@ gpcr_cols <- c("p1_id",
                "gpcrdb: subfamily")
 
 res <- res %>%
-  relocate(starts_with("PC"), .after = "model") %>%
-  relocate(starts_with("UMAP"), .after = "model") %>%
-  relocate(starts_with("NMF"), .after = "model") %>%
-  {left_join(., gpcr_list %>% rename(p1_id = uniprot_name) %>% select(all_of(gpcr_cols)),
-             by = "p1_id")} %>%
-  relocate(all_of(gpcr_cols[-1]), .after = "model")
+  relocate(starts_with("PC"), .after = "iptm") %>%
+  relocate(starts_with("UMAP"), .after = "iptm") %>%
+  relocate(starts_with("NMF"), .after = "iptm") %>%
+  {left_join(., gpcr_list %>% rename(p1_name = uniprot_name) %>% select(all_of(gpcr_cols)),
+             by = "p1_name")} %>%
+  relocate(all_of(gpcr_cols[-1]), .after = "iptm")
 
 
 
@@ -163,15 +171,35 @@ res <- res %>%
 }
 
 res <- res %>%
-  dplyr::rename(model_full = model) %>%
+  dplyr::rename(model_full = model_e) %>%
   mutate(model = stringr::str_extract(model_full, "model_\\d"), .after = "model_full") %>%
   mutate(pred = stringr::str_extract(model_full, "pred_\\d"), .after = "model")
 
+
+spoc_input <- list.files(pattern = "^spoc_.*.csv$")
+
+spoc <- bind_rows(
+          map(spoc_input, ~data.table::fread(.) %>% as_tibble)
+)
+
+if(sum(spoc$complex_name %in% res$afpd_dir_name) == nrow(spoc)) {
+
+  res <- left_join(res, spoc %>% rename(afpd_dir_name = complex_name), by = "afpd_dir_name")
+
+}
+
+res <- res %>%
+  relocate(any_of(colnames(spoc)), .after = "run_name")
+
+res <- res %>%
+  mutate(lig1_NorC = stringr::str_extract(lig1_end, "[NC]$")) %>%
+  mutate(lig1_NorC_position = stringr::str_remove(lig1_end, "[NC]$"))
+
 data.table::fwrite(res %>%
                      select(!where(is.list)),
-                   paste0(out_file_name, ".csv"))
+                   paste0(out_file_name, "_w_spoc.csv"))
 
-message("scp kbrulois@dtn.sherlock.stanford.edu:", getwd(), "/", out_file_name, ".csv", " ~/Desktop/", out_file_name, ".csv")
+message("scp kbrulois@dtn.sherlock.stanford.edu:", getwd(), "/", out_file_name, "_w_spoc.csv", " ~/Desktop/", out_file_name, ".csv")
 
 saveRDS(res, paste0(out_file_name, "_res.rds"))
 

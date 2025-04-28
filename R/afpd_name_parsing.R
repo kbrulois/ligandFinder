@@ -294,6 +294,19 @@ rename_dir <- function(run_dir = "~/peptide_alg/rename_test",
 
 }
 
+safe_fromJSON <- function(txt, encoding = "UTF-8") {
+
+  obj_lines <- readLines(con = txt, encoding = encoding)
+
+  check_json <- jsonlite::validate(txt = obj_lines)
+  if(check_json == TRUE ) {
+    obj_json <- jsonlite::fromJSON(txt = obj_lines)
+  } else {
+    obj_json <- jsonlite::fromJSON(txt = "[]") # "[]" represents an empty json.
+  }
+
+  obj_json
+}
 
 parse_afpd_files <- function(input,
                              dir_name = "afpd_dir_name",
@@ -302,12 +315,12 @@ parse_afpd_files <- function(input,
 
   dat <- input %>%
     mutate(files = map(!!sym(dir_name), ~list.files(paste0(run_dir, "/", .)))) %>%
-    mutate(complete = map_lgl(!!sym(dir_name), \(x) {
-      file.exists(paste(run_dir, x, "ranking_debug.json", sep = "/"))
-    })) %>%
-    filter(complete) %>%
-    mutate(ranks = map(!!sym(dir_name), \(x) {
-        jsonlite::read_json(paste(run_dir, x, "ranking_debug.json", sep = "/")) %>%
+    mutate(raw_json = map(!!sym(dir_name), \(x) {
+      tryCatch({jsonlite::fromJSON(paste(run_dir, x, "ranking_debug.json", sep = "/"))},
+               error = function(e) return("problem JSON"))})) %>%
+    filter(raw_json != "problem JSON") %>%
+    mutate(ranks = map(raw_json, \(x) {
+        x %>%
         as_tibble %>%
         select(order) %>%
         tidyr::unnest(order) %>%
