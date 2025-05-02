@@ -14,15 +14,6 @@ combine_scores <- function(scoreA, scoreB) {
 }
 
 
-ss_features <- c(setNames("Alpha helix (4-12)", "H"),
-                 setNames("Isolated beta-bridge residue", "B"),
-                 setNames("Strand", "E"),
-                 setNames("3-10 helix", "G"),
-                 setNames("Pi helix", "I"),
-                 setNames("Turn", "T"),
-                 setNames("Bend", "S"),
-                 setNames("Kappa helix", "P"))
-
 ss_features_coded <- 1:length(ss_features)
 names(ss_features_coded) <- names(ss_features)
 ss_features_coded <- c(setNames(0, "-"), ss_features_coded)

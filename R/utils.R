@@ -1,5 +1,18 @@
 
 
+
+ss_features <- c(setNames("Alpha helix (4-12)", "H"),
+                 setNames("Isolated beta-bridge residue", "B"),
+                 setNames("Strand", "E"),
+                 setNames("3-10 helix", "G"),
+                 setNames("Pi helix", "I"),
+                 setNames("Turn", "T"),
+                 setNames("Bend", "S"),
+                 setNames("Kappa helix", "P"))
+
+
+
+
 alpha_fold_AA_order <- c('A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y', 'V', 'X', '-')
 
 #from fig1

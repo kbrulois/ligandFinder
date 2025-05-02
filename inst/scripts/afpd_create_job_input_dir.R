@@ -3,6 +3,7 @@
 .libPaths('/home/groups/ebutcher/programs/pipeline/R_libs4.1')
 library(dplyr)
 library(purrr)
+library(ligandFinder)
 
 
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
@@ -35,16 +36,43 @@ ligand_list <- tibble(uniprot_name = c("LUZP2", "LUZP2", "LUZP2", "LUZP2"),
 ligand_list <- readRDS(system.file("extdata/ligand_list.rds", package = "ligandFinder"))
 
 ligand_list <- ligand_list %>%
-                  filter(ecb_cull == "y" & database %in% c("both", "gpcrdb"))
+                  filter(ecb_cull == "y" & database %in% c("both", "gpcrdb") & !is.na(start))
+
+
+ligand_list <- ligand_list %>%
+  mutate(model = paste0(uniprot_name, ",", start, "-", end))
+
 
 ligand_list <- left_join(ligand_list, gpcr_list %>% dplyr::rename(receptor = uniprot_name), by = "receptor") %>%
                   mutate(known_model = paste0(model_name, ";", model))
 
 
+ligand_truncs <- expand.grid(terminus = c("C", "N"),
+                             direction = c("minus", "plus"),
+                             size = c("1", "2"), stringsAsFactors = FALSE) %>%
+                    rowwise %>%
+                    mutate(trunc = stringr::str_flatten(c_across(everything()), collapse = "_"))
+
+trunc_funcs <- c(`-`, `+`)
+names(trunc_funcs) <- c("minus", "plus")
+
+trunc_type <- c(setNames("start", "N"),
+                setNames("end", "C"))
+
+ligand_truncs <- bind_rows(
+  map(1:nrow(ligand_truncs), \(x) {
+  trunc <- ligand_truncs[x,]
+  trunc_func <- function(z, col_name) {trunc_funcs[[trunc[["direction"]]]](z, if(col_name == trunc_type[trunc[["terminus"]]]) {as.numeric(trunc[["size"]])} else {0})}
+    ligand_list %>%
+      mutate(model_trunc = paste0(uniprot_name, ",", trunc_func(start, "start"), "-", trunc_func(end, "end")), .after = "end")
+  })
+)
+
+to_run <- ligand_truncs %>%
+            mutate(model_trunc = paste0(model_name, ";", model_trunc), .after = "model_trunc")
 
 
-ligand_list <- ligand_list %>%
-                mutate(model = paste0(uniprot_name, ",", start, "-", end))
+
 
 to_run <- expand.grid(ligand = ligand_list[["model"]],
                       receptor = gpcr_sub[["model_name"]],
@@ -65,7 +93,7 @@ to_run <- to_run %>%
 
 to_run %>%
       group_by(group) %>%
-      group_walk(~ write.table(.x$model, file = .y$group,
+      group_walk(~ write.table(.x[["model_trunc"]], file = .y[["group"]],
                                row.names = FALSE, col.names = FALSE, quote = FALSE))
 
 saveRDS(to_run, "to_run.rds")

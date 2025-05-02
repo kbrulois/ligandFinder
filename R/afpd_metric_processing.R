@@ -30,7 +30,7 @@ parse_pdb <- function(pdb) {
 import_raw_metrics <- function(dir_name,
                                run_name = run_id,
                                algorithm = alg,
-                               pdb = "_ark_[ru]_.*.pdb$",
+                               pdb = "_ark_.*.pdb$",
                                pae = "_pae_.*.json$",
                                code_model_rank = "_[A-Z]{4}[a-z]{7}_s\\d+m\\d+p\\d+_r\\d+") {
 
@@ -41,8 +41,8 @@ import_raw_metrics <- function(dir_name,
   models <- tibble(pdb_files = grep(pdb, files, value = TRUE),
                    pae_files = grep(pae, files, value = TRUE),
                    code_model_rank = stringr::str_extract(pdb_files, code_model_rank),
-                   rlx = stringr::str_extract(pdb_files, "_ark_[ru]_") %>%
-                         stringr::str_remove(., "_ark_") %>%
+                   rlx = stringr::str_extract(pdb_files, "_[ru]_") %>%
+                         stringr::str_remove(., "^_") %>%
                          stringr::str_remove(., "_$"),
                    model_c = stringr::str_extract(code_model_rank, "s\\d+m\\d+p\\d+"),
                    rank = stringr::str_extract(code_model_rank, "_r\\d+$") %>% stringr::str_remove(., "^_r"),
