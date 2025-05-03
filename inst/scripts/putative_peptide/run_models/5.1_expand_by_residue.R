@@ -3,7 +3,22 @@
 pq_path <- paste0(get_db_path(), "/residue_db")
 
 
-secretome <- arrow::open_dataset(source = pq_path)
+residue_db <- arrow::open_dataset(source = pq_path)
+
+gene_grps <- residue_db %>%
+                distinct(gene_grp) %>%
+                pull(gene_grp, as_vector = TRUE)
+
+future::plan(strategy = future::multisession(workers = 10))
+
+test <- bind_rows(
+  furrr::future_map(gene_grps, \(x) {
+    residue_db <- arrow::open_dataset(source = pq_path)
+
+                          residue_db %>%
+                            filter(gene_grp == x) %>%
+                            collect()})
+)
 
 combine_scores <- function(scoreA, scoreB) {
   penalty <- ifelse(scoreB < 0.75, (1.6*(0.75 - scoreB))^2,

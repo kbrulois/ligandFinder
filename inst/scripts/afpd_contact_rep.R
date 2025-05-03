@@ -24,7 +24,6 @@ input_path_models <- "~/peptide_alg/testing_set"
 
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 bw_align <- summarize_bw(gpcr_list = system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
-id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 
 
 comp_jobs <- parse_dirname(run_dir = input_path_models,
