@@ -48,5 +48,5 @@ if __name__ == "__main__":
         try:
           convert_pkl_to_json(pkl_file=pkl_file, mode=args.mode)
         except Exception as e:
-          print(f"Error processing {item}: {e}")
+          print(f"Error processing {pkl_file}: {e}")
           continue
