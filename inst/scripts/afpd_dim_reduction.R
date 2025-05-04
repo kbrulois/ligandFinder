@@ -40,6 +40,40 @@ known_pairs2 <- ligand_list %>%
 
 known_pairs <- c(known_pairs, known_pairs2)
 
+id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
+
+chemokine_pairs <- data.table::fread(system.file("data/Chemokine_Pairs.csv", package = "ligandFinder")) %>%
+                      slice(-1) %>%
+                      as_tibble
+
+chem_pairs <- chemokine_pairs %>%
+  rowwise %>%
+  mutate(across(all_of(c("V1", "V2")), \(x) {
+
+    if(x %in% id_map$`Gene Names (primary)`) {
+    return(setNames(id_map$`Entry Name`, id_map$`Gene Names (primary)`)[x])
+      } else {
+        id_map %>%
+          mutate(thing = map_lgl(`Gene Names`, \(y) {
+            stringr::str_detect(y, x)
+          })) %>%
+          pull(thing) -> gene_alts
+        if(sum(gene_alts) == 1) {
+          return(id_map$`Entry Name`[gene_alts])
+        } else {
+          return(NA)
+        }
+
+      }})) %>%
+  rowwise %>%
+  mutate(known = map2(.x = V1,
+                      .y = V2,
+                      .f = \(x, y) {c(x, y)})) %>%
+  ungroup %>%
+  mutate(known_lgl = map_lgl(known, ~any(is.na(.)))) %>%
+  filter(!known_lgl) %>%
+  pull(known) %>%
+  unname
 
 
 

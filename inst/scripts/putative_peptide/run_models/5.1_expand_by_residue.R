@@ -11,14 +11,22 @@ gene_grps <- residue_db %>%
 
 future::plan(strategy = future::multisession(workers = 10))
 
-test <- bind_rows(
-  furrr::future_map(gene_grps, \(x) {
+start <- Sys.time()
+test2 <- bind_rows(
+  furrr::future_map("A", \(x) {
     residue_db <- arrow::open_dataset(source = pq_path)
 
                           residue_db %>%
                             filter(gene_grp == x) %>%
                             collect()})
 )
+
+end <- Sys.time()
+
+end - start
+
+
+
 
 combine_scores <- function(scoreA, scoreB) {
   penalty <- ifelse(scoreB < 0.75, (1.6*(0.75 - scoreB))^2,

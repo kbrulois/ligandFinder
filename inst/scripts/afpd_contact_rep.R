@@ -15,10 +15,10 @@ set_db_path("/home/groups/ebutcher/kevin/ligandFinder")
 
 run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
 
-run_id <- "bm"
+run_id <- "bm_truncs"
 alg <- "AF2v3"
 
-input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models", "/", "benchmarking")
+input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models", "/", run_id)
 input_path_models <- "~/peptide_alg/testing_set"
 
 
@@ -45,7 +45,7 @@ jobs <- tibble(dir_name = list.files(input_path_models)) %>%
 
 jobs <- readRDS("bm_rename.rds") %>% select(new_dir_name)
 jobs %>% rename(dir_name = new_dir_name) -> jobs
-num_of_grps <- 32
+num_of_grps <- 16
 
 jobs <- jobs %>%
   mutate(group = paste0("job", ntile(n = num_of_grps)))
@@ -152,13 +152,13 @@ jobs <- jobs %>%
   mutate(metrics = file.exists(paste0(input_path_models, "/", dir_name, "/metrics_v1.csv")))
 
 res <- bind_rows(
-  map(comp_jobs_sub[["og_file_name"]][comp_jobs_sub[["metrics"]]],
-      ~readRDS(paste0(input_path_models, "/", ., "/metrics_v1.rds")))
+  map(jobs %>% filter(metrics) %>% pull(dir_name),
+      ~data.table::fread(paste0(input_path_models, "/", ., "/metrics_v1.csv")))
 )
 
-file_name <- paste0(run_analysis_dir, "/", run_id, ".rds")
+file_name <- paste0(run_analysis_dir, "/", run_id, ".csv")
 
-if(!file.exists(file_name)) saveRDS(res, file_name)
+if(!file.exists(file_name)) data.table::fwrite(res, file_name)
 
 
 
