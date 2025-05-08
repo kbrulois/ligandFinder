@@ -38,7 +38,6 @@ known_pairs2 <- ligand_list %>%
                     pull(known) %>%
                     unname
 
-known_pairs <- c(known_pairs, known_pairs2)
 
 id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 
@@ -75,13 +74,16 @@ chem_pairs <- chemokine_pairs %>%
   pull(known) %>%
   unname
 
+known_pairs <- c(known_pairs, known_pairs2, chem_pairs)
+
 
 
 res <- res %>%
   rowwise %>%
   mutate(known_pair = case_when(any(map_lgl(known_pairs, \(x) sum(c(p1_name, p2_name) %in% x) == 2)) ~ "known",
                                 TRUE ~ "unknown"), .after = "iptm") %>%
-  ungroup
+  ungroup %>%
+  mutate(known_pair2 = if_else(known_pair == "known", paste0(p1_name, ";", p2_name), NA))
 
 
 col_types <- list(all_bw = bw_align[["name"]],
@@ -190,8 +192,11 @@ res <- res %>%
              by = "p1_name")} %>%
   relocate(all_of(gpcr_cols[-1]), .after = "iptm")
 
-
-
+res <- res %>%
+  select(-all_of(gpcr_cols[-1])) %>%
+  {left_join(., gpcr_list %>% rename(p1_name = uniprot_name) %>% select(all_of(gpcr_cols)),
+             by = "p1_name")} %>%
+  relocate(all_of(gpcr_cols[-1]), .after = "iptm")
 
 
 
@@ -229,11 +234,29 @@ res <- res %>%
   mutate(lig1_NorC = stringr::str_extract(lig1_end, "[NC]$")) %>%
   mutate(lig1_NorC_position = stringr::str_remove(lig1_end, "[NC]$"))
 
+to_join <- to_run %>%
+  select(model_trunc, trunc_term, trunc_dir, trunc_size) %>%
+  rename(model_name = model_trunc) %>%
+  mutate(model_name = stringr::str_replace(model_name, ",\\d+-\\d+;", ";"))
+
+sum(to_join$model_name %in% res$model_name)
+
+
+res <- left_join(res, to_join, "model_name")
+
+
+
+
+res <- res %>%
+  mutate(known_type = case_when(run_name == "bm" & !is.na(known_pair2) ~ "WT",
+                                run_name == "bm_truncs" & !is.na(known_pair2) ~ paste0(trunc_term, "_", trunc_dir),
+                                TRUE ~ NA))
+
 data.table::fwrite(res %>%
                      select(!where(is.list)),
-                   paste0(out_file_name, "_w_spoc.csv"))
+                   paste0(out_file_name, "_w_spoc_truncs.csv"))
 
-message("scp kbrulois@dtn.sherlock.stanford.edu:", getwd(), "/", out_file_name, "_w_spoc.csv", " ~/Desktop/", out_file_name, ".csv")
+message("scp kbrulois@dtn.sherlock.stanford.edu:", getwd(), "/", out_file_name, "_w_spoc_truncs.csv", " ~/Desktop/", out_file_name, ".csv")
 
 saveRDS(res, paste0(out_file_name, "_res.rds"))
 

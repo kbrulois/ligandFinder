@@ -3,6 +3,7 @@
 .libPaths('/home/groups/ebutcher/programs/pipeline/R_libs4.1')
 library(dplyr)
 library(purrr)
+library(tidyr)
 library(ligandFinder)
 
 
@@ -64,7 +65,10 @@ ligand_truncs <- bind_rows(
   trunc <- ligand_truncs[x,]
   trunc_func <- function(z, col_name) {trunc_funcs[[trunc[["direction"]]]](z, if(col_name == trunc_type[trunc[["terminus"]]]) {as.numeric(trunc[["size"]])} else {0})}
     ligand_list %>%
-      mutate(model_trunc = paste0(uniprot_name, ",", trunc_func(start, "start"), "-", trunc_func(end, "end")), .after = "end")
+      mutate(model_trunc = paste0(uniprot_name, ",", trunc_func(start, "start"), "-", trunc_func(end, "end")), .after = "end") %>%
+      mutate(trunc_term = trunc[["terminus"]],
+             trunc_dir = trunc[["direction"]],
+             trunc_size = trunc[["size"]])
   })
 )
 
@@ -95,7 +99,7 @@ to_run <- to_run %>%
               mutate(known = if_else(model %in% ligand_list$known_model, "known", "unknown")) %>%
               arrange(known)
 
-group_size <- 23
+group_size <- 48
 
 to_run <- to_run %>%
     mutate(group = rep(paste0("job", 1:ceiling(n() / group_size), ".txt"), each = group_size, length.out = n()))
@@ -119,9 +123,9 @@ saveRDS(to_run, "to_run.rds")
 
 
 comp_jobs <- parse_dirname(run_dir = input_path_models,
-                           delim_proteins = "_and_",
-                           delim_ranges = "_",
-                           delim_start_end = "-") %>%
+                           delim_proteins = "_",
+                           delim_ranges = "x",
+                           delim_start_end = "x") %>%
   mutate(parsed_pair = map(parsed_pair, ~pivot_wider(., names_from=c("protein", "annotation"), values_from=value))) %>%
   unnest(parsed_pair)
 
