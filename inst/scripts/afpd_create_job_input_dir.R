@@ -14,6 +14,11 @@ gpcr_sub <- gpcr_list %>%
               filter(`ecb: Exclude due to N term >160AA` != "Exclude due to N term >160AA") %>%
               filter(map_lgl(`bw: full_table`, ~nrow(.) > 0))
 
+
+
+
+
+
 ligand_list <- tibble(uniprot_name = c("GP15L", "GP15L", "CXL17", "CCL25", "RARR2", "RARR2", "RARR2", "RARR2"),
                       start = c(25, 71, 64, 24, 21, 21, 21,21),
                       end = c(81, 81, 119, 150, 163, 157, 158, 156))
@@ -120,7 +125,7 @@ saveRDS(to_run, "to_run.rds")
 
 
 
-
+input_path_models <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/benchmarking"
 
 comp_jobs <- parse_dirname(run_dir = input_path_models,
                            delim_proteins = "_",
