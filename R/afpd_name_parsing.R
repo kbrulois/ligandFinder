@@ -170,7 +170,7 @@ parse_dirname <- function(run_dir = "~/peptide_alg/rename_test",
   if(!is.null(pairing_dir)) {
     tmp <- tibble(afpd_dir_name = pairing_dir)
   } else {
-    tmp <- tibble(afpd_dir_name = fs::dir_ls(run_dir, type = "directory"))
+    tmp <- tibble(afpd_dir_name = fs::dir_ls(run_dir, type = "directory") %>% basename)
   }
 
   tmp <- tmp %>%
