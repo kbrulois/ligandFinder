@@ -162,6 +162,7 @@ make_model_names <- function(x, gpcr_mode = TRUE) {
               mutate(protein = "p1",
                      annotation = "range",
                      value = paste(first_AA, last_AA, sep = "-")) %>%
+              filter(first_AA > 1) %>%
               select(protein, annotation, value) %>%
               bind_rows(x, .)
     }
