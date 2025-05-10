@@ -134,6 +134,19 @@ comp_jobs <- parse_dirname(run_dir = input_path_models,
   mutate(parsed_pair = map(parsed_pair, ~pivot_wider(., names_from=c("protein", "annotation"), values_from=value))) %>%
   unnest(parsed_pair)
 
+comp_jobs <- comp_jobs %>%
+  mutate(complete = map_lgl(afpd_dir_name, \(x) {
+    file.exists(paste(input_path_models, x, "ranking_debug.json", sep = "/"))
+  }))
+
+gpcr_list %>% mutate(lut = setNames(model_name, uniprot_name)) %>% pull(lut) -> gpcr_lut
+
+comp_jobs <- comp_jobs %>%
+                mutate(model)
+
+comp_jobs %>%
+  filter(complete)
+
 to_run <- to_run %>%
   filter(!model_trunc %in% comp_jobs$model_name)
 

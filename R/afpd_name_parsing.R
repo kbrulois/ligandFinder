@@ -143,7 +143,33 @@ split_name <- function(x) {
 }
 
 
-make_model_names <- function(x) {
+make_model_names <- function(x, gpcr_mode = TRUE) {
+
+  if(gpcr_mode) {
+
+    model_type <- x %>%
+                    filter(protein == "p1" & annotation == "idsuffix") %>%
+                    pull(value)
+
+    p1_name <- x %>%
+                    filter(protein == "p1" & annotation == "name") %>%
+                    pull(value)
+
+    if(length(model_type == 0)) {
+      gpcr_list %>%
+        filter(uniprot_name == p1_name) %>%
+        select(first_AA, last_AA) %>%
+        mutate(protein = "p1",
+               annotation = "range",
+               value = paste(first_AA, last_AA, sep = "-")) %>%
+        select(protein, annotation, value) %>%
+        bind_rows(x, .)
+    }
+
+
+
+  }
+
   x <- x %>%
     filter(!annotation %in% c("idprefix", "idsuffix"))
 
