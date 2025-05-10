@@ -155,15 +155,15 @@ make_model_names <- function(x, gpcr_mode = TRUE) {
                     filter(protein == "p1" & annotation == "name") %>%
                     pull(value)
 
-    if(length(model_type == 0)) {
-      gpcr_list %>%
-        filter(uniprot_name == p1_name) %>%
-        select(first_AA, last_AA) %>%
-        mutate(protein = "p1",
-               annotation = "range",
-               value = paste(first_AA, last_AA, sep = "-")) %>%
-        select(protein, annotation, value) %>%
-        bind_rows(x, .)
+    if(length(model_type) == 0) {
+      x <- gpcr_list %>%
+              filter(uniprot_name == p1_name) %>%
+              select(first_AA, last_AA) %>%
+              mutate(protein = "p1",
+                     annotation = "range",
+                     value = paste(first_AA, last_AA, sep = "-")) %>%
+              select(protein, annotation, value) %>%
+              bind_rows(x, .)
     }
 
 

@@ -7,7 +7,6 @@ library(tidyr)
 library(ligandFinder)
 
 
-gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 
 gpcr_sub <- gpcr_list %>%
               filter(grepl("^#", `ecb: Order of runs (priority)`)) %>%
