@@ -7,8 +7,8 @@
 #SBATCH --output=test.out
 #SBATCH --qos long
 
-ml R/4.1.2  
+ml R/4.1.2
 
-Rscript /home/groups/ebutcher/programs/pipeline/R_libs4.1/ligandFinder/exec/afpd_submit_jobs.R \
+Rscript /home/groups/ebutcher/programs/pipeline/R_libs4.1/ligandFinder/exec/afpd_submit_jobs_cli.R \
 --first=722
 --last=999

@@ -138,10 +138,8 @@ comp_jobs <- comp_jobs %>%
     file.exists(paste(input_path_models, x, "ranking_debug.json", sep = "/"))
   }))
 
-gpcr_list %>% mutate(lut = setNames(model_name, uniprot_name)) %>% pull(lut) -> gpcr_lut
+yo()
 
-comp_jobs <- comp_jobs %>%
-                mutate(model)
 
 comp_jobs %>%
   filter(complete)
@@ -167,8 +165,8 @@ sum(to_run[["model"]] %in% comp_jobs[["model"]])
 
 
 to_still_run <- to_run %>%
-                  filter(!model %in% comp_jobs[["model"]]) %>%
-                  mutate(parse_proteins(model, delim_proteins = ";", delim_ranges = ","))
+                  filter(!model %in% (comp_jobs %>% filter(complete) %>% pull(model_name)))
+
 
 left_join(to_still_run, id_map %>% rename(receptor_id = `Entry Name`), by = "receptor_id") %>%
   select(receptor_id, Length) %>%
@@ -182,8 +180,11 @@ to_still_run <- to_still_run %>%
 
 to_still_run %>%
   group_by(group) %>%
-  group_walk(~ write.table(.x$model, file = .y$group,
-                           row.names = FALSE, col.names = FALSE, quote = FALSE))
+  group_walk(~ write.table(.x[["model"]],
+                           file = .y[["group"]],
+                           row.names = FALSE,
+                           col.names = FALSE,
+                           quote = FALSE))
 
 
 

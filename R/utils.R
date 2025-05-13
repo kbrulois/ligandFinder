@@ -1,6 +1,5 @@
 
 
-gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 
 ss_features <- c(setNames("Alpha helix (4-12)", "H"),
                  setNames("Isolated beta-bridge residue", "B"),
