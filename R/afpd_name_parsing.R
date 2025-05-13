@@ -190,7 +190,7 @@ make_model_names <- function(x, gpcr_mode = TRUE) {
 
 parse_dirname <- function(run_dir = "~/peptide_alg/rename_test",
                           pairing_dir = NULL,
-                          delim_proteins = "_and_",
+                          afpd_raw = FALSE,
                           ...) {
 
   id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
@@ -200,10 +200,12 @@ parse_dirname <- function(run_dir = "~/peptide_alg/rename_test",
   } else {
     tmp <- tibble(afpd_dir_name = fs::dir_ls(run_dir, type = "directory") %>% basename)
     message("found ", nrow(tmp), " folders in the run directory")
-
+    if(afpd_raw) {
+      afpd_delim <- "_and_"
    tmp <- tmp %>%
-              filter(stringr::str_detect(afpd_dir_name, delim_proteins))
-   message("found ", nrow(tmp), " folders containing the protein delimiter: '", delim_proteins, "'")
+              filter(stringr::str_detect(afpd_dir_name, afpd_delim))
+   message("found ", nrow(tmp), " folders containing the protein delimiter: '", afpd_delim, "'")
+    }
   }
 
   tmp <- tmp %>%

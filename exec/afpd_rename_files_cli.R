@@ -24,7 +24,8 @@ if (opt$verbose) {
 
 run_directory <- opt[["input"]]
 
-rename_data <- parse_dirname(run_dir = run_directory)
+rename_data <- parse_dirname(run_dir = run_directory,
+                             afpd_raw = TRUE)
 
 rename_data <- make_new_dirname(input = rename_data,
                                 delim_proteins = "_",
