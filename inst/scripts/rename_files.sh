@@ -8,10 +8,10 @@ conda activate spoc_venv
 
 exec_path=$(Rscript -e 'cat(system.file("exec", package = "ligandFinder"))')
 
-python "$exec_path/generate_spoc_json.py" $1
-
 Rscript "$exec_path/afpd_rename_files_cli.R" \
 --input=$1 \
 --name=$2 \
 --person=KB \
 --location=SU
+
+python "$exec_path/generate_spoc_json.py" $1 "rn"

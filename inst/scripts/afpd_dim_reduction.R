@@ -1,21 +1,53 @@
 
-run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/bm_april26"
 
-out_file_name <- "bm_update"
+get_metrics <- function(run_dir) {
+
+
+
+  jobs <- tibble(dir_name = fs::dir_ls(run_dir, type = "directory") %>% basename) %>%
+    mutate(complete = furrr::future_map_lgl(dir_name, \(x) {
+      file.exists(paste(run_dir, x, "metrics_v1.csv", sep = "/"))
+    })) %>%
+      filter(complete) %>%
+      mutate(group = paste0("job", ntile(n = num_of_grps)))
+
+  res <- furrr::future_map(unique(jobs[["group"]]), \(job) {
+    dirs <- jobs %>%
+              filter(group == job) %>%
+              pull(dir_name)
+
+
+    metrics <- map(dirs,
+        ~data.table::fread(paste0(run_dir, "/", ., "/metrics_v1.csv")))
+
+    metrics <- metrics[sapply(metrics, \(x) nrow(x) != 0)]
+
+    bind_rows(metrics)
+
+  }
+  )
+
+  bind_rows(res) %>% as_tibble
+
+}
+
+
+out_file_name <- "bm_update2"
+run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
+
+num_of_grps <- 16
+
+future::plan(strategy = future::multicore(workers = num_of_grps))
+
+run_dirs = c("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/benchmarking",
+             "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/benchmarking_APACE")
+
+res <- bind_rows(map(run_dirs, ~get_metrics(.)))
+
 reindex <- FALSE
 
-input_files <- list.files(run_analysis_dir)
 
-input_files <- paste0(c("jh_w", "jh_wo", "mm_w", "mm_wo"), ".rds")
-
-input_files <- paste0("CXCL14vGPCRs", ".rds")
-
-input_files <- paste0("job", 1:32, ".rds")
-
-res <- bind_rows(
-  map(input_files,
-      ~readRDS(paste0(run_analysis_dir, "/", .)))
-)
+get_known_pairs <- function() {
 
 
 known_pairs <- list(c("GPR25", "CXL17"),
@@ -74,9 +106,11 @@ chem_pairs <- chemokine_pairs %>%
   pull(known) %>%
   unname
 
-known_pairs <- c(known_pairs, known_pairs2, chem_pairs)
+c(known_pairs, known_pairs2, chem_pairs)
 
+}
 
+known_paris <- get_known_pairs()
 
 res <- res %>%
   rowwise %>%

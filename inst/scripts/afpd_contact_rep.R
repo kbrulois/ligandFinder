@@ -15,10 +15,10 @@ set_db_path("/home/groups/ebutcher/kevin/ligandFinder")
 
 run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
 
-run_id <- "bm_truncs"
+run_id <- "bm"
 alg <- "AF2v3"
 
-input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models", "/", run_id)
+input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models", "/", "benchmarking_APACE")
 input_path_models <- "~/peptide_alg/testing_set"
 
 
@@ -43,8 +43,16 @@ jobs <- tibble(dir_name = list.files(input_path_models)) %>%
     file.exists(paste(input_path_models, x, "ranking_debug.json", sep = "/"))
   }))
 
-jobs <- readRDS("bm_rename.rds") %>% select(new_dir_name)
-jobs %>% rename(dir_name = new_dir_name) -> jobs
+future::plan(strategy = future::multicore(workers = 16))
+
+jobs <- jobs %>%
+          mutate(complete2 = furrr::future_map_lgl(dir_name, \(x) {
+            file.exists(paste(input_path_models, x, "metrics_v1.csv", sep = "/"))
+          }))
+
+jobs <- jobs %>%
+          filter(complete & !complete2)
+
 num_of_grps <- 16
 
 jobs <- jobs %>%
