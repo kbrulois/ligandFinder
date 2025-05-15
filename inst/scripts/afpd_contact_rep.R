@@ -19,7 +19,6 @@ run_id <- "bm"
 alg <- "AF2v3"
 
 input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models", "/", "benchmarking_APACE")
-input_path_models <- "~/peptide_alg/testing_set"
 
 
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
@@ -151,22 +150,6 @@ yo()
 
 
 
-
-
-
-
-
-jobs <- jobs %>%
-  mutate(metrics = file.exists(paste0(input_path_models, "/", dir_name, "/metrics_v1.csv")))
-
-res <- bind_rows(
-  map(jobs %>% filter(metrics) %>% pull(dir_name),
-      ~data.table::fread(paste0(input_path_models, "/", ., "/metrics_v1.csv")))
-)
-
-file_name <- paste0(run_analysis_dir, "/", run_id, ".csv")
-
-if(!file.exists(file_name)) data.table::fwrite(res, file_name)
 
 
 
