@@ -1,5 +1,25 @@
 
 
+
+download_roi_data <- function(url,
+                              dest_dir = get_db_path()) {
+
+  downloaded_path <- paste0(dest_dir, "/", str_extract(url, "[^/]+$"))
+
+
+  if (!file.exists(downloaded_path)) {
+    message("Downloading data...")
+    download.file(url, downloaded_path, mode = "wb")
+    message("data downloaded to: ", downloaded_path)
+  } else {
+    message("data already exists at: ", downloaded_path)
+  }
+
+  return(invisible(downloaded_path))
+}
+
+
+
 submit_model_jobs <- function(script = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/alphapulldown.sh",
                               input_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/mxrun",
                               output_path = "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/mxrun",

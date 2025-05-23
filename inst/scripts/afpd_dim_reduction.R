@@ -2,8 +2,14 @@
 
 
 
-out_file_name <- "bm_update2"
+gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
+bw_align <- summarize_bw(gpcr_list = system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
+
+
+out_file_name <- "bm_update3"
 run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
+spoc_path <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/bm_final_spoc"
+
 reindex <- FALSE
 
 num_of_grps <- 16
@@ -17,7 +23,7 @@ res <- bind_rows(map(run_dirs, ~get_metrics(.)))
 
 
 
-known_paris <- get_known_pairs()
+known_pairs <- get_known_pairs()
 
 res <- res %>%
   rowwise %>%
@@ -45,7 +51,7 @@ umap_config$n_epochs <- 200
 
 
 
-for(col_type in names(col_types)[4:6]) {
+for(col_type in names(col_types)[c(2,4,5,6)]) {
 
   subsetter <- res %>%
     select(lig1_location,
@@ -114,6 +120,8 @@ for(col_type in names(col_types)[4:6]) {
 
 }
 
+yo()
+
 
 
 
@@ -156,10 +164,11 @@ res <- res %>%
   mutate(pred = stringr::str_extract(model_full, "pred_\\d"), .after = "model")
 
 
-spoc_input <- list.files(pattern = "^spoc_.*.csv$")
+spoc_input <- list.files(path = spoc_path,
+                         pattern = "^spoc_.*.csv$")
 
 spoc <- bind_rows(
-          map(spoc_input, ~data.table::fread(.) %>% as_tibble)
+          map(paste0(spoc_path, "/", spoc_input), ~data.table::fread(.) %>% as_tibble)
 )
 
 if(sum(spoc$complex_name %in% res$afpd_dir_name) == nrow(spoc)) {
@@ -195,9 +204,9 @@ res <- res %>%
 
 data.table::fwrite(res %>%
                      select(!where(is.list)),
-                   paste0(out_file_name, "_w_spoc_truncs.csv"))
+                   paste0(out_file_name, "_w_spoc.csv"))
 
-message("scp kbrulois@dtn.sherlock.stanford.edu:", getwd(), "/", out_file_name, "_w_spoc_truncs.csv", " ~/Desktop/", out_file_name, ".csv")
+message("scp kbrulois@dtn.sherlock.stanford.edu:", getwd(), "/", out_file_name, "_w_spoc.csv", " ~/Desktop/", out_file_name, ".csv")
 
 saveRDS(res, paste0(out_file_name, "_res.rds"))
 
