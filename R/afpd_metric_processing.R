@@ -464,7 +464,7 @@ get_voronota_contacts <- function(bw, pdb.xyz, pae, ligand_dist, pdb_files, afpd
                      paste(uni_chains[-1], "rec", sep = "_"))
 
 
-  contacts <- cbind(expand.grid(residue1 = 1:nrow(pw_dist), residue2 = 1:nrow(pw_dist)) %>%
+  contacts <- cbind(expand.grid(residue1 = 1:nrow(pw_dist), residue2 = 1:nrow(pw_dist))) %>%
     as_tibble %>%
     filter(!is.na(dist)) %>%
     filter(dist > 2 & dist < 4) %>%
