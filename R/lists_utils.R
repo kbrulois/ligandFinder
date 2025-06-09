@@ -138,12 +138,13 @@ summarize_bw <- function(gpcr_list = system.file("extdata/gpcr_list.rds", packag
   gpcr_list <- readRDS(gpcr_list)
 
   bw_align <- map(gpcr_list$`bw: full_table`, \(x) {tmp <- unique(x[["BW"]]); return(tmp[!is.na(tmp)])})
+  tot_bw <- sum(sapply(bw_align, \(x) length(x) != 0))
   bw_align <- table(unlist(bw_align))
   bw_align <- tibble(BW = names(bw_align),
                      prop = as.integer(unname(bw_align)))
   bw_align <- bw_align %>%
     mutate(CP = if_else(BW %in% cp_bw, "CP", "")) %>%
-    mutate(prop = round(100 * prop/805, 0)) %>%
+    mutate(prop = round(100 * prop/tot_bw, 0)) %>%
     mutate(name = paste(BW, prop, CP, sep = "_")) %>%
     mutate(name = stringr::str_remove(name, "_$")) %>%
     slice(gtools::mixedorder(name))

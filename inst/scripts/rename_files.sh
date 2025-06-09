@@ -8,6 +8,13 @@ conda activate spoc_venv
 
 exec_path=$(Rscript -e 'cat(system.file("exec", package = "ligandFinder"))')
 
+dirs=("$1"/*)
+
+for d in "${dirs[@]}"; do
+    find "$d" -type f -name "*.png" -delete
+done
+
+
 Rscript "$exec_path/afpd_rename_files_cli.R" \
 --input=$1 \
 --name=$2 \

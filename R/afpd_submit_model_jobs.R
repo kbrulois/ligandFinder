@@ -4,7 +4,7 @@
 download_roi_data <- function(url,
                               dest_dir = get_db_path()) {
 
-  downloaded_path <- paste0(dest_dir, "/", str_extract(url, "[^/]+$"))
+  downloaded_path <- paste0(dest_dir, "/", stringr::str_extract(url, "[^/]+$"))
 
 
   if (!file.exists(downloaded_path)) {

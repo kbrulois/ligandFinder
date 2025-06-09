@@ -150,6 +150,25 @@ file_type_conv <- c(setNames("pae", "pae"),
                     setNames("plt", "pae_plot_ranked"),
                     setNames("spc", "paeSPOC"))
 
+aa_df <- data.frame(
+  OneLetter = c(
+    "A", "R", "N", "D", "C",
+    "E", "Q", "G", "H", "I",
+    "L", "K", "M", "F", "P",
+    "S", "T", "W", "Y", "V",
+    "U", "O", "X", "B", "Z", "J"
+  ),
+  ThreeLetter = c(
+    "ALA", "ARG", "ASN", "ASP", "CYS",
+    "GLU", "GLN", "GLY", "HIS", "ILE",
+    "LEU", "LYS", "MET", "PHE", "PRO",
+    "SER", "THR", "TRP", "TYR", "VAL",
+    "SEC", "PYL", "XAA", "ASX", "GLX", "XLE"
+  ),
+  stringsAsFactors = FALSE
+)
+
+
 
 yo <- function(text = "something happened with some code") {
   temp.file <- paste0(tempdir(), "/error.txt")

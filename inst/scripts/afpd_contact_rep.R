@@ -19,10 +19,18 @@ run_id <- "bm"
 alg <- "AF2v3"
 
 input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models", "/", "benchmarking_APACE")
+input_path_models <- "~/peptide_alg/testing_set"
+
 
 
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 bw_align <- summarize_bw(gpcr_list = system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
+
+dirs <- fs::dir_ls(input_path_models) %>% stringr::str_subset(., ".tar$")
+
+if(length(dirs) > 0) {
+  lapply(dirs, \(x) untar(tarfile = x, exdir = path.expand("~/peptide_alg/testing_set/")))
+}
 
 
 comp_jobs <- parse_dirname(run_dir = input_path_models,
@@ -90,21 +98,22 @@ furrr::future_map(unique(jobs[["group"]]), \(job) {
                         compute_RLdists(input_data = metrics %>%
                                     filter(seq_match == "match")),
                         metrics %>%
-                         filter(seq_match == "different"))
+                         filter(seq_match2 == "different"))
 
     if("lig1_location" %in% colnames(metrics)) {
 
     metrics <- bind_rows(
                   metrics %>%
-                    filter(seq_match == "match" & lig1_location != "I") %>%
+                    filter(seq_match2 == "match" & lig1_location != "I") %>%
                     mutate(pw_dist = map(pdb, bio3d::dm.pdb)) %>%
                     mutate(contacts = pmap(list(pw_dist = pw_dist,
                                   bw = `bw: full_table`,
                                   pdb.xyz = pdb.xyz,
                                   pae = pae), get_contacts)) %>%
                     unnest(contacts),
+
                     metrics %>%
-                           filter(seq_match == "different" | lig1_location == "I")
+                           filter(seq_match2 == "different" | lig1_location == "I")
                   )
 
     modify_file_names(input_path_models = input_path_models,
