@@ -196,7 +196,8 @@ process_metrics <- function(input_data) {
       lut <- setNames(c("rec", paste0("lig", 1:(length(pdb_chains) - 1))), pdb_chains)
       x[["chain"]] <- lut[x[["chain"]]]
       x <- x %>%
-        mutate(residue_name = stringr::str_c(chain, "_", AA, resno), .before = everything())
+        mutate(residue_name = stringr::str_c(AA, resno), .before = everything()) %>%
+        mutate(pdb_index = 1:n())
       x
     })) %>%
 
@@ -420,9 +421,9 @@ get_contacts <- function(pw_dist, bw, pdb.xyz, pae) {
 
 }
 
-voronota_contacts <- function(pdb_file = "/Users/kbrulois/peptide_alg/testing_set/hAGTR2_hANGTx25x31/hAGTR2_hANGTx25x31_bm_AF2v3_ark_E_u_SUKBaamyjaa_s210m1p0_r0_1C.pdb",
-                              voronota_contacts_path = "/usr/local/bin/voronota-contacts",
-                              params = "'--no-same-chain --no-solvent --inter-residue-after'") {
+run_voronota <- function(pdb_file = "/Users/kbrulois/peptide_alg/testing_set/hAGTR2_hANGTx25x31/hAGTR2_hANGTx25x31_bm_AF2v3_ark_E_u_SUKBaamyjaa_s210m1p0_r0_1C.pdb",
+                         voronota_contacts_path = "/usr/local/bin/voronota-contacts",
+                         params = "'--no-same-chain --no-solvent --inter-residue-after'") {
 
 
   res <- system2(command = voronota_contacts_path,
@@ -441,7 +442,9 @@ voronota_contacts <- function(pdb_file = "/Users/kbrulois/peptide_alg/testing_se
     mutate(chain1 = "rec", chain2 = "lig1") %>%
     mutate(rec_residue = stringr::str_c(rname1, rnum1),
            lig1_residue = stringr::str_c(rname2, rnum2)) %>%
-    select(rec_residue, lig1_residue, area, dist, tags, adjuncts) %>%
+    rename(AA_rec = rname1) %>%
+    rename(AA_lig1 = rname2) %>%
+    select(AA_rec, AA_lig1, rec_residue, lig1_residue, area, dist, tags, adjuncts) %>%
     mutate(area = as.numeric(area)) %>%
     mutate(dist = as.numeric(dist))
 
@@ -450,46 +453,87 @@ voronota_contacts <- function(pdb_file = "/Users/kbrulois/peptide_alg/testing_se
 
 
 
-get_voronota_contacts <- function(bw, pdb.xyz, pae, ligand_dist, pdb_files, afpd_dir_name) {
+
+extract_contact_data <- function(bw,
+                                 pdb.xyz,
+                                 pae,
+                                 ligand_dist,
+                                 pdb_files,
+                                 afpd_dir_name,
+                                 p1_name,
+                                 p2_name,
+                                 residue_data) {
 
 
-  contacts <- voronota_contacts(pdb_file = paste(input_path_models, afpd_dir_name, pdb_files, sep = "/"))
-
-  pdb.xyz <- pdb.xyz %>%
-                mutate(residue_name = paste0(AA, resno))
+  contacts <- run_voronota(pdb_file = paste(input_path_models, afpd_dir_name, pdb_files, sep = "/"))
 
   chains <- unname(pdb.xyz[["chain"]])
   uni_chains <- unique(chains)
-  rec_lig_pairs <- c(paste("rec", uni_chains[-1], sep = "_"),
-                     paste(uni_chains[-1], "rec", sep = "_"))
 
+  offset <- pdb.xyz %>%
+              group_by(chain) %>%
+              summarize(offset = min(resno) - 1)
 
-  contacts <- cbind(expand.grid(residue1 = 1:nrow(pw_dist), residue2 = 1:nrow(pw_dist))) %>%
-    as_tibble %>%
-    filter(!is.na(dist)) %>%
-    filter(dist > 2 & dist < 4) %>%
-    mutate(type1 = chains[residue1]) %>%
-    mutate(type2 = chains[residue2]) %>%
-    mutate(type = paste(type1, type2, sep = "_")) %>%
-    filter(type %in% rec_lig_pairs) %>%
-    rowwise %>%
-    mutate(paeR = pae[[residue1]][[residue2]]) %>%
-    mutate(paeL = pae[[residue2]][[residue1]]) %>%
-    ungroup %>%
-    mutate(BW = case_when(type1 == "rec" ~ bw[["BW"]][residue1],
-                          type2 == "rec" ~ bw[["BW"]][residue2])) %>%
-    mutate(AA1 = pdb.xyz[["AA"]][residue1]) %>%
-    mutate(AA2 = pdb.xyz[["AA"]][residue2]) %>%
-    mutate(residue_name1 = pdb.xyz[["residue_name"]][residue1]) %>%
-    mutate(residue_name2 = pdb.xyz[["residue_name"]][residue2]) %>%
-    rowwise %>%
-    mutate(favorability = case_when(any(map_lgl(residue_pairs[["favorable"]], \(x) sum(c(AA1, AA2) %in% x) == 2)) ~ 1,
-                                    any(map_lgl(residue_pairs[["unfavorable"]], \(x) sum(c(AA1, AA2) %in% x) == 2)) ~ -1,
-                                    TRUE ~ 0))
+  residue_dat <- expand.grid(chain = uni_chains, data = c("cons", "af_missense"), stringsAsFactors = FALSE) %>%
+          mutate(protein = if_else(chain == "rec", p1_name, p2_name)) %>%
+          mutate(data = pmap(list(chain, protein, data),
+                             function(c, p, d) {
+          map_table(seq2 = paste(pdb.xyz %>% filter(chain == c) %>% pull(AA), collapse = ""),
+                    to_map = residue_data %>%
+                              filter(uni_gene == p) %>%
+                              pull(d) %>%
+                              `[[`(.,1)) %>%
+          `[[`(., "ms") %>%
+          mutate(chain_index = 1:n() + offset %>% filter(chain == c) %>% pull(offset),
+                 residue_name = if_else(is.na(AA), NA, paste0(AA, chain_index))) %>%
+          filter(!is.na(residue_name)) %>%
+          select(!any_of(c("AA", "chain_index", "index"))) %>%
+          rename_with(~paste0(., "_", c), .cols = -residue_name)
+        }))
 
+    for(x in 1:nrow(residue_dat)) {
+    contacts <- left_join(contacts,
+                          residue_dat[["data"]][[x]],
+                          by = join_by(!!rlang::sym(paste0(residue_dat[["chain"]][x],"_residue")) == residue_name))
+    }
+
+    contacts <- left_join(contacts,
+                          ligand_dist %>%
+                            arrange(mid_dist) %>%
+                            mutate(ligand_index = paste0("L", 1:n())) %>%
+                            mutate(pLDDT_lig1 = pLDDT/100) %>%
+                            rename(pdb_index_lig1 = pdb_index) %>%
+                            select(residue_name, pLDDT_lig1, mid_dist, ligand_index, pdb_index_lig1),
+                          by = join_by(lig1_residue == residue_name))
+
+    contacts <- left_join(contacts,
+                          pdb.xyz %>%
+                            filter(chain == "rec") %>%
+                            mutate(pLDDT_rec = pLDDT/100) %>%
+                            rename(pdb_index_rec = pdb_index) %>%
+                            select(residue_name, pLDDT_rec, pdb_index_rec),
+                          by = join_by(rec_residue == residue_name))
+
+    contacts <- left_join(contacts,
+                          bw %>%
+                            mutate(residue_name = paste0(AA, 1:n())) %>%
+                            select(-display_generic_number, -AA, -index),
+                          by = join_by(rec_residue == residue_name))
+
+    contacts <- contacts %>%
+      rowwise %>%
+      mutate(paeR = pae[[pdb_index_rec]][[pdb_index_lig1]]) %>%
+      mutate(paeL = pae[[pdb_index_lig1]][[pdb_index_rec]]) %>%
+      mutate(favorability = case_when(any(map_lgl(residue_pairs[["favorable"]], \(x) sum(c(AA_rec, AA_lig1) %in% x) == 2)) ~ 1,
+                                      any(map_lgl(residue_pairs[["unfavorable"]], \(x) sum(c(AA_rec, AA_lig1) %in% x) == 2)) ~ 0,
+                                      TRUE ~ 0.5)) %>%
+      ungroup
 
   contacts <- left_join(contacts, bw_align, by = "BW")
-  contacts <- left_join(contacts, bw[!is.na(bw$BW), ], by = "BW")
+
+}
+
+summarize_contacts <- function(contacts) {
 
   pae_summary <- contacts %>%
     ungroup %>%
@@ -514,4 +558,74 @@ get_voronota_contacts <- function(bw, pdb.xyz, pae, ligand_dist, pdb_files, afpd
 
 }
 
+
+do_metrics <- function(directory, job, residue_data) {
+  message("job in do_metrics ", job)
+  message("directory in do_metrics ", directory)
+  #tryCatch({
+
+    metrics <- import_raw_metrics(dir_name = directory,
+                                  run_name = run_id,
+                                  algorithm = alg)
+
+    metrics <- left_join(metrics,
+                         gpcr_list %>%
+                           rename(p1_name = uniprot_name) %>%
+                           select(p1_name, `bw: full_table`),
+                         by = "p1_name")
+
+    metrics <- process_metrics(input_data = metrics)
+
+    metrics <- bind_rows(
+      compute_RLdists(input_data = metrics %>%
+                        filter(seq_match == "match")),
+      metrics %>%
+        filter(seq_match2 == "different"))
+
+    if("lig1_location" %in% colnames(metrics)) {
+
+      metrics <- bind_rows(
+        metrics %>%
+          filter(seq_match2 == "match" & lig1_location != "I") %>%
+          mutate(contacts = pmap(list(bw = `bw: full_table`,
+                                      pdb.xyz = pdb.xyz,
+                                      pae = pae,
+                                      ligand_dist = ligand_dist,
+                                      pdb_files = pdb_files,
+                                      afpd_dir_name = afpd_dir_name,
+                                      p1_name = p1_name,
+                                      p2_name = p2_name,
+                                      residue_data = list(residue_data)),
+                                 extract_contact_data)),
+
+        metrics %>%
+          filter(seq_match2 == "different" | lig1_location == "I")
+      )
+
+      modify_file_names(input_path_models = input_path_models,
+                        dir_name = directory,
+                        run_name = run_id,
+                        algorithm = alg,
+                        metrics = metrics)
+
+    }
+
+    saveRDS(metrics[["contacts"]],
+            file = paste(input_path_models, directory, "metrics_v2c.rds", sep = "/"))
+
+    metrics <- metrics %>%
+      mutate(sum_contacts = map(contacts, summarize_contacts)) %>%
+      unnest(sum_contacts)
+
+    metrics <- metrics %>% select(!where(is.list))
+
+    data.table::fwrite(metrics,
+                       file = paste(input_path_models, directory, "metrics_v2.csv", sep = "/"))
+
+    message("saved to ", paste(input_path_models, directory, "metrics_v2.csv", sep = "/"))
+
+
+  #}, error = function(e) message("problem with ", job, " ", directory))
+
+}
 

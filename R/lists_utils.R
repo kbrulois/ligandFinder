@@ -133,7 +133,7 @@ extend_bw_notation <- \(x) {
 }
 
 
-summarize_bw <- function(gpcr_list = system.file("extdata/gpcr_list.rds", package = "ligandFinder")) {
+summarize_bw <- function(gpcr_list = system.file("extdata/gpcr_list.rds", package = "ligandFinder"), prop_cutoff = 80) {
 
   gpcr_list <- readRDS(gpcr_list)
 
@@ -147,9 +147,11 @@ summarize_bw <- function(gpcr_list = system.file("extdata/gpcr_list.rds", packag
     mutate(prop = round(100 * prop/tot_bw, 0)) %>%
     mutate(name = paste(BW, prop, CP, sep = "_")) %>%
     mutate(name = stringr::str_remove(name, "_$")) %>%
+    mutate(region = stringr::str_sub(BW, 1, 1)) %>%
     slice(gtools::mixedorder(name))
 
-  bw_align %>% filter(prop > 20)
+  bw_align %>%
+    filter(prop > prop_cutoff & region != "C")
 
 }
 
