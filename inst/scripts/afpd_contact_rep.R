@@ -66,17 +66,17 @@ jobs <- runs %>%
 
 
 
-
 jobs <- jobs %>%
   mutate(group = paste0("job", ntile(n = num_of_grps)))
 
+future::plan(strategy = future::sequential())
 
 
 start <- Sys.time()
 
 options(future.globals.maxSize = 10e9)
 
-furrr::future_map(unique(jobs[["group"]])[1:2], \(job) {
+furrr::future_map(unique(jobs[["group"]]), \(job) {
 
   to_do <- jobs %>%
               filter(group == job)
@@ -90,8 +90,9 @@ furrr::future_map(unique(jobs[["group"]])[1:2], \(job) {
     filter(uni_gene %in% proteins) %>%
     collect()
 
-
+tryCatch({
   lapply(dirs2, \(x) do_metrics(directory = x, job = job, residue_data = residue_data))
+}, error = function(e) e)
 
   to_do <- to_do %>%
     mutate(metrics = file.exists(paste0(input_path_models, "/", afpd_dir_name, "/metrics_v2.csv")))

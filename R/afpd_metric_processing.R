@@ -432,7 +432,7 @@ run_voronota <- function(pdb_file = "/Users/kbrulois/peptide_alg/testing_set/hAG
                           "--tsv-output"),
                  stdout = TRUE)
 
-  res <- stringr::str_split_fixed(res, " ", 18)
+  res <- stringr::str_split_fixed(res, "\t", 18)
 
   colnames(res) <- res[1, ]
 
@@ -607,9 +607,7 @@ summarize_contacts <- function(contacts) {
 
 
 do_metrics <- function(directory, job, residue_data) {
-  message("job in do_metrics ", job)
-  message("directory in do_metrics ", directory)
-  #tryCatch({
+  tryCatch({
 
     metrics <- import_raw_metrics(dir_name = directory,
                                   run_name = run_id,
@@ -672,7 +670,7 @@ do_metrics <- function(directory, job, residue_data) {
     message("saved to ", paste(input_path_models, directory, "metrics_v2.csv", sep = "/"))
 
 
-  #}, error = function(e) message("problem with ", job, " ", directory))
+  }, error = function(e) message("problem with ", job, " ", directory))
 
 }
 
