@@ -20,10 +20,12 @@ alg <- "AF2v3"
 
 input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models", "/", "benchmarking_APACE")
 input_path_models <- "~/peptide_alg/testing_set"
+input_path_models <- "/scratch/groups/ebutcher/deorphan/models/benchmarking"
 
 pq_path <- "~/ligandFinder_data/residue_db"
+pq_path <- "/home/groups/ebutcher/kevin/ligandFinder/residue_db"
 voronota_path <- "/usr/local/bin/voronota-contacts"
-voronota_path <- "/usr/local/bin/voronota-contacts"
+voronota_path <- "/home/groups/ebutcher/programs/voronota/bin/voronota-contacts"
 
 
 res_db <- arrow::open_dataset(source = pq_path)
@@ -40,15 +42,19 @@ if(length(dirs) > 0) {
   lapply(dirs, \(x) untar(tarfile = x, exdir = path.expand("~/peptide_alg/testing_set/")))
 }
 
+num_of_grps <- 32
+
+future::plan(strategy = future::multicore(workers = num_of_grps))
+
 
 runs <- parse_dirname(run_dir = input_path_models,
                       delim_proteins = "_",
                       delim_ranges = "x",
                       delim_start_end = "x") %>%
-              mutate(parsed_pair = map(parsed_pair, ~pivot_wider(., names_from=c("protein", "annotation"), values_from=value))) %>%
+              mutate(parsed_pair = furrr::future_map(parsed_pair, ~pivot_wider(., names_from=c("protein", "annotation"), values_from=value))) %>%
               unnest(parsed_pair) %>%
-              mutate(num_files = map_int(afpd_dir_name, ~length(list.files(paste0(input_path_models, "/", .))))) %>%
-              mutate(complete = map_lgl(afpd_dir_name, \(x) {
+              mutate(num_files = furrr::future_map_int(afpd_dir_name, ~length(list.files(paste0(input_path_models, "/", .))))) %>%
+              mutate(complete = furrr::future_map_lgl(afpd_dir_name, \(x) {
                   file.exists(paste(input_path_models, x, "ranking_debug.json", sep = "/"))
                     })) %>%
               mutate(complete2 = furrr::future_map_lgl(afpd_dir_name, \(x) {
@@ -59,15 +65,12 @@ jobs <- runs %>%
           filter(complete)
 
 
-future::plan(strategy = future::sequential())
 
-num_of_grps <- 16
 
 jobs <- jobs %>%
   mutate(group = paste0("job", ntile(n = num_of_grps)))
 
 
-future::plan(strategy = future::multicore(workers = num_of_grps))
 
 start <- Sys.time()
 

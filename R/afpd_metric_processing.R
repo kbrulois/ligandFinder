@@ -535,25 +535,72 @@ extract_contact_data <- function(bw,
 
 summarize_contacts <- function(contacts) {
 
-  pae_summary <- contacts %>%
-    ungroup %>%
-    summarise(across(all_of(c("paeR", "paeL", "favorability")), mean, .names = "{.col}_mean"))
+  score_cols <- c("paeL",
+                  "paeR",
+                  "pLDDT_rec",
+                  "pLDDT_lig1",
+                  "frequency_scaled_lig1",
+                  "frequency_scaled_rec",
+                  "mean_af_missense_rec",
+                  "mean_af_missense_lig1",
+                  "favorability",
+                  "CP",
+                  "tags")
+
+  contacts <- contacts %>%
+    filter(dist > 2) %>%
+    mutate(ligand_index = as.numeric(stringr::str_remove(ligand_index, "^L"))) %>%
+    mutate(across(starts_with("pae"), ~ (30 - .)/ 30)) %>%
+    mutate(CP = if_else(CP == "CP", 1, 0)) %>%
+    mutate(tags = if_else(tags == ".", 0, 1)) %>%
+    rowwise() %>%
+    mutate(score = mean(c_across(all_of(score_cols)), na.rm = TRUE), .before = "area") %>%
+    ungroup() %>%
+    arrange(desc(score))
+
+  extr_sum_cols <- c("score",
+                     "area",
+                     "dist",
+                     "doubleSmooth_scaled_rec",
+                     "doubleSmooth_scaled_lig1",
+                     "mid_dist",
+                     "ligand_index")
+
+
+
+  all_contacts <- contacts %>%
+    summarise(across(all_of(c(score_cols, extr_sum_cols)), mean, na.rm = TRUE, .names = "{.col}_mean_all"))
+
+  top_contacts <- c(5, 10, 20)
+
+  total_cons <- nrow(contacts)
+
+  top_cons <- map(top_contacts, \(x) {
+    if(x < total_cons) {
+    df <- contacts %>%
+      slice(1:x) %>%
+      summarise(across(all_of(c(score_cols, extr_sum_cols)), mean, na.rm = TRUE, .names = paste0("{.col}_mean_top", x)))
+    } else {
+      df <- contacts %>%
+        summarise(across(all_of(c(score_cols, extr_sum_cols)), mean, na.rm = TRUE, .names = paste0("{.col}_mean_top", x)))
+      df[,] <- NA
+    }
+    return(df)
+  })
+
+  top_cons <- bind_cols(top_cons)
 
   grped_contacts <- contacts %>%
     group_by(protein_segment) %>%
-    summarise(count = n())
+    summarise(across(all_of(c(score_cols, extr_sum_cols)), mean, .names = "{.col}_mean"))
 
   grped_contacts <- left_join(bw_segs, grped_contacts, by = "protein_segment") %>%
-    mutate(count = replace_na(count, 0)) %>%
-    pivot_wider(names_from = protein_segment, values_from = count, names_prefix = "ligContacts_")
+    mutate(across(-protein_segment, ~replace_na(., 0))) %>%
+    pivot_wider(names_from = protein_segment, values_from = -protein_segment)
 
-  binary_contact <- bw_align %>%
-    mutate(contact = if_else(BW %in% contacts[["BW"]], 1, 0)) %>%
-    select(name, contact) %>%
-    pivot_wider(names_from = name, values_from = contact)
 
-  bind_cols(pae_summary, grped_contacts, binary_contact) %>%
-    mutate(totalCP = sum(contacts[["CP"]] == "CP", na.rm = TRUE), .before = everything()) %>%
+  bind_cols(all_contacts, top_cons, grped_contacts) %>%
+    mutate(totalCP = sum(contacts[["CP"]], na.rm = TRUE), .before = everything()) %>%
     mutate(totalCP = replace_na(totalCP, 0))
 
 }
