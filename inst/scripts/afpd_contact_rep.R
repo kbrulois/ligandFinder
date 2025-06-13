@@ -22,6 +22,9 @@ input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models
 input_path_models <- "~/peptide_alg/testing_set"
 
 pq_path <- "~/ligandFinder_data/residue_db"
+voronota_path <- "/usr/local/bin/voronota-contacts"
+voronota_path <- "/usr/local/bin/voronota-contacts"
+
 
 res_db <- arrow::open_dataset(source = pq_path)
 

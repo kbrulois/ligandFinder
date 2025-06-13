@@ -422,7 +422,7 @@ get_contacts <- function(pw_dist, bw, pdb.xyz, pae) {
 }
 
 run_voronota <- function(pdb_file = "/Users/kbrulois/peptide_alg/testing_set/hAGTR2_hANGTx25x31/hAGTR2_hANGTx25x31_bm_AF2v3_ark_E_u_SUKBaamyjaa_s210m1p0_r0_1C.pdb",
-                         voronota_contacts_path = "/usr/local/bin/voronota-contacts",
+                         voronota_contacts_path = voronota_path,
                          params = "'--no-same-chain --no-solvent --inter-residue-after'") {
 
 
