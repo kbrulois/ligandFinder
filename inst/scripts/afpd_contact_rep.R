@@ -122,3 +122,9 @@ runs %>%
   pull(v2_computed) %>%
   sum(.)
 
+
+test2 <- test %>%
+  group_by(afpd_dir_name) %>%
+  summarize(numE = sum(lig1_location == "E" & location != "APPP"))
+
+test3 <- left_join(test, test2, by = "afpd_dir_name")

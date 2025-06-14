@@ -1,12 +1,14 @@
 
 
-
+runs <- runs %>%
+  mutate(v2_computed = file.exists(paste0(input_path_models, "/", afpd_dir_name, "/metrics_v2.csv"))) %>%
+  filter(v2_computed)
 
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 bw_align <- summarize_bw(gpcr_list = system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 
 
-out_file_name <- "bm_update3"
+out_file_name <- "bm_update4"
 run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
 spoc_path <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/bm_final_spoc"
 
@@ -18,6 +20,8 @@ future::plan(strategy = future::multicore(workers = num_of_grps))
 
 run_dirs = c("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/benchmarking",
              "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/benchmarking_APACE")
+
+run_dirs <- input_path_models
 
 res <- bind_rows(map(run_dirs, ~get_metrics(.)))
 

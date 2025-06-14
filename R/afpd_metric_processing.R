@@ -1,11 +1,13 @@
 
-get_metrics <- function(run_dir, metric_file = "metrics_v2.csv") {
+get_metrics <- function(run_dir,
+                        file = "metrics_v2.csv",
+                        reader = data.table::fread) {
 
 
 
   jobs <- tibble(dir_name = fs::dir_ls(run_dir, type = "directory") %>% basename) %>%
     mutate(complete = furrr::future_map_lgl(dir_name, \(x) {
-      file.exists(paste(run_dir, x, metric_file, sep = "/"))
+      file.exists(paste(run_dir, x, file, sep = "/"))
     })) %>%
     filter(complete) %>%
     mutate(group = paste0("job", ntile(n = num_of_grps)))
@@ -17,7 +19,7 @@ get_metrics <- function(run_dir, metric_file = "metrics_v2.csv") {
 
 
     metrics <- map(dirs,
-                   ~data.table::fread(paste0(run_dir, "/", ., "/", metric_file)))
+                   ~reader(paste0(run_dir, "/", ., "/", file)))
 
     metrics <- metrics[sapply(metrics, \(x) nrow(x) != 0)]
 
