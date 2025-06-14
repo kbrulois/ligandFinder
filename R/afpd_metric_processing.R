@@ -1,11 +1,11 @@
 
-get_metrics <- function(run_dir) {
+get_metrics <- function(run_dir, metric_file = "metrics_v2.csv") {
 
 
 
   jobs <- tibble(dir_name = fs::dir_ls(run_dir, type = "directory") %>% basename) %>%
     mutate(complete = furrr::future_map_lgl(dir_name, \(x) {
-      file.exists(paste(run_dir, x, "metrics_v1.csv", sep = "/"))
+      file.exists(paste(run_dir, x, metric_file, sep = "/"))
     })) %>%
     filter(complete) %>%
     mutate(group = paste0("job", ntile(n = num_of_grps)))
@@ -17,7 +17,7 @@ get_metrics <- function(run_dir) {
 
 
     metrics <- map(dirs,
-                   ~data.table::fread(paste0(run_dir, "/", ., "/metrics_v1.csv")))
+                   ~data.table::fread(paste0(run_dir, "/", ., "/", metric_file)))
 
     metrics <- metrics[sapply(metrics, \(x) nrow(x) != 0)]
 
@@ -479,7 +479,7 @@ extract_contact_data <- function(bw,
           mutate(data = pmap(list(chain, protein, data),
                              function(c, p, d) {
           map_table(seq2 = paste(pdb.xyz %>% filter(chain == c) %>% pull(AA), collapse = ""),
-                    to_map = residue_data %>%
+                    to_map = residue_data %>%                    #########add check for number of rows, make dummy afm and cons data
                               filter(uni_gene == p) %>%
                               pull(d) %>%
                               `[[`(.,1)) %>%

@@ -117,6 +117,8 @@ yo()
 
 
 
-
-
+runs %>%
+  mutate(v2_computed = file.exists(paste0(input_path_models, "/", afpd_dir_name, "/metrics_v2.csv"))) %>%
+  pull(v2_computed) %>%
+  sum(.)
 
