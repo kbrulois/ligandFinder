@@ -33,9 +33,9 @@ get_metrics <- function(run_dir,
 }
 
 get_contacts <- function(run_dir,
-                        metric_file = "metrics_v2.csv",
-                        contact_file = "metrics_v2c.rds",
-                        reader = data.table::fread) {
+                         metric_file = "metrics_v2.csv",
+                         contact_file = "metrics_v2c.rds",
+                         reader = data.table::fread) {
 
 
 
@@ -174,17 +174,17 @@ import_raw_metrics <- function(dir_name,
                    pae_files = grep(pae, files, value = TRUE),
                    code_model_rank = stringr::str_extract(pdb_files, code_model_rank),
                    rlx = stringr::str_extract(pdb_files, "_[ru]_") %>%
-                         stringr::str_remove(., "^_") %>%
-                         stringr::str_remove(., "_$"),
+                     stringr::str_remove(., "^_") %>%
+                     stringr::str_remove(., "_$"),
                    model_c = stringr::str_extract(code_model_rank, "s\\d+m\\d+p\\d+"),
                    rank = stringr::str_extract(code_model_rank, "_r\\d+$") %>% stringr::str_remove(., "^_r"),
                    model_num = stringr::str_extract(model_c, "m\\d+") %>% stringr::str_remove(., "^m"),
                    pred_num = stringr::str_extract(model_c, "p\\d+") %>% stringr::str_remove(., "^p"),
                    model_e = paste0("model_", model_num, "_multimer_v3_", "pred_", pred_num)) %>%
-                   mutate(code = stringr::str_extract(code_model_rank, "[A-Z]{4}[a-z]{7}"), .before = "pdb_files") %>%
-                   mutate(algorithm = algorithm, .before = "pdb_files") %>%
-                   mutate(run_name = run_name, .before = "pdb_files") %>%
-                   select(-code_model_rank)
+    mutate(code = stringr::str_extract(code_model_rank, "[A-Z]{4}[a-z]{7}"), .before = "pdb_files") %>%
+    mutate(algorithm = algorithm, .before = "pdb_files") %>%
+    mutate(run_name = run_name, .before = "pdb_files") %>%
+    select(-code_model_rank)
 
 
   dat <- jsonlite::read_json(paste(input_path_models, dir_name, "ranking_debug.json", sep = "/"))
@@ -199,11 +199,11 @@ import_raw_metrics <- function(dir_name,
                                 delim_proteins = "_",
                                 delim_ranges = "x",
                                 delim_start_end = "x") %>%
-                  mutate(parsed_pair = map(parsed_pair,
-                                           ~pivot_wider(.,
-                                                        names_from=c("protein", "annotation"),
-                                                        values_from=value))) %>%
-                  unnest(parsed_pair)
+    mutate(parsed_pair = map(parsed_pair,
+                             ~pivot_wider(.,
+                                          names_from=c("protein", "annotation"),
+                                          values_from=value))) %>%
+    unnest(parsed_pair)
 
   dat <- bind_cols(dat, pairing_info)
 
@@ -218,9 +218,9 @@ import_raw_metrics <- function(dir_name,
 
     mutate(pae = map(setNames(models[["pae_files"]], models[["model_e"]])[model_e],
                      \(x) {
-      tmp <- jsonlite::read_json(paste(input_path_models, dir_name, x, sep = "/"))
-      tmp[[1]][["predicted_aligned_error"]]
-    }))
+                       tmp <- jsonlite::read_json(paste(input_path_models, dir_name, x, sep = "/"))
+                       tmp[[1]][["predicted_aligned_error"]]
+                     }))
 
 }
 
@@ -238,17 +238,17 @@ process_metrics <- function(input_data) {
       x
     })) %>%
 
-   mutate(pdb_rec_seq = map_chr(pdb.xyz, \(x) {
-    stringr::str_c(x$AA[x$chain == "rec"], collapse = "")
+    mutate(pdb_rec_seq = map_chr(pdb.xyz, \(x) {
+      stringr::str_c(x$AA[x$chain == "rec"], collapse = "")
     })) %>%
 
-  mutate(bw_seq = map_chr(`bw: full_table`, \(x) {stringr::str_c(x[["AA"]], collapse = "")})) %>%
+    mutate(bw_seq = map_chr(`bw: full_table`, \(x) {stringr::str_c(x[["AA"]], collapse = "")})) %>%
 
-  mutate(seq_match = if_else(pdb_rec_seq == bw_seq, "match", "different")) %>%
+    mutate(seq_match = if_else(pdb_rec_seq == bw_seq, "match", "different")) %>%
 
-  mutate(`bw: full_table` = map2(.x = pdb_rec_seq, .y = `bw: full_table`, \(x, y) {
-     tmp <- map_table(seq2 = x, to_map = y)
-     tibble(`bw: full_table` = list(tmp[["ms"]]), bw_align_score = tmp[["score"]])})) %>%
+    mutate(`bw: full_table` = map2(.x = pdb_rec_seq, .y = `bw: full_table`, \(x, y) {
+      tmp <- map_table(seq2 = x, to_map = y)
+      tibble(`bw: full_table` = list(tmp[["ms"]]), bw_align_score = tmp[["score"]])})) %>%
 
     unnest(`bw: full_table`) %>%
 
@@ -369,27 +369,27 @@ compute_RLdists <- function(input_data) {
 
 
       receptor_mid <- receptors %>%
-                        filter(TM_type2 == "mid") %>%
-                        summarise(across(all_of(c("CA_x", "CA_y", "CA_z")), mean))
+        filter(TM_type2 == "mid") %>%
+        summarise(across(all_of(c("CA_x", "CA_y", "CA_z")), mean))
 
       if(length(ligands) > 1) {
         stop
       } else {
-      lig_dat <- .x %>%
-        filter(chain == ligands) %>%
-        rowwise %>%
-        mutate(mid_dist = distance(s = c_across(all_of(c("CA_x", "CA_y", "CA_z"))),
-                                   p = receptor_mid)) %>%
-        ungroup
+        lig_dat <- .x %>%
+          filter(chain == ligands) %>%
+          rowwise %>%
+          mutate(mid_dist = distance(s = c_across(all_of(c("CA_x", "CA_y", "CA_z"))),
+                                     p = receptor_mid)) %>%
+          ungroup
 
-      closest_res <- which.min(lig_dat[["mid_dist"]])
+        closest_res <- which.min(lig_dat[["mid_dist"]])
 
-      lig_end <- c(N = closest_res,
-                   C = nrow(lig_dat) - closest_res + 1)
+        lig_end <- c(N = closest_res,
+                     C = nrow(lig_dat) - closest_res + 1)
 
-      lig_end <- lig_end[which.min(lig_end)]
+        lig_end <- lig_end[which.min(lig_end)]
 
-      lig_end <- tibble(lig1_end = paste0(lig_end, names(lig_end)), ligand_dist = list(lig_dat))
+        lig_end <- tibble(lig1_end = paste0(lig_end, names(lig_end)), ligand_dist = list(lig_dat))
 
       }
 
@@ -508,63 +508,63 @@ extract_contact_data <- function(bw,
   uni_chains <- unique(chains)
 
   offset <- pdb.xyz %>%
-              group_by(chain) %>%
-              summarize(offset = min(resno) - 1)
+    group_by(chain) %>%
+    summarize(offset = min(resno) - 1)
 
   residue_dat <- expand.grid(chain = uni_chains, data = c("cons", "af_missense"), stringsAsFactors = FALSE) %>%
-          mutate(protein = if_else(chain == "rec", p1_name, p2_name)) %>%
-          mutate(data = pmap(list(chain, protein, data),
-                             function(c, p, d) {
-          map_table(seq2 = paste(pdb.xyz %>% filter(chain == c) %>% pull(AA), collapse = ""),
-                    to_map = residue_data %>%                    #########add check for number of rows, make dummy afm and cons data
-                              filter(uni_gene == p) %>%
-                              pull(d) %>%
-                              `[[`(.,1)) %>%
-          `[[`(., "ms") %>%
-          mutate(chain_index = 1:n() + offset %>% filter(chain == c) %>% pull(offset),
-                 residue_name = if_else(is.na(AA), NA, paste0(AA, chain_index))) %>%
-          filter(!is.na(residue_name)) %>%
-          select(!any_of(c("AA", "chain_index", "index"))) %>%
-          rename_with(~paste0(., "_", c), .cols = -residue_name)
-        }))
+    mutate(protein = if_else(chain == "rec", p1_name, p2_name)) %>%
+    mutate(data = pmap(list(chain, protein, data),
+                       function(c, p, d) {
+                         map_table(seq2 = paste(pdb.xyz %>% filter(chain == c) %>% pull(AA), collapse = ""),
+                                   to_map = residue_data %>%                    #########add check for number of rows, make dummy afm and cons data
+                                     filter(uni_gene == p) %>%
+                                     pull(d) %>%
+                                     `[[`(.,1)) %>%
+                           `[[`(., "ms") %>%
+                           mutate(chain_index = 1:n() + offset %>% filter(chain == c) %>% pull(offset),
+                                  residue_name = if_else(is.na(AA), NA, paste0(AA, chain_index))) %>%
+                           filter(!is.na(residue_name)) %>%
+                           select(!any_of(c("AA", "chain_index", "index"))) %>%
+                           rename_with(~paste0(., "_", c), .cols = -residue_name)
+                       }))
 
-    for(x in 1:nrow(residue_dat)) {
+  for(x in 1:nrow(residue_dat)) {
     contacts <- left_join(contacts,
                           residue_dat[["data"]][[x]],
                           by = join_by(!!rlang::sym(paste0(residue_dat[["chain"]][x],"_residue")) == residue_name))
-    }
+  }
 
-    contacts <- left_join(contacts,
-                          ligand_dist %>%
-                            arrange(mid_dist) %>%
-                            mutate(ligand_index = paste0("L", 1:n())) %>%
-                            mutate(pLDDT_lig1 = pLDDT/100) %>%
-                            rename(pdb_index_lig1 = pdb_index) %>%
-                            select(residue_name, pLDDT_lig1, mid_dist, ligand_index, pdb_index_lig1),
-                          by = join_by(lig1_residue == residue_name))
+  contacts <- left_join(contacts,
+                        ligand_dist %>%
+                          arrange(mid_dist) %>%
+                          mutate(ligand_index = paste0("L", 1:n())) %>%
+                          mutate(pLDDT_lig1 = pLDDT/100) %>%
+                          rename(pdb_index_lig1 = pdb_index) %>%
+                          select(residue_name, pLDDT_lig1, mid_dist, ligand_index, pdb_index_lig1),
+                        by = join_by(lig1_residue == residue_name))
 
-    contacts <- left_join(contacts,
-                          pdb.xyz %>%
-                            filter(chain == "rec") %>%
-                            mutate(pLDDT_rec = pLDDT/100) %>%
-                            rename(pdb_index_rec = pdb_index) %>%
-                            select(residue_name, pLDDT_rec, pdb_index_rec),
-                          by = join_by(rec_residue == residue_name))
+  contacts <- left_join(contacts,
+                        pdb.xyz %>%
+                          filter(chain == "rec") %>%
+                          mutate(pLDDT_rec = pLDDT/100) %>%
+                          rename(pdb_index_rec = pdb_index) %>%
+                          select(residue_name, pLDDT_rec, pdb_index_rec),
+                        by = join_by(rec_residue == residue_name))
 
-    contacts <- left_join(contacts,
-                          bw %>%
-                            mutate(residue_name = paste0(AA, 1:n())) %>%
-                            select(-display_generic_number, -AA, -index),
-                          by = join_by(rec_residue == residue_name))
+  contacts <- left_join(contacts,
+                        bw %>%
+                          mutate(residue_name = paste0(AA, 1:n())) %>%
+                          select(-display_generic_number, -AA, -index),
+                        by = join_by(rec_residue == residue_name))
 
-    contacts <- contacts %>%
-      rowwise %>%
-      mutate(paeR = pae[[pdb_index_rec]][[pdb_index_lig1]]) %>%
-      mutate(paeL = pae[[pdb_index_lig1]][[pdb_index_rec]]) %>%
-      mutate(favorability = case_when(any(map_lgl(residue_pairs[["favorable"]], \(x) sum(c(AA_rec, AA_lig1) %in% x) == 2)) ~ 1,
-                                      any(map_lgl(residue_pairs[["unfavorable"]], \(x) sum(c(AA_rec, AA_lig1) %in% x) == 2)) ~ 0,
-                                      TRUE ~ 0.5)) %>%
-      ungroup
+  contacts <- contacts %>%
+    rowwise %>%
+    mutate(paeR = pae[[pdb_index_rec]][[pdb_index_lig1]]) %>%
+    mutate(paeL = pae[[pdb_index_lig1]][[pdb_index_rec]]) %>%
+    mutate(favorability = case_when(any(map_lgl(residue_pairs[["favorable"]], \(x) sum(c(AA_rec, AA_lig1) %in% x) == 2)) ~ 1,
+                                    any(map_lgl(residue_pairs[["unfavorable"]], \(x) sum(c(AA_rec, AA_lig1) %in% x) == 2)) ~ 0,
+                                    TRUE ~ 0.5)) %>%
+    ungroup
 
   left_join(contacts, bw_align, by = "BW")
 

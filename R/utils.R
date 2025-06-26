@@ -11,6 +11,20 @@ ss_features <- c(setNames("Alpha helix (4-12)", "H"),
                  setNames("Kappa helix", "P"))
 
 
+uniprotID_to_uniprotName <- function(x) {
+
+  id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
+
+  converter <- setNames(id_map[["Entry Name"]], id_map[["Entry"]])
+
+  unname(converter[x])
+
+}
+
+model_type <- c(`Entry` = "id", `Entry Name` = "name")[c(primary_id, non_primary_id)]
+names(model_type) <- c("id", "idnp")
+
+
 
 
 alpha_fold_AA_order <- c('A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y', 'V', 'X', '-')
