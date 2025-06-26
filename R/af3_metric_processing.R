@@ -1,4 +1,42 @@
 
+
+clean_af3_file_names <- function(run_dir) {
+
+  tmp <- tibble(files = fs::dir_ls(run_dir) %>% basename(),
+                file_parts = map(files, ~stringr::str_split(., "_", simplify = TRUE))) %>%
+    mutate(new = map(file_parts, \(x) {
+      if(length(x) == 2) return(tibble(file_name_new = stringr::str_c(x[,1:2], collapse = "_"),
+                                       date = "0"))
+      if(length(x) == 4) return(tibble(file_name_new = stringr::str_c(x[,1:2], collapse = "_"),
+                                       date = stringr::str_c(x[,3:4], collapse = "")))
+    })) %>%
+    unnest(new) %>%
+    group_by(file_name_new) %>%
+    mutate(keep = case_when(date == max(date) ~ "keep",
+                            TRUE ~ "remove")) %>%
+    ungroup %>%
+    split(., .[["keep"]])
+
+  tmp[["remove"]]  %>%
+    mutate(unlink(paste0(input_path_models, "/", files), recursive = TRUE))
+
+  tmp[["keep"]] %>%
+    filter(date != "0") %>%
+    rename_dir(run_dir = run_dir,
+               input = .,
+               from = "files",
+               to = "file_name_new")
+
+}
+
+
+
+
+
+
+
+
+
 get_metrics <- function(run_dir,
                         file = "metrics_v2.csv",
                         reader = data.table::fread) {
