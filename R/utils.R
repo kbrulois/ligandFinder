@@ -21,10 +21,6 @@ uniprotID_to_uniprotName <- function(x) {
 
 }
 
-model_type <- c(`Entry` = "id", `Entry Name` = "name")[c(primary_id, non_primary_id)]
-names(model_type) <- c("id", "idnp")
-
-
 
 
 alpha_fold_AA_order <- c('A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y', 'V', 'X', '-')
@@ -163,6 +159,10 @@ file_type_conv <- c(setNames("pae", "pae"),
                     setNames("res", "result"),
                     setNames("plt", "pae_plot_ranked"),
                     setNames("spc", "paeSPOC"))
+
+file_type_conv_af3 <- c(setNames("pae", "confidences"),
+                        setNames("con", "summary_confidences"),
+                        setNames("ark", "model"))
 
 aa_df <- data.frame(
   OneLetter = c(

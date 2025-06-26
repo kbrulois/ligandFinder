@@ -406,6 +406,71 @@ parse_afpd_files <- function(input,
 
 }
 
+parse_af3_files <- function(input,
+                            dir_name = "afpd_dir_name",
+                            run_dir = "~/peptide_alg/rename_test") {
+
+
+  dat <- input %>%
+    mutate(files = map(!!sym(dir_name), ~list.files(paste0(run_dir, "/", .)))) %>%
+    mutate(raw_json = map(!!sym(dir_name), \(x) {
+      tryCatch({jsonlite::fromJSON(paste(run_dir, x, "ranking_debug.json", sep = "/"))},
+               error = function(e) return("problem JSON"))})) %>%
+    filter(raw_json != "problem JSON") %>%
+    mutate(ranks = map(raw_json, \(x) {
+      x %>%
+        as_tibble %>%
+        select(order) %>%
+        tidyr::unnest(order) %>%
+        dplyr::rename(model = order) %>%
+        mutate(rank = 1:n() - 1) %>%
+        arrange(model)
+    }))
+
+  dat <- dat %>%
+    mutate(files2 = map2(files, ranks, \(x, y) {
+      rank_mapping <- setNames(paste0("ranked_", y[["model"]]),
+                               paste0("ranked_", y[["rank"]]))
+      ranked_files <- grep("ranked_\\d+", x, value = TRUE)
+      for(i in ranked_files) {
+        rank <- stringr::str_extract(x[x == i], "ranked_\\d+")
+        x[x == i] <- stringr::str_replace(x[x == i], pattern = rank, replacement = rank_mapping[rank])
+      }
+      x
+    }))
+
+  dat %>%
+    mutate(files = pmap(list(files, files2, ranks), \(x, y, z) {
+      tmp <- tibble(og_file_name = x,
+                    file_mod = y,
+                    model = stringr::str_extract(file_mod, "model_\\d+_.*_pred_\\d+"),
+                    file_type = stringr::str_remove(file_mod, "model_\\d+_.*_pred_\\d+\\.[^.]+$") %>% stringr::str_remove(., "_$"),
+                    file_extension = stringr::str_extract(file_mod, "\\.[^.]+$"),
+                    model_num = stringr::str_extract(model, "model_\\d+") %>% stringr::str_remove(., "model_"),
+                    pred_num = stringr::str_extract(model, "pred_\\d+") %>% stringr::str_remove(., "pred_"),
+                    rank = if_else(!is.na(model), setNames(z[["rank"]], z[["model"]])[model], NA)) %>%
+        mutate(rlx = if_else(file_type %in% c("unrelaxed", "relaxed"), file_type, ""))
+
+      rlx_mods <- tmp %>% filter(rlx == "relaxed") %>% pull(model)
+
+      tmp <- tmp %>%
+        mutate(rlx = case_when(grepl("ranked", file_type) & model %in% rlx_mods ~ "relaxed",
+                               grepl("ranked", file_type) & !model %in% rlx_mods ~ "unrelaxed",
+                               !grepl("ranked", file_type) & !file_type %in% c("unrelaxed", "relaxed") ~ NA,
+                               TRUE ~ rlx)) %>%
+        mutate(model_rlx = paste(model, rlx, sep = "_"))
+
+      ranked_mods <- tmp %>% filter(file_type == "ranked") %>% pull(model_rlx) %>% unique(.)
+
+      tmp %>%
+        mutate(rank2 = if_else(model_rlx %in% ranked_mods, paste0("r", as.character(rank)), NA))
+
+    }))
+
+}
+
+
+
 
 
 

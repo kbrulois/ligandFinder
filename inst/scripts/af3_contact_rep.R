@@ -56,7 +56,7 @@ runs <- parse_dirname(run_dir = input_path_models,
   unnest(parsed_pair) %>%
   mutate(num_files = furrr::future_map_int(afpd_dir_name, ~length(list.files(paste0(input_path_models, "/", .))))) %>%
   mutate(complete = furrr::future_map_lgl(afpd_dir_name, \(x) {
-    file.exists(paste(input_path_models, x, "ranking_debug.json", sep = "/"))
+    file.exists(paste(input_path_models, x, "ranking_scores.csv", sep = "/"))
   })) %>%
   mutate(complete2 = furrr::future_map_lgl(afpd_dir_name, \(x) {
     file.exists(paste(input_path_models, x, "metrics_v1.csv", sep = "/"))
