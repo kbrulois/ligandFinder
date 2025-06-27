@@ -13,7 +13,7 @@ rename_data <- parse_dirname(run_dir = rename_test_dir,
 
 
 rename_data <- parse_af3_files(input = rename_data,
-                                dir_name = "new_dir_name",
+                                dir_name = "afpd_dir_name",
                                 run_dir = rename_test_dir)
 
 rename_data <- make_new_file_names(input = rename_data,

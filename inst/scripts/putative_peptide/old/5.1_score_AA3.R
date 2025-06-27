@@ -5,7 +5,7 @@ secretome <- readRDS("~/peptide_alg/secretome_5.rds")
 combine_scores <- function(scoreA, scoreB) {
   penalty <- ifelse(scoreB < 0.75, (1.6*(0.75 - scoreB))^2,
                     ifelse(scoreB > 0.9, (1.6*(scoreB - 0.9))^2, 0))
-  
+
   combined_score <- scoreA * (1 - penalty)
   return(combined_score)
 }
@@ -46,17 +46,17 @@ factorize_intervals <- function(type, start, end, dat_size) {
 }
 
 expand_by_AA <- \(sequence_uni, accession, gene, af_mapped, features, cons_mapped, af_missense_mapped, af_xyz_mapped) {
-  
+
   aa_sequence <- strsplit(sequence_uni, "")[[1]]
-  
+
   dat_size <- length(aa_sequence)
-  
+
   if("frequency" %in% names(cons_mapped$ms)) {
     conservation <- cons_mapped$ms$frequency
   } else {
     conservation <- rep(NA, dat_size)
   }
-  
+
   if("relASA" %in% names(af_mapped$ms)) {
     asa <- af_mapped$ms %>%
       select(-AA, -index, -relASA_s, -relASA_ss, -relASA_sss) %>%
@@ -65,24 +65,24 @@ expand_by_AA <- \(sequence_uni, accession, gene, af_mapped, features, cons_mappe
       })
   } else {
     asa <- Map(\(x) {rep(NA, dat_size)},
-               c("SS", "relASA", "AF_Phi", "AF_Psi", "AF_NH->O_1_relidx", "AF_NH->O_1_energy", 
-                 "AF_O->NH_1_relidx", "AF_O->NH_1_energy", "AF_NH->O_2_relidx", 
-                 "AF_NH->O_2_energy", "AF_O->NH_2_relidx", "AF_O->NH_2_energy")) %>% 
+               c("SS", "relASA", "AF_Phi", "AF_Psi", "AF_NH->O_1_relidx", "AF_NH->O_1_energy",
+                 "AF_O->NH_1_relidx", "AF_O->NH_1_energy", "AF_NH->O_2_relidx",
+                 "AF_NH->O_2_energy", "AF_O->NH_2_relidx", "AF_O->NH_2_energy")) %>%
       as_tibble
   }
-  
+
   if("mean_af_missense" %in% names(af_missense_mapped[["ms"]])) {
     afm <- af_missense_mapped$ms$mean_af_missense
   } else {
     afm <- rep(NA, dat_size)
   }
-  
+
   if("AA" %in% names(af_xyz_mapped[["ms"]])) {
     afxyz <- af_xyz_mapped[["ms"]] %>% select(-AA)
   } else {
     afxyz <- rep(NA, dat_size)
   }
-  
+
   dat <- tibble(AA = aa_sequence,
                 conservation = as.numeric(conservation),
                 pathogenicity = as.numeric(afm),
@@ -93,13 +93,13 @@ expand_by_AA <- \(sequence_uni, accession, gene, af_mapped, features, cons_mappe
                 known_peptide_c = 0,
                 signal_peptide_or_Strand = 0,
                 dibasic_Cys_W_T = as.character(NA))
-  
+
   dat <- bind_cols(dat, asa, afxyz)
-  
+
   gtp <- features %>%
     filter(source == "gtp") %>%
     filter(!type %in% black_balled)
-  
+
   if(nrow(gtp) > 0) {
     gtp_pep <- gtp %>%
       rowwise() %>%
@@ -112,7 +112,7 @@ expand_by_AA <- \(sequence_uni, accession, gene, af_mapped, features, cons_mappe
   dat[["known_peptide_n"]][gtp[["start"]]] <- 1
   dat[["known_peptide_c"]][gtp[["end"]]] <- 1
   }
-  
+
   offlimits <- features %>%
     filter(type == "signal peptide" | type == "E") %>%
     rowwise() %>%
@@ -120,19 +120,19 @@ expand_by_AA <- \(sequence_uni, accession, gene, af_mapped, features, cons_mappe
     pull(locations) %>%
     do.call(c, .) %>%
     unique(.)
-  
+
   offlimits <- offlimits[offlimits %in% 1:nrow(dat)]
-  
+
   dat[["signal_peptide_or_Strand"]][offlimits] <- 1
-  
+
   for(feat in to_expand) {
     dat[[feat]] <- features %>%
       filter(source == feat) %>%
       {factorize_intervals(.[["type"]], .[["start"]], .[["end"]], dat_size)}
   }
-  
+
   dat
-  
+
 }
 
 
@@ -177,13 +177,13 @@ secretome_aa <- secretome_aa %>%
   ungroup()
 
 
-secretome_aa_og <- readRDS("~/peptide_alg/secretome_aa_256_64_4_leaky_relu.rds")
+secretome_aa_og <- readRDS("~/peptide_alg/secretome_aa_Dec11.rds")
 secretome_aa[["nn_score"]] <- secretome_aa_og[["score_nn7c_noSS_s8"]]
 
 derivative <- function(x) {
   subsetter <- !is.na(x) & !is.nan(x) & !is.infinite(x)
   to_return <- as.numeric(rep(NA, length(x)))
-  to_return[subsetter] <- tryCatch({predict(smooth.spline(x[subsetter]), deriv = 1)[["y"]]}, 
+  to_return[subsetter] <- tryCatch({predict(smooth.spline(x[subsetter]), deriv = 1)[["y"]]},
                                    error = function(e) {as.numeric(rep(NA, sum(subsetter)))})
   return(to_return)
 }
@@ -196,11 +196,11 @@ secretome_aa <- secretome_aa %>%
 
 
 ggplot2::ggplot(secretome_aa %>% mutate(known_peptide2 = ifelse(known_peptide == 1, "known", "unknown"))) +
-  ggplot2::geom_boxplot(aes(x = known_peptide2, y = `AF_Psi_sin`)) 
+  ggplot2::geom_boxplot(aes(x = known_peptide2, y = `AF_Psi_sin`))
 
 
 
-basic <- c("conservation_og", "pathogenicity", "relASA", "signal_peptide_or_Strand")
+basic <- c("conservation_norm", "pathogenicity", "relASA", "signal_peptide_or_Strand")
 angles <- c("AF_Phi_cos", "AF_Psi_cos", "AF_Phi_sin", "AF_Psi_sin")
 
 nn <- list()
@@ -223,9 +223,9 @@ nn <- tibble(neural_net = names(nn),
 
 all_params <- unique(do.call(c, nn[["parameters"]]))
 
-secretome_aa <- secretome_aa %>% 
+secretome_aa <- secretome_aa %>%
   group_by(accession) %>%
-  mutate(across(all_of(all_params), 
+  mutate(across(all_of(all_params),
                 .fns = list(lag1 = ~lag(., n = 1),
                             lag2 = ~lag(., n = 2),
                             lag3 = ~lag(., n = 3),
@@ -278,14 +278,14 @@ ctrl_accession <- secretome_aa %>%
   pull(accession) %>%
   unique(.)
 
-gtp_samp <- sample(c(TRUE, FALSE), 
-                   length(gtp_accession), 
-                   replace=TRUE, 
+gtp_samp <- sample(c(TRUE, FALSE),
+                   length(gtp_accession),
+                   replace=TRUE,
                    prob=c(0.5,0.5))
 
-ctrl_samp <- sample(c(TRUE, FALSE), 
-                    length(ctrl_accession), 
-                    replace=TRUE, 
+ctrl_samp <- sample(c(TRUE, FALSE),
+                    length(ctrl_accession),
+                    replace=TRUE,
                     prob=c(0.05,0.95))
 
 
@@ -294,22 +294,22 @@ train <- secretome_aa[secretome_aa[["accession"]] %in% c(gtp_accession[gtp_samp]
 validate <- secretome_aa[secretome_aa[["accession"]] %in% c(gtp_accession[!gtp_samp], ctrl_accession[!ctrl_samp]), ]
 
 
-# 
+#
 # models <- list(conservation = "conservation",
 #                relASA = "relASA",
 #                pathogenicity = "pathogenicity",
 #                "conservation +\nrelASA +\npathogenicity" = c("conservation", "relASA", "pathogenicity"))
-# 
+#
 # formula <- as.formula(paste("known_peptide", "~", paste(models[[4]], collapse = " + ")))
-# 
+#
 # subsetter <- complete.cases(secretome_aa %>% select(conservation, relASA, pathogenicity, known_peptide))
-# 
+#
 # model_glm <- glm(formula, family="binomial", data=secretome_aa[subsetter, ])
-# 
+#
 # secretome_aa$score_glm <- as.numeric(NA)
-# 
+#
 # secretome_aa$score_glm[subsetter] <- predict(model_glm, type="response")
-# 
+#
 
 
 
@@ -325,67 +325,67 @@ targets <- paste0("known_peptide", c("", "_n", "_c"))
 
 for(x in nn[["neural_net"]]) {
   for(y in targets) {
-  
+
   message("computing ", x, " ", y)
-  
+
   start <- Sys.time()
-  
-  x_train <- train %>% 
-    select(nn[["parameters"]][[x]]) %>% 
-    drop_na %>% 
+
+  x_train <- train %>%
+    select(nn[["parameters"]][[x]]) %>%
+    drop_na %>%
     select(-starts_with("known_peptide")) %>%
     as.matrix
-  
-  y_train <- train %>% 
-    select(nn[["parameters"]][[x]]) %>% 
-    drop_na %>% 
-    pull(!!sym(y)) 
-  
-  x_val <- validate %>% 
-    select(nn[["parameters"]][[x]]) %>% 
-    drop_na %>% 
+
+  y_train <- train %>%
+    select(nn[["parameters"]][[x]]) %>%
+    drop_na %>%
+    pull(!!sym(y))
+
+  x_val <- validate %>%
+    select(nn[["parameters"]][[x]]) %>%
+    drop_na %>%
     select(-starts_with("known_peptide")) %>%
     as.matrix
-  
-  y_val <- validate %>% 
-    select(nn[["parameters"]][[x]]) %>% 
-    drop_na %>% 
-    pull(!!sym(y)) 
-  
+
+  y_val <- validate %>%
+    select(nn[["parameters"]][[x]]) %>%
+    drop_na %>%
+    pull(!!sym(y))
+
   class_counts <- table(y_train)
-  
+
   class_weights <- list(
     "0" = class_counts[2] / class_counts[1],  # Weight for majority class
     "1" = class_counts[2] / class_counts[2]   # Weight for minority class
   )
   rm(model)
-  
+
   early_stopping <- callback_early_stopping(
-    monitor = "val_binary_accuracy",   
-    patience = 40,  
+    monitor = "val_binary_accuracy",
+    patience = 40,
     mode = 'max',
     start_from_epoch = 20,
-    restore_best_weights = TRUE    
+    restore_best_weights = TRUE
   )
-  
-  
+
+
   model <- keras_model_sequential() %>%
     layer_batch_normalization() %>%
-    layer_dense(units = 256, 
-                activation = "leaky_relu") %>% 
-    layer_batch_normalization() %>%
-    layer_dropout(rate = 0.5) %>%
-    layer_dense(units = 64, 
+    layer_dense(units = 256,
                 activation = "leaky_relu") %>%
     layer_batch_normalization() %>%
     layer_dropout(rate = 0.5) %>%
-    layer_dense(units = 8, 
+    layer_dense(units = 64,
                 activation = "leaky_relu") %>%
     layer_batch_normalization() %>%
     layer_dropout(rate = 0.5) %>%
-    layer_dense(units = 1, 
-                activation = "softmax")  
-  
+    layer_dense(units = 8,
+                activation = "leaky_relu") %>%
+    layer_batch_normalization() %>%
+    layer_dropout(rate = 0.5) %>%
+    layer_dense(units = 1,
+                activation = "softmax")
+
   # Compile the model
   model %>% compile(
     optimizer = optimizer_lion(learning_rate = 0.00001),
@@ -396,11 +396,11 @@ for(x in nn[["neural_net"]]) {
                 metric_sensitivity_at_specificity(specificity = 0.8),
                 metric_auc())
   )
-  
-  
+
+
   # Fit the model
   history <- model %>% fit(
-    x_train, 
+    x_train,
     y_train,
     epochs = 100,
     class_weight = class_weights,
@@ -409,21 +409,21 @@ for(x in nn[["neural_net"]]) {
     callbacks = list(early_stopping),
     verbose = 1  # Set to 1 to view progress
   )
-  
+
   end <- Sys.time()
   comp_time <- end - start
-  
+
   message("compute time ", comp_time)
-  
+
   nn[nn$neural_net == x, paste0("comp_time", "_", y)] <- comp_time
-  
+
   nn[nn$neural_net == x, paste0("model", "_", y)] <- list(list(model))
-  
+
   nn[nn$neural_net == x, paste0("history", "_", y)] <- list(list(plot(history)))
-  
-  
-  secretome_aa[[paste0("score_", x, "_", sub("known_peptide", "", y))]] <- model %>% 
-    predict(secretome_aa %>% 
+
+
+  secretome_aa[[paste0("score_", x, "_", sub("known_peptide", "", y))]] <- model %>%
+    predict(secretome_aa %>%
               select(nn[["parameters"]][[x]]) %>%
               select(-all_of(paste0("known_peptide", c("", "_n", "_c")))) %>%
               as.matrix)
@@ -439,17 +439,17 @@ colnames(secretome_aa) <- sub("__c", "C", colnames(secretome_aa))
 
 
 #for(x in nn[["neural_net"]]) {
-  
-  secretome_aa[[paste0("score_", x)]] <- nn[["model"]][nn[["neural_net"]] == x][[1]] %>% 
-    predict(secretome_aa %>% 
+
+  secretome_aa[[paste0("score_", x)]] <- nn[["model"]][nn[["neural_net"]] == x][[1]] %>%
+    predict(secretome_aa %>%
               select(nn[["parameters"]][[x]]) %>%
               select(-all_of(paste0("known_peptide", c("", "_n", "_c")))) %>%
               as.matrix)
-  
+
 }
 
 
-params <- c("conservation_og", "conservation_norm", "relASA", "pathogenicity", 
+params <- c("conservation_og", "conservation_norm", "relASA", "pathogenicity",
             "AF_NH->O_1_energy", "AF_O->NH_1_energy", "AF_NH->O_2_energy", "AF_O->NH_2_energy",
             "AF_Phi_cos", "AF_Phi_sin", "AF_Psi_cos", "AF_Psi_sin")
 #smooth scores
@@ -504,10 +504,10 @@ library(pROC)
 
 cutoff <- 0.5
 
-roc_res <- Map(\(x) { 
-  
+roc_res <- Map(\(x) {
+
   roc(secretome_aa$known_peptide, ifelse(secretome_aa[[x]] > cutoff, 1, 0), ci = TRUE)
-  
+
 }, grep("^score_nn", colnames(secretome_aa), value = TRUE))
 
 names(roc_res) <- paste(names(roc_res), "\n[AUC:", round(sapply(roc_res, auc), 4), "]")
@@ -518,24 +518,24 @@ extra_color <- c("#FD7446FF","#FD8CC1FF","#FED439FF", "#197EC0FF", "#46732EFF", 
                  "#FED439FF", "#709AE1FF", "#8A9197FF", "#D2AF81FF")
 
 
-ggroc(roc_res, linewidth = 1) + ggplot2::theme_bw() + 
+ggroc(roc_res, linewidth = 1) + ggplot2::theme_bw() +
   scale_color_discrete(name = "", type = extra_color) +
-  ggtitle(paste("ROC Analysis"), subtitle = cutoff) +  
+  ggtitle(paste("ROC Analysis"), subtitle = cutoff) +
   theme(
-    legend.key.height = unit(3, "lines")  
+    legend.key.height = unit(3, "lines")
   )
 
-roc_res <- Map(\(x) { 
-  
+roc_res <- Map(\(x) {
+
   roc(secretome_aa %>%
-        select(nn[["parameters"]][[x]]) %>% 
-        pull(known_peptide), 
-      predict(nn[["model_known_peptide"]][nn[["neural_net"]] == x][[1]], 
-              secretome_aa %>% 
-                select(nn[["parameters"]][[x]]) %>% 
+        select(nn[["parameters"]][[x]]) %>%
+        pull(known_peptide),
+      predict(nn[["model_known_peptide"]][nn[["neural_net"]] == x][[1]],
+              secretome_aa %>%
+                select(nn[["parameters"]][[x]]) %>%
                 select(-all_of(paste0("known_peptide", c("", "_n", "_c")))) %>%
                 as.matrix), ci = TRUE)
-  
+
 }, nn$neural_net[!sapply(nn$model_known_peptide, is.null)])
 
 names(roc_res) <- paste(names(roc_res), "\n[AUC:", round(sapply(roc_res, auc), 4), "]")
@@ -543,11 +543,11 @@ names(roc_res) <- paste(names(roc_res), "\n[AUC:", round(sapply(roc_res, auc), 4
 nn[["AUC"]] <- round(sapply(roc_res, auc), 4)
 
 
-ggroc(roc_res, linewidth = 1) + ggplot2::theme_bw() + 
+ggroc(roc_res, linewidth = 1) + ggplot2::theme_bw() +
   scale_color_discrete(name = "", type = extra_color) +
-  ggtitle(paste("ROC Analysis"), subtitle = cutoff) +  
+  ggtitle(paste("ROC Analysis"), subtitle = cutoff) +
   theme(
-    legend.key.height = unit(3, "lines")  
+    legend.key.height = unit(3, "lines")
   )
 names(roc_res)
 
@@ -574,7 +574,7 @@ nn_tp <- nn_tp %>%
     mutate(model_type = ifelse(model_type == "_", "FL", model_type))
 
 
-nns <- paste0("nn", c(1,3,9,10)) 
+nns <- paste0("nn", c(1,3,9,10))
 
 nn_tp <- nn_tp %>%
   filter(nn_type %in% c(nns, paste0(nns, "c"))) %>%

@@ -413,34 +413,20 @@ parse_af3_files <- function(input,
 
   dat <- input %>%
     mutate(files = map(!!sym(dir_name), ~list.files(paste0(run_dir, "/", .)))) %>%
-    mutate(raw_json = map(!!sym(dir_name), \(x) {
-      tryCatch({jsonlite::fromJSON(paste(run_dir, x, "ranking_debug.json", sep = "/"))},
-               error = function(e) return("problem JSON"))})) %>%
-    filter(raw_json != "problem JSON") %>%
-    mutate(ranks = map(raw_json, \(x) {
+    mutate(rank_csv = map(!!sym(dir_name), \(x) {
+      tryCatch({data.table::fread(paste(run_dir, x, "ranking_scores.csv", sep = "/")) %>% as_tibble},
+               error = function(e) return("problem rank.csv"))})) %>%
+    filter(rank_csv != "problem rank.csv") %>%
+    mutate(ranks = map(rank_csv, \(x) {
       x %>%
-        as_tibble %>%
-        select(order) %>%
-        tidyr::unnest(order) %>%
-        dplyr::rename(model = order) %>%
+        arrange(desc(ranking_score)) %>%
         mutate(rank = 1:n() - 1) %>%
-        arrange(model)
-    }))
-
-  dat <- dat %>%
-    mutate(files2 = map2(files, ranks, \(x, y) {
-      rank_mapping <- setNames(paste0("ranked_", y[["model"]]),
-                               paste0("ranked_", y[["rank"]]))
-      ranked_files <- grep("ranked_\\d+", x, value = TRUE)
-      for(i in ranked_files) {
-        rank <- stringr::str_extract(x[x == i], "ranked_\\d+")
-        x[x == i] <- stringr::str_replace(x[x == i], pattern = rank, replacement = rank_mapping[rank])
-      }
-      x
+        arrange(sample) %>%
+        mutate(model_e = stringr::str_c("seed-", seed, "-sample-", sample))
     }))
 
   dat %>%
-    mutate(files = pmap(list(files, files2, ranks), \(x, y, z) {
+    mutate(files = map2(list(files, ranks), \(x, y) {
       tmp <- tibble(og_file_name = x,
                     file_mod = y,
                     model = stringr::str_extract(file_mod, "model_\\d+_.*_pred_\\d+"),
