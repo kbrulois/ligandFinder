@@ -127,11 +127,12 @@ parse_proteins <- function(file_name,
 
   tmp <- stringr::str_split(file_name, delim_proteins, simplify = TRUE)[,1:num_proteins, drop = FALSE]
   colnames(tmp) <- protein_names[1:num_proteins]
+  protein_names <- protein_names[1:num_proteins]
   tmp %>%
     as_tibble %>%
     mutate(across(everything(), ~parse_ranges(., delim_ranges, delim_start_end), .unpack = TRUE)) %>%
     mutate(across(matches("p\\d_id"), ~parse_p_id(.))) %>%
-    select(-all_of(protein_names)) %>%
+    select(-any_of(protein_names)) %>%
     tidyr::unnest(matches("p\\d_id"), names_sep = "") %>%
     dplyr::rename_with(.fn = ~stringr::str_remove(., "cwkov$"), .cols = matches("p\\d_id"))
 }
