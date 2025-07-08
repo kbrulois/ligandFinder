@@ -26,7 +26,8 @@ run_directory <- opt[["input"]]
 rename_data <- parse_dirname(run_dir = run_directory,
                              delim_proteins = "_",
                              delim_ranges = "x",
-                             delim_start_end = "x")
+                             delim_start_end = "x",
+                             num_proteins = 2)
 
 
 rename_data <- parse_af3_files(input = rename_data,
