@@ -475,6 +475,7 @@ make_new_file_names <- function(input,
                random_code = y,
                model_code = mc[model],
                model_seed = ms[model]) %>%
+        mutate(dir_name = str_replace(dir_name, "^((?:[^_]*_)[^_]*)_.*", "")) %>%
         mutate(file_type_og = file_type) %>%
         mutate(file_type = file_type_conv[file_type]) %>%
         mutate(rlx = rlx_conv[rlx]) %>%
@@ -485,7 +486,7 @@ make_new_file_names <- function(input,
         rowwise %>%
         mutate(new_file_name = if_else(is.na(model),
                                        og_file_name,
-                                       stringr::str_flatten(c(sub("^((?:[^_]*_)[^_]*)_.*", "\\1", dir_name),
+                                       stringr::str_flatten(c(dir_name,
                                                               run_name,
                                                               algorithm,
                                                               file_type,
