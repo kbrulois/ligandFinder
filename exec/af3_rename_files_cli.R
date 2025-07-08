@@ -40,7 +40,7 @@ rename_data <- make_new_af3_file_names(input = rename_data,
                                        submitter = opt[["person"]],
                                        algorithm = opt[["algorithm"]])
 
-rename_data <- rename_files(run_dir = rename_test_dir,
+rename_data <- rename_files(run_dir = run_directory,
                             input = rename_data,
                             dir_name = "afpd_dir_name",
                             from = "og_file_name",
