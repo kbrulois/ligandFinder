@@ -31,7 +31,7 @@ rename_data <- parse_dirname(run_dir = run_directory,
 
 rename_data <- parse_af3_files(input = rename_data,
                                dir_name = "afpd_dir_name",
-                               run_dir = rename_test_dir)
+                               run_dir = run_directory)
 
 rename_data <- make_new_af3_file_names(input = rename_data,
                                        dir_name = "afpd_dir_name",
