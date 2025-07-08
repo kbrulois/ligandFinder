@@ -4,6 +4,22 @@ clean_af3_file_names <- function(run_dir) {
 
   tmp <- tibble(files = fs::dir_ls(run_dir) %>% basename(),
                 file_parts = map(files, ~stringr::str_split(., "_", simplify = TRUE))) %>%
+    mutate(file_part_len = map_int(file_parts, length)) %>%
+    mutate(parse_proteins(files, delim_proteins = "_", delim_ranges = "x", delim_start_end = "x")) %>%
+    mutate(data_files = furrr::future_map(files, ~fs::dir_ls(.) %>% basename()))
+
+
+  tmp <- tmp %>%
+          mutate(num_files = map_int(data_files, length))
+
+
+    mutate(new = case_when(length(file_parts) == 2, \(x) {
+      if(length(x) == 2) return(tibble(file_name_new = stringr::str_c(x[,1:2], collapse = "_"),
+                                       date = "0"))
+      if(length(x) == 4) return(tibble(file_name_new = stringr::str_c(x[,1:2], collapse = "_"),
+                                       date = stringr::str_c(x[,3:4], collapse = "")))
+    })) %>%
+
     mutate(new = map(file_parts, \(x) {
       if(length(x) == 2) return(tibble(file_name_new = stringr::str_c(x[,1:2], collapse = "_"),
                                        date = "0"))

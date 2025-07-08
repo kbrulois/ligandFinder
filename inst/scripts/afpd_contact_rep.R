@@ -42,7 +42,7 @@ if(length(dirs) > 0) {
   lapply(dirs, \(x) untar(tarfile = x, exdir = path.expand("~/peptide_alg/testing_set/")))
 }
 
-num_of_grps <- 32
+num_of_grps <- 16
 
 future::plan(strategy = future::multicore(workers = num_of_grps))
 

@@ -16,16 +16,16 @@ rename_data <- parse_af3_files(input = rename_data,
                                 dir_name = "afpd_dir_name",
                                 run_dir = rename_test_dir)
 
-rename_data <- make_new_file_names(input = rename_data,
-                                   dir_name = "new_dir_name",
-                                   run_name = "nameOfRun",
-                                   site = "SU",
-                                   submitter = "KB",
-                                   algorithm = "AF2v3",
-                                   random_seed = 42)
+rename_data <- make_new_af3_file_names(input = rename_data,
+                                   dir_name = "afpd_dir_name",
+                                   run_name = "testRename",
+                                   site = "SD",
+                                   submitter = "SE",
+                                   algorithm = "AF3")
 
 rename_data <- rename_files(run_dir = rename_test_dir,
                             input = rename_data,
+                            dir_name = "afpd_dir_name",
                             from = "og_file_name",
                             to = "new_file_name")
 

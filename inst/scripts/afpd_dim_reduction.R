@@ -14,28 +14,9 @@ spoc_path <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/bm_final_spoc
 
 reindex <- FALSE
 
-num_of_grps <- 16
-
-future::plan(strategy = future::multicore(workers = num_of_grps))
-
-run_dirs = c("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/benchmarking",
-             "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/benchmarking_APACE")
-
-run_dirs <- input_path_models
-
-res <- bind_rows(map(run_dirs, ~get_metrics(run_dir = .,
-                                            file = "metrics_v2.csv",
-                                            reader = data.table::fread)))
 
 
 
-res <- res %>%
-  mutate(contact_raw = furrr::future_map(afpd_dir_name, \(x) readRDS(paste(input_path_models, x, "metrics_v2c.rds", sep = "/"))))
-
-
-res <- res %>%
-  group_by(afpd_dir_name) %>%
-  mutate(contact_raw = contact_raw[[1]][row_number()])
 
 res <- res %>%
   mutate(sum_contacts = furrr::future_map(contact_raw, summarize_contacts)) %>%
@@ -52,6 +33,9 @@ res <- res %>%
   ungroup %>%
   mutate(known_pair2 = if_else(known_pair == "known", paste0(p1_name, ";", p2_name), NA))
 
+
+res %>%
+  unnest()
 
 col_types <- list(all_bw = bw_align[["name"]],
                   cp_bw = grep("_CP$", bw_align[["name"]], value = TRUE),

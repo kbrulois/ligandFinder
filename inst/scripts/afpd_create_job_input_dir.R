@@ -96,6 +96,13 @@ ligand_list <- tibble(uniprot_name = c("LUZP2", "LUZP2", "LUZP2", "LUZP2"),
 ligand_list <- readRDS(system.file("extdata/ligand_list.rds", package = "ligandFinder"))
 
 ligand_list <- ligand_list %>%
+  mutate(included_in_bm = if_else(ecb_cull == "y" & database %in% c("both", "gpcrdb") & !is.na(start),
+                                  "yes", "no"), .after = "final_name")
+
+ligand_list <- ligand_list %>%
+                  distinct(uniprot_name, start, end, .keep_all = TRUE)
+
+ligand_list <- ligand_list %>%
                   filter(ecb_cull == "y" & database %in% c("both", "gpcrdb") & !is.na(start))
 
 

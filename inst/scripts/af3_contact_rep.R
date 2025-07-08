@@ -20,7 +20,7 @@ alg <- "AF3"
 
 input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models", "/", "benchmarking_APACE")
 input_path_models <- "~/peptide_alg/AF3_test"
-input_path_models <- "/scratch/groups/ebutcher/deorphan/models/benchmarking"
+input_path_models <- "/scratch/groups/ebutcher/deorphan/models/benchmarking_AF3"
 
 pq_path <- "~/ligandFinder_data/residue_db"
 pq_path <- "/home/groups/ebutcher/kevin/ligandFinder/residue_db"

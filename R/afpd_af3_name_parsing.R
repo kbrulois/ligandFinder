@@ -121,11 +121,12 @@ parse_proteins <- function(file_name,
                            delim_proteins = "_and_",
                            delim_ranges = "_",
                            delim_start_end = "-",
-                           protein_names = paste0("p", 1:(1 + max(stringr::str_count(file_name, delim_proteins))))
+                           protein_names = paste0("p", 1:(1 + max(stringr::str_count(file_name, delim_proteins)))),
+                           num_proteins = 1 + max(stringr::str_count(file_name, delim_proteins))
                            ) {
 
-  tmp <- stringr::str_split(file_name, delim_proteins, simplify = TRUE)
-  colnames(tmp) <- protein_names
+  tmp <- stringr::str_split(file_name, delim_proteins, simplify = TRUE)[,1:num_proteins, drop = FALSE]
+  colnames(tmp) <- protein_names[1:num_proteins]
   tmp %>%
     as_tibble %>%
     mutate(across(everything(), ~parse_ranges(., delim_ranges, delim_start_end), .unpack = TRUE)) %>%
@@ -421,36 +422,19 @@ parse_af3_files <- function(input,
       x %>%
         arrange(desc(ranking_score)) %>%
         mutate(rank = 1:n() - 1) %>%
-        arrange(sample) %>%
-        mutate(model_e = stringr::str_c("seed-", seed, "-sample-", sample))
+        arrange(sample)
     }))
 
   dat %>%
-    mutate(files = map2(list(files, ranks), \(x, y) {
+    mutate(files = map2(files, ranks, \(x, y) {
       tmp <- tibble(og_file_name = x,
-                    file_mod = y,
-                    model = stringr::str_extract(file_mod, "model_\\d+_.*_pred_\\d+"),
-                    file_type = stringr::str_remove(file_mod, "model_\\d+_.*_pred_\\d+\\.[^.]+$") %>% stringr::str_remove(., "_$"),
-                    file_extension = stringr::str_extract(file_mod, "\\.[^.]+$"),
-                    model_num = stringr::str_extract(model, "model_\\d+") %>% stringr::str_remove(., "model_"),
-                    pred_num = stringr::str_extract(model, "pred_\\d+") %>% stringr::str_remove(., "pred_"),
-                    rank = if_else(!is.na(model), setNames(z[["rank"]], z[["model"]])[model], NA)) %>%
-        mutate(rlx = if_else(file_type %in% c("unrelaxed", "relaxed"), file_type, ""))
-
-      rlx_mods <- tmp %>% filter(rlx == "relaxed") %>% pull(model)
-
-      tmp <- tmp %>%
-        mutate(rlx = case_when(grepl("ranked", file_type) & model %in% rlx_mods ~ "relaxed",
-                               grepl("ranked", file_type) & !model %in% rlx_mods ~ "unrelaxed",
-                               !grepl("ranked", file_type) & !file_type %in% c("unrelaxed", "relaxed") ~ NA,
-                               TRUE ~ rlx)) %>%
-        mutate(model_rlx = paste(model, rlx, sep = "_"))
-
-      ranked_mods <- tmp %>% filter(file_type == "ranked") %>% pull(model_rlx) %>% unique(.)
-
-      tmp %>%
-        mutate(rank2 = if_else(model_rlx %in% ranked_mods, paste0("r", as.character(rank)), NA))
-
+                    model = stringr::str_extract(og_file_name, "seed-\\d+-sample-\\d+"),
+                    file_type = stringr::str_remove(og_file_name, "_seed-\\d+-sample-\\d+.*"),
+                    file_extension = stringr::str_extract(og_file_name, "\\.[^.]+$"),
+                    sample = stringr::str_extract(model, "sample-\\d+") %>% stringr::str_remove(., "sample-") %>% as.numeric,
+                    seed = stringr::str_extract(model, "seed-\\d+") %>% stringr::str_remove(., "seed-") %>% as.numeric,
+                    rlx = "u")
+      left_join(tmp, y, by = join_by(sample, seed))
     }))
 
 }
@@ -510,6 +494,58 @@ make_new_file_names <- function(input,
                                                                      "m", model_num,
                                                                      "p", pred_num),
                                                               rank2),
+                                                            collapse = "_",
+                                                            na.rm = TRUE)), .after = "og_file_name") %>%
+        mutate(new_file_name = if_else(is.na(model),
+                                       new_file_name,
+                                       paste0(new_file_name, file_extension)))
+
+
+    }))
+
+}
+
+make_new_af3_file_names <- function(input,
+                                    dir_name = "new_dir_name",
+                                    run_name = "run12",
+                                    site = "SD",
+                                    submitter = "SE",
+                                    algorithm = "AF3") {
+
+  rc <- get_codes(n = nrow(input))
+
+  input <- bind_cols(input, random_code = rc)
+
+  input %>%
+    mutate(files = pmap(list(files, random_code, !!sym(dir_name)), \(x, y, z) {
+
+      uni_mods <- unique_non_na(x %>% arrange(rank) %>% pull(model))
+      num_models <- length(uni_mods)
+      mc <- setNames(mod_codes[1:num_models], uni_mods)
+
+      x %>%
+        mutate(dir_name = z,
+               random_code = y,
+               model_code = mc[model]) %>%
+        mutate(file_type_og = file_type) %>%
+        filter(file_type %in% names(file_type_conv_af3)) %>%
+        mutate(file_type = file_type_conv_af3[file_type]) %>%
+        mutate(final_code = paste0(site,
+                                   submitter,
+                                   random_code,
+                                   model_code)) %>%
+        rowwise %>%
+        mutate(new_file_name = if_else(is.na(model),
+                                       og_file_name,
+                                       stringr::str_flatten(c(dir_name,
+                                                              run_name,
+                                                              algorithm,
+                                                              file_type,
+                                                              rlx,
+                                                              final_code,
+                                                              paste0("s", seed,
+                                                                     "m", sample),
+                                                              paste0("r", rank)),
                                                             collapse = "_",
                                                             na.rm = TRUE)), .after = "og_file_name") %>%
         mutate(new_file_name = if_else(is.na(model),
