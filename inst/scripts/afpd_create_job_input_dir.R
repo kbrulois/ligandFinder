@@ -10,7 +10,7 @@ library(ligandFinder)
 
 gpcr_sub <- gpcr_list %>%
               filter(grepl("^#", `ecb: Order of runs (priority)`)) %>%
-              filter(`ecb: Exclude due to N term >160AA` == "Exclude due to N term >160AA") %>%
+              filter(`ecb: Exclude due to N term >160AA` == "Exclude due to N term >160AA") %>% #########caution
               filter(map_lgl(`bw: full_table`, ~nrow(.) > 0))
 
 
