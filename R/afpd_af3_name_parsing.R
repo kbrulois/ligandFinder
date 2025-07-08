@@ -485,7 +485,7 @@ make_new_file_names <- function(input,
         rowwise %>%
         mutate(new_file_name = if_else(is.na(model),
                                        og_file_name,
-                                       stringr::str_flatten(c(dir_name,
+                                       stringr::str_flatten(c(sub("^((?:[^_]*_)[^_]*)_.*", "\\1", dir_name),
                                                               run_name,
                                                               algorithm,
                                                               file_type,
