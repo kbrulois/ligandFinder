@@ -475,7 +475,6 @@ make_new_file_names <- function(input,
                random_code = y,
                model_code = mc[model],
                model_seed = ms[model]) %>%
-        mutate(dir_name = str_replace(dir_name, "^((?:[^_]*_)[^_]*)_.*", "")) %>%
         mutate(file_type_og = file_type) %>%
         mutate(file_type = file_type_conv[file_type]) %>%
         mutate(rlx = rlx_conv[rlx]) %>%
@@ -529,6 +528,7 @@ make_new_af3_file_names <- function(input,
         mutate(dir_name = z,
                random_code = y,
                model_code = mc[model]) %>%
+        mutate(dir_name = str_replace(dir_name, "^((?:[^_]*_)[^_]*)_.*", "")) %>%
         mutate(file_type_og = file_type) %>%
         filter(file_type %in% names(file_type_conv_af3)) %>%
         mutate(file_type = file_type_conv_af3[file_type]) %>%
