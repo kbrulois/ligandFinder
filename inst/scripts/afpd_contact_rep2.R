@@ -38,6 +38,17 @@ res <- res %>%
 res <- res %>%
   mutate(contact_raw = furrr::future_map(afpd_dir_name, \(x) readRDS(paste(input_path_models, x, "metrics_v2c.rds", sep = "/"))))
 
+res <- res %>%
+  mutate(contact_good = furrr::future_map_int(contact_raw, \(x) {
+    sum(!sapply(x, is.null))
+  }))
+
+res <- res %>%
+  mutate(data_files = furrr::future_map(afpd_dir_name, ~fs::dir_ls(paste0(input_path_models, "/", .)) %>% basename())) %>%
+  mutate(num_E_models = map_int(data_files, \(x) {
+    grep("_ark_.*_[A-Z]{4}[a-z]{7}_s\\d+m\\d+p\\d+_r\\d+", x, value = TRUE) %>%
+      stringr::str_detect(., "_E_") %>%
+      sum}))
 
 known_pairs <- get_known_pairs()
 
@@ -53,7 +64,7 @@ res <- res %>%
   group_by(afpd_dir_name) %>%
   mutate(contact_raw = contact_raw[[1]][row_number()])
 
-res <- res %>%
+res2 <- res %>%
   rename(mean_pLDDT_lig1 = pLDDT_lig1,
          mean_pLDDT_rec = pLDDT_rec) %>%
   unnest(contact_raw)
@@ -112,9 +123,9 @@ res <- bind_rows(res_sub, res_sub2)
 
 }
 
-data.table::fwrite(res, "/oak/stanford/groups/ebutcher/kevin/ds_cons.csv")
+#data.table::fwrite(res, "/oak/stanford/groups/ebutcher/kevin/ds_cons.csv")
 
-contact_rep <- res %>%
+res <- res %>%
   filter(!is.na(BW)) %>%
   ungroup %>%
   mutate(all_con_score = CP * favorability * paeR * paeL * sb * area * cons_rec * frequency_scaled_lig1 * frequency_scaled_rec) %>%
@@ -124,8 +135,79 @@ contact_rep <- res %>%
   ungroup %>%
   select(all_of(c(colnames(res)[1:76], "BW", "ligand_index", score_cols))) %>%
   #group_by(afpd_dir_name, rank, ligand_index) %>%
-  pivot_wider(names_from = "BW", values_from = score_cols) %>%
+  pivot_wider(names_from = "BW", values_from = all_of(score_cols)) %>%
   mutate(across(!any_of(c(gpcr_cols, "code", "afpd_dir_name", "rank", "ligand_index")), ~replace_na(data = ., replace = 0)))
+
+lig_inds <- unique(res[["ligand_index"]]) %>% .[gtools::mixedorder(.)]
+
+lig_lut <- c(setNames(paste0("L", 1:5), rep("L1x5", 5)),
+             setNames(paste0("L", 6:10), rep("L6x10", 5)),
+             setNames(paste0("L", 11:20), rep("L11x20", 5)),
+             setNames(paste0("L", 21:50), rep("L21x50", 5)),
+             setNames(paste0("L", 51:300), rep("L51x277", 5)))
+
+res <- res %>%
+        mutate(lig_index_simp = lig_lut[ligand_index]) %>%
+        group_by(lig_index_simp) %>%
+        mutate(across(all_of))
+
+
+
+res <- res %>%
+  pivot_wider(names_from = "ligand_index", values_from = starts_with(score_cols), values_fill = 0)
+
+
+sp_mat <- res %>%
+            select(75:ncol(.)) %>%
+            as.matrix %>%
+            Matrix::Matrix(., sparse = TRUE)
+
+Matrix::writeMM(sp_mat, "/oak/stanford/groups/ebutcher/kevin/sp_mat2.mtx")
+
+to_save <- res %>%
+  select(-c(75:ncol(.))) %>%
+  group_by(afpd_dir_name, `gpcrdb: receptor_family`) %>%
+  mutat
+e(data_split = case_when(known_pair == "known" ~ sample(c("train", "validate", "test"), replace = TRUE, prob=c(0.25,0.5, 0.25))[1],
+                                known_pair == "unknown" ~ sample(c("train", "validate", "test", "unused"), replace = TRUE, prob=c(0.05,0.1, 0.05, 0.8))[1]))
+
+
+data.table::fwrite(to_save, "/oak/stanford/groups/ebutcher/kevin/ds_cons2.csv")
+
+res <- data.table::fread("/oak/stanford/groups/ebutcher/kevin/ds_cons.csv")
+
+
+res <- data.table::fread("/oak/stanford/groups/ebutcher/kevin/ds_cons.csv", nrows = 1)
+
+shap_data <- data.table::fread("/oak/stanford/groups/ebutcher/kevin/shap_test.csv")
+
+shap_names <- data.table::fread("/oak/stanford/groups/ebutcher/kevin/feat_names.csv")
+
+shap_names <- tibble(feat_name = readRDS("~/Desktop/feat_names.csv"))
+
+shap_names <- shap_names %>%
+  mutate(ligand_index = str_extract(feat_name, "L\\d+$") %>% str_remove(., "^L") %>% as.numeric) %>%
+  mutate(bw_index = str_remove(feat_name, "_L\\d+$") %>%
+                    str_extract(., "[^_]*$")) %>%
+  mutate(feature = str_remove(feat_name, "_L\\d+$") %>%
+                   str_remove(., "_[^_]*$"))
+
+bw_align <- summarize_bw(gpcr_list = system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
+
+shap_names <- left_join(shap_names, bw_align, by = join_by(bw_index == BW)) %>%
+  mutate(CP = if_else(CP == "CP", "CP", "other"))
+
+shap_data <- data.table::fread("~/Desktop/shap_test.csv")
+
+shap_names <- bind_cols(shap_names, shap_data)
+
+shap_names <- shap_names %>%
+  pivot_longer(starts_with("V"), names_to = "shap_name", values_to = "shap_value")
+
+data.table::fwrite(shap_names, "~/Desktop/shap_100.csv")
+
+shap_names %>%
+  arrange(desc(value))
 
 test %>%
   ungroup %>%

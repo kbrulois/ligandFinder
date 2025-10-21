@@ -1,0 +1,17 @@
+name,freq,score
+Cytoplasmic,10064,-2
+Exoplasmic loop,42,2
+Extracellular,7800,2
+Intragranular,2,0
+Lumenal,1240,1
+"Lumenal, melanosome",3,1
+"Lumenal, vesicle",32,1
+Mitochondrial intermembrane,242,-2
+Mitochondrial matrix,183,-2
+Mother cell cytoplasmic,1,-2
+Nuclear,30,-2
+Perinuclear space,30,-2
+Peroxisomal,6,-2
+Peroxisomal matrix,13,-2
+Vacuolar,16,-2
+Vesicular,63,0

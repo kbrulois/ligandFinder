@@ -2,6 +2,7 @@
 
 
 
+
 .libPaths('/home/groups/ebutcher/programs/pipeline/R_libs4.1')
 library(dplyr)
 library(purrr)
@@ -9,7 +10,7 @@ library(tidyr)
 remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
 library(ligandFinder)
 
-set_db_path("/home/groups/ebutcher/kevin/ligandFinder")
+set_db_path("/scratch/groups/ebutcher/deorphan/ligandFinder")
 #demo("afpd_rename_files", package = "ligandFinder")
 
 
@@ -20,10 +21,13 @@ alg <- "AF2v3"
 
 input_path_models <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/models", "/", "benchmarking_APACE")
 input_path_models <- "~/peptide_alg/testing_set"
-input_path_models <- "/scratch/groups/ebutcher/deorphan/models/benchmarking"
+input_path_models <- "/scratch/groups/ebutcher/deorphan/models/CXCL14_jh_w"
+
+num_of_grps <- 50
+
 
 pq_path <- "~/ligandFinder_data/residue_db"
-pq_path <- "/home/groups/ebutcher/kevin/ligandFinder/residue_db"
+pq_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/residue_db"
 voronota_path <- "/usr/local/bin/voronota-contacts"
 voronota_path <- "/home/groups/ebutcher/programs/voronota/bin/voronota-contacts"
 
@@ -42,22 +46,22 @@ if(length(dirs) > 0) {
   lapply(dirs, \(x) untar(tarfile = x, exdir = path.expand("~/peptide_alg/testing_set/")))
 }
 
-num_of_grps <- 16
 
-future::plan(strategy = future::multicore(workers = num_of_grps))
+future::plan(strategy = future::sequential())
 
 
-runs <- parse_dirname(run_dir = input_path_models,
-                      delim_proteins = "_",
-                      delim_ranges = "x",
-                      delim_start_end = "x") %>%
-              mutate(parsed_pair = furrr::future_map(parsed_pair, ~pivot_wider(., names_from=c("protein", "annotation"), values_from=value))) %>%
-              unnest(parsed_pair) %>%
-              mutate(num_files = furrr::future_map_int(afpd_dir_name, ~length(list.files(paste0(input_path_models, "/", .))))) %>%
-              mutate(complete = furrr::future_map_lgl(afpd_dir_name, \(x) {
+runs <- tibble(afpd_dir_name = fs::dir_ls(input_path_models) %>% stringr::str_remove(., ".tar$") %>% basename(),
+              file_parts = map(afpd_dir_name, ~stringr::str_split(., "_", simplify = TRUE))) %>%
+  mutate(file_part_len = map_int(file_parts, length)) %>%
+  mutate(parse_proteins(afpd_dir_name, delim_proteins = "_", delim_ranges = "x", delim_start_end = "x"))
+
+runs <- runs %>%
+  mutate(data_files = furrr::future_map(afpd_dir_name, ~fs::dir_ls(paste0(input_path_models, "/", .)) %>% basename())) %>%
+  mutate(num_files = furrr::future_map_int(afpd_dir_name, ~length(list.files(paste0(input_path_models, "/", .))))) %>%
+  mutate(complete = furrr::future_map_lgl(afpd_dir_name, \(x) {
                   file.exists(paste(input_path_models, x, "ranking_debug.json", sep = "/"))
                     })) %>%
-              mutate(complete2 = furrr::future_map_lgl(afpd_dir_name, \(x) {
+  mutate(complete2 = furrr::future_map_lgl(afpd_dir_name, \(x) {
                 file.exists(paste(input_path_models, x, "metrics_v1.csv", sep = "/"))
                       }))
 
@@ -65,11 +69,14 @@ jobs <- runs %>%
           filter(complete)
 
 
+jobs <- jobs %>%
+  rename(p1_name = p1_id, p2_name = p2_id)
+
 
 jobs <- jobs %>%
   mutate(group = paste0("job", ntile(n = num_of_grps)))
 
-future::plan(strategy = future::sequential())
+future::plan(strategy = future::multicore(workers = num_of_grps))
 
 
 start <- Sys.time()
@@ -91,19 +98,11 @@ furrr::future_map(unique(jobs[["group"]]), \(job) {
     collect()
 
 tryCatch({
-  lapply(dirs2, \(x) do_metrics(directory = x, job = job, residue_data = residue_data))
+  lapply(dirs2, \(x) do_metrics(directory = x, job = job, res_dat = residue_data))
 }, error = function(e) e)
 
   to_do <- to_do %>%
     mutate(metrics = file.exists(paste0(input_path_models, "/", afpd_dir_name, "/metrics_v2.csv")))
-
-
-  res <- bind_rows(
-    map(to_do[["afpd_dir_name"]][to_do[["metrics"]]],
-        ~data.table::fread(paste0(input_path_models, "/", ., "/metrics_v2.csv")) %>% as_tibble)
-  )
-
-  saveRDS(res, paste0(job, ".rds"))
 
   message("completed ", job)
 
@@ -128,3 +127,19 @@ test2 <- test %>%
   summarize(numE = sum(lig1_location == "E" & location != "APPP"))
 
 test3 <- left_join(test, test2, by = "afpd_dir_name")
+
+
+
+
+
+res <- bind_rows(
+  map(runs[["afpd_dir_name"]], \(x) {
+    to_import <- paste0(input_path_models, "/", x, "/metrics_v2.csv")
+    if(file.exists(to_import)) {
+    data.table::fread(to_import) %>% as_tibble()
+    } else {
+      NULL
+    }
+  }
+))
+

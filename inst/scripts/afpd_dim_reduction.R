@@ -12,26 +12,148 @@ out_file_name <- "bm_update5"
 run_analysis_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/run_analyses"
 spoc_path <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/bm_final_spoc"
 
+
 reindex <- FALSE
 
 
+num_of_grps <- 20
+
+future::plan(strategy = future::multicore(workers = num_of_grps))
 
 
+run_dirs <- input_path_models <- c("/scratch/groups/ebutcher/deorphan/models/bm_sep28", )
+
+names(run_dirs) <- sapply(run_dirs, basename) %>% unname
+
+get_data <- function(input_path_models) {
+tibble(afpd_dir_name = fs::dir_ls(input_path_models) %>% stringr::str_remove(., ".tar$") %>% basename(),
+              file_parts = map(afpd_dir_name, ~stringr::str_split(., "_", simplify = TRUE))) %>%
+  mutate(file_part_len = map_int(file_parts, length)) %>%
+  mutate(parse_proteins(afpd_dir_name, delim_proteins = "_", delim_ranges = "x", delim_start_end = "x")) %>%
+  mutate(data_files = furrr::future_map(afpd_dir_name, ~fs::dir_ls(paste0(input_path_models, "/", .)) %>% basename())) %>%
+  mutate(num_files = furrr::future_map_int(afpd_dir_name, ~length(list.files(paste0(input_path_models, "/", .))))) %>%
+  mutate(has_ranking_debug = furrr::future_map_lgl(afpd_dir_name, \(x) {
+    file.exists(paste(input_path_models, x, "ranking_debug.json", sep = "/"))
+  })) %>%
+  mutate(has_metrics_csv = furrr::future_map_lgl(afpd_dir_name, \(x) {
+    file.exists(paste(input_path_models, x, "metrics_v2.csv", sep = "/"))
+  })) %>%
+  mutate(has_contact_rds = furrr::future_map_lgl(afpd_dir_name, \(x) {
+    file.exists(paste(input_path_models, x, "metrics_v2c.rds", sep = "/"))
+  }))
+
+}
+
+res <- map(run_dirs, get_data)
+
+res <- map2(names(run_dirs), res, \(x, y) {
+  y %>% mutate(run_name = x)
+})
+
+res <- bind_rows(res)
 
 res <- res %>%
-  mutate(sum_contacts = furrr::future_map(contact_raw, summarize_contacts)) %>%
-  unnest(sum_contacts)
+  filter(has_metrics_csv)
 
+res <- res %>%
+        mutate(metrics = furrr::future_map2(afpd_dir_name, run_name, \(x, y) {
+
+          file <- paste(run_dirs[y], x, "metrics_v2.csv", sep = "/")
+          if(file.exists(file)) {
+            return(data.table::fread(file) %>% as_tibble)
+          } else {
+            return("none")
+          }
+        })) %>%
+  mutate(contacts = furrr::future_map2(afpd_dir_name, run_name, \(x, y) {
+
+    file <- paste(run_dirs[y], x, "metrics_v2c.rds", sep = "/")
+    if(file.exists(file)) {
+      return(readRDS(file))
+    } else {
+      return("none")
+    }
+  }))
+
+res_cols <- colnames(res)
+
+table(sapply(res$metrics, nrow))
+
+res3 <- res %>%
+  filter(has_metrics_csv) %>%
+  filter(!map_lgl(metrics, is.character)) %>%
+  filter(map_lgl(metrics, ~nrow(.) != 0)) %>%
+  #filter(p1_id %in% c("NPY2R", "NPY5R")) %>%
+  mutate(metrics = map(metrics, ~ select(.x, !any_of(res_cols)))) %>%
+  unnest(metrics)
 
 
 known_pairs <- get_known_pairs()
 
-res <- res %>%
+res3 <- res3 %>%
   rowwise %>%
   mutate(known_pair = case_when(any(map_lgl(known_pairs, \(x) sum(c(p1_name, p2_name) %in% x) == 2)) ~ "known",
-                                TRUE ~ "unknown"), .after = "iptm") %>%
+                                TRUE ~ "unknown"), .after = "p1_name") %>%
   ungroup %>%
   mutate(known_pair2 = if_else(known_pair == "known", paste0(p1_name, ";", p2_name), NA))
+
+
+
+gpcr_cols <- c("p1_id",
+               "ecb: Class or type",
+               "ecb: Prioritization Notes",
+               "gtp: Family name",
+               "gpcrdb: receptor_class",
+               "gpcrdb: receptor_family",
+               "gpcrdb: subfamily")
+
+res3 <- res3 %>%
+  {left_join(., gpcr_list %>% rename(p1_id = uniprot_name) %>% select(all_of(gpcr_cols)),
+             by = "p1_id")} %>%
+  relocate(all_of(gpcr_cols[-1]), .before = "p1_id")
+
+res3 <- res3 %>%
+  select(-all_of(gpcr_cols[-1])) %>%
+  {left_join(., gpcr_list %>% rename(p1_id = uniprot_name) %>% select(all_of(gpcr_cols)),
+             by = "p1_id")} %>%
+  relocate(all_of(gpcr_cols[-1]), .before = "p1_id")
+
+res3 <- res3 %>%
+  mutate(brinp = if_else(run_name == "bm", known_pair, paste0(p2_id, "_", p2_range))) %>%
+  mutate(gpcr = if_else(p1_id %in% c("NPY2R", "NPY5R"), p1_id, "other"))
+
+out_dir <- "/oak/stanford/groups/ebutcher/kevin"
+local_dir <- "~/AF2_analysis"
+file_name <- "brinp_v7.csv"
+
+data.table::fwrite(res3 %>%
+                     select(!where(is.list)),
+                   paste0(out_dir, "/", file_name))
+
+message("scp kbrulois@dtn.sherlock.stanford.edu:", out_dir, "/", file_name, " ", local_dir, "/", file_name)
+
+
+res2 <- res %>%
+  mutate(sum_contacts = furrr::future_map(contacts, \(x) {
+
+    logi <- x != "none"
+    x[logi] <- lapply(x[logi], summarize_contacts)
+    x[!logi] <- NULL
+    return(x)})) %>%
+  unnest(sum_contacts)
+
+left_join(res3, res2, by = , suffix = c("", "_get_rid_of_it"))
+
+
+
+
+
+
+
+
+
+
+
 
 
 res %>%

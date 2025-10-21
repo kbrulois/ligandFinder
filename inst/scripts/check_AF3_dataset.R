@@ -3,7 +3,7 @@
 
 run_dir <- "/scratch/groups/ebutcher/deorphan/models/benchmarking_AF3"
 
-tmp <- tibble(files = fs::dir_ls(run_dir) %>% basename(),
+tmp <- tibble(files = fs::dir_ls(run_dir) %>% stringr::str_subset(., ".tar$", negate = TRUE) %>% basename(),
               file_parts = map(files, ~stringr::str_split(., "_", simplify = TRUE))) %>%
   mutate(file_part_len = map_int(file_parts, length)) %>%
   mutate(parse_proteins(files, delim_proteins = "_", delim_ranges = "x", delim_start_end = "x")) %>%

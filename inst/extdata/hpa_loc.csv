@@ -1,0 +1,1557 @@
+name,freq,score
+Acrosome,11,-1
+"Acrosome,Annulus",1,-1
+"Acrosome,Equatorial segment",11,-1
+"Acrosome,Equatorial segment,Mid piece",1,-1
+"Acrosome,Equatorial segment,Mid piece,Principal piece,End piece",3,-1
+"Acrosome,Equatorial segment,Principal piece",2,-1
+"Acrosome,Mid piece",2,-1
+"Acrosome,Mid piece,Principal piece,Annulus",1,-1
+"Acrosome,Principal piece",1,-1
+"Acrosome,Principal piece,End piece",1,-1
+Actin filaments,24,-1
+"Actin filaments,Centriolar satellite",1,-1
+"Actin filaments,Centrosome",2,-1
+"Actin filaments,Cytokinetic bridge,Midbody,Primary cilium",1,-1
+"Actin filaments,Cytosol",24,-1
+"Actin filaments,Focal adhesion sites",5,-1
+"Actin filaments,Focal adhesion sites,Cytosol",2,-1
+"Actin filaments,Focal adhesion sites,Primary cilium,Primary cilium transition zone,Cytosol",3,-1
+"Actin filaments,Microtubules",2,-1
+"Actin filaments,Microtubules,Annulus",1,-1
+"Actin filaments,Microtubules,Cytokinetic bridge,Primary cilium",1,-1
+"Actin filaments,Mitochondria",1,-1
+"Actin filaments,Mitochondria,Cytosol",1,-1
+"Actin filaments,Primary cilium",2,-1
+"Actin filaments,Primary cilium,Cytosol,Mid piece,Principal piece,Annulus",1,-1
+"Actin filaments,Primary cilium,Principal piece",1,-1
+"Aggresome,Cytosol",4,-1
+Annulus,1,-1
+Basal body,2,-1
+"Basal body,Cytosol",6,-1
+Calyx,3,-1
+"Calyx,Connecting piece,Mid piece",1,-1
+"Calyx,Connecting piece,Mid piece,Principal piece,End piece,Annulus",1,-1
+"Calyx,Mid piece",1,-1
+"Calyx,Mid piece,Principal piece,End piece",1,-1
+"Calyx,Principal piece",1,-1
+Cell Junctions,47,0
+"Cell Junctions,Aggresome",1,-1
+"Cell Junctions,Centriolar satellite,Cytosol",2,-1
+"Cell Junctions,Centrosome",1,-1
+"Cell Junctions,Centrosome,Basal body",1,-1
+"Cell Junctions,Centrosome,Basal body,Cytosol,Equatorial segment,Mid piece,Principal piece",1,-1
+"Cell Junctions,Cytosol",16,-1
+"Cell Junctions,Microtubules",1,-1
+"Cell Junctions,Mitochondria",3,-1
+Centriolar satellite,24,-2
+"Centriolar satellite,Basal body",2,-2
+"Centriolar satellite,Centrosome,Basal body",5,-2
+"Centriolar satellite,Centrosome,Basal body,Acrosome,Equatorial segment,Principal piece",1,-2
+"Centriolar satellite,Centrosome,Basal body,Cytosol",2,-2
+"Centriolar satellite,Centrosome,Cytosol",1,-2
+"Centriolar satellite,Centrosome,Cytosol,Flagellar centriole,Mid piece",1,-2
+"Centriolar satellite,Cytosol",27,-2
+"Centriolar satellite,Cytosol,End piece",1,-2
+"Centriolar satellite,Mitochondria,Cytosol,Connecting piece,Mid piece,Principal piece",1,-2
+"Centriolar satellite,Principal piece",1,-2
+"Centriolar satellite,Rods & Rings",1,-2
+Centrosome,52,-2
+"Centrosome,Acrosome",1,-2
+"Centrosome,Basal body",9,-2
+"Centrosome,Basal body,Acrosome,Mid piece",1,-2
+"Centrosome,Basal body,Acrosome,Mid piece,Principal piece,End piece",1,-2
+"Centrosome,Basal body,Cytosol",10,-2
+"Centrosome,Basal body,Cytosol,Connecting piece,Mid piece,Principal piece,End piece",1,-2
+"Centrosome,Basal body,Cytosol,Flagellar centriole",1,-2
+"Centrosome,Basal body,Cytosol,Mid piece,Principal piece,End piece",1,-2
+"Centrosome,Cytosol",29,-2
+"Centrosome,Cytosol,Connecting piece,Mid piece",1,-2
+"Centrosome,Cytosol,End piece",1,-2
+"Centrosome,Cytosol,Flagellar centriole,Mid piece,Annulus",1,-2
+"Centrosome,Cytosol,Mid piece,End piece",1,-2
+"Centrosome,Cytosol,Mid piece,Principal piece",1,-2
+"Centrosome,Cytosol,Perinuclear theca,Calyx",1,-2
+"Centrosome,Mid piece",1,-2
+"Centrosome,Mitochondria",1,-2
+"Centrosome,Mitochondria,Cytosol",1,-2
+"Connecting piece,Flagellar centriole",1,-2
+"Connecting piece,Flagellar centriole,Annulus",1,-2
+"Connecting piece,Flagellar centriole,Mid piece",1,-2
+"Connecting piece,Flagellar centriole,Mid piece,Principal piece",1,-2
+"Connecting piece,Mid piece",1,-2
+"Connecting piece,Mid piece,Principal piece",2,-2
+"Connecting piece,Mid piece,Principal piece,End piece",1,-2
+Cytokinetic bridge,2,-2
+"Cytokinetic bridge,Centriolar satellite,Cytosol",1,-2
+"Cytokinetic bridge,Cytosol",3,-2
+"Cytokinetic bridge,Midbody,Cytosol",1,-2
+"Cytokinetic bridge,Mitochondria",2,-2
+"Cytokinetic bridge,Mitotic spindle,Cytosol",2,-2
+"Cytokinetic bridge,Mitotic spindle,Cytosol,Flagellar centriole,Mid piece,Principal piece,End piece,Annulus",1,-2
+"Cytokinetic bridge,Mitotic spindle,Primary cilium,Centrosome,Basal body,Cytosol",1,-2
+"Cytokinetic bridge,Mitotic spindle,Primary cilium,Cytosol",1,-2
+Cytoplasmic bodies,15,-2
+Cytosol,900,-2
+"Cytosol,Acrosome",1,-2
+"Cytosol,Acrosome,Equatorial segment",4,-2
+"Cytosol,Acrosome,Mid piece",1,-2
+"Cytosol,Acrosome,Perinuclear theca,Flagellar centriole,Principal piece,Annulus",1,-2
+"Cytosol,Acrosome,Principal piece",1,-2
+"Cytosol,Annulus",1,-2
+"Cytosol,Connecting piece,Mid piece",3,-2
+"Cytosol,Connecting piece,Mid piece,Principal piece",1,-2
+"Cytosol,Connecting piece,Mid piece,Principal piece,End piece",1,-2
+"Cytosol,Cytoplasmic bodies",13,-2
+"Cytosol,End piece",1,-2
+"Cytosol,Equatorial segment",1,-2
+"Cytosol,Equatorial segment,Connecting piece",1,-2
+"Cytosol,Equatorial segment,Mid piece,Principal piece",1,-2
+"Cytosol,Equatorial segment,Mid piece,Principal piece,End piece",4,-2
+"Cytosol,Equatorial segment,Principal piece,Annulus",1,-2
+"Cytosol,Flagellar centriole,End piece",1,-2
+"Cytosol,Mid piece",2,-2
+"Cytosol,Mid piece,Principal piece",6,-2
+"Cytosol,Mid piece,Principal piece,End piece",4,-2
+"Cytosol,Mid piece,Principal piece,End piece,Annulus",2,-2
+"Cytosol,Perinuclear theca,Calyx,Flagellar centriole,Mid piece,Principal piece",3,-2
+"Cytosol,Perinuclear theca,Flagellar centriole,Mid piece",1,-2
+"Cytosol,Principal piece",1,-2
+"Cytosol,Rods & Rings",3,-2
+End piece,1,-2
+Endoplasmic reticulum,231,-1
+"Endoplasmic reticulum,Acrosome",1,-1
+"Endoplasmic reticulum,Aggresome",1,-1
+"Endoplasmic reticulum,Cell Junctions",1,-1
+"Endoplasmic reticulum,Centriolar satellite",1,-1
+"Endoplasmic reticulum,Centriolar satellite,Cytosol",1,-1
+"Endoplasmic reticulum,Centrosome",1,-1
+"Endoplasmic reticulum,Centrosome,Mitochondria,Cytosol",1,-1
+"Endoplasmic reticulum,Cytosol",59,-1
+"Endoplasmic reticulum,Cytosol,Mid piece,Principal piece,End piece",1,-1
+"Endoplasmic reticulum,Equatorial segment,Mid piece",1,-1
+"Endoplasmic reticulum,Golgi apparatus",15,-1
+"Endoplasmic reticulum,Golgi apparatus,Acrosome,Principal piece",1,-1
+"Endoplasmic reticulum,Golgi apparatus,Centriolar satellite,Basal body",1,-1
+"Endoplasmic reticulum,Golgi apparatus,Cytosol",7,-1
+"Endoplasmic reticulum,Golgi apparatus,Plasma membrane",3,-1
+"Endoplasmic reticulum,Golgi apparatus,Plasma membrane,Basal body",1,-1
+"Endoplasmic reticulum,Golgi apparatus,Vesicles",4,-1
+"Endoplasmic reticulum,Intermediate filaments",1,-1
+"Endoplasmic reticulum,Lipid droplets",4,-1
+"Endoplasmic reticulum,Microtubules,Cytosol",1,-1
+"Endoplasmic reticulum,Mid piece,Principal piece,End piece",1,-1
+"Endoplasmic reticulum,Mitochondria",6,-1
+"Endoplasmic reticulum,Mitochondria,Cytosol",2,-1
+"Endoplasmic reticulum,Perinuclear theca,Calyx,Connecting piece,Mid piece,Principal piece",1,-1
+"Endoplasmic reticulum,Plasma membrane",20,-1
+"Endoplasmic reticulum,Plasma membrane,Actin filaments",1,-1
+"Endoplasmic reticulum,Plasma membrane,Cytosol",13,-1
+"Endoplasmic reticulum,Plasma membrane,Focal adhesion sites",1,-1
+"Endoplasmic reticulum,Plasma membrane,Midbody",1,-1
+"Endoplasmic reticulum,Primary cilium",1,-1
+"Endoplasmic reticulum,Primary cilium,Centriolar satellite,Basal body",1,-1
+"Endoplasmic reticulum,Principal piece",1,-1
+"Endoplasmic reticulum,Rods & Rings",2,-1
+"Endoplasmic reticulum,Vesicles",48,-1
+"Endoplasmic reticulum,Vesicles,Cell Junctions",2,-1
+"Endoplasmic reticulum,Vesicles,Cytosol",4,-1
+"Endoplasmic reticulum,Vesicles,Mitochondria",1,-1
+"Endoplasmic reticulum,Vesicles,Mitochondria,Cytosol",1,-1
+"Endoplasmic reticulum,Vesicles,Plasma membrane",3,-1
+"Endoplasmic reticulum,Vesicles,Plasma membrane,Cytosol",1,-1
+Endosomes,3,0
+"Endosomes,Lysosomes",9,-1
+"Endosomes,Lysosomes,Cytosol",1,-1
+"Endosomes,Lysosomes,Mitotic spindle,Centriolar satellite,Cytosol,Mid piece",1,-1
+"Equatorial segment,Calyx,Connecting piece",1,-2
+"Equatorial segment,Calyx,Mid piece,Principal piece,End piece",1,-2
+"Equatorial segment,Flagellar centriole,Mid piece,Principal piece",1,-2
+"Equatorial segment,Mid piece,Principal piece",1,-2
+"Equatorial segment,Perinuclear theca",1,-2
+Flagellar centriole,2,-2
+"Flagellar centriole,Mid piece,Annulus",1,-2
+"Flagellar centriole,Mid piece,End piece",1,-2
+"Flagellar centriole,Mid piece,Principal piece",3,-2
+"Flagellar centriole,Mid piece,Principal piece,End piece",2,-2
+"Flagellar centriole,Principal piece,End piece",1,-2
+Focal adhesion sites,26,-2
+"Focal adhesion sites,Centrosome,Cytosol",1,-2
+"Focal adhesion sites,Cytosol",14,-2
+"Focal adhesion sites,Mitochondria,Cytosol",1,-2
+"Focal adhesion sites,Primary cilium,Centriolar satellite,Basal body,Cytosol,Calyx",1,-2
+Golgi apparatus,270,-2
+"Golgi apparatus,Actin filaments",1,-2
+"Golgi apparatus,Actin filaments,Centrosome",1,-2
+"Golgi apparatus,Actin filaments,Cytosol",2,-2
+"Golgi apparatus,Basal body",5,-2
+"Golgi apparatus,Basal body,Cytosol",1,-2
+"Golgi apparatus,Calyx",1,-2
+"Golgi apparatus,Calyx,Connecting piece,Mid piece,Principal piece",2,-2
+"Golgi apparatus,Cell Junctions",4,-2
+"Golgi apparatus,Cell Junctions,Midbody ring",1,-2
+"Golgi apparatus,Centriolar satellite,Basal body,Cytosol",1,-2
+"Golgi apparatus,Centriolar satellite,Centrosome,Basal body",1,-2
+"Golgi apparatus,Centriolar satellite,Cytosol",2,-2
+"Golgi apparatus,Centrosome",2,-2
+"Golgi apparatus,Centrosome,Basal body",1,-2
+"Golgi apparatus,Centrosome,Basal body,Cytosol",2,-2
+"Golgi apparatus,Centrosome,Cytosol",1,-2
+"Golgi apparatus,Centrosome,Cytosol,Mid piece,Principal piece,End piece",1,-2
+"Golgi apparatus,Cytosol",100,-2
+"Golgi apparatus,Cytosol,Acrosome,Equatorial segment,Mid piece,Principal piece,End piece",1,-2
+"Golgi apparatus,Cytosol,Mid piece",1,-2
+"Golgi apparatus,Cytosol,Rods & Rings",1,-2
+"Golgi apparatus,Flagellar centriole,Mid piece",1,-2
+"Golgi apparatus,Focal adhesion sites",1,-2
+"Golgi apparatus,Intermediate filaments",1,-2
+"Golgi apparatus,Microtubule ends,Cytosol",1,-2
+"Golgi apparatus,Microtubules,Mitotic spindle,Primary cilium,Basal body,Cytosol",1,-2
+"Golgi apparatus,Microtubules,Primary cilium transition zone",1,-2
+"Golgi apparatus,Mid piece,Principal piece",1,-2
+"Golgi apparatus,Mid piece,Principal piece,End piece",1,-2
+"Golgi apparatus,Mitochondria",2,-2
+"Golgi apparatus,Mitotic spindle",1,-2
+"Golgi apparatus,Mitotic spindle,Centriolar satellite,Basal body,Cytosol",1,-2
+"Golgi apparatus,Mitotic spindle,Cytosol",2,-2
+"Golgi apparatus,Perinuclear theca,Connecting piece,Principal piece",1,-2
+"Golgi apparatus,Plasma membrane",40,-2
+"Golgi apparatus,Plasma membrane,Actin filaments",1,-2
+"Golgi apparatus,Plasma membrane,Actin filaments,Cytosol",1,-2
+"Golgi apparatus,Plasma membrane,Basal body,Cytosol",1,-2
+"Golgi apparatus,Plasma membrane,Cell Junctions",2,-2
+"Golgi apparatus,Plasma membrane,Centriolar satellite",2,-2
+"Golgi apparatus,Plasma membrane,Centriolar satellite,Centrosome,Basal body,Cytosol,Flagellar centriole",1,-2
+"Golgi apparatus,Plasma membrane,Centriolar satellite,Cytosol",1,-2
+"Golgi apparatus,Plasma membrane,Cytokinetic bridge",1,-2
+"Golgi apparatus,Plasma membrane,Cytosol",43,-2
+"Golgi apparatus,Plasma membrane,Focal adhesion sites",1,-2
+"Golgi apparatus,Plasma membrane,Focal adhesion sites,Cytosol",1,-2
+"Golgi apparatus,Plasma membrane,Intermediate filaments,Midbody ring,Centrosome,Basal body",1,-2
+"Golgi apparatus,Primary cilium",2,-2
+"Golgi apparatus,Primary cilium transition zone,Basal body,Cytosol",1,-2
+"Golgi apparatus,Primary cilium,Basal body,Cytosol",2,-2
+"Golgi apparatus,Primary cilium,Cytosol",2,-2
+"Golgi apparatus,Primary cilium,Mitochondria,Cytosol,Mid piece,Principal piece,End piece",1,-2
+"Golgi apparatus,Primary cilium,Primary cilium transition zone,Centriolar satellite,Basal body,Cytosol,Mid piece",1,-2
+"Golgi apparatus,Principal piece,End piece",1,-2
+"Golgi apparatus,Rods & Rings",1,-2
+"Golgi apparatus,Vesicles",147,-2
+"Golgi apparatus,Vesicles,Cell Junctions",1,-2
+"Golgi apparatus,Vesicles,Centriolar satellite,Basal body",1,-2
+"Golgi apparatus,Vesicles,Centrosome",1,-2
+"Golgi apparatus,Vesicles,Connecting piece,Mid piece,Principal piece",1,-2
+"Golgi apparatus,Vesicles,Cytokinetic bridge",1,-2
+"Golgi apparatus,Vesicles,Cytokinetic bridge,Primary cilium,Cytosol,Mid piece,Principal piece,End piece",2,-2
+"Golgi apparatus,Vesicles,Cytosol",24,-2
+"Golgi apparatus,Vesicles,Endosomes,Lysosomes",1,-2
+"Golgi apparatus,Vesicles,Lipid droplets,Plasma membrane",1,-2
+"Golgi apparatus,Vesicles,Microtubules",1,-2
+"Golgi apparatus,Vesicles,Microtubules,Cytokinetic bridge,Primary cilium,Cytosol,Mid piece,Principal piece,End piece",11,-2
+"Golgi apparatus,Vesicles,Mid piece",1,-2
+"Golgi apparatus,Vesicles,Mid piece,Principal piece",1,-2
+"Golgi apparatus,Vesicles,Mitochondria",1,-2
+"Golgi apparatus,Vesicles,Mitotic spindle",1,-2
+"Golgi apparatus,Vesicles,Perinuclear theca,Mid piece",1,-2
+"Golgi apparatus,Vesicles,Perinuclear theca,Principal piece,End piece",1,-2
+"Golgi apparatus,Vesicles,Plasma membrane",18,-2
+"Golgi apparatus,Vesicles,Plasma membrane,Cell Junctions,Connecting piece,Mid piece,Principal piece",1,-2
+"Golgi apparatus,Vesicles,Plasma membrane,Cytosol",2,-2
+"Golgi apparatus,Vesicles,Plasma membrane,Mid piece",1,-2
+"Golgi apparatus,Vesicles,Plasma membrane,Primary cilium,Cytosol,Mid piece,Principal piece,End piece",1,-2
+"Golgi apparatus,Vesicles,Plasma membrane,Primary cilium,Primary cilium transition zone,Cytosol",2,-2
+"Golgi apparatus,Vesicles,Primary cilium",1,-2
+"Golgi apparatus,Vesicles,Primary cilium tip,Centriolar satellite,Acrosome,Flagellar centriole,Mid piece,Principal piece",1,-2
+"Golgi apparatus,Vesicles,Primary cilium,Basal body,Cytosol",1,-2
+"Golgi apparatus,Vesicles,Primary cilium,Primary cilium tip",1,-2
+"Golgi apparatus,Vesicles,Principal piece",1,-2
+Intermediate filaments,44,-2
+"Intermediate filaments,Actin filaments",1,-2
+"Intermediate filaments,Actin filaments,Cytosol",3,-2
+"Intermediate filaments,Centriolar satellite",1,-2
+"Intermediate filaments,Cytoplasmic bodies",1,-2
+"Intermediate filaments,Cytosol",27,-2
+"Intermediate filaments,Focal adhesion sites",1,-2
+"Intermediate filaments,Focal adhesion sites,Cytosol",1,-2
+"Intermediate filaments,Mitochondria",2,-2
+"Intermediate filaments,Primary cilium,Basal body",1,-2
+"Intermediate filaments,Rods & Rings",1,-2
+Lipid droplets,11,-2
+"Lipid droplets,Cell Junctions",1,-2
+"Lipid droplets,Cytosol",1,-2
+"Lipid droplets,Plasma membrane",1,-2
+"Lipid droplets,Plasma membrane,Cytosol",1,-2
+"Lipid droplets,Primary cilium transition zone,Basal body,Cytosol",1,-2
+Lysosomes,1,-2
+"Lysosomes,Cytokinetic bridge",1,-2
+"Lysosomes,Primary cilium transition zone",1,-2
+"Microtubule ends,Centrosome,Cytosol",1,-2
+"Microtubule ends,Cytokinetic bridge,Mitotic spindle,Primary cilium transition zone,Centrosome",1,-2
+"Microtubule ends,Cytosol,Mid piece,Principal piece",1,-2
+Microtubules,37,-2
+"Microtubules,Annulus",1,-2
+"Microtubules,Basal body,Cytosol",1,-2
+"Microtubules,Centriolar satellite,Cytosol",1,-2
+"Microtubules,Centrosome",1,-2
+"Microtubules,Centrosome,Cytosol",1,-2
+"Microtubules,Centrosome,Cytosol,Flagellar centriole,Mid piece,Principal piece,End piece",1,-2
+"Microtubules,Cytokinetic bridge",12,-2
+"Microtubules,Cytokinetic bridge,Centrosome",1,-2
+"Microtubules,Cytokinetic bridge,Cytosol",4,-2
+"Microtubules,Cytokinetic bridge,Mitotic spindle",5,-2
+"Microtubules,Cytokinetic bridge,Mitotic spindle,Acrosome,Equatorial segment",1,-2
+"Microtubules,Cytokinetic bridge,Mitotic spindle,Centriolar satellite,Cytosol",1,-2
+"Microtubules,Cytokinetic bridge,Mitotic spindle,Cytosol",3,-2
+"Microtubules,Cytokinetic bridge,Mitotic spindle,Mid piece,Principal piece,End piece",1,-2
+"Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Basal body",3,-2
+"Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Basal body,Acrosome,Perinuclear theca",1,-2
+"Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Basal body,Flagellar centriole,End piece",1,-2
+"Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Basal body,Flagellar centriole,Principal piece,End piece",10,-2
+"Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Basal body,Mid piece",1,-2
+"Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Basal body,Principal piece,End piece",1,-2
+"Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Centriolar satellite,Basal body",1,-2
+"Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Centriolar satellite,Basal body,Cytosol",1,-2
+"Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Centriolar satellite,Basal body,Cytosol,Connecting piece,Mid piece,Principal piece,End piece",1,-2
+"Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Centriolar satellite,Basal body,Perinuclear theca,Principal piece,End piece",1,-2
+"Microtubules,Cytokinetic bridge,Primary cilium",1,-2
+"Microtubules,Cytokinetic bridge,Primary cilium,Basal body",3,-2
+"Microtubules,Cytokinetic bridge,Primary cilium,Basal body,Cytosol",4,-2
+"Microtubules,Cytokinetic bridge,Primary cilium,Calyx,Connecting piece,Mid piece,Principal piece",1,-2
+"Microtubules,Cytokinetic bridge,Primary cilium,Centriolar satellite,Basal body",1,-2
+"Microtubules,Cytokinetic bridge,Primary cilium,Centriolar satellite,Basal body,Cytosol",1,-2
+"Microtubules,Cytokinetic bridge,Primary cilium,Centriolar satellite,Basal body,Flagellar centriole",1,-2
+"Microtubules,Cytokinetic bridge,Primary cilium,Cytosol",3,-2
+"Microtubules,Cytokinetic bridge,Primary cilium,Cytosol,Mid piece",1,-2
+"Microtubules,Cytokinetic bridge,Primary cilium,Cytosol,Perinuclear theca,Calyx,Principal piece,Annulus",1,-2
+"Microtubules,Cytokinetic bridge,Primary cilium,Primary cilium tip,Primary cilium transition zone,Cytosol",5,-2
+"Microtubules,Cytokinetic bridge,Primary cilium,Primary cilium transition zone,Basal body,Acrosome,Equatorial segment,Mid piece,Principal piece,End piece",1,-2
+"Microtubules,Cytosol",12,-2
+"Microtubules,Cytosol,Calyx,Connecting piece,Mid piece,Principal piece,End piece",1,-2
+"Microtubules,Mid piece,Principal piece,End piece",1,-2
+"Microtubules,Midbody",1,-2
+"Microtubules,Midbody,Cytosol",1,-2
+"Microtubules,Mitochondria",2,-2
+"Microtubules,Mitochondria,Acrosome,Equatorial segment,Principal piece,End piece",1,-2
+"Microtubules,Mitotic spindle,Centriolar satellite,Cytosol,Acrosome,Equatorial segment,Principal piece",1,-2
+"Microtubules,Mitotic spindle,Cytosol",1,-2
+"Microtubules,Mitotic spindle,Cytosol,Perinuclear theca,Flagellar centriole,Mid piece,Annulus",1,-2
+"Microtubules,Mitotic spindle,Mitochondria",1,-2
+"Microtubules,Mitotic spindle,Primary cilium,Basal body",1,-2
+"Microtubules,Mitotic spindle,Primary cilium,Basal body,Cytosol",1,-2
+"Microtubules,Mitotic spindle,Primary cilium,Basal body,Cytosol,Flagellar centriole,Mid piece,Principal piece,End piece",1,-2
+"Microtubules,Mitotic spindle,Primary cilium,Basal body,Flagellar centriole,Mid piece,Principal piece,End piece",1,-2
+"Microtubules,Mitotic spindle,Primary cilium,Centriolar satellite,Basal body",1,-2
+"Microtubules,Mitotic spindle,Primary cilium,Centrosome,Basal body",1,-2
+"Microtubules,Mitotic spindle,Primary cilium,Cytosol",1,-2
+"Microtubules,Primary cilium",12,-2
+"Microtubules,Primary cilium,Basal body,Cytosol",1,-2
+"Microtubules,Primary cilium,Basal body,Flagellar centriole,End piece",1,-2
+"Microtubules,Primary cilium,Basal body,Flagellar centriole,Mid piece,Principal piece,End piece",1,-2
+"Microtubules,Primary cilium,Centriolar satellite,Basal body",3,-2
+"Microtubules,Primary cilium,Centriolar satellite,Basal body,Cytosol",2,-2
+"Microtubules,Primary cilium,Cytosol",2,-2
+"Microtubules,Primary cilium,End piece",1,-2
+"Microtubules,Primary cilium,Mitochondria,Cytosol",1,-2
+"Microtubules,Primary cilium,Primary cilium tip,Cytosol,Perinuclear theca,Calyx,Mid piece,Principal piece",1,-2
+"Microtubules,Primary cilium,Primary cilium transition zone,Basal body,Cytosol",2,-2
+Mid piece,18,-2
+"Mid piece,Annulus",2,-2
+"Mid piece,End piece",1,-2
+"Mid piece,Principal piece",14,-2
+"Mid piece,Principal piece,Annulus",4,-2
+"Mid piece,Principal piece,End piece",13,-2
+"Mid piece,Principal piece,End piece,Annulus",2,-2
+Midbody,5,-2
+Midbody ring,2,-2
+"Midbody ring,Centrosome,Basal body,Cytosol",2,-2
+"Midbody ring,Cytosol",1,-2
+"Midbody,Centrosome",1,-2
+"Midbody,Cytosol",1,-2
+"Midbody,Mitotic spindle",1,-2
+Mitochondria,536,-2
+"Mitochondria,Acrosome",3,-2
+"Mitochondria,Acrosome,Equatorial segment,Connecting piece,Mid piece,Principal piece",1,-2
+"Mitochondria,Acrosome,Mid piece,End piece",1,-2
+"Mitochondria,Calyx,Connecting piece",1,-2
+"Mitochondria,Calyx,Principal piece",2,-2
+"Mitochondria,Connecting piece",3,-2
+"Mitochondria,Connecting piece,Flagellar centriole,Principal piece",1,-2
+"Mitochondria,Cytosol",81,-2
+"Mitochondria,Cytosol,Connecting piece",1,-2
+"Mitochondria,Cytosol,Flagellar centriole,Mid piece,Principal piece,End piece",1,-2
+"Mitochondria,Cytosol,Mid piece,Principal piece",1,-2
+"Mitochondria,End piece",2,-2
+"Mitochondria,Equatorial segment",1,-2
+"Mitochondria,Equatorial segment,Perinuclear theca,Calyx",1,-2
+"Mitochondria,Equatorial segment,Principal piece",1,-2
+"Mitochondria,Flagellar centriole,End piece",1,-2
+"Mitochondria,Flagellar centriole,Principal piece,End piece",1,-2
+"Mitochondria,Mid piece,Principal piece,End piece",3,-2
+"Mitochondria,Perinuclear theca,Calyx,Connecting piece,Mid piece,Principal piece",1,-2
+"Mitochondria,Perinuclear theca,Principal piece,End piece",2,-2
+"Mitochondria,Principal piece",8,-2
+"Mitochondria,Rods & Rings",1,-2
+"Mitotic chromosome,Mitochondria",1,-2
+"Mitotic spindle,Centriolar satellite",1,-2
+"Mitotic spindle,Centriolar satellite,Cytosol",1,-2
+"Mitotic spindle,Centrosome,Cytosol",1,-2
+"Mitotic spindle,Centrosome,Mitochondria,Cytosol",1,-2
+"Mitotic spindle,Cytosol",4,-2
+Nuclear bodies,66,-2
+"Nuclear bodies,Actin filaments",1,-2
+"Nuclear bodies,Actin filaments,Cytosol",1,-2
+"Nuclear bodies,Aggresome",1,-2
+"Nuclear bodies,Cell Junctions",1,-2
+"Nuclear bodies,Cell Junctions,Intermediate filaments",1,-2
+"Nuclear bodies,Centriolar satellite",1,-2
+"Nuclear bodies,Centrosome,Basal body,Perinuclear theca,Principal piece,End piece,Annulus",1,-2
+"Nuclear bodies,Centrosome,Cytosol",1,-2
+"Nuclear bodies,Centrosome,Mitochondria",1,-2
+"Nuclear bodies,Cytoplasmic bodies",1,-2
+"Nuclear bodies,Cytosol",37,-2
+"Nuclear bodies,Cytosol,Acrosome,Flagellar centriole,Mid piece,Principal piece,End piece",1,-2
+"Nuclear bodies,Endoplasmic reticulum",4,-2
+"Nuclear bodies,Endoplasmic reticulum,Cytosol",1,-2
+"Nuclear bodies,Endoplasmic reticulum,Flagellar centriole",1,-2
+"Nuclear bodies,Focal adhesion sites",1,-2
+"Nuclear bodies,Golgi apparatus",1,-2
+"Nuclear bodies,Golgi apparatus,Cytosol",2,-2
+"Nuclear bodies,Golgi apparatus,Vesicles",1,-2
+"Nuclear bodies,Microtubules",2,-2
+"Nuclear bodies,Microtubules,Aggresome",1,-2
+"Nuclear bodies,Microtubules,Cytokinetic bridge,Cytosol",1,-2
+"Nuclear bodies,Microtubules,Midbody,Mitotic spindle",1,-2
+"Nuclear bodies,Mitochondria",9,-2
+"Nuclear bodies,Mitochondria,Basal body",1,-2
+"Nuclear bodies,Mitochondria,Cytosol",3,-2
+"Nuclear bodies,Mitochondria,Principal piece",1,-2
+"Nuclear bodies,Mitotic spindle,Cytosol",1,-2
+"Nuclear bodies,Plasma membrane",4,-2
+"Nuclear bodies,Plasma membrane,Actin filaments",1,-2
+"Nuclear bodies,Plasma membrane,Actin filaments,Cytosol",1,-2
+"Nuclear bodies,Plasma membrane,Cell Junctions,Cytokinetic bridge,Mitotic spindle,Cytosol",1,-2
+"Nuclear bodies,Plasma membrane,Cell Junctions,Cytosol",1,-2
+"Nuclear bodies,Plasma membrane,Cytosol",5,-2
+"Nuclear bodies,Plasma membrane,Microtubules",1,-2
+"Nuclear bodies,Plasma membrane,Primary cilium,Basal body",1,-2
+"Nuclear bodies,Primary cilium,Cytosol,Flagellar centriole,Mid piece",1,-2
+"Nuclear bodies,Vesicles",4,-2
+"Nuclear bodies,Vesicles,Cell Junctions",1,-2
+"Nuclear bodies,Vesicles,Centrosome,Cytosol",1,-2
+"Nuclear bodies,Vesicles,Cytosol",2,-2
+"Nuclear bodies,Vesicles,Cytosol,Connecting piece",1,-2
+"Nuclear bodies,Vesicles,Plasma membrane",3,-2
+"Nuclear bodies,Vesicles,Plasma membrane,Cytosol",1,-2
+Nuclear membrane,32,-2
+"Nuclear membrane,Cytosol",15,-2
+"Nuclear membrane,Cytosol,Perinuclear theca,Flagellar centriole,Principal piece",1,-2
+"Nuclear membrane,Endoplasmic reticulum",9,-2
+"Nuclear membrane,Endoplasmic reticulum,Golgi apparatus,Cytosol",1,-2
+"Nuclear membrane,Endoplasmic reticulum,Golgi apparatus,Vesicles,Primary cilium,Cytosol",1,-2
+"Nuclear membrane,Endoplasmic reticulum,Plasma membrane",1,-2
+"Nuclear membrane,Endoplasmic reticulum,Primary cilium",1,-2
+"Nuclear membrane,Endoplasmic reticulum,Vesicles,Actin filaments",1,-2
+"Nuclear membrane,Golgi apparatus",6,-2
+"Nuclear membrane,Golgi apparatus,Plasma membrane",1,-2
+"Nuclear membrane,Intermediate filaments",1,-2
+"Nuclear membrane,Intermediate filaments,Primary cilium",1,-2
+"Nuclear membrane,Mitochondria",4,-2
+"Nuclear membrane,Nuclear bodies",1,-2
+"Nuclear membrane,Nuclear bodies,Cell Junctions,Mitochondria",1,-2
+"Nuclear membrane,Nuclear speckles,Plasma membrane",1,-2
+"Nuclear membrane,Nuclear speckles,Vesicles",1,-2
+"Nuclear membrane,Nucleoli",3,-2
+"Nuclear membrane,Nucleoli fibrillar center",1,-2
+"Nuclear membrane,Nucleoli fibrillar center,Calyx,Connecting piece,Mid piece,Principal piece,End piece",1,-2
+"Nuclear membrane,Nucleoli fibrillar center,Endoplasmic reticulum",1,-2
+"Nuclear membrane,Nucleoli,Cytosol",2,-2
+"Nuclear membrane,Nucleoli,Endoplasmic reticulum",2,-2
+"Nuclear membrane,Nucleoli,Golgi apparatus",1,-2
+"Nuclear membrane,Nucleoli,Nucleoli rim",2,-2
+"Nuclear membrane,Plasma membrane",6,-2
+"Nuclear membrane,Plasma membrane,Actin filaments",1,-2
+"Nuclear membrane,Plasma membrane,Cytosol",2,-2
+"Nuclear membrane,Plasma membrane,Primary cilium,Centriolar satellite,Basal body,Cytosol",1,-2
+"Nuclear membrane,Vesicles",18,-2
+"Nuclear membrane,Vesicles,Cytosol",1,-2
+"Nuclear membrane,Vesicles,Cytosol,Connecting piece,Mid piece,Principal piece",1,-2
+"Nuclear membrane,Vesicles,Cytosol,Flagellar centriole",1,-2
+"Nuclear membrane,Vesicles,Plasma membrane",2,-2
+"Nuclear membrane,Vesicles,Plasma membrane,Cytosol",1,-2
+Nuclear speckles,178,-2
+"Nuclear speckles,Acrosome,Mid piece,Principal piece",1,-2
+"Nuclear speckles,Cell Junctions",5,-2
+"Nuclear speckles,Centriolar satellite,Cytosol,Acrosome,Connecting piece,Mid piece,Principal piece",1,-2
+"Nuclear speckles,Centrosome",2,-2
+"Nuclear speckles,Centrosome,Cytosol",1,-2
+"Nuclear speckles,Centrosome,Rods & Rings",1,-2
+"Nuclear speckles,Cytoplasmic bodies",8,-2
+"Nuclear speckles,Cytosol",69,-2
+"Nuclear speckles,Cytosol,Equatorial segment,Mid piece,Principal piece,End piece",1,-2
+"Nuclear speckles,Endoplasmic reticulum",4,-2
+"Nuclear speckles,Endoplasmic reticulum,Mitochondria",1,-2
+"Nuclear speckles,Focal adhesion sites",1,-2
+"Nuclear speckles,Focal adhesion sites,Cytosol",1,-2
+"Nuclear speckles,Golgi apparatus",9,-2
+"Nuclear speckles,Golgi apparatus,Cytosol",3,-2
+"Nuclear speckles,Golgi apparatus,Plasma membrane,Cell Junctions",1,-2
+"Nuclear speckles,Golgi apparatus,Plasma membrane,Cytosol",2,-2
+"Nuclear speckles,Golgi apparatus,Vesicles,Cytosol",1,-2
+"Nuclear speckles,Intermediate filaments",1,-2
+"Nuclear speckles,Microtubules",1,-2
+"Nuclear speckles,Microtubules,Cytosol",1,-2
+"Nuclear speckles,Microtubules,Mitotic spindle,Primary cilium",1,-2
+"Nuclear speckles,Microtubules,Primary cilium",1,-2
+"Nuclear speckles,Mitochondria",10,-2
+"Nuclear speckles,Mitochondria,Cytosol",1,-2
+"Nuclear speckles,Mitotic spindle,Cytosol",1,-2
+"Nuclear speckles,Plasma membrane",17,-2
+"Nuclear speckles,Plasma membrane,Actin filaments,Cytosol",1,-2
+"Nuclear speckles,Plasma membrane,Actin filaments,Focal adhesion sites",1,-2
+"Nuclear speckles,Plasma membrane,Centriolar satellite,Cytosol",1,-2
+"Nuclear speckles,Plasma membrane,Centrosome",1,-2
+"Nuclear speckles,Plasma membrane,Centrosome,Cytosol",1,-2
+"Nuclear speckles,Plasma membrane,Cytosol",13,-2
+"Nuclear speckles,Plasma membrane,End piece",1,-2
+"Nuclear speckles,Plasma membrane,Intermediate filaments",1,-2
+"Nuclear speckles,Plasma membrane,Microtubules",1,-2
+"Nuclear speckles,Plasma membrane,Microtubules,Primary cilium",1,-2
+"Nuclear speckles,Plasma membrane,Mitochondria",1,-2
+"Nuclear speckles,Plasma membrane,Primary cilium tip,Primary cilium transition zone,Basal body,Cytosol",1,-2
+"Nuclear speckles,Plasma membrane,Primary cilium,Basal body",1,-2
+"Nuclear speckles,Plasma membrane,Primary cilium,Cytosol",1,-2
+"Nuclear speckles,Primary cilium,Basal body,Cytosol",1,-2
+"Nuclear speckles,Primary cilium,Primary cilium transition zone,Centrosome",1,-2
+"Nuclear speckles,Vesicles",7,-2
+"Nuclear speckles,Vesicles,Basal body",1,-2
+"Nuclear speckles,Vesicles,Centriolar satellite",1,-2
+"Nuclear speckles,Vesicles,Cytosol",4,-2
+"Nuclear speckles,Vesicles,Lipid droplets,Plasma membrane",1,-2
+"Nuclear speckles,Vesicles,Midbody",1,-2
+"Nuclear speckles,Vesicles,Plasma membrane",1,-2
+"Nuclear speckles,Vesicles,Plasma membrane,Primary cilium,Centriolar satellite",1,-2
+Nucleoli,106,-2
+Nucleoli fibrillar center,40,-2
+"Nucleoli fibrillar center,Actin filaments,Cytosol",2,-2
+"Nucleoli fibrillar center,Basal body,Perinuclear theca,Flagellar centriole",1,-2
+"Nucleoli fibrillar center,Cell Junctions",1,-2
+"Nucleoli fibrillar center,Cell Junctions,Cytosol",1,-2
+"Nucleoli fibrillar center,Cell Junctions,Focal adhesion sites",1,-2
+"Nucleoli fibrillar center,Centrosome",1,-2
+"Nucleoli fibrillar center,Centrosome,Cytosol",1,-2
+"Nucleoli fibrillar center,Cytosol",20,-2
+"Nucleoli fibrillar center,Endoplasmic reticulum",7,-2
+"Nucleoli fibrillar center,Endoplasmic reticulum,Cytosol",2,-2
+"Nucleoli fibrillar center,Endoplasmic reticulum,Vesicles",2,-2
+"Nucleoli fibrillar center,Golgi apparatus",4,-2
+"Nucleoli fibrillar center,Golgi apparatus,Cytosol",1,-2
+"Nucleoli fibrillar center,Golgi apparatus,Vesicles,Cytosol",1,-2
+"Nucleoli fibrillar center,Microtubules",2,-2
+"Nucleoli fibrillar center,Microtubules,Cytokinetic bridge,Cytosol",1,-2
+"Nucleoli fibrillar center,Microtubules,Mitotic spindle,Primary cilium",1,-2
+"Nucleoli fibrillar center,Mitochondria",9,-2
+"Nucleoli fibrillar center,Mitochondria,Acrosome",1,-2
+"Nucleoli fibrillar center,Nuclear bodies",4,-2
+"Nucleoli fibrillar center,Nuclear speckles",3,-2
+"Nucleoli fibrillar center,Nuclear speckles,Cytosol",2,-2
+"Nucleoli fibrillar center,Peroxisomes",2,-2
+"Nucleoli fibrillar center,Plasma membrane",6,-2
+"Nucleoli fibrillar center,Plasma membrane,Acrosome,Mid piece,Principal piece",1,-2
+"Nucleoli fibrillar center,Plasma membrane,Basal body,Cytosol",1,-2
+"Nucleoli fibrillar center,Plasma membrane,Cell Junctions",1,-2
+"Nucleoli fibrillar center,Plasma membrane,Cytosol",2,-2
+"Nucleoli fibrillar center,Plasma membrane,Mitochondria",1,-2
+"Nucleoli fibrillar center,Primary cilium,Cytosol",2,-2
+"Nucleoli fibrillar center,Primary cilium,Primary cilium tip,Cytosol",1,-2
+"Nucleoli fibrillar center,Vesicles",6,-2
+"Nucleoli fibrillar center,Vesicles,Actin filaments",1,-2
+"Nucleoli fibrillar center,Vesicles,Cytosol",2,-2
+"Nucleoli fibrillar center,Vesicles,Lipid droplets",1,-2
+"Nucleoli fibrillar center,Vesicles,Plasma membrane",1,-2
+Nucleoli rim,7,-2
+"Nucleoli rim,Endoplasmic reticulum",1,-2
+"Nucleoli rim,Golgi apparatus",1,-2
+"Nucleoli rim,Golgi apparatus,Cytosol",1,-2
+"Nucleoli rim,Golgi apparatus,Vesicles",1,-2
+"Nucleoli rim,Mitochondria",1,-2
+"Nucleoli rim,Mitotic chromosome",3,-2
+"Nucleoli rim,Mitotic chromosome,Intermediate filaments",1,-2
+"Nucleoli rim,Mitotic chromosome,Vesicles,Primary cilium",1,-2
+"Nucleoli rim,Nuclear bodies,Mitotic chromosome",2,-2
+"Nucleoli rim,Plasma membrane,Cytosol",1,-2
+"Nucleoli rim,Vesicles",1,-2
+"Nucleoli rim,Vesicles,Cytosol",1,-2
+"Nucleoli,Actin filaments,Cytosol",2,-2
+"Nucleoli,Actin filaments,Cytosol,Mid piece",1,-2
+"Nucleoli,Basal body,Cytosol",1,-2
+"Nucleoli,Basal body,Cytosol,Flagellar centriole,Mid piece,Principal piece,End piece",1,-2
+"Nucleoli,Cell Junctions,Cytosol",1,-2
+"Nucleoli,Centriolar satellite",1,-2
+"Nucleoli,Centrosome",2,-2
+"Nucleoli,Centrosome,Connecting piece,Mid piece,Principal piece",1,-2
+"Nucleoli,Cytokinetic bridge,Cytosol",2,-2
+"Nucleoli,Cytosol",73,-2
+"Nucleoli,Cytosol,Perinuclear theca,Calyx,Mid piece,Principal piece",1,-2
+"Nucleoli,Cytosol,Rods & Rings",1,-2
+"Nucleoli,Endoplasmic reticulum",4,-2
+"Nucleoli,Endoplasmic reticulum,Cytosol",19,-2
+"Nucleoli,Endoplasmic reticulum,Cytosol,Acrosome,Equatorial segment",1,-2
+"Nucleoli,Endoplasmic reticulum,Golgi apparatus,Cytosol",1,-2
+"Nucleoli,Endoplasmic reticulum,Golgi apparatus,Plasma membrane,Cytosol",1,-2
+"Nucleoli,Endoplasmic reticulum,Microtubules,Cytokinetic bridge,Primary cilium,Primary cilium transition zone",2,-2
+"Nucleoli,Endoplasmic reticulum,Mid piece,Principal piece",1,-2
+"Nucleoli,Endoplasmic reticulum,Vesicles",3,-2
+"Nucleoli,Endoplasmic reticulum,Vesicles,Plasma membrane,Centriolar satellite",1,-2
+"Nucleoli,Flagellar centriole,Mid piece,Principal piece",1,-2
+"Nucleoli,Focal adhesion sites",1,-2
+"Nucleoli,Focal adhesion sites,Mitochondria",1,-2
+"Nucleoli,Golgi apparatus",9,-2
+"Nucleoli,Golgi apparatus,Cytosol",5,-2
+"Nucleoli,Golgi apparatus,Cytosol,Principal piece",1,-2
+"Nucleoli,Golgi apparatus,Plasma membrane,Basal body,Cytosol",1,-2
+"Nucleoli,Golgi apparatus,Plasma membrane,Cell Junctions,Primary cilium,Basal body,Cytosol,Mid piece,Principal piece,End piece",1,-2
+"Nucleoli,Golgi apparatus,Plasma membrane,Cytosol",2,-2
+"Nucleoli,Golgi apparatus,Plasma membrane,Primary cilium,Basal body",1,-2
+"Nucleoli,Golgi apparatus,Primary cilium,Basal body,Cytosol",1,-2
+"Nucleoli,Golgi apparatus,Vesicles",7,-2
+"Nucleoli,Golgi apparatus,Vesicles,Centrosome,Basal body",1,-2
+"Nucleoli,Golgi apparatus,Vesicles,Centrosome,Cytosol",1,-2
+"Nucleoli,Golgi apparatus,Vesicles,Cytosol",1,-2
+"Nucleoli,Intermediate filaments",2,-2
+"Nucleoli,Intermediate filaments,Cytosol",2,-2
+"Nucleoli,Kinetochore",1,-2
+"Nucleoli,Microtubules",4,-2
+"Nucleoli,Microtubules,Cytokinetic bridge,Mitotic spindle,Mid piece,Principal piece,End piece",1,-2
+"Nucleoli,Microtubules,Cytokinetic bridge,Primary cilium,Basal body",1,-2
+"Nucleoli,Microtubules,Cytosol",1,-2
+"Nucleoli,Midbody",1,-2
+"Nucleoli,Mitochondria",31,-2
+"Nucleoli,Mitochondria,Cytosol",6,-2
+"Nucleoli,Mitotic chromosome",7,-2
+"Nucleoli,Mitotic chromosome,Cytosol",1,-2
+"Nucleoli,Mitotic chromosome,Mitochondria",1,-2
+"Nucleoli,Mitotic spindle,Cytosol",1,-2
+"Nucleoli,Nuclear bodies",2,-2
+"Nucleoli,Nuclear bodies,Actin filaments",1,-2
+"Nucleoli,Nuclear bodies,Endoplasmic reticulum,Cytosol",1,-2
+"Nucleoli,Nuclear speckles",1,-2
+"Nucleoli,Nuclear speckles,Cytosol",2,-2
+"Nucleoli,Nuclear speckles,Plasma membrane,Cytoplasmic bodies",2,-2
+"Nucleoli,Nucleoli fibrillar center,Cytosol",2,-2
+"Nucleoli,Nucleoli fibrillar center,Plasma membrane,Focal adhesion sites,Cytosol",1,-2
+"Nucleoli,Nucleoli fibrillar center,Vesicles",1,-2
+"Nucleoli,Nucleoli rim",9,-2
+"Nucleoli,Nucleoli rim,Centrosome,Basal body",1,-2
+"Nucleoli,Nucleoli rim,Cytosol",2,-2
+"Nucleoli,Nucleoli rim,Endoplasmic reticulum",1,-2
+"Nucleoli,Nucleoli rim,Endoplasmic reticulum,Cytosol",1,-2
+"Nucleoli,Nucleoli rim,Golgi apparatus",1,-2
+"Nucleoli,Nucleoli rim,Golgi apparatus,Cytosol",1,-2
+"Nucleoli,Nucleoli rim,Golgi apparatus,Vesicles",1,-2
+"Nucleoli,Nucleoli rim,Intermediate filaments",1,-2
+"Nucleoli,Nucleoli rim,Intermediate filaments,Cytosol",1,-2
+"Nucleoli,Nucleoli rim,Lipid droplets",1,-2
+"Nucleoli,Nucleoli rim,Mid piece,Principal piece",1,-2
+"Nucleoli,Nucleoli rim,Mitotic chromosome",10,-2
+"Nucleoli,Nucleoli rim,Mitotic chromosome,Actin filaments",1,-2
+"Nucleoli,Nucleoli rim,Mitotic chromosome,Vesicles,Plasma membrane,Primary cilium,Primary cilium tip,Mid piece,Principal piece,End piece",1,-2
+"Nucleoli,Nucleoli rim,Nuclear speckles",3,-2
+"Nucleoli,Nucleoli rim,Plasma membrane,Actin filaments",1,-2
+"Nucleoli,Nucleoli rim,Plasma membrane,Mitotic spindle,Primary cilium,Centrosome,Basal body",1,-2
+"Nucleoli,Nucleoli rim,Plasma membrane,Primary cilium",1,-2
+"Nucleoli,Peroxisomes",1,-2
+"Nucleoli,Plasma membrane",9,-2
+"Nucleoli,Plasma membrane,Actin filaments,Cytosol",1,-2
+"Nucleoli,Plasma membrane,Basal body,Cytosol",1,-2
+"Nucleoli,Plasma membrane,Centrosome,Basal body,Mid piece,Principal piece",1,-2
+"Nucleoli,Plasma membrane,Cytosol",18,-2
+"Nucleoli,Plasma membrane,Microtubules",1,-2
+"Nucleoli,Plasma membrane,Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Cytosol",1,-2
+"Nucleoli,Plasma membrane,Microtubules,Cytosol",2,-2
+"Nucleoli,Plasma membrane,Mid piece,Principal piece,End piece",1,-2
+"Nucleoli,Plasma membrane,Midbody",1,-2
+"Nucleoli,Plasma membrane,Mitochondria",1,-2
+"Nucleoli,Primary cilium,Cytosol",1,-2
+"Nucleoli,Vesicles",17,-2
+"Nucleoli,Vesicles,Basal body,Cytosol",1,-2
+"Nucleoli,Vesicles,Cell Junctions",1,-2
+"Nucleoli,Vesicles,Cytosol",5,-2
+"Nucleoli,Vesicles,Mitochondria",1,-2
+"Nucleoli,Vesicles,Mitochondria,Cytosol,Calyx,Connecting piece,Flagellar centriole,Mid piece,Principal piece",1,-2
+"Nucleoli,Vesicles,Plasma membrane",1,-2
+"Nucleoli,Vesicles,Plasma membrane,Cytosol",4,-2
+"Nucleoli,Vesicles,Primary cilium",1,-2
+Nucleoplasm,1603,-2
+"Nucleoplasm,Acrosome,Equatorial segment,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Acrosome,Equatorial segment,Perinuclear theca",1,-2
+"Nucleoplasm,Acrosome,Principal piece",20,-2
+"Nucleoplasm,Actin filaments",14,-2
+"Nucleoplasm,Actin filaments,Basal body",1,-2
+"Nucleoplasm,Actin filaments,Cytokinetic bridge,Cytosol",1,-2
+"Nucleoplasm,Actin filaments,Cytosol",8,-2
+"Nucleoplasm,Actin filaments,Focal adhesion sites,Cytosol",1,-2
+"Nucleoplasm,Actin filaments,Mitochondria",1,-2
+"Nucleoplasm,Actin filaments,Primary cilium",1,-2
+"Nucleoplasm,Actin filaments,Primary cilium,Cytosol",2,-2
+"Nucleoplasm,Aggresome",1,-2
+"Nucleoplasm,Aggresome,Cytosol",1,-2
+"Nucleoplasm,Basal body",2,-2
+"Nucleoplasm,Basal body,Cytosol",8,-2
+"Nucleoplasm,Basal body,Cytosol,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Basal body,Cytosol,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Cell Junctions",37,-2
+"Nucleoplasm,Cell Junctions,Acrosome,Connecting piece,Flagellar centriole,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Cell Junctions,Centriolar satellite",1,-2
+"Nucleoplasm,Cell Junctions,Centriolar satellite,Basal body,Cytosol",1,-2
+"Nucleoplasm,Cell Junctions,Centrosome,Acrosome,Connecting piece,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Cell Junctions,Cytokinetic bridge",1,-2
+"Nucleoplasm,Cell Junctions,Cytokinetic bridge,Primary cilium",1,-2
+"Nucleoplasm,Cell Junctions,Cytoplasmic bodies",1,-2
+"Nucleoplasm,Cell Junctions,Cytosol",16,-2
+"Nucleoplasm,Cell Junctions,Intermediate filaments",1,-2
+"Nucleoplasm,Cell Junctions,Mitochondria,Cytosol",1,-2
+"Nucleoplasm,Cell Junctions,Principal piece",1,-2
+"Nucleoplasm,Centriolar satellite",14,-2
+"Nucleoplasm,Centriolar satellite,Basal body,Cytosol",2,-2
+"Nucleoplasm,Centriolar satellite,Basal body,Cytosol,Connecting piece,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Centriolar satellite,Centrosome,Basal body",1,-2
+"Nucleoplasm,Centriolar satellite,Centrosome,Basal body,Cytosol,Acrosome,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Centriolar satellite,Cytosol",10,-2
+"Nucleoplasm,Centriolar satellite,Cytosol,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Centrosome",41,-2
+"Nucleoplasm,Centrosome,Basal body",7,-2
+"Nucleoplasm,Centrosome,Basal body,Acrosome",1,-2
+"Nucleoplasm,Centrosome,Basal body,Acrosome,Equatorial segment,Principal piece",1,-2
+"Nucleoplasm,Centrosome,Basal body,Cytosol",16,-2
+"Nucleoplasm,Centrosome,Basal body,Cytosol,Connecting piece,Mid piece",1,-2
+"Nucleoplasm,Centrosome,Basal body,Cytosol,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Centrosome,Basal body,End piece",1,-2
+"Nucleoplasm,Centrosome,Calyx",1,-2
+"Nucleoplasm,Centrosome,Cytosol",42,-2
+"Nucleoplasm,Centrosome,Cytosol,Acrosome",1,-2
+"Nucleoplasm,Centrosome,Cytosol,Acrosome,End piece",1,-2
+"Nucleoplasm,Centrosome,Cytosol,Acrosome,Perinuclear theca,Flagellar centriole,Principal piece",1,-2
+"Nucleoplasm,Centrosome,Flagellar centriole,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Centrosome,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Centrosome,Mitochondria",2,-2
+"Nucleoplasm,Centrosome,Mitochondria,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Centrosome,Principal piece",1,-2
+"Nucleoplasm,Cytokinetic bridge",9,-2
+"Nucleoplasm,Cytokinetic bridge,Centriolar satellite,Cytosol",1,-2
+"Nucleoplasm,Cytokinetic bridge,Centriolar satellite,Cytosol,Flagellar centriole",1,-2
+"Nucleoplasm,Cytokinetic bridge,Centrosome",1,-2
+"Nucleoplasm,Cytokinetic bridge,Cleavage furrow,Mitotic spindle",1,-2
+"Nucleoplasm,Cytokinetic bridge,Cytosol",8,-2
+"Nucleoplasm,Cytokinetic bridge,Midbody",1,-2
+"Nucleoplasm,Cytokinetic bridge,Midbody ring",1,-2
+"Nucleoplasm,Cytokinetic bridge,Midbody,Centrosome,Basal body,Cytosol,Perinuclear theca",1,-2
+"Nucleoplasm,Cytokinetic bridge,Mitochondria",1,-2
+"Nucleoplasm,Cytokinetic bridge,Mitotic spindle",3,-2
+"Nucleoplasm,Cytokinetic bridge,Mitotic spindle,Cytosol",2,-2
+"Nucleoplasm,Cytokinetic bridge,Mitotic spindle,Primary cilium,Cytosol,Equatorial segment",1,-2
+"Nucleoplasm,Cytokinetic bridge,Primary cilium,Centrosome,Basal body",1,-2
+"Nucleoplasm,Cytokinetic bridge,Primary cilium,Cytosol",1,-2
+"Nucleoplasm,Cytoplasmic bodies",11,-2
+"Nucleoplasm,Cytosol",1041,-2
+"Nucleoplasm,Cytosol,Acrosome",1,-2
+"Nucleoplasm,Cytosol,Acrosome,Perinuclear theca,Connecting piece,Flagellar centriole",1,-2
+"Nucleoplasm,Cytosol,Calyx",3,-2
+"Nucleoplasm,Cytosol,Connecting piece",1,-2
+"Nucleoplasm,Cytosol,Connecting piece,Flagellar centriole",1,-2
+"Nucleoplasm,Cytosol,Connecting piece,Mid piece,Principal piece,End piece",3,-2
+"Nucleoplasm,Cytosol,Cytoplasmic bodies",7,-2
+"Nucleoplasm,Cytosol,Equatorial segment,Principal piece",1,-2
+"Nucleoplasm,Cytosol,Flagellar centriole",1,-2
+"Nucleoplasm,Cytosol,Flagellar centriole,Mid piece",2,-2
+"Nucleoplasm,Cytosol,Mid piece",1,-2
+"Nucleoplasm,Cytosol,Mid piece,Principal piece",3,-2
+"Nucleoplasm,Cytosol,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Cytosol,Principal piece",2,-2
+"Nucleoplasm,Endoplasmic reticulum",10,-2
+"Nucleoplasm,Endoplasmic reticulum,Centrosome,Cytosol",1,-2
+"Nucleoplasm,Endoplasmic reticulum,Connecting piece,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Endoplasmic reticulum,Cytosol",6,-2
+"Nucleoplasm,Endoplasmic reticulum,Golgi apparatus",1,-2
+"Nucleoplasm,Endoplasmic reticulum,Golgi apparatus,Plasma membrane,Cytosol",1,-2
+"Nucleoplasm,Endoplasmic reticulum,Golgi apparatus,Vesicles",1,-2
+"Nucleoplasm,Endoplasmic reticulum,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Endoplasmic reticulum,Plasma membrane",2,-2
+"Nucleoplasm,Endoplasmic reticulum,Plasma membrane,Cell Junctions,Primary cilium,Cytosol",1,-2
+"Nucleoplasm,Endoplasmic reticulum,Plasma membrane,Cytosol",2,-2
+"Nucleoplasm,Endoplasmic reticulum,Plasma membrane,Cytosol,Acrosome,Equatorial segment",1,-2
+"Nucleoplasm,Endoplasmic reticulum,Vesicles",6,-2
+"Nucleoplasm,Endosomes,Lysosomes",1,-2
+"Nucleoplasm,Equatorial segment,Flagellar centriole,Mid piece",1,-2
+"Nucleoplasm,Equatorial segment,Principal piece",1,-2
+"Nucleoplasm,Flagellar centriole,Annulus",1,-2
+"Nucleoplasm,Flagellar centriole,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Focal adhesion sites",6,-2
+"Nucleoplasm,Focal adhesion sites,Cytosol",9,-2
+"Nucleoplasm,Golgi apparatus",138,-2
+"Nucleoplasm,Golgi apparatus,Acrosome,Equatorial segment,Flagellar centriole",1,-2
+"Nucleoplasm,Golgi apparatus,Actin filaments",2,-2
+"Nucleoplasm,Golgi apparatus,Cell Junctions",3,-2
+"Nucleoplasm,Golgi apparatus,Cell Junctions,Cytosol",1,-2
+"Nucleoplasm,Golgi apparatus,Centriolar satellite",1,-2
+"Nucleoplasm,Golgi apparatus,Centrosome,Basal body,Cytosol,Flagellar centriole",1,-2
+"Nucleoplasm,Golgi apparatus,Centrosome,Cytosol",3,-2
+"Nucleoplasm,Golgi apparatus,Connecting piece",1,-2
+"Nucleoplasm,Golgi apparatus,Connecting piece,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Golgi apparatus,Cytokinetic bridge,Cytosol",1,-2
+"Nucleoplasm,Golgi apparatus,Cytosol",80,-2
+"Nucleoplasm,Golgi apparatus,Focal adhesion sites",2,-2
+"Nucleoplasm,Golgi apparatus,Midbody,Cytosol",1,-2
+"Nucleoplasm,Golgi apparatus,Mitochondria",2,-2
+"Nucleoplasm,Golgi apparatus,Perinuclear theca,Principal piece",1,-2
+"Nucleoplasm,Golgi apparatus,Plasma membrane",16,-2
+"Nucleoplasm,Golgi apparatus,Plasma membrane,Centrosome",1,-2
+"Nucleoplasm,Golgi apparatus,Plasma membrane,Centrosome,Basal body,Cytosol",2,-2
+"Nucleoplasm,Golgi apparatus,Plasma membrane,Cytosol",5,-2
+"Nucleoplasm,Golgi apparatus,Plasma membrane,Flagellar centriole",1,-2
+"Nucleoplasm,Golgi apparatus,Plasma membrane,Mitochondria,Cytosol,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Golgi apparatus,Plasma membrane,Primary cilium transition zone,Centriolar satellite,Basal body",1,-2
+"Nucleoplasm,Golgi apparatus,Plasma membrane,Primary cilium,Basal body,Cytosol",1,-2
+"Nucleoplasm,Golgi apparatus,Primary cilium",2,-2
+"Nucleoplasm,Golgi apparatus,Primary cilium,Basal body,Cytosol",1,-2
+"Nucleoplasm,Golgi apparatus,Primary cilium,Centrosome,Basal body,Cytosol",1,-2
+"Nucleoplasm,Golgi apparatus,Primary cilium,Primary cilium tip,Basal body,Cytosol,Acrosome,Equatorial segment",1,-2
+"Nucleoplasm,Golgi apparatus,Vesicles",44,-2
+"Nucleoplasm,Golgi apparatus,Vesicles,Cytosol",6,-2
+"Nucleoplasm,Golgi apparatus,Vesicles,Intermediate filaments",1,-2
+"Nucleoplasm,Golgi apparatus,Vesicles,Plasma membrane",1,-2
+"Nucleoplasm,Golgi apparatus,Vesicles,Plasma membrane,Cell Junctions,Centrosome,Basal body",1,-2
+"Nucleoplasm,Golgi apparatus,Vesicles,Plasma membrane,Focal adhesion sites",1,-2
+"Nucleoplasm,Golgi apparatus,Vesicles,Primary cilium",1,-2
+"Nucleoplasm,Golgi apparatus,Vesicles,Primary cilium transition zone",1,-2
+"Nucleoplasm,Golgi apparatus,Vesicles,Primary cilium,Primary cilium transition zone",1,-2
+"Nucleoplasm,Intermediate filaments",14,-2
+"Nucleoplasm,Intermediate filaments,Cytosol",7,-2
+"Nucleoplasm,Intermediate filaments,Midbody",1,-2
+"Nucleoplasm,Kinetochore,Cytokinetic bridge,Mitotic spindle,Primary cilium,Primary cilium tip,Basal body,Cytosol",1,-2
+"Nucleoplasm,Kinetochore,Cytosol",2,-2
+"Nucleoplasm,Lipid droplets",6,-2
+"Nucleoplasm,Lipid droplets,Mitochondria",1,-2
+"Nucleoplasm,Microtubules",10,-2
+"Nucleoplasm,Microtubules,Basal body",1,-2
+"Nucleoplasm,Microtubules,Centrosome",2,-2
+"Nucleoplasm,Microtubules,Centrosome,Mitochondria,Basal body,Cytosol,End piece",1,-2
+"Nucleoplasm,Microtubules,Cytokinetic bridge",6,-2
+"Nucleoplasm,Microtubules,Cytokinetic bridge,Cytosol",3,-2
+"Nucleoplasm,Microtubules,Cytokinetic bridge,Mitotic spindle",1,-2
+"Nucleoplasm,Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Basal body",1,-2
+"Nucleoplasm,Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Basal body,Cytosol",2,-2
+"Nucleoplasm,Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Microtubules,Cytokinetic bridge,Primary cilium,Cytosol",1,-2
+"Nucleoplasm,Microtubules,Cytosol",8,-2
+"Nucleoplasm,Microtubules,Midbody",1,-2
+"Nucleoplasm,Microtubules,Mitochondria",2,-2
+"Nucleoplasm,Microtubules,Mitochondria,Cytosol",1,-2
+"Nucleoplasm,Microtubules,Mitotic spindle,Primary cilium,Basal body,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Microtubules,Mitotic spindle,Primary cilium,Primary cilium tip",1,-2
+"Nucleoplasm,Microtubules,Primary cilium transition zone,Centrosome,Basal body,Cytosol,Principal piece",1,-2
+"Nucleoplasm,Microtubules,Primary cilium,Basal body,Perinuclear theca,Calyx,Principal piece,End piece",1,-2
+"Nucleoplasm,Microtubules,Primary cilium,Cytosol,Connecting piece,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Microtubules,Primary cilium,Primary cilium tip,Basal body",2,-2
+"Nucleoplasm,Microtubules,Primary cilium,Primary cilium tip,Cytosol",1,-2
+"Nucleoplasm,Mid piece",4,-2
+"Nucleoplasm,Mid piece,Principal piece",3,-2
+"Nucleoplasm,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Midbody",9,-2
+"Nucleoplasm,Midbody ring",2,-2
+"Nucleoplasm,Midbody ring,Centrosome,Cytosol",1,-2
+"Nucleoplasm,Midbody ring,Cytosol",3,-2
+"Nucleoplasm,Midbody ring,Mitochondria",1,-2
+"Nucleoplasm,Midbody ring,Mitotic spindle,Mid piece,Principal piece,Annulus",1,-2
+"Nucleoplasm,Midbody,Acrosome,Equatorial segment,Mid piece,Principal piece",2,-2
+"Nucleoplasm,Midbody,Centrosome,Cytosol",1,-2
+"Nucleoplasm,Midbody,Cleavage furrow,Mitotic spindle",1,-2
+"Nucleoplasm,Midbody,Cytosol",3,-2
+"Nucleoplasm,Midbody,Cytosol,Calyx,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Mitochondria",165,-2
+"Nucleoplasm,Mitochondria,Basal body",1,-2
+"Nucleoplasm,Mitochondria,Cytosol",41,-2
+"Nucleoplasm,Mitochondria,Cytosol,Equatorial segment,Perinuclear theca",1,-2
+"Nucleoplasm,Mitochondria,Cytosol,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Mitochondria,Principal piece",1,-2
+"Nucleoplasm,Mitotic chromosome",6,-2
+"Nucleoplasm,Mitotic chromosome,Centrosome",2,-2
+"Nucleoplasm,Mitotic chromosome,Golgi apparatus",1,-2
+"Nucleoplasm,Mitotic chromosome,Intermediate filaments",1,-2
+"Nucleoplasm,Mitotic spindle",1,-2
+"Nucleoplasm,Mitotic spindle,Centrosome",1,-2
+"Nucleoplasm,Mitotic spindle,Centrosome,Basal body,Cytosol",1,-2
+"Nucleoplasm,Mitotic spindle,Cytosol",3,-2
+"Nucleoplasm,Nuclear bodies",179,-2
+"Nucleoplasm,Nuclear bodies,Actin filaments",1,-2
+"Nucleoplasm,Nuclear bodies,Actin filaments,Cytosol",1,-2
+"Nucleoplasm,Nuclear bodies,Aggresome",1,-2
+"Nucleoplasm,Nuclear bodies,Aggresome,Cytosol",1,-2
+"Nucleoplasm,Nuclear bodies,Basal body,Cytosol",1,-2
+"Nucleoplasm,Nuclear bodies,Calyx,Connecting piece,Flagellar centriole",3,-2
+"Nucleoplasm,Nuclear bodies,Cell Junctions",1,-2
+"Nucleoplasm,Nuclear bodies,Cell Junctions,Actin filaments,Basal body",1,-2
+"Nucleoplasm,Nuclear bodies,Centrosome",3,-2
+"Nucleoplasm,Nuclear bodies,Centrosome,Cytosol",2,-2
+"Nucleoplasm,Nuclear bodies,Cytoplasmic bodies",1,-2
+"Nucleoplasm,Nuclear bodies,Cytosol",84,-2
+"Nucleoplasm,Nuclear bodies,Cytosol,Acrosome,Equatorial segment,Perinuclear theca",1,-2
+"Nucleoplasm,Nuclear bodies,Cytosol,Calyx",1,-2
+"Nucleoplasm,Nuclear bodies,Endoplasmic reticulum,Cytosol",1,-2
+"Nucleoplasm,Nuclear bodies,Flagellar centriole",2,-2
+"Nucleoplasm,Nuclear bodies,Focal adhesion sites,Cytosol",1,-2
+"Nucleoplasm,Nuclear bodies,Golgi apparatus",8,-2
+"Nucleoplasm,Nuclear bodies,Golgi apparatus,Actin filaments",1,-2
+"Nucleoplasm,Nuclear bodies,Golgi apparatus,Actin filaments,Primary cilium,Cytosol",1,-2
+"Nucleoplasm,Nuclear bodies,Golgi apparatus,Cytosol",3,-2
+"Nucleoplasm,Nuclear bodies,Golgi apparatus,Plasma membrane,Cell Junctions",1,-2
+"Nucleoplasm,Nuclear bodies,Golgi apparatus,Vesicles",2,-2
+"Nucleoplasm,Nuclear bodies,Intermediate filaments",1,-2
+"Nucleoplasm,Nuclear bodies,Kinetochore,Midbody",2,-2
+"Nucleoplasm,Nuclear bodies,Microtubule ends",1,-2
+"Nucleoplasm,Nuclear bodies,Microtubules",1,-2
+"Nucleoplasm,Nuclear bodies,Microtubules,Cytokinetic bridge,Mitotic spindle,Cytosol",3,-2
+"Nucleoplasm,Nuclear bodies,Midbody ring",4,-2
+"Nucleoplasm,Nuclear bodies,Mitochondria",4,-2
+"Nucleoplasm,Nuclear bodies,Mitochondria,Cytosol",2,-2
+"Nucleoplasm,Nuclear bodies,Mitotic spindle,Cytosol",1,-2
+"Nucleoplasm,Nuclear bodies,Plasma membrane",11,-2
+"Nucleoplasm,Nuclear bodies,Plasma membrane,Cell Junctions",1,-2
+"Nucleoplasm,Nuclear bodies,Plasma membrane,Cell Junctions,Cytosol",1,-2
+"Nucleoplasm,Nuclear bodies,Plasma membrane,Cell Junctions,Primary cilium",1,-2
+"Nucleoplasm,Nuclear bodies,Plasma membrane,Cytosol",11,-2
+"Nucleoplasm,Nuclear bodies,Plasma membrane,Intermediate filaments,Centrosome,Cytosol",1,-2
+"Nucleoplasm,Nuclear bodies,Plasma membrane,Mitochondria",1,-2
+"Nucleoplasm,Nuclear bodies,Primary cilium",1,-2
+"Nucleoplasm,Nuclear bodies,Primary cilium tip,Primary cilium transition zone,Basal body,Cytosol",1,-2
+"Nucleoplasm,Nuclear bodies,Primary cilium transition zone",1,-2
+"Nucleoplasm,Nuclear bodies,Primary cilium,Basal body,Cytosol",1,-2
+"Nucleoplasm,Nuclear bodies,Primary cilium,Cytosol",2,-2
+"Nucleoplasm,Nuclear bodies,Primary cilium,Primary cilium transition zone,Centrosome,Basal body,Cytosol",1,-2
+"Nucleoplasm,Nuclear bodies,Vesicles",15,-2
+"Nucleoplasm,Nuclear bodies,Vesicles,Centriolar satellite,Basal body,Cytosol,Calyx,Mid piece",1,-2
+"Nucleoplasm,Nuclear bodies,Vesicles,Cytosol",2,-2
+"Nucleoplasm,Nuclear bodies,Vesicles,Plasma membrane",2,-2
+"Nucleoplasm,Nuclear bodies,Vesicles,Plasma membrane,Cytosol",1,-2
+"Nucleoplasm,Nuclear bodies,Vesicles,Plasma membrane,Cytosol,Acrosome,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Nuclear membrane",55,-2
+"Nucleoplasm,Nuclear membrane,Basal body,Cytosol",1,-2
+"Nucleoplasm,Nuclear membrane,Cell Junctions,Cytokinetic bridge,Cytosol",1,-2
+"Nucleoplasm,Nuclear membrane,Centrosome",2,-2
+"Nucleoplasm,Nuclear membrane,Centrosome,Cytosol,End piece",1,-2
+"Nucleoplasm,Nuclear membrane,Cytokinetic bridge",1,-2
+"Nucleoplasm,Nuclear membrane,Cytosol",31,-2
+"Nucleoplasm,Nuclear membrane,Cytosol,Calyx",1,-2
+"Nucleoplasm,Nuclear membrane,Cytosol,Flagellar centriole,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Nuclear membrane,Endoplasmic reticulum",1,-2
+"Nucleoplasm,Nuclear membrane,Golgi apparatus",3,-2
+"Nucleoplasm,Nuclear membrane,Golgi apparatus,Cytosol",2,-2
+"Nucleoplasm,Nuclear membrane,Intermediate filaments",1,-2
+"Nucleoplasm,Nuclear membrane,Microtubules",1,-2
+"Nucleoplasm,Nuclear membrane,Microtubules,Primary cilium,Basal body",1,-2
+"Nucleoplasm,Nuclear membrane,Mitochondria",4,-2
+"Nucleoplasm,Nuclear membrane,Mitochondria,Cytosol",2,-2
+"Nucleoplasm,Nuclear membrane,Mitochondria,Principal piece",1,-2
+"Nucleoplasm,Nuclear membrane,Nuclear bodies",5,-2
+"Nucleoplasm,Nuclear membrane,Nuclear bodies,Cytosol",1,-2
+"Nucleoplasm,Nuclear membrane,Nuclear bodies,Golgi apparatus",1,-2
+"Nucleoplasm,Nuclear membrane,Nuclear bodies,Mitochondria",1,-2
+"Nucleoplasm,Nuclear membrane,Nuclear bodies,Vesicles",1,-2
+"Nucleoplasm,Nuclear membrane,Nuclear speckles",2,-2
+"Nucleoplasm,Nuclear membrane,Nucleoli",4,-2
+"Nucleoplasm,Nuclear membrane,Nucleoli fibrillar center",1,-2
+"Nucleoplasm,Nuclear membrane,Nucleoli fibrillar center,Nuclear speckles",1,-2
+"Nucleoplasm,Nuclear membrane,Nucleoli fibrillar center,Nuclear speckles,Cytosol",1,-2
+"Nucleoplasm,Nuclear membrane,Nucleoli,Cytosol",2,-2
+"Nucleoplasm,Nuclear membrane,Nucleoli,Mitochondria",2,-2
+"Nucleoplasm,Nuclear membrane,Nucleoli,Nuclear bodies",1,-2
+"Nucleoplasm,Nuclear membrane,Nucleoli,Nucleoli rim",1,-2
+"Nucleoplasm,Nuclear membrane,Plasma membrane",5,-2
+"Nucleoplasm,Nuclear membrane,Plasma membrane,Actin filaments",1,-2
+"Nucleoplasm,Nuclear membrane,Plasma membrane,Actin filaments,Cytosol",1,-2
+"Nucleoplasm,Nuclear membrane,Plasma membrane,Primary cilium",1,-2
+"Nucleoplasm,Nuclear membrane,Plasma membrane,Primary cilium transition zone",1,-2
+"Nucleoplasm,Nuclear membrane,Plasma membrane,Primary cilium,Cytosol",1,-2
+"Nucleoplasm,Nuclear membrane,Vesicles",9,-2
+"Nucleoplasm,Nuclear membrane,Vesicles,Basal body,Cytosol",1,-2
+"Nucleoplasm,Nuclear membrane,Vesicles,Cytosol",7,-2
+"Nucleoplasm,Nuclear speckles",45,-2
+"Nucleoplasm,Nuclear speckles,Basal body,Cytosol",2,-2
+"Nucleoplasm,Nuclear speckles,Centrosome",1,-2
+"Nucleoplasm,Nuclear speckles,Centrosome,Cytosol",4,-2
+"Nucleoplasm,Nuclear speckles,Cytoplasmic bodies",1,-2
+"Nucleoplasm,Nuclear speckles,Cytosol",21,-2
+"Nucleoplasm,Nuclear speckles,Cytosol,Acrosome,Equatorial segment,Principal piece",1,-2
+"Nucleoplasm,Nuclear speckles,Cytosol,Cytoplasmic bodies",1,-2
+"Nucleoplasm,Nuclear speckles,Cytosol,Flagellar centriole,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Nuclear speckles,Cytosol,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Nuclear speckles,Focal adhesion sites,Cytosol",1,-2
+"Nucleoplasm,Nuclear speckles,Golgi apparatus",2,-2
+"Nucleoplasm,Nuclear speckles,Golgi apparatus,Basal body,Cytosol",1,-2
+"Nucleoplasm,Nuclear speckles,Microtubules,Centriolar satellite",1,-2
+"Nucleoplasm,Nuclear speckles,Microtubules,Primary cilium,Basal body",1,-2
+"Nucleoplasm,Nuclear speckles,Microtubules,Primary cilium,Basal body,Cytosol",1,-2
+"Nucleoplasm,Nuclear speckles,Mitochondria",2,-2
+"Nucleoplasm,Nuclear speckles,Nuclear bodies",4,-2
+"Nucleoplasm,Nuclear speckles,Plasma membrane",2,-2
+"Nucleoplasm,Nuclear speckles,Plasma membrane,Mitotic spindle,Cytosol",1,-2
+"Nucleoplasm,Nuclear speckles,Plasma membrane,Primary cilium,Cytosol",1,-2
+"Nucleoplasm,Nuclear speckles,Primary cilium tip,Cytosol",1,-2
+"Nucleoplasm,Nuclear speckles,Primary cilium,Basal body,Cytosol,Perinuclear theca,Flagellar centriole,End piece",1,-2
+"Nucleoplasm,Nuclear speckles,Vesicles",6,-2
+"Nucleoplasm,Nuclear speckles,Vesicles,Centrosome,Basal body,Cytosol",1,-2
+"Nucleoplasm,Nuclear speckles,Vesicles,Intermediate filaments,Cytosol",1,-2
+"Nucleoplasm,Nuclear speckles,Vesicles,Plasma membrane",1,-2
+"Nucleoplasm,Nuclear speckles,Vesicles,Plasma membrane,Cytosol",1,-2
+"Nucleoplasm,Nucleoli",279,-2
+"Nucleoplasm,Nucleoli fibrillar center",79,-2
+"Nucleoplasm,Nucleoli fibrillar center,Cell Junctions",2,-2
+"Nucleoplasm,Nucleoli fibrillar center,Centrosome",2,-2
+"Nucleoplasm,Nucleoli fibrillar center,Centrosome,Basal body,Cytosol",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Centrosome,Cytosol",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Cytokinetic bridge",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Cytosol",25,-2
+"Nucleoplasm,Nucleoli fibrillar center,Endoplasmic reticulum",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Endoplasmic reticulum,Cytosol",3,-2
+"Nucleoplasm,Nucleoli fibrillar center,Endoplasmic reticulum,Plasma membrane",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Golgi apparatus",4,-2
+"Nucleoplasm,Nucleoli fibrillar center,Golgi apparatus,Cytosol",3,-2
+"Nucleoplasm,Nucleoli fibrillar center,Intermediate filaments",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Microtubules",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Microtubules,Cytokinetic bridge",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Mitochondria",3,-2
+"Nucleoplasm,Nucleoli fibrillar center,Mitochondria,Cytosol",2,-2
+"Nucleoplasm,Nucleoli fibrillar center,Mitotic chromosome",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Mitotic chromosome,Vesicles,Cytosol",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Nuclear bodies",6,-2
+"Nucleoplasm,Nucleoli fibrillar center,Nuclear bodies,Cytoplasmic bodies",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Nuclear bodies,Kinetochore,Cytosol",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Nuclear bodies,Primary cilium transition zone",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Nucleoli rim",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Perinuclear theca,Calyx,Mid piece",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Plasma membrane",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Plasma membrane,Actin filaments",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Plasma membrane,Cytosol",2,-2
+"Nucleoplasm,Nucleoli fibrillar center,Plasma membrane,Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Centrosome,Basal body,Cytoplasmic bodies",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Primary cilium",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Primary cilium tip,Cytosol",1,-2
+"Nucleoplasm,Nucleoli fibrillar center,Vesicles",7,-2
+"Nucleoplasm,Nucleoli fibrillar center,Vesicles,Cytosol",5,-2
+"Nucleoplasm,Nucleoli fibrillar center,Vesicles,Primary cilium,Centrosome,Basal body,Cytosol",1,-2
+"Nucleoplasm,Nucleoli rim",13,-2
+"Nucleoplasm,Nucleoli rim,Actin filaments,Cytosol",1,-2
+"Nucleoplasm,Nucleoli rim,Centrosome",1,-2
+"Nucleoplasm,Nucleoli rim,Mitotic chromosome",8,-2
+"Nucleoplasm,Nucleoli rim,Mitotic chromosome,Cytosol",1,-2
+"Nucleoplasm,Nucleoli rim,Mitotic chromosome,Mitochondria",1,-2
+"Nucleoplasm,Nucleoli rim,Mitotic chromosome,Vesicles",1,-2
+"Nucleoplasm,Nucleoli rim,Nuclear bodies,Mitotic chromosome",1,-2
+"Nucleoplasm,Nucleoli,Actin filaments",1,-2
+"Nucleoplasm,Nucleoli,Actin filaments,Cytosol",2,-2
+"Nucleoplasm,Nucleoli,Basal body",1,-2
+"Nucleoplasm,Nucleoli,Cell Junctions",7,-2
+"Nucleoplasm,Nucleoli,Cell Junctions,Centrosome,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Cell Junctions,Cytokinetic bridge,Mitotic spindle,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Cell Junctions,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Centriolar satellite",1,-2
+"Nucleoplasm,Nucleoli,Centriolar satellite,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Centrosome",5,-2
+"Nucleoplasm,Nucleoli,Centrosome,Basal body",1,-2
+"Nucleoplasm,Nucleoli,Cytokinetic bridge",1,-2
+"Nucleoplasm,Nucleoli,Cytokinetic bridge,Centriolar satellite",1,-2
+"Nucleoplasm,Nucleoli,Cytoplasmic bodies",1,-2
+"Nucleoplasm,Nucleoli,Cytosol",112,-2
+"Nucleoplasm,Nucleoli,Cytosol,Acrosome,End piece",1,-2
+"Nucleoplasm,Nucleoli,Cytosol,Cytoplasmic bodies",1,-2
+"Nucleoplasm,Nucleoli,Cytosol,Flagellar centriole,Mid piece",1,-2
+"Nucleoplasm,Nucleoli,Cytosol,Principal piece",1,-2
+"Nucleoplasm,Nucleoli,Endoplasmic reticulum",1,-2
+"Nucleoplasm,Nucleoli,Focal adhesion sites,Microtubules",1,-2
+"Nucleoplasm,Nucleoli,Golgi apparatus",15,-2
+"Nucleoplasm,Nucleoli,Golgi apparatus,Centriolar satellite,Centrosome,Basal body,Cytosol,Principal piece",2,-2
+"Nucleoplasm,Nucleoli,Golgi apparatus,Cytokinetic bridge",1,-2
+"Nucleoplasm,Nucleoli,Golgi apparatus,Cytosol",4,-2
+"Nucleoplasm,Nucleoli,Golgi apparatus,Plasma membrane",3,-2
+"Nucleoplasm,Nucleoli,Golgi apparatus,Plasma membrane,Actin filaments,Primary cilium,Centriolar satellite,Basal body,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Golgi apparatus,Vesicles,Centrosome,Basal body",1,-2
+"Nucleoplasm,Nucleoli,Golgi apparatus,Vesicles,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Golgi apparatus,Vesicles,Mid piece",1,-2
+"Nucleoplasm,Nucleoli,Intermediate filaments",1,-2
+"Nucleoplasm,Nucleoli,Intermediate filaments,Centriolar satellite,Centrosome,Basal body,Cytosol",2,-2
+"Nucleoplasm,Nucleoli,Intermediate filaments,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Microtubule ends,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Microtubules",1,-2
+"Nucleoplasm,Nucleoli,Microtubules,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Microtubules,Primary cilium,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Mitochondria",18,-2
+"Nucleoplasm,Nucleoli,Mitochondria,Basal body,Equatorial segment,Flagellar centriole,Mid piece",1,-2
+"Nucleoplasm,Nucleoli,Mitochondria,Cytosol",2,-2
+"Nucleoplasm,Nucleoli,Mitotic chromosome",5,-2
+"Nucleoplasm,Nucleoli,Mitotic chromosome,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Mitotic chromosome,Vesicles",1,-2
+"Nucleoplasm,Nucleoli,Mitotic spindle,Centriolar satellite",1,-2
+"Nucleoplasm,Nucleoli,Mitotic spindle,Centrosome,Basal body,Cytosol,Mid piece,Principal piece,Annulus",1,-2
+"Nucleoplasm,Nucleoli,Nuclear bodies",9,-2
+"Nucleoplasm,Nucleoli,Nuclear bodies,Cell Junctions",1,-2
+"Nucleoplasm,Nucleoli,Nuclear bodies,Cytosol",5,-2
+"Nucleoplasm,Nucleoli,Nuclear bodies,Golgi apparatus",1,-2
+"Nucleoplasm,Nucleoli,Nuclear bodies,Golgi apparatus,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Nuclear bodies,Microtubule ends,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Nuclear bodies,Primary cilium,Centrosome,Basal body,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Nuclear speckles,Cytosol",2,-2
+"Nucleoplasm,Nucleoli,Nucleoli fibrillar center",7,-2
+"Nucleoplasm,Nucleoli,Nucleoli fibrillar center,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Nucleoli fibrillar center,Golgi apparatus",1,-2
+"Nucleoplasm,Nucleoli,Nucleoli rim",25,-2
+"Nucleoplasm,Nucleoli,Nucleoli rim,Cytosol",8,-2
+"Nucleoplasm,Nucleoli,Nucleoli rim,Mitotic chromosome",13,-2
+"Nucleoplasm,Nucleoli,Nucleoli rim,Mitotic chromosome,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Nucleoli rim,Nuclear bodies",4,-2
+"Nucleoplasm,Nucleoli,Nucleoli rim,Nuclear bodies,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Nucleoli rim,Nuclear bodies,Mitotic chromosome,Mitochondria",1,-2
+"Nucleoplasm,Nucleoli,Nucleoli rim,Plasma membrane",3,-2
+"Nucleoplasm,Nucleoli,Nucleoli rim,Primary cilium,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Nucleoli rim,Vesicles",1,-2
+"Nucleoplasm,Nucleoli,Nucleoli rim,Vesicles,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Plasma membrane",11,-2
+"Nucleoplasm,Nucleoli,Plasma membrane,Actin filaments,Focal adhesion sites,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Plasma membrane,Actin filaments,Primary cilium transition zone",1,-2
+"Nucleoplasm,Nucleoli,Plasma membrane,Basal body,Cytosol,Connecting piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Nucleoli,Plasma membrane,Connecting piece,Mid piece",2,-2
+"Nucleoplasm,Nucleoli,Plasma membrane,Cytosol",9,-2
+"Nucleoplasm,Nucleoli,Plasma membrane,Mitotic spindle",1,-2
+"Nucleoplasm,Nucleoli,Plasma membrane,Primary cilium,Primary cilium transition zone,Basal body",2,-2
+"Nucleoplasm,Nucleoli,Primary cilium transition zone,Centrosome,Basal body,Cytosol,Acrosome,Equatorial segment,Perinuclear theca,Calyx,Principal piece",1,-2
+"Nucleoplasm,Nucleoli,Primary cilium,Basal body,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Primary cilium,Centrosome,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Primary cilium,Mitochondria,Basal body,Flagellar centriole,Mid piece",1,-2
+"Nucleoplasm,Nucleoli,Principal piece",1,-2
+"Nucleoplasm,Nucleoli,Principal piece,Annulus",1,-2
+"Nucleoplasm,Nucleoli,Vesicles",17,-2
+"Nucleoplasm,Nucleoli,Vesicles,Actin filaments,Cytokinetic bridge,Centrosome,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Vesicles,Centriolar satellite",1,-2
+"Nucleoplasm,Nucleoli,Vesicles,Centrosome",2,-2
+"Nucleoplasm,Nucleoli,Vesicles,Cytosol",5,-2
+"Nucleoplasm,Nucleoli,Vesicles,Midbody",1,-2
+"Nucleoplasm,Nucleoli,Vesicles,Plasma membrane,Cell Junctions",1,-2
+"Nucleoplasm,Nucleoli,Vesicles,Plasma membrane,Focal adhesion sites,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Vesicles,Primary cilium transition zone,Cytosol",1,-2
+"Nucleoplasm,Nucleoli,Vesicles,Primary cilium,Cytosol",1,-2
+"Nucleoplasm,Perinuclear theca,Calyx",1,-2
+"Nucleoplasm,Perinuclear theca,Flagellar centriole,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Peroxisomes",2,-2
+"Nucleoplasm,Peroxisomes,Plasma membrane",1,-2
+"Nucleoplasm,Plasma membrane",165,-2
+"Nucleoplasm,Plasma membrane,Acrosome,Mid piece,Annulus",1,-2
+"Nucleoplasm,Plasma membrane,Actin filaments",5,-2
+"Nucleoplasm,Plasma membrane,Actin filaments,Acrosome,Equatorial segment,Mid piece",1,-2
+"Nucleoplasm,Plasma membrane,Actin filaments,Basal body",1,-2
+"Nucleoplasm,Plasma membrane,Actin filaments,Cytosol",4,-2
+"Nucleoplasm,Plasma membrane,Actin filaments,Focal adhesion sites",2,-2
+"Nucleoplasm,Plasma membrane,Actin filaments,Midbody",1,-2
+"Nucleoplasm,Plasma membrane,Actin filaments,Primary cilium",1,-2
+"Nucleoplasm,Plasma membrane,Actin filaments,Primary cilium,Cytosol,Principal piece,End piece",1,-2
+"Nucleoplasm,Plasma membrane,Aggresome",1,-2
+"Nucleoplasm,Plasma membrane,Basal body",1,-2
+"Nucleoplasm,Plasma membrane,Basal body,Cytosol",4,-2
+"Nucleoplasm,Plasma membrane,Cell Junctions",21,-2
+"Nucleoplasm,Plasma membrane,Cell Junctions,Actin filaments",1,-2
+"Nucleoplasm,Plasma membrane,Cell Junctions,Cytosol",3,-2
+"Nucleoplasm,Plasma membrane,Cell Junctions,Mid piece,Principal piece,End piece,Annulus",1,-2
+"Nucleoplasm,Plasma membrane,Cell Junctions,Rods & Rings",1,-2
+"Nucleoplasm,Plasma membrane,Centriolar satellite",5,-2
+"Nucleoplasm,Plasma membrane,Centriolar satellite,Cytosol",2,-2
+"Nucleoplasm,Plasma membrane,Centrosome",2,-2
+"Nucleoplasm,Plasma membrane,Centrosome,Basal body",1,-2
+"Nucleoplasm,Plasma membrane,Centrosome,Basal body,Cytosol",1,-2
+"Nucleoplasm,Plasma membrane,Centrosome,Cytosol",5,-2
+"Nucleoplasm,Plasma membrane,Cytokinetic bridge",1,-2
+"Nucleoplasm,Plasma membrane,Cytokinetic bridge,Cytosol",2,-2
+"Nucleoplasm,Plasma membrane,Cytosol",177,-2
+"Nucleoplasm,Plasma membrane,Cytosol,Acrosome,Equatorial segment",2,-2
+"Nucleoplasm,Plasma membrane,Cytosol,Connecting piece,Flagellar centriole",1,-2
+"Nucleoplasm,Plasma membrane,Cytosol,Connecting piece,Flagellar centriole,Mid piece",1,-2
+"Nucleoplasm,Plasma membrane,Cytosol,Flagellar centriole,Mid piece,End piece",1,-2
+"Nucleoplasm,Plasma membrane,Cytosol,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Plasma membrane,Focal adhesion sites",3,-2
+"Nucleoplasm,Plasma membrane,Focal adhesion sites,Cytosol",2,-2
+"Nucleoplasm,Plasma membrane,Intermediate filaments",1,-2
+"Nucleoplasm,Plasma membrane,Microtubules,Cytokinetic bridge,Midbody",1,-2
+"Nucleoplasm,Plasma membrane,Microtubules,Cytokinetic bridge,Primary cilium",1,-2
+"Nucleoplasm,Plasma membrane,Microtubules,Mitotic spindle",1,-2
+"Nucleoplasm,Plasma membrane,Microtubules,Mitotic spindle,Primary cilium,Cytosol,Perinuclear theca,Flagellar centriole",1,-2
+"Nucleoplasm,Plasma membrane,Midbody ring,Cytosol",1,-2
+"Nucleoplasm,Plasma membrane,Midbody,Cytosol",1,-2
+"Nucleoplasm,Plasma membrane,Mitochondria",4,-2
+"Nucleoplasm,Plasma membrane,Mitochondria,Cytosol",1,-2
+"Nucleoplasm,Plasma membrane,Mitotic spindle,Cytosol,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Plasma membrane,Primary cilium",2,-2
+"Nucleoplasm,Plasma membrane,Primary cilium tip,Basal body,Cytosol,Acrosome,Principal piece",1,-2
+"Nucleoplasm,Plasma membrane,Primary cilium transition zone",1,-2
+"Nucleoplasm,Plasma membrane,Primary cilium,Basal body",2,-2
+"Nucleoplasm,Plasma membrane,Primary cilium,Basal body,Cytosol",1,-2
+"Nucleoplasm,Plasma membrane,Primary cilium,Centriolar satellite,Basal body",1,-2
+"Nucleoplasm,Plasma membrane,Primary cilium,Centrosome,Basal body",1,-2
+"Nucleoplasm,Plasma membrane,Primary cilium,Centrosome,Basal body,Cytosol",1,-2
+"Nucleoplasm,Plasma membrane,Primary cilium,Perinuclear theca,Mid piece,End piece",1,-2
+"Nucleoplasm,Plasma membrane,Primary cilium,Primary cilium transition zone,Basal body,Cytosol",3,-2
+"Nucleoplasm,Primary cilium",2,-2
+"Nucleoplasm,Primary cilium tip,Centrosome,Basal body,Cytosol",1,-2
+"Nucleoplasm,Primary cilium tip,Cytosol,Connecting piece,Flagellar centriole",1,-2
+"Nucleoplasm,Primary cilium tip,Cytosol,Mid piece",1,-2
+"Nucleoplasm,Primary cilium tip,Primary cilium transition zone,Basal body,Cytosol",1,-2
+"Nucleoplasm,Primary cilium transition zone",1,-2
+"Nucleoplasm,Primary cilium transition zone,Basal body,Cytosol",1,-2
+"Nucleoplasm,Primary cilium transition zone,Basal body,Cytosol,Principal piece",1,-2
+"Nucleoplasm,Primary cilium transition zone,Centriolar satellite,Basal body,Principal piece",1,-2
+"Nucleoplasm,Primary cilium transition zone,Centrosome,Cytosol",1,-2
+"Nucleoplasm,Primary cilium transition zone,Cytosol",3,-2
+"Nucleoplasm,Primary cilium,Basal body",1,-2
+"Nucleoplasm,Primary cilium,Basal body,Cytosol",5,-2
+"Nucleoplasm,Primary cilium,Basal body,Cytosol,Acrosome,Equatorial segment,Flagellar centriole,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Primary cilium,Centriolar satellite,Basal body",2,-2
+"Nucleoplasm,Primary cilium,Centriolar satellite,Cytosol",1,-2
+"Nucleoplasm,Primary cilium,Centrosome,Basal body",1,-2
+"Nucleoplasm,Primary cilium,Centrosome,Basal body,Cytosol",1,-2
+"Nucleoplasm,Primary cilium,Centrosome,Cytosol",1,-2
+"Nucleoplasm,Primary cilium,Cytosol",7,-2
+"Nucleoplasm,Primary cilium,Cytosol,Acrosome,Equatorial segment,Principal piece,End piece",1,-2
+"Nucleoplasm,Primary cilium,Primary cilium tip,Centrosome,Basal body",2,-2
+"Nucleoplasm,Primary cilium,Primary cilium tip,Cytosol",2,-2
+"Nucleoplasm,Primary cilium,Primary cilium tip,Cytosol,Perinuclear theca,Calyx,Connecting piece,Flagellar centriole,Mid piece,End piece",1,-2
+"Nucleoplasm,Primary cilium,Primary cilium transition zone,Centrosome,Basal body,Cytosol",1,-2
+"Nucleoplasm,Principal piece",2,-2
+"Nucleoplasm,Vesicles",273,-2
+"Nucleoplasm,Vesicles,Actin filaments",2,-2
+"Nucleoplasm,Vesicles,Actin filaments,Basal body,Cytosol",1,-2
+"Nucleoplasm,Vesicles,Actin filaments,Mitochondria,Cytosol",1,-2
+"Nucleoplasm,Vesicles,Actin filaments,Primary cilium",1,-2
+"Nucleoplasm,Vesicles,Aggresome",2,-2
+"Nucleoplasm,Vesicles,Aggresome,Cytosol",1,-2
+"Nucleoplasm,Vesicles,Basal body",1,-2
+"Nucleoplasm,Vesicles,Basal body,Cytosol",2,-2
+"Nucleoplasm,Vesicles,Basal body,Cytosol,Acrosome,Equatorial segment,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Vesicles,Cell Junctions",4,-2
+"Nucleoplasm,Vesicles,Cell Junctions,Cytosol",1,-2
+"Nucleoplasm,Vesicles,Cell Junctions,Mitochondria,Cytosol",1,-2
+"Nucleoplasm,Vesicles,Centriolar satellite,Basal body,Cytosol",1,-2
+"Nucleoplasm,Vesicles,Centrosome",7,-2
+"Nucleoplasm,Vesicles,Centrosome,Basal body,Cytosol",1,-2
+"Nucleoplasm,Vesicles,Centrosome,Cytosol",2,-2
+"Nucleoplasm,Vesicles,Centrosome,Cytosol,Acrosome,Equatorial segment,Perinuclear theca,Flagellar centriole,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Vesicles,Centrosome,Mid piece",1,-2
+"Nucleoplasm,Vesicles,Cytosol",111,-2
+"Nucleoplasm,Vesicles,Cytosol,Acrosome,Principal piece,End piece",1,-2
+"Nucleoplasm,Vesicles,Cytosol,Calyx,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Vesicles,Cytosol,Connecting piece,Flagellar centriole,Mid piece",1,-2
+"Nucleoplasm,Vesicles,End piece",1,-2
+"Nucleoplasm,Vesicles,Flagellar centriole,Mid piece",1,-2
+"Nucleoplasm,Vesicles,Focal adhesion sites",2,-2
+"Nucleoplasm,Vesicles,Focal adhesion sites,Cytosol",1,-2
+"Nucleoplasm,Vesicles,Intermediate filaments",3,-2
+"Nucleoplasm,Vesicles,Microtubules,Cytokinetic bridge,Cytosol",1,-2
+"Nucleoplasm,Vesicles,Microtubules,Cytokinetic bridge,Mitotic spindle",1,-2
+"Nucleoplasm,Vesicles,Microtubules,Cytokinetic bridge,Primary cilium,Cytosol",1,-2
+"Nucleoplasm,Vesicles,Microtubules,Primary cilium,Basal body,Cytosol",1,-2
+"Nucleoplasm,Vesicles,Microtubules,Primary cilium,Cytosol",1,-2
+"Nucleoplasm,Vesicles,Microtubules,Primary cilium,Mitochondria",1,-2
+"Nucleoplasm,Vesicles,Mid piece,End piece",1,-2
+"Nucleoplasm,Vesicles,Midbody",1,-2
+"Nucleoplasm,Vesicles,Midbody ring",1,-2
+"Nucleoplasm,Vesicles,Midbody,Basal body,Cytosol",1,-2
+"Nucleoplasm,Vesicles,Mitochondria",14,-2
+"Nucleoplasm,Vesicles,Mitochondria,Cytosol",2,-2
+"Nucleoplasm,Vesicles,Mitotic spindle",2,-2
+"Nucleoplasm,Vesicles,Plasma membrane",38,-2
+"Nucleoplasm,Vesicles,Plasma membrane,Actin filaments,Cytosol",1,-2
+"Nucleoplasm,Vesicles,Plasma membrane,Cell Junctions",4,-2
+"Nucleoplasm,Vesicles,Plasma membrane,Cytosol",34,-2
+"Nucleoplasm,Vesicles,Plasma membrane,Cytosol,Flagellar centriole,Mid piece,Principal piece",2,-2
+"Nucleoplasm,Vesicles,Plasma membrane,Focal adhesion sites",1,-2
+"Nucleoplasm,Vesicles,Plasma membrane,Focal adhesion sites,Centrosome,Basal body,Cytosol,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Vesicles,Plasma membrane,Focal adhesion sites,Midbody",1,-2
+"Nucleoplasm,Vesicles,Plasma membrane,Mitotic spindle,Primary cilium",1,-2
+"Nucleoplasm,Vesicles,Plasma membrane,Mitotic spindle,Primary cilium,Primary cilium tip,Mid piece,Principal piece",1,-2
+"Nucleoplasm,Vesicles,Plasma membrane,Primary cilium",1,-2
+"Nucleoplasm,Vesicles,Plasma membrane,Primary cilium transition zone,Centrosome,Basal body",1,-2
+"Nucleoplasm,Vesicles,Plasma membrane,Primary cilium,Cytosol",1,-2
+"Nucleoplasm,Vesicles,Plasma membrane,Primary cilium,Primary cilium transition zone,Basal body",1,-2
+"Nucleoplasm,Vesicles,Primary cilium transition zone,Basal body",1,-2
+"Nucleoplasm,Vesicles,Primary cilium transition zone,Centrosome,Basal body",1,-2
+"Nucleoplasm,Vesicles,Primary cilium transition zone,Centrosome,Equatorial segment,Principal piece",1,-2
+"Nucleoplasm,Vesicles,Primary cilium transition zone,Mid piece,Principal piece,End piece",1,-2
+"Nucleoplasm,Vesicles,Primary cilium,Aggresome",1,-2
+"Nucleoplasm,Vesicles,Primary cilium,Centriolar satellite,Centrosome,Basal body",1,-2
+"Nucleoplasm,Vesicles,Primary cilium,Cytosol",2,-2
+"Nucleoplasm,Vesicles,Rods & Rings",1,-2
+Perinuclear theca,1,-2
+"Perinuclear theca,Calyx",2,-2
+"Perinuclear theca,Calyx,Connecting piece,Mid piece",1,-2
+"Perinuclear theca,Calyx,Connecting piece,Mid piece,Principal piece,End piece",1,-2
+"Perinuclear theca,Calyx,Mid piece,Principal piece,End piece,Annulus",1,-2
+"Perinuclear theca,Connecting piece,Flagellar centriole,Principal piece,End piece,Annulus",1,-2
+"Perinuclear theca,Connecting piece,Mid piece,Principal piece",2,-2
+"Perinuclear theca,Connecting piece,Mid piece,Principal piece,End piece",1,-2
+"Perinuclear theca,Mid piece,Principal piece",1,-2
+Peroxisomes,15,-2
+"Peroxisomes,Microtubules",1,-2
+"Peroxisomes,Mitochondria",1,-2
+Plasma membrane,334,0
+"Plasma membrane,Acrosome",1,0
+"Plasma membrane,Actin filaments",25,-1
+"Plasma membrane,Actin filaments,Centrosome",2,-1
+"Plasma membrane,Actin filaments,Cytoplasmic bodies",1,-1
+"Plasma membrane,Actin filaments,Cytosol",24,-1
+"Plasma membrane,Actin filaments,Cytosol,Acrosome,Connecting piece,Mid piece,Principal piece",1,-1
+"Plasma membrane,Actin filaments,Cytosol,Perinuclear theca,Calyx,Mid piece,Principal piece,End piece",1,-1
+"Plasma membrane,Actin filaments,Focal adhesion sites",6,-1
+"Plasma membrane,Actin filaments,Focal adhesion sites,Cytosol",2,-1
+"Plasma membrane,Actin filaments,Focal adhesion sites,Primary cilium,Primary cilium transition zone,Cytosol",1,-1
+"Plasma membrane,Actin filaments,Microtubules",1,-1
+"Plasma membrane,Actin filaments,Microtubules,Cytokinetic bridge,Primary cilium,Principal piece,Annulus",1,-1
+"Plasma membrane,Actin filaments,Mitochondria,Cytosol",1,-1
+"Plasma membrane,Actin filaments,Primary cilium tip,Cytosol",1,-1
+"Plasma membrane,Actin filaments,Primary cilium,Cytosol",1,-1
+"Plasma membrane,Aggresome",1,-1
+"Plasma membrane,Basal body",3,-1
+"Plasma membrane,Basal body,Cytosol",6,-1
+"Plasma membrane,Basal body,Cytosol,Flagellar centriole,Mid piece,End piece",1,-1
+"Plasma membrane,Cell Junctions",36,0
+"Plasma membrane,Cell Junctions,Acrosome",1,0
+"Plasma membrane,Cell Junctions,Actin filaments",2,-1
+"Plasma membrane,Cell Junctions,Actin filaments,Basal body",1,-1
+"Plasma membrane,Cell Junctions,Actin filaments,Cytosol",1,-1
+"Plasma membrane,Cell Junctions,Centrosome",1,-1
+"Plasma membrane,Cell Junctions,Cytosol",12,-1
+"Plasma membrane,Cell Junctions,Focal adhesion sites",2,-1
+"Plasma membrane,Cell Junctions,Focal adhesion sites,Cytosol",1,-1
+"Plasma membrane,Cell Junctions,Microtubules",1,-1
+"Plasma membrane,Cell Junctions,Mitochondria",1,-1
+"Plasma membrane,Cell Junctions,Primary cilium tip,Primary cilium transition zone,Perinuclear theca,Calyx,Connecting piece,Principal piece,End piece",4,0
+"Plasma membrane,Cell Junctions,Primary cilium,Basal body",2,0
+"Plasma membrane,Cell Junctions,Primary cilium,Centrosome,Basal body,Cytosol",1,0
+"Plasma membrane,Centriolar satellite",5,-1
+"Plasma membrane,Centriolar satellite,Basal body",1,-1
+"Plasma membrane,Centriolar satellite,Basal body,Cytosol",1,-1
+"Plasma membrane,Centriolar satellite,Basal body,Cytosol,Calyx",1,-1
+"Plasma membrane,Centriolar satellite,Cytosol",2,-1
+"Plasma membrane,Centriolar satellite,Mid piece",1,-1
+"Plasma membrane,Centrosome",5,-1
+"Plasma membrane,Centrosome,Basal body",3,-1
+"Plasma membrane,Centrosome,Basal body,Cytosol",3,-1
+"Plasma membrane,Centrosome,Basal body,Cytosol,Mid piece,Principal piece",1,-1
+"Plasma membrane,Centrosome,Calyx,Connecting piece,Principal piece",1,-1
+"Plasma membrane,Centrosome,Cytosol",10,-1
+"Plasma membrane,Centrosome,Mitochondria",1,-1
+"Plasma membrane,Cytokinetic bridge",3,-1
+"Plasma membrane,Cytokinetic bridge,Centriolar satellite,Cytosol",2,-1
+"Plasma membrane,Cytokinetic bridge,Mitotic spindle,Cytosol",1,-1
+"Plasma membrane,Cytoplasmic bodies",1,-1
+"Plasma membrane,Cytosol",356,-1
+"Plasma membrane,Cytosol,Calyx",1,-1
+"Plasma membrane,Cytosol,Connecting piece,Mid piece,Annulus",1,-1
+"Plasma membrane,Cytosol,Connecting piece,Mid piece,Principal piece",1,-1
+"Plasma membrane,Cytosol,Cytoplasmic bodies",4,-1
+"Plasma membrane,Cytosol,Equatorial segment",1,-1
+"Plasma membrane,Cytosol,Equatorial segment,Mid piece,Principal piece,End piece",1,-1
+"Plasma membrane,Cytosol,Flagellar centriole",1,-1
+"Plasma membrane,Cytosol,Flagellar centriole,Mid piece",1,-1
+"Plasma membrane,Cytosol,Flagellar centriole,Mid piece,Annulus",1,-1
+"Plasma membrane,Cytosol,Mid piece,Principal piece",1,-1
+"Plasma membrane,Cytosol,Mid piece,Principal piece,End piece",1,-1
+"Plasma membrane,Focal adhesion sites",10,-1
+"Plasma membrane,Focal adhesion sites,Basal body,Cytosol,Mid piece",1,-1
+"Plasma membrane,Focal adhesion sites,Centriolar satellite,Cytosol",1,-1
+"Plasma membrane,Focal adhesion sites,Centrosome",1,-1
+"Plasma membrane,Focal adhesion sites,Cytosol",7,-1
+"Plasma membrane,Intermediate filaments",2,-1
+"Plasma membrane,Intermediate filaments,Cytosol",2,-1
+"Plasma membrane,Intermediate filaments,Microtubules",1,-1
+"Plasma membrane,Microtubules",4,-1
+"Plasma membrane,Microtubules,Cytokinetic bridge,Cytosol",1,-1
+"Plasma membrane,Microtubules,Cytokinetic bridge,Mitotic spindle",1,-1
+"Plasma membrane,Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Basal body",1,-1
+"Plasma membrane,Microtubules,Cytosol",4,-1
+"Plasma membrane,Microtubules,Mid piece,Principal piece,End piece",1,-1
+"Plasma membrane,Microtubules,Mitotic spindle,Centriolar satellite,Cytosol",1,-1
+"Plasma membrane,Microtubules,Mitotic spindle,Primary cilium,Cytosol",1,-1
+"Plasma membrane,Microtubules,Primary cilium",1,-1
+"Plasma membrane,Microtubules,Primary cilium,Basal body,Cytosol,Acrosome,Equatorial segment",1,-1
+"Plasma membrane,Microtubules,Primary cilium,Cytosol",2,-1
+"Plasma membrane,Mid piece,Principal piece",3,-1
+"Plasma membrane,Mid piece,Principal piece,End piece",1,-1
+"Plasma membrane,Midbody",1,-1
+"Plasma membrane,Midbody ring,Cytosol,Calyx,Connecting piece,Mid piece,Principal piece,End piece",1,-1
+"Plasma membrane,Midbody,Cytosol,Acrosome,Mid piece,Principal piece",1,-1
+"Plasma membrane,Midbody,Primary cilium,Centriolar satellite,Cytosol,Connecting piece,Principal piece",1,-1
+"Plasma membrane,Mitochondria",8,-1
+"Plasma membrane,Mitochondria,Cytosol",4,-1
+"Plasma membrane,Mitochondria,Cytosol,Connecting piece",1,-1
+"Plasma membrane,Mitochondria,Cytosol,Mid piece",1,-1
+"Plasma membrane,Mitotic spindle,Centriolar satellite",2,-1
+"Plasma membrane,Mitotic spindle,Mitochondria,Cytosol",1,-1
+"Plasma membrane,Primary cilium",6,-1
+"Plasma membrane,Primary cilium tip,Centriolar satellite,Basal body,Calyx,Connecting piece,Mid piece",1,-1
+"Plasma membrane,Primary cilium transition zone,Centrosome,Basal body,Mid piece",1,-1
+"Plasma membrane,Primary cilium,Basal body",1,-1
+"Plasma membrane,Primary cilium,Basal body,Cytosol",2,-1
+"Plasma membrane,Primary cilium,Basal body,Cytosol,Mid piece,Principal piece,End piece",1,-1
+"Plasma membrane,Primary cilium,Centrosome,Basal body",1,-1
+"Plasma membrane,Primary cilium,Centrosome,Basal body,Cytosol,Mid piece,Principal piece",1,-1
+"Plasma membrane,Primary cilium,Cytosol",8,-1
+"Plasma membrane,Primary cilium,Mitochondria,Basal body",1,-1
+"Plasma membrane,Primary cilium,Primary cilium tip,Cytosol,Principal piece",1,-1
+"Plasma membrane,Primary cilium,Primary cilium transition zone",4,-1
+"Plasma membrane,Primary cilium,Primary cilium transition zone,Basal body,Cytosol",1,-1
+"Plasma membrane,Primary cilium,Primary cilium transition zone,Centriolar satellite",1,-1
+"Plasma membrane,Principal piece",1,-1
+"Plasma membrane,Rods & Rings",2,-1
+"Primary cilium tip,Cytosol",2,-1
+"Primary cilium tip,Cytosol,Mid piece,Principal piece",1,-1
+"Primary cilium transition zone,Basal body,Cytosol",1,-1
+"Primary cilium transition zone,Cytosol",4,-1
+"Primary cilium,Basal body",1,-1
+"Primary cilium,Basal body,Cytosol",4,-1
+"Primary cilium,Basal body,Cytosol,Acrosome,Perinuclear theca",2,-1
+"Primary cilium,Basal body,Cytosol,Equatorial segment,Perinuclear theca,Mid piece,Principal piece,Annulus",1,-1
+"Primary cilium,Centriolar satellite",3,-1
+"Primary cilium,Centriolar satellite,Basal body,Cytosol,Connecting piece,Mid piece,Principal piece,End piece",1,-1
+"Primary cilium,Centrosome",2,-1
+"Primary cilium,Centrosome,Basal body",4,-1
+"Primary cilium,Centrosome,Basal body,Cytosol",5,-1
+"Primary cilium,Centrosome,Basal body,Mid piece,Principal piece",1,-1
+"Primary cilium,Centrosome,Cytosol",1,-1
+"Primary cilium,Connecting piece,Mid piece,Principal piece,End piece",1,-1
+"Primary cilium,Cytosol",5,-1
+"Primary cilium,Cytosol,Mid piece,Principal piece",1,-1
+"Primary cilium,Cytosol,Mid piece,Principal piece,Annulus",1,-1
+"Primary cilium,Cytosol,Principal piece",1,-1
+"Primary cilium,Primary cilium tip",1,-1
+"Primary cilium,Primary cilium tip,Basal body,Cytosol,Acrosome",1,-1
+"Primary cilium,Primary cilium tip,Connecting piece,Flagellar centriole",1,-1
+"Primary cilium,Primary cilium tip,Cytosol,Mid piece",1,-1
+"Primary cilium,Primary cilium tip,Primary cilium transition zone,Cytosol,Mid piece,Principal piece",1,-1
+"Primary cilium,Primary cilium transition zone",1,-1
+"Primary cilium,Primary cilium transition zone,Basal body,Cytosol",1,-1
+"Primary cilium,Primary cilium transition zone,Centrosome,Basal body,Cytosol",1,-1
+"Primary cilium,Primary cilium transition zone,Cytosol",1,-1
+Principal piece,14,-1
+"Principal piece,End piece",6,-1
+Rods & Rings,3,-1
+Vesicles,680,0
+"Vesicles,Acrosome",1,-1
+"Vesicles,Acrosome,Annulus",1,-1
+"Vesicles,Acrosome,Equatorial segment,Mid piece",1,-1
+"Vesicles,Acrosome,Equatorial segment,Mid piece,Principal piece",1,-1
+"Vesicles,Acrosome,Mid piece,Principal piece",1,-1
+"Vesicles,Actin filaments",3,-1
+"Vesicles,Actin filaments,Basal body,Cytosol",1,-1
+"Vesicles,Actin filaments,Cytosol",1,-1
+"Vesicles,Aggresome",3,-1
+"Vesicles,Basal body",2,-1
+"Vesicles,Basal body,Cytosol",3,-1
+"Vesicles,Cell Junctions",16,-1
+"Vesicles,Cell Junctions,Centriolar satellite",1,-1
+"Vesicles,Cell Junctions,Cytoplasmic bodies",1,-1
+"Vesicles,Centriolar satellite",6,-1
+"Vesicles,Centriolar satellite,Basal body,Cytosol",1,-1
+"Vesicles,Centriolar satellite,Basal body,Cytosol,Mid piece",1,-1
+"Vesicles,Centriolar satellite,Centrosome",2,-1
+"Vesicles,Centriolar satellite,Cytosol",1,-1
+"Vesicles,Centrosome",7,-1
+"Vesicles,Centrosome,Basal body",3,-1
+"Vesicles,Centrosome,Cytosol",5,-1
+"Vesicles,Centrosome,Mid piece,Principal piece,End piece",1,-1
+"Vesicles,Centrosome,Mitochondria,Cytosol",1,-1
+"Vesicles,Cytokinetic bridge",6,-1
+"Vesicles,Cytokinetic bridge,Centriolar satellite",1,-1
+"Vesicles,Cytokinetic bridge,Cytosol",1,-1
+"Vesicles,Cytokinetic bridge,Primary cilium,Centriolar satellite,Basal body",1,-1
+"Vesicles,Cytosol",188,-1
+"Vesicles,Cytosol,Cytoplasmic bodies",1,-1
+"Vesicles,Cytosol,End piece",1,-1
+"Vesicles,Cytosol,Mid piece",2,-1
+"Vesicles,Cytosol,Mid piece,Annulus",1,-1
+"Vesicles,Cytosol,Perinuclear theca,Calyx,Flagellar centriole,Annulus",1,-1
+"Vesicles,Cytosol,Principal piece",3,-1
+"Vesicles,Flagellar centriole",1,-1
+"Vesicles,Flagellar centriole,Mid piece",1,-1
+"Vesicles,Focal adhesion sites",3,-1
+"Vesicles,Focal adhesion sites,Cytosol",3,-1
+"Vesicles,Focal adhesion sites,Primary cilium,Primary cilium tip,Cytosol",1,-1
+"Vesicles,Intermediate filaments",7,-1
+"Vesicles,Intermediate filaments,Cytosol",1,-1
+"Vesicles,Intermediate filaments,Mitochondria",1,-1
+"Vesicles,Lipid droplets",8,-1
+"Vesicles,Lipid droplets,Cytosol",1,-1
+"Vesicles,Lysosomes,Cytosol",1,-1
+"Vesicles,Lysosomes,Plasma membrane,Cell Junctions",1,-1
+"Vesicles,Lysosomes,Rods & Rings",1,-1
+"Vesicles,Microtubules",11,-1
+"Vesicles,Microtubules,Cytokinetic bridge,Mitotic spindle",2,-1
+"Vesicles,Microtubules,Cytokinetic bridge,Mitotic spindle,Primary cilium,Centrosome,Basal body",1,-1
+"Vesicles,Microtubules,Cytokinetic bridge,Primary cilium,Basal body",1,-1
+"Vesicles,Microtubules,Cytokinetic bridge,Primary cilium,Primary cilium tip,Cytosol",2,-1
+"Vesicles,Microtubules,Mitochondria",1,-1
+"Vesicles,Microtubules,Primary cilium,Basal body",2,-1
+"Vesicles,Microtubules,Primary cilium,Centrosome,Basal body,Calyx,Connecting piece,Mid piece,Principal piece",1,-1
+"Vesicles,Microtubules,Primary cilium,Primary cilium tip,Basal body",1,-1
+"Vesicles,Mid piece",1,-1
+"Vesicles,Mid piece,Principal piece",1,-1
+"Vesicles,Mid piece,Principal piece,End piece",2,-1
+"Vesicles,Midbody",2,-1
+"Vesicles,Midbody ring,Cytosol",1,-1
+"Vesicles,Mitochondria",15,-1
+"Vesicles,Mitochondria,Cytosol",5,-1
+"Vesicles,Mitotic spindle",3,-1
+"Vesicles,Mitotic spindle,Basal body,Cytosol,Mid piece,Principal piece,End piece",1,-1
+"Vesicles,Mitotic spindle,Centriolar satellite,Cytosol",1,-1
+"Vesicles,Mitotic spindle,Cytosol",1,-1
+"Vesicles,Perinuclear theca,Calyx,Flagellar centriole,Annulus",5,-1
+"Vesicles,Peroxisomes,Plasma membrane,Cytosol",1,-1
+"Vesicles,Plasma membrane",115,-1
+"Vesicles,Plasma membrane,Actin filaments",3,-1
+"Vesicles,Plasma membrane,Actin filaments,Cytosol",1,-1
+"Vesicles,Plasma membrane,Basal body",3,-1
+"Vesicles,Plasma membrane,Basal body,Cytosol",1,-1
+"Vesicles,Plasma membrane,Cell Junctions",6,-1
+"Vesicles,Plasma membrane,Cell Junctions,Centrosome,Cytosol",1,-1
+"Vesicles,Plasma membrane,Cell Junctions,Connecting piece,Flagellar centriole",1,-1
+"Vesicles,Plasma membrane,Cell Junctions,Cytosol",2,-1
+"Vesicles,Plasma membrane,Cell Junctions,Mid piece",1,-1
+"Vesicles,Plasma membrane,Cell Junctions,Midbody ring,Primary cilium,Centriolar satellite,Cytosol,Perinuclear theca,End piece",1,-1
+"Vesicles,Plasma membrane,Cell Junctions,Primary cilium,Centrosome",1,-1
+"Vesicles,Plasma membrane,Centriolar satellite",3,-1
+"Vesicles,Plasma membrane,Centriolar satellite,Basal body",1,-1
+"Vesicles,Plasma membrane,Centrosome",3,-1
+"Vesicles,Plasma membrane,Centrosome,Cytosol",1,-1
+"Vesicles,Plasma membrane,Cytokinetic bridge",1,-1
+"Vesicles,Plasma membrane,Cytokinetic bridge,Cytosol",1,-1
+"Vesicles,Plasma membrane,Cytosol",45,-1
+"Vesicles,Plasma membrane,Cytosol,Acrosome,Equatorial segment",1,-1
+"Vesicles,Plasma membrane,Focal adhesion sites",1,-1
+"Vesicles,Plasma membrane,Focal adhesion sites,Connecting piece,Mid piece,Principal piece,End piece",1,-1
+"Vesicles,Plasma membrane,Focal adhesion sites,Perinuclear theca,Connecting piece,Flagellar centriole,Mid piece,Principal piece",1,-1
+"Vesicles,Plasma membrane,Intermediate filaments,Cytosol",1,-1
+"Vesicles,Plasma membrane,Microtubules,Primary cilium,Cytosol,Flagellar centriole,Principal piece,End piece",1,-1
+"Vesicles,Plasma membrane,Mitotic spindle",1,-1
+"Vesicles,Plasma membrane,Primary cilium",2,-1
+"Vesicles,Plasma membrane,Primary cilium transition zone,Centriolar satellite,Basal body",1,-1
+"Vesicles,Plasma membrane,Primary cilium,Basal body,Cytosol",2,-1
+"Vesicles,Plasma membrane,Primary cilium,Centriolar satellite,Basal body,Cytosol,Mid piece,Principal piece,End piece",1,-1
+"Vesicles,Plasma membrane,Primary cilium,Cytosol,Mid piece,Principal piece",1,-1
+"Vesicles,Plasma membrane,Primary cilium,Primary cilium tip,Basal body,Cytosol",1,-1
+"Vesicles,Plasma membrane,Primary cilium,Primary cilium tip,Centriolar satellite,Basal body",1,-1
+"Vesicles,Plasma membrane,Primary cilium,Primary cilium tip,Mitochondria",1,-1
+"Vesicles,Plasma membrane,Primary cilium,Primary cilium tip,Primary cilium transition zone,Basal body,Cytosol",1,-1
+"Vesicles,Plasma membrane,Primary cilium,Primary cilium transition zone",2,-1
+"Vesicles,Plasma membrane,Primary cilium,Principal piece,End piece",1,-1
+"Vesicles,Primary cilium tip,Primary cilium transition zone",1,-1
+"Vesicles,Primary cilium transition zone",1,-1
+"Vesicles,Primary cilium transition zone,Centriolar satellite,Cytosol,Mid piece,Principal piece,Annulus",1,-1
+"Vesicles,Primary cilium transition zone,Centrosome,Basal body",1,-1
+"Vesicles,Primary cilium transition zone,Mid piece",1,-1
+"Vesicles,Primary cilium,Centriolar satellite,Basal body,Acrosome,Principal piece,End piece,Annulus",1,-1
+"Vesicles,Primary cilium,Centriolar satellite,Basal body,Cytosol",1,-1
+"Vesicles,Primary cilium,Centriolar satellite,Basal body,Cytosol,Equatorial segment,Mid piece,Principal piece",1,-1
+"Vesicles,Primary cilium,Cytosol",4,-1
+"Vesicles,Principal piece",2,-1

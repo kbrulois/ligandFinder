@@ -111,9 +111,11 @@ parse_p_id <- function(y) {
                 suffix = stringr::str_extract(cwkov, "[a-z].+$")
   )
 
-  tmp[[2]] <- stringr::str_remove(tmp[[2]], paste0(tmp[["suffix"]], "$"))
+
+  tmp[[2]] <- stringr::str_remove(tmp[[2]], paste0(tmp[["suffix"]][!is.na(tmp[["suffix"]])], "$"))
 
   tmp
+
 }
 
 

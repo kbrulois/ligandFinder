@@ -68,15 +68,15 @@ get_contacts <- function(run_dir,
 
 }
 
-get_known_pairs <- function() {
+get_known_pairs_old <- function() {
 
 
-  known_pairs <- list(c("GPR25", "CXL17"),
-                      c("CCR9", "CCL25"),
-                      c("GPR15", "GP15L"),
-                      c("CML1", "RARR2"),
-                      c("CML2", "RARR2"),
-                      c("CCRL2", "RARR2"))
+  known_pairs <- list(c("CXL17", "GPR25"),
+                      c("CCL25", "CCR9"),
+                      c("GP15L", "GPR15"),
+                      c("RARR2", "CML1"),
+                      c("RARR2", "CML2"),
+                      c("RARR2", "CCRL2"))
 
   ligand_list <- readRDS(system.file("extdata/ligand_list.rds", package = "ligandFinder"))
 
@@ -130,3 +130,15 @@ get_known_pairs <- function() {
   c(known_pairs, known_pairs2, chem_pairs)
 
 }
+
+get_known_pairs <- function() {
+
+  ligand_list <- data.table::fread(system.file("extdata/GPCRdb_known_pairings_human_plus2more_unique.csv",
+                                               package = "ligandFinder")) %>% as_tibble
+
+  ligand_list <- ligand_list %>%
+                    mutate(afpd_dir_name = paste0(rec, "_", lig))
+
+
+}
+

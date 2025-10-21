@@ -1,0 +1,283 @@
+name,freq,score
+Cytoplasm,7640,-2
+Nucleus,6047,-2
+Cell membrane,3914,1
+Multi-pass membrane protein,3769,0
+Secreted,2343,2
+Cytoskeleton,2019,-2
+Membrane,1769,0
+Single-pass type I membrane protein,1536,0
+Cell projection,1425,1
+Peripheral membrane protein,1411,-1
+Endoplasmic reticulum membrane,962,-1
+Single-pass membrane protein,796,0
+Cytoplasmic vesicle,695,-1
+Cytoplasmic side,659,-2
+Mitochondrion,659,-2
+Chromosome,645,-2
+Cytosol,641,-2
+Golgi apparatus,612,-2
+Microtubule organizing center,601,-2
+Lipid-anchor,582,0
+Centrosome,580,-2
+Single-pass type II membrane protein,525,0
+Golgi apparatus membrane,474,-2
+Nucleolus,460,-2
+Cell junction,452,1
+Extracellular space,368,2
+Mitochondrion inner membrane,352,-2
+Endoplasmic reticulum,345,-2
+Perinuclear region,323,-2
+Cilium,318,0
+Extracellular matrix,281,1
+Lysosome membrane,253,-2
+Apical cell membrane,250,1
+Secretory vesicle,245,1
+Synapse,222,1
+Nucleoplasm,211,-2
+Mitochondrion matrix,208,-2
+Spindle,204,-2
+Nucleus speckle,202,-2
+Dendrite,201,0
+Axon,177,0
+Endosome membrane,172,0
+Centromere,165,-2
+Early endosome membrane,164,0
+Mitochondrion outer membrane,158,-2
+GPI-anchor,157,0
+Lysosome,148,-2
+Basolateral cell membrane,147,1
+Cytoplasmic vesicle membrane,145,-1
+Cilium basal body,142,-1
+Early endosome,134,0
+Late endosome membrane,132,0
+Postsynaptic cell membrane,131,1
+Cilium axoneme,128,0
+Mitochondrion membrane,126,-2
+Centriole,124,-2
+Endosome,124,0
+Trans-Golgi network membrane,119,0
+Myofibril,117,-1
+Single-pass type IV membrane protein,115,0
+Spindle pole,114,-2
+Nucleus membrane,111,-2
+Midbody,109,-2
+Tight junction,106,0
+Sarcomere,105,-2
+Kinetochore,104,-2
+Lamellipodium,102,0
+Perikaryon,101,-2
+Flagellum axoneme,99,-2
+Cell cortex,97,-2
+Focal adhesion,96,0
+Flagellum,95,1
+Postsynaptic density,94,-2
+Endomembrane system,92,-1
+Microsome membrane,91,-1
+Nucleus envelope,86,-2
+Recycling endosome membrane,85,0
+Melanosome,84,-1
+Membrane raft,80,1
+PML body,79,-2
+Trans-Golgi network,79,-1
+Adherens junction,75,0
+Synaptic vesicle membrane,74,0
+Acrosome,72,0
+Golgi stack membrane,71,0
+Sarcolemma,71,-1
+Single-pass type III membrane protein,70,0
+Lipid droplet,69,0
+Matrix side,67,0
+P-body,67,0
+Cytoplasmic granule,66,-2
+Endoplasmic reticulum lumen,66,-1
+Growth cone,66,0
+Ruffle membrane,65,1
+Nucleus matrix,63,-2
+Dendritic spine,62,0
+Synaptosome,61,0
+Cell surface,60,1
+Peroxisome,58,-1
+Extracellular side,54,1
+Recycling endosome,53,0
+Late endosome,52,0
+Stress granule,51,0
+Mitochondrion intermembrane space,50,-2
+Ruffle,49,0
+Telomere,49,-2
+Z line,49,0
+Autophagosome,48,-1
+Basement membrane,46,0
+Endoplasmic reticulum-Golgi intermediate compartment membrane,46,-2
+Nuclear pore complex,46,-2
+Presynaptic cell membrane,44,1
+Centriolar satellite,43,-2
+Clathrin-coated vesicle,42,0
+Peroxisome membrane,42,-2
+Secretory vesicle membrane,42,0
+Cilium membrane,41,0
+Cis-Golgi network membrane,41,-1
+Phagosome membrane,41,-1
+Cajal body,40,-2
+Filopodium,40,0
+Nucleus inner membrane,40,-2
+Photoreceptor outer segment,40,0
+Presynapse,40,0
+Cleavage furrow,39,0
+Neuron projection,37,0
+Clathrin-coated pit,35,0
+Clathrin-coated vesicle membrane,35,0
+Stereocilium,35,0
+Phagosome,34,0
+Photoreceptor inner segment,34,0
+Caveola,32,0
+Sarcoplasmic reticulum membrane,31,0
+Podosome,30,0
+Stress fiber,30,0
+Autophagosome membrane,29,0
+Desmosome,29,0
+Postsynaptic density membrane,28,0
+Endoplasmic reticulum-Golgi intermediate compartment,27,0
+Microsome,26,0
+Basal cell membrane,25,0
+Gap junction,25,0
+Extracellular exosome,24,1
+Microvillus,24,0
+Cis-Golgi network,23,0
+Flagellum membrane,23,0
+Coated pit,21,0
+Mitochondrion nucleoid,21,0
+Dynein axonemal particle,20,0
+Intermembrane side,20,0
+Lumenal side,20,0
+M line,20,0
+Melanosome membrane,20,0
+Postsynapse,20,0
+COPII-coated vesicle membrane,19,0
+Nucleus outer membrane,19,-2
+Phagocytic cup,19,0
+Sarcoplasmic reticulum,19,0
+Acrosome membrane,18,0
+Lamellipodium membrane,18,1
+Lateral cell membrane,18,1
+Microvillus membrane,18,1
+Midbody ring,18,0
+Rough endoplasmic reticulum,17,-1
+Synaptic vesicle,17,0
+COPI-coated vesicle membrane,16,0
+Cytoplasmic ribonucleoprotein granule,14,-2
+Peroxisome matrix,14,-2
+Multivesicular body membrane,13,0
+Inflammasome,12,0
+Lysosome lumen,12,-1
+Nucleoplasmic side,12,-2
+Preautophagosomal structure,12,-1
+Preautophagosomal structure membrane,12,-1
+Filopodium membrane,11,0
+Golgi stack,11,0
+T-tubule,11,0
+Vesicle,11,0
+Gem,10,0
+Virion,10,0
+Dendritic spine membrane,9,0
+Nuclear body,9,0
+Cytoplasmic granule membrane,8,-2
+Presynaptic active zone,8,0
+Rough endoplasmic reticulum membrane,8,0
+Sarcoplasmic reticulum lumen,8,0
+Synaptic cell membrane,8,1
+Zymogen granule membrane,8,0
+Chromaffin granule membrane,7,0
+Cytolytic granule,7,0
+Filopodium tip,7,0
+Golgi apparatus lumen,7,0
+Multivesicular body,7,0
+Stereocilium membrane,7,0
+Cortical granule,6,0
+Extracellular vesicle membrane,6,1
+Flagellum basal body,6,0
+Golgi outpost,6,0
+Hemidesmosome,6,0
+I band,6,0
+Interphotoreceptor matrix,6,0
+Invadopodium,6,0
+Invadopodium membrane,6,0
+Kinocilium,6,0
+Photoreceptor outer segment membrane,6,0
+Secretory vesicle lumen,6,1
+Bleb,5,0
+Nucleus lamina,5,-2
+Pseudopodium,5,0
+Smooth endoplasmic reticulum membrane,5,0
+Surface film,5,0
+Vacuole membrane,5,-1
+A band,4,-1
+Apicolateral cell membrane,4,1
+Autolysosome membrane,4,-1
+Cytolytic granule membrane,4,0
+Endosome lumen,4,0
+Extracellular vesicle,4,1
+GPI-like-anchor,4,0
+Growth cone membrane,4,0
+Myelin membrane,4,0
+Neuronal dense core vesicle,4,0
+Paranodal septate junction,4,0
+Perinuclear theca,4,0
+Photoreceptor inner segment membrane,4,0
+Sarcoplasm,4,0
+Uropodium,4,0
+Zona pellucida,4,0
+Acrosome inner membrane,3,0
+Acrosome outer membrane,3,0
+Calyx,3,0
+Chromaffin granule,3,0
+COPI-coated vesicle,3,0
+Cytoplasmic vesicle lumen,3,0
+Neuronal dense core vesicle membrane,3,0
+Synaptic cleft,3,0
+Zymogen granule lumen,3,0
+(Microbial infection) Sequestrated at the late endosome by SARS coronavirus-2/SARS-CoV-2 ORF3A protein.,2,0
+Autolysosome,2,0
+Chromaffin granule lumen,2,0
+COPII-coated vesicle,2,0
+Cornified envelope,2,0
+Cytoplasmic granule lumen,2,0
+Podosome membrane,2,0
+Postsynaptic recycling endosome membrane,2,0
+Spindle pole body,2,0
+"(Microbial infection) During parasite T.gondii-mediated infection, enriched at the interface between the host mitochondria and the parasitopharous vacuole.",1,0
+"(Microbial infection) In cells infected with C.trachomatis incM, recruited to the periphery of the pathogen-containing vacuole but recruitment is not dependent on incM.",1,0
+"(Microbial infection) In SARS coronavirus-2/SARS-CoV-2 infected cells, prenylated form localizes to membranous perinuclear structures reminiscent of the endoplasmic reticulum rich in viral dsRNA which are SARS-CoV-2 replicative organelles.",1,0
+"(Microbial infection) In SARS coronavirus-2/SARS-CoV-2 infected cells, since its not prenylated, is diffusely localized and unable to initiate a detectable block to SARS-CoV-2 replication.",1,0
+"(Microbial infection) In the mosquito midgut, localizes to P.falciparum (NF54 strain) macrogamete and young zygote cell membranes.",1,0
+(Microbial infection) In the presence of M.tuberculosis EsxA-EsxB complex decreased amounts of B2M are found on the cell surface (PubMed:25356553).,1,0
+"(Microbial infection) Upon infection with virulent M.tuberculosis forms aggregates with dsDNA, non-virulent bacteria (without the ESX-1 locus) do not form these aggregates (PubMed:26048138).",1,0
+"(Microbial infection) Upon SV40 infection, colocalizes with BCAP31, DNAJB12 and DNAJB14 in punctate structures within the endoplasmic reticulum membrane.",1,0
+"(Microbial infection) Upon SV40 infection, colocalizes with BCAP31, DNAJB12 and DNAJC18 in punctate structures within the endoplasmic reticulum membrane.",1,0
+"(Microbial infection) Upon SV40 infection, colocalizes with BCAP31, DNAJC18 and DNAJB14 in punctate structures within the endoplasmic reticulum membrane.",1,0
+"(Microbial infection) Upon SV40 infection, colocalizes with DNAJC18, DNAJB12 and DNAJB14 in punctate structures within the endoplasmic reticulum membrane.",1,0
+Acrosome lumen,1,0
+Autophagosome lumen,1,0
+Cell tip,1,0
+"Contrary to isoforms 1 and 2, isoform 3 does not localize to the mitochondria.",1,0
+Does not localize to focal adhesions.,1,0
+Endoplasmic reticulum-Golgi intermediate compartment lumen,1,0
+H zone,1,0
+"In cardiomyocytes, localized at specialized membrane contact sites between T-tubules and the sarcoplasmic reticulum, known as junctional membrane complexes.",1,0
+Isoform 2,1,0
+Isoform p42,1,0
+Isoform p46,1,0
+Localized at the myotendinous junction in skeletal muscle and at the intercalated disk in cardiac muscle.,1,0
+Localizes to the spermatid head-tail coupling apparatus (HTCA) during spermatogenesis.,1,0
+"Located in the lumen and epithelium of distal ductus efferentes and epididymal ducts, and on the postacrosomal region of the sperm head.",1,0
+Microneme membrane,1,0
+Multivesicular body lumen,1,0
+Nucleolus fibrillar center,1,0
+Nucleus intermembrane space,1,0
+Parasitophorous vacuole,1,0
+Phagosome lumen,1,0
+Pseudopodium membrane,1,0
+Rough endoplasmic reticulum lumen,1,0
+Target cell membrane,1,0
+Vacuole,1,0
+Zymogen granule,1,0

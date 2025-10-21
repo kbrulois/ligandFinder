@@ -1,0 +1,549 @@
+rec,lig,potency_ranks,lig_nt,citation,act_type,lig_ct,pAct
+hMC4R,hCOLIx217x234,"&beta;-MSH > &alpha;-MSH, ACTH > &gamma;-MSH",,,,,
+hCALCR,hIAPPx34x70,"calcitonin &ge; amylin, &alpha;-CGRP, &beta;-CGRP > adrenomedullin, adrenomedullin 2/intermedin",,,Full agonist,NH2,
+hGALR3,hGALAx33x62,galanin-like peptide > galanin,,,Full agonist,,7.16|7.12
+hGLP1R,hGLUCx98x128,,,,Full agonist,,
+hMC4R,hCOLIx77x87,"&beta;-MSH > &alpha;-MSH, ACTH > &gamma;-MSH",,,,NH2,
+hMSHR,hCOLIx138x176,"&alpha;-MSH > &beta;-MSH > ACTH, &gamma;-MSH",acet,,Agonist,,8.6
+hCXCR3,hCCL5x24x91,,,,Full agonist,,6.4
+hKISSR,hKISS1x109x121,,,,Full agonist,NH2,8.4
+hNK1R,hTKNKx81x90,substance P > neurokinin A > neurokinin B,,,Full agonist,NH2,
+hCXCR6,hCXL16x30x254,,,,Full agonist,,9
+hLGR6,hRSPO3x22x272,,,,Agonist,,
+hCXCR2,hCXCL6x38x114,,,,Full agonist,,7
+hNPFF1,hPRRPx23x53,"RFRP-1 > RFRP-3 > FMRFneuropeptide FF > neuropeptide AF > neuropeptide SF, QRFP43 (43RFa), PrRP-31",,,,NH2,
+hCCR3,hCXL10x22x98,,,,Antagonist,,
+hSSR5,hSMSx89x116,,,,Full agonist,,
+hOX2R,hOREXx70x97,"orexin-A = orexin-B (for Ca<sup>2+</sup> elevation, unclear/variable for other responses)",,,Full agonist,NH2,
+hLGR5,hRSPO1x21x263,,,,Full agonist,,11.1
+hCCR2,hCCL11x24x97,,,,Partial agonist,,
+hLGR5,hRSPO3x22x272,,,,Full agonist,,11
+hOPRK,hPDYNx207x238,"big dynorphin, dynorphin A",,,,,
+hOPRK,hPDYNx175x183,"big dynorphin, dynorphin A",,,Full agonist,,7.9
+hGALR2,hGALPx25x84,galanin-like peptide &ge; galanin > spexin-1,,,Agonist,,
+hCALCR,hADM2x101x147,"calcitonin &ge; amylin, &alpha;-CGRP, &beta;-CGRP > adrenomedullin, adrenomedullin 2/intermedin",,,Full agonist,NH2,8|6.5|6|7
+hV1AR,hNEU2x20x28,vasopressin > oxytocin,,,Full agonist,NH2,
+hNPFF2,hNPFFx100x110,,,,,,
+hNPFF2,hNPFFx93x110,"neuropeptide AF, neuropeptide FF > PrRP-31 > FMRF, QRFP43 (43RFa) > neuropeptide SF",,,,NH2,
+hOPRM,hCOLIx237x267,"&beta;-endorphin, [Met]enkephalin, [Leu]enkephalin|endomorphin-1, endomorphin-2|Several additional extended enkephalin peptides or truncated beta-endorphin peptides.",,,,,
+hCX3C1,hX3CL1x25x397,,,,Full agonist,,8.9
+hV2R,hNEU1x20x28,vasopressin > oxytocin,,,Full agonist,NH2,
+hVIPR2,hPACAx132x169,"VIP, PACAP-38, PACAP-27 > PHI (pig) >> GHRH, secretin",,,Agonist,NH2,9.3|7.7
+hCCR2,hCCL26x24x94,,,,Antagonist,,8.5
+hPTH1R,hTIP39x62x100,PTH = PTHrP,,,Antagonist,,
+hKISSR,hKISS1x112x121,,,,Full agonist,NH2,
+hMC5R,hCOLIx138x176,&alpha;-MSH > &beta;-MSH > ACTH > &gamma;-MSH,acet,,Agonist,,5
+hACKR1,hCXCL6x38x114,"CXCL5, CXCL6, CXCL8, CXCL11, CCL2, CCL5, CCL7, CCL11, CCL14, CCL17",,,,,
+hACKR1,hCXL11x22x94,"CXCL5, CXCL6, CXCL8, CXCL11, CCL2, CCL5, CCL7, CCL11, CCL14, CCL17",,,,,
+hLGR6,hRSPO2x22x243,,,,Full agonist,,
+hMRGX2,hADMLx22x41,,,,Full agonist,NH2,
+hCXCR3,hSDF1x22x89,,,,Full agonist,,6.4
+hNPBW1,hNPWx33x62,neuropeptide B-29 > neuropeptide B-23 > neuropeptide W-23 > neuropeptide W-30,,,Full agonist,,10.6
+hCALCR,hCALCAx83x119,"calcitonin &ge; amylin, &alpha;-CGRP, &beta;-CGRP > adrenomedullin, adrenomedullin 2/intermedin",,,Full agonist,NH2,
+hSSR4,hCORTx89x105,,,,Full agonist,,
+hCXCR2,hCXCL2x35x107,,,,Full agonist,,
+hCML1,hRARR2x21x154,resolvin E1 > chemerin C-terminal peptide > 18R-HEPE > EPA,,GtoP,Full agonist,,8.01|8.31
+hOPRD,hPENKx100x104,"&beta;-endorphin, [Leu]enkephalin, [Met]enkephalin",,,,,
+hNMBR,hGRPx37x50,neuromedin B >> gastrin-releasing peptide,,,Full agonist,,
+hCXCR3,hCCL7x24x99,,,,Antagonist,,6.6
+hPTH2R,hPTHYx32x115,"TIP39, PTH >> PTHrP",,,,,
+hFPR3,hHUNINx1x24,,,,Full agonist,,8.95
+hPKR2,hPROK1x20x105,prokineticin-2 > prokineticin-1 > prokineticin-2&beta;,,,Full agonist,,
+hBKRB1,hKNG1x381x388,[des-Arg<sup>10</sup>]kallidin > [des-Arg<sup>9</sup>]bradykinin = kallidin > bradykinin,,,Full agonist,,
+hOPRM,hPDYNx207x219,"&beta;-endorphin, [Met]enkephalin, [Leu]enkephalin|endomorphin-1, endomorphin-2|Several additional extended enkephalin peptides or truncated beta-endorphin peptides.",,,Full agonist,,8.3
+hCXCR2,hGROAx35x107,,,,Full agonist,,
+hAGTR1,hANGTx27x32,,,,Partial agonist,,5.9
+hEDNRB,hEDN1x53x73,"endothelin-1 = endothelin-2, endothelin-3",,,,,
+hNTR2,hNEUTx144x148,neurotensin = neuromedin N,,,,,
+hACKR2,hCCL13x17x98,"CCL2, CCL3, CCL4, CCL5, CCL7, CCL8, CCL11, CCL13, CCL14, CCL17, CCL22",,,,,
+hGLR,hGLUCx53x81,,,,Full agonist,,9
+hAGTR2,hANGTx26x32,,,,Full agonist,,10.4
+hC3AR,hCO3x672x748,C3a > C5a,,,Full agonist|Agonist,,7.3|9.62
+hNPY5R,hNPYx29x64,neuropeptide Y > peptide YY > pancreatic polypeptide,,,Full agonist,NH2,9.1
+hAPJ,hAPELx65x77,[Pyr<sup>1</sup>]apelin-13 &ge; apelin-13 > apelin-36,,,Full agonist,,
+hACKR3,hSDF1x22x89,,,,Agonist,,
+hCCKAR,hCCKNx65x103,"CCK-8, CCK-58, CCK-39, CCK-33 >> gastrin-17, desulfated cholecystokinin-8 > CCK-4",,,Agonist,NH2,
+hLGR5,hRSPO2x22x243,,,,Full agonist,,12
+hPACR,hPACAx132x169,"PACAP-27, PACAP-38 >> VIP",,,Agonist,NH2,8.3|9.2|6.9|8.8|7.5|9|10.3
+hMRGX1,hPENKx217x231,,,,Full agonist,,7.68|7.99
+hMC4R,hCOLIx138x150,"&beta;-MSH > &alpha;-MSH, ACTH > &gamma;-MSH",acet,,Full agonist,NH2,
+hNPFF1,hNPFFx69x76,"RFRP-1 > RFRP-3 > FMRFneuropeptide FF > neuropeptide AF > neuropeptide SF, QRFP43 (43RFa), PrRP-31",,,Full agonist,NH2,
+hCRFR1,hCRFx154x194,,,,Full agonist,NH2,
+hOPRK,hCOLIx237x267,"big dynorphin, dynorphin A",,,Partial agonist,,
+hACKR1,hCCL17x24x94,"CXCL5, CXCL6, CXCL8, CXCL11, CCL2, CCL5, CCL7, CCL11, CCL14, CCL17",,,,,
+hPTH1R,hPTHYx32x115,PTH = PTHrP,,,,,
+hMTLR,hMOTIx26x47,,,,Full agonist,,
+hCCRL2,hCCL19x22x98,"chemerin C-terminal peptide, CCL19",,,Unknown,,7.36
+hCCR3,hCCL2x24x99,,,,Full agonist,,
+hLGR4,hRSPO1x21x263,,,,Full agonist,,10.7
+hCCR7,hCCL19x22x98,,,,Agonist,,10
+hCCR5,hCCL4x24x92,,,,Full agonist,,
+hSSR2,hSMSx103x116,,,,Full agonist,,
+hNK2R,hTKN1x98x107,neurokinin A > neurokinin B >> substance P,,,Full agonist,NH2,
+hACKR1,hCCL11x24x97,"CXCL5, CXCL6, CXCL8, CXCL11, CCL2, CCL5, CCL7, CCL11, CCL14, CCL17",,,,,
+hCCR5,hCCL13x17x98,,,,Full agonist,,9.1
+hXCR1,hXCL1x22x114,,,,Agonist,,7.3
+hACKR2,hCCL4x24x92,"CCL2, CCL3, CCL4, CCL5, CCL7, CCL8, CCL11, CCL13, CCL14, CCL17, CCL22",,,,,
+hCCR8,hCCL1x24x96,,,,Full agonist,,
+hC5AR1,hCO5x678x750,"C5a, C5a des-Arg > C3a",,,Partial agonist,,
+hNK3R,hTKN1x98x107,neurokinin B > neurokinin A > substance P,,,Full agonist,NH2,7.4
+hV2R,hNEU2x20x28,vasopressin > oxytocin,,,Full agonist,NH2,
+hNPBW1,hNPBx25x53,neuropeptide B-29 > neuropeptide B-23 > neuropeptide W-23 > neuropeptide W-30,,,Full agonist,,9.5
+hCCR1,hA0A8I5JUL6x22x113,,,,,,
+hLGR6,hRSPO4x20x234,,,,Full agonist,,
+hEDNRB,hEDN2x49x69,"endothelin-1 = endothelin-2, endothelin-3",,,,,
+hPKR1,hPROK1x20x105,prokineticin-2 > prokineticin-1 > prokineticin-2&beta;,,,Full agonist,,
+hNTR1,hNEUTx24x148,neurotensin > neuromedin N,,,Full agonist,,7.4
+hXCR1,hXCL2x1x114,,,,Agonist,,7.3
+hCCR1,hCCL14x20x93,,,,Full agonist,,7.4
+hMC4R,hAGRPx21x132,"&beta;-MSH > &alpha;-MSH, ACTH > &gamma;-MSH",,,Inverse agonist,,9.3
+hLGR4,hRSPO3x22x272,,,,Full agonist,,8.66|10.7
+hCCR10,hCCL27x25x112,,,,Full agonist,,
+hVIPR1,hVIPx125x152,"VIP, PACAP-27, PACAP-38 >> GHRH, PHI (pig), secretin",,,Agonist,NH2,8.7|9.1|9.7|8.9|9.8|10|8|9.4|9|7.9|9.3|8.5
+hNPY2R,hNPYx29x64,peptide YY = peptide YY(3-36) = neuropeptide Y = neuropeptide Y(3-36) >> pancreatic polypeptide,,,Full agonist|Agonist,NH2,
+hOPRM,hPDYNx175x179,,,,,,
+hGASR,hGASTx79x92,"CCK-8, CCK-39, CCK-33, CCK-58 &ge; gastrin-17, desulfated cholecystokinin-8, CCK-4",,,Agonist,NH2,
+hOPRD,hPDYNx207x219,"&beta;-endorphin, [Leu]enkephalin, [Met]enkephalin",,,Full agonist,,7.8
+hCCR1,hCCL3x24x92,,,,Full agonist,,
+hC5AR1,hCO5x678x751,"C5a, C5a des-Arg > C3a",,,Full agonist,,
+hCCR1,hCCL16x24x120,,,,,,
+hAPJ,hELAx34x54,[Pyr<sup>1</sup>]apelin-13 &ge; apelin-13 > apelin-36,,,Agonist,,8.7
+hCCR1,hCCL7x24x99,,,,Full agonist,,8.1
+hBKRB1,hKNG1x380x389,[des-Arg<sup>10</sup>]kallidin > [des-Arg<sup>9</sup>]bradykinin = kallidin > bradykinin,,,Full agonist,,
+hCXCR1,hSYYCx360x528,,,,Agonist,,
+hUR2R,hUTS2x114x124,,,,Full agonist,,8.6
+hBKRB2,hKNG1x381x388,"kallidin > bradykinin >> [des-Arg<sup>9</sup>]bradykinin, [des-Arg<sup>10</sup>]kallidin",,,Full agonist,,5.1
+hFZD1,hWNT2x26x360,,,,,,
+hLGR5,hRSPO4x20x234,,,,Full agonist,,9.4
+hNTR1,hNEUTx144x148,neurotensin > neuromedin N,,,,,
+hCCR2,hCCL13x17x98,,,,Full agonist,,
+hCCR1,hCCL8x24x99,,,,Agonist,,
+hGASR,hGASTx76x92,"CCK-8, CCK-39, CCK-33, CCK-58 &ge; gastrin-17, desulfated cholecystokinin-8, CCK-4",,,Agonist,NH2,
+hPRLHR,hPRRPx34x53,PrRP-20 = PrRP-31,,,Full agonist,NH2,
+hSSR3,hSMSx89x116,,,,Full agonist,,
+hFPR3,hHEBP1x1x21,,,,Full agonist,NH2,
+hCCKAR,hCCKNx46x103,"CCK-8, CCK-58, CCK-39, CCK-33 >> gastrin-17, desulfated cholecystokinin-8 > CCK-4",,,Agonist,NH2,
+hNPFF1,hNPFFx100x110,,,,,,
+hAGTR2,hANGTx25x32,,,,Full agonist,,10.2
+hC5AR2,hCO5x678x751,"C5a, C5a des-Arg > C3a",,,Full agonist,,8.85
+hCCR3,hCCL5x24x91,,,,Full agonist,,
+hCCR6,hCCL20x27x96,,,,Full agonist,,
+hCRFR2,hUCN2x72x109,,,,Full agonist,NH2,
+hGPR37,hSAPx318x339,,,,Agonist,,8.15
+hOPRM,hPDYNx207x223,"&beta;-endorphin, [Met]enkephalin, [Leu]enkephalin|endomorphin-1, endomorphin-2|Several additional extended enkephalin peptides or truncated beta-endorphin peptides.",,,Full agonist,,8.1
+hNK2R,hTKN1x72x107,neurokinin A > neurokinin B >> substance P,,,,NH2,
+hCCR1,hCCL23x22x120,,,,Full agonist,,8.9
+hCCR3,hA0A8I5JUL6x22x113,,,,,,
+hMSHR,hCOLIx217x234,"&alpha;-MSH > &beta;-MSH > ACTH, &gamma;-MSH",,,,,
+hACKR4,hCCL19x22x98,,,,Agonist,,8.4
+hRL3R2,hREL3x26x52,INSL5 = relaxin-3 > relaxin-3 (B chain),,,Partial agonist,,7
+hCCR6,hDFB4Ax24x64,,,,Full agonist,,
+hCRFR2,hUCN1x83x122,,,,Full agonist,NH2,
+hCXCR5,hCXL13x23x109,,,,Full agonist,,7.3
+hMSHR,hCOLIx77x87,"&alpha;-MSH > &beta;-MSH > ACTH, &gamma;-MSH",,,,NH2,
+hCCKAR,hCCKNx100x103,"CCK-8, CCK-58, CCK-39, CCK-33 >> gastrin-17, desulfated cholecystokinin-8 > CCK-4",,,,NH2,
+hMC5R,hCOLIx77x87,&alpha;-MSH > &beta;-MSH > ACTH > &gamma;-MSH,,,,NH2,
+hCXCR3,hCCL11x24x97,,,,Antagonist,,7.2
+hGRPR,hGRPx41x50,"gastrin-releasing peptide > neuromedin C, gastrin releasing peptide(14-27) (human)",,,Full agonist,NH2,9.85
+hBKRB1,hKNG1x381x389,[des-Arg<sup>10</sup>]kallidin > [des-Arg<sup>9</sup>]bradykinin = kallidin > bradykinin,,,Full agonist,,4
+hACKR1,hCCL2x24x99,"CXCL5, CXCL6, CXCL8, CXCL11, CCL2, CCL5, CCL7, CCL11, CCL14, CCL17",,,,,
+hOPRM,hPENKx100x104,"&beta;-endorphin, [Met]enkephalin, [Leu]enkephalin|endomorphin-1, endomorphin-2|Several additional extended enkephalin peptides or truncated beta-endorphin peptides.",,,,,
+hNPBW2,hNPBx25x47,neuropeptide W-23 > neuropeptide W-30 > neuropeptide B-29 > neuropeptide B-23,,,Full agonist,,8.4
+hNK1R,hQ9Y494x37x57,substance P > neurokinin A > neurokinin B,,,Full agonist,,
+hVIPR1,hPACAx132x158,"VIP, PACAP-27, PACAP-38 >> GHRH, PHI (pig), secretin",,,Agonist,NH2,7.6|8.2|8.9|9.9|7.8|8.5
+hCRFR2,hUCN3x120x157,,,,Full agonist,NH2,
+hFZD2,hWNT5Ax62x380,,,,,,
+hCALCR,hCALCBx82x118,"calcitonin &ge; amylin, &alpha;-CGRP, &beta;-CGRP > adrenomedullin, adrenomedullin 2/intermedin",,,Full agonist,NH2,7.2|9.2|7.7
+hSSR4,hSMSx103x116,,,,Full agonist,,
+hACKR1,hCXCL5x37x114,"CXCL5, CXCL6, CXCL8, CXCL11, CCL2, CCL5, CCL7, CCL11, CCL14, CCL17",,,,,
+hACKR3,hCXL11x22x94,,,,Full agonist,,
+hHRH4,hCCL16x24x120,,,,Full agonist,,8.1
+hOPRK,hPDYNx175x179,,,,,,
+hNPFF2,hPRRPx23x53,"neuropeptide AF, neuropeptide FF > PrRP-31 > FMRF, QRFP43 (43RFa) > neuropeptide SF",,,,NH2,
+hNPY4R,hPAHOx30x65,pancreatic polypeptide >> neuropeptide Y = peptide YY,,,Full agonist,NH2,
+hOX1R,hOREXx34x66,"orexin-A > orexin-B (for Ca<sup>2+</sup> elevation, unclear/variable for other responses)",,,Full agonist,NH2,
+hLGR4,hRSPO2x22x243,,,,Full agonist,,12.52
+hEDNRA,hEDN3x97x117,endothelin-1 = endothelin-2 > endothelin-3,,,,,
+hOPRK,hPDYNx226x238,"big dynorphin, dynorphin A",,,Partial agonist,,
+hAGTR1,hANGTx26x32,,,,Full agonist,,
+hNPFF1,hNPVFx81x92,"RFRP-1 > RFRP-3 > FMRFneuropeptide FF > neuropeptide AF > neuropeptide SF, QRFP43 (43RFa), PrRP-31",,,,NH2,
+hCCR3,hCCL7x24x99,,,,Full agonist,,
+hOPRD,hPDYNx207x223,"&beta;-endorphin, [Leu]enkephalin, [Met]enkephalin",,,Full agonist,,7.4
+hOPRD,hPDYNx175x179,,,,,,
+hNPFF1,hOX26x91x133,"RFRP-1 > RFRP-3 > FMRFneuropeptide FF > neuropeptide AF > neuropeptide SF, QRFP43 (43RFa), PrRP-31",,,,NH2,
+hMC5R,hCOLIx217x234,&alpha;-MSH > &beta;-MSH > ACTH > &gamma;-MSH,,,,,
+hCCR3,hCCL8x24x99,,,,Full agonist,,
+hCCR5,hCCL2x24x99,,,,Full agonist,,7.5
+hCXCR3,hCCL19x22x98,,,,Full agonist,,5.9
+hACKR1,hCCL5x24x91,"CXCL5, CXCL6, CXCL8, CXCL11, CCL2, CCL5, CCL7, CCL11, CCL14, CCL17",,,,,
+hFZD6,hWNT3Ax19x352,,,,Agonist,,
+hMC3R,hCOLIx138x176,"&gamma;-MSH, &beta;-MSH > ACTH, &alpha;-MSH",acet,,Agonist,,7.06
+hOPRK,hPDYNx175x184,"big dynorphin, dynorphin A",,,Full agonist,,
+hACKR1,hIL8x23x99,"CXCL5, CXCL6, CXCL8, CXCL11, CCL2, CCL5, CCL7, CCL11, CCL14, CCL17",,,,,
+hACKR2,hCCL2x24x99,"CCL2, CCL3, CCL4, CCL5, CCL7, CCL8, CCL11, CCL13, CCL14, CCL17, CCL22",,,,,
+hNK1R,hTKN1x58x68,substance P > neurokinin A > neurokinin B,,,Full agonist,NH2,
+hBKRB2,hKNG1x380x389,"kallidin > bradykinin >> [des-Arg<sup>9</sup>]bradykinin, [des-Arg<sup>10</sup>]kallidin",,,Full agonist,,9.3
+hC3AR,hCO5x678x751,C3a > C5a,,,,,
+hCCR3,hCXCL9x23x125,,,,Antagonist,,
+hLGR4,hRSPO4x20x234,,,,Full agonist,,10.05
+hSSR5,hSMSx103x116,,,,Full agonist,,
+hSSR3,hCORTx89x105,,,,Full agonist,,
+hCXCR2,hCXCL3x35x107,,,,Full agonist,,
+hNMBR,hNMBx47x56,neuromedin B >> gastrin-releasing peptide,,,Full agonist,NH2,
+hBKRB2,hKNG1x381x389,"kallidin > bradykinin >> [des-Arg<sup>9</sup>]bradykinin, [des-Arg<sup>10</sup>]kallidin",,,Full agonist,,
+hSSR1,hSMSx103x116,,,,Full agonist,,
+hGALR2,hGALAx33x62,galanin-like peptide &ge; galanin > spexin-1,,,Full agonist,,9.29
+hNMBR,hGRPx24x50,neuromedin B >> gastrin-releasing peptide,,,,NH2,
+hNPFF1,hNPFFx66x76,"RFRP-1 > RFRP-3 > FMRFneuropeptide FF > neuropeptide AF > neuropeptide SF, QRFP43 (43RFa), PrRP-31",,,,NH2,
+hNK1R,hTKN1x72x107,substance P > neurokinin A > neurokinin B,,,Full agonist,NH2,
+hGALR3,hSPXNx36x49,galanin-like peptide > galanin,,,Agonist,NH2,6.2
+hCXCR3,hCXCL9x23x125,,,,Full agonist,,
+hVIPR2,hVIPx125x152,"VIP, PACAP-38, PACAP-27 > PHI (pig) >> GHRH, secretin",,,Agonist,NH2,8.7|7.3|8|8.3|9.2|8.8|7.7|7.9|7.8|9.3|8.5
+hOPRM,hPDYNx207x214,"&beta;-endorphin, [Met]enkephalin, [Leu]enkephalin|endomorphin-1, endomorphin-2|Several additional extended enkephalin peptides or truncated beta-endorphin peptides.",,,Full agonist,,8.4
+hFPR2,hPRIOx106x126,Lipid mediators for resolution of inflammation: LXA<sub>4</sub> = aspirin triggered lipoxin A4 = ATLa2 = resolvin D1 > LTC<sub>4</sub> = LTD<sub>4</sub> ≫ 15-deoxy-LXA4 ≫ C16:0 ceramide<br>Proteins and peptides for balanced activation: fMLKLIV = fMTPMRKINPLMKLIN > serum amyloid A > LL-37|For lipid mediators (resolving) LXA<sub>4</sub> = aspirin triggered lipoxin A4 = ATLa2 = resolvin D1 >> 15-deoxy-LXA4 > C16:0 ceramide<br>For other ligands: WKYMVm > BMS-986235 > ACT-389949 > mitochondrial formyl peptides,,,Agonist,,4.6
+hGASR,hCCKNx96x103,"CCK-8, CCK-39, CCK-33, CCK-58 &ge; gastrin-17, desulfated cholecystokinin-8, CCK-4",,,Full agonist,NH2,
+hOX2R,hOREXx34x66,"orexin-A = orexin-B (for Ca<sup>2+</sup> elevation, unclear/variable for other responses)",,,Full agonist,NH2,
+hGIPR,hGIPx52x93,,,,Full agonist|Agonist,,8.7|9.12
+hACKR2,hCCL5x24x91,"CCL2, CCL3, CCL4, CCL5, CCL7, CCL8, CCL11, CCL13, CCL14, CCL17, CCL22",,,,,
+hCML1,hRARR2x149x157,resolvin E1 > chemerin C-terminal peptide > 18R-HEPE > EPA,,,Full agonist,,
+hV1BR,hNEU2x20x28,vasopressin > oxytocin,,,Full agonist,NH2,
+hNPY1R,hPAHOx30x65,neuropeptide Y = peptide YY >> pancreatic polypeptide,,,,NH2,
+hACTHR,hCOLIx138x176,ACTH,acet,,,,
+hGLP2R,hGLUCx148x178,,,,Partial agonist,,7.4
+hOPRK,hPDYNx207x223,"big dynorphin, dynorphin A",,,Full agonist,,
+hMSHR,hCOLIx138x150,"&alpha;-MSH > &beta;-MSH > ACTH, &gamma;-MSH",acet,,Full agonist,NH2,8.4
+hPACR,hVIPx125x152,"PACAP-27, PACAP-38 >> VIP",,,Agonist,NH2,8.7|6.7|6|8.4|6.4|7.8|6.3
+hFZD1,hWNT3Ax19x352,,,,,,
+hMC5R,hCOLIx138x150,&alpha;-MSH > &beta;-MSH > ACTH > &gamma;-MSH,acet,,Full agonist,NH2,6.9
+hCXCR4,hSDF1x22x93,,,,Full agonist,,7.86
+hOPRK,hPENKx100x104,"big dynorphin, dynorphin A",,,,,
+hCCKAR,hCCKNx71x103,"CCK-8, CCK-58, CCK-39, CCK-33 >> gastrin-17, desulfated cholecystokinin-8 > CCK-4",,,Agonist,NH2,
+hEDNRA,hEDN1x53x73,endothelin-1 = endothelin-2 > endothelin-3,,,Full agonist,,
+hACKR1,hCCL14x20x93,"CXCL5, CXCL6, CXCL8, CXCL11, CCL2, CCL5, CCL7, CCL11, CCL14, CCL17",,,,,
+hNPBW2,hNPBx25x53,neuropeptide W-23 > neuropeptide W-30 > neuropeptide B-29 > neuropeptide B-23,,,Full agonist,,9
+hAPJ,hELAx23x54,[Pyr<sup>1</sup>]apelin-13 &ge; apelin-13 > apelin-36,,,Agonist,,9.29|8.7
+hCCR5,hCCL5x24x91,,,,Full agonist,,
+hNTR1,hNEUTx25x165,neurotensin > neuromedin N,,,Full agonist,,8.7
+hOPRD,hPDYNx207x214,"&beta;-endorphin, [Leu]enkephalin, [Met]enkephalin",,,Partial agonist,,8.4
+hCXCR3,hCXL11x22x94,,,,Full agonist,,
+hKISSR,hKISS1x68x121,,,,Full agonist,NH2,
+hVIPR2,hPACAx132x158,"VIP, PACAP-38, PACAP-27 > PHI (pig) >> GHRH, secretin",,,Agonist,NH2,7.6|8|8.4|9.4|7.7
+hACKR4,hCCL25x24x150,,,,Agonist,,7.6
+hACKR1,hCCL7x24x99,"CXCL5, CXCL6, CXCL8, CXCL11, CCL2, CCL5, CCL7, CCL11, CCL14, CCL17",,,,,
+hOXYR,hNEU1x20x28,oxytocin > vasopressin,,,Full agonist,NH2,
+hNK2R,hTKNKx81x90,neurokinin A > neurokinin B >> substance P,,,Full agonist,NH2,
+hNMUR1,hNMSx109x141,,,,Full agonist|Agonist,NH2,10|10.2
+hGALR1,hGALPx25x84,galanin > galanin-like peptide >> spexin-1,,,Agonist,,7.11
+hNMUR2,hNMUx142x166,,,,Full agonist|Agonist,NH2,9.6
+hCCR2,hCCL2x24x99,,,,Full agonist,,
+hPTH2R,hPTHRx37x72,"TIP39, PTH >> PTHrP",,,Full agonist,,5.7
+hNMUR2,hNMSx109x141,,,,Full agonist|Agonist,NH2,10|9.2
+hNK3R,hTKNKx81x90,neurokinin B > neurokinin A > substance P,,,Full agonist,NH2,8.4
+hAPJ,hELAx44x54,[Pyr<sup>1</sup>]apelin-13 &ge; apelin-13 > apelin-36,,,Agonist,,7.2
+hNK1R,hTKN1x98x107,substance P > neurokinin A > neurokinin B,,,Full agonist,NH2,
+hNPFF2,hNPFFx69x76,"neuropeptide AF, neuropeptide FF > PrRP-31 > FMRF, QRFP43 (43RFa) > neuropeptide SF",,,Full agonist,NH2,9.7
+hCCR3,hCXL11x22x94,,,,Antagonist,,
+hGALR3,hGALPx25x84,galanin-like peptide > galanin,,,Agonist,,8
+hSSR2,hCORTx89x105,,,,Full agonist,,
+hGALR2,hSPXNx36x49,galanin-like peptide &ge; galanin > spexin-1,,,Agonist,NH2,6.79
+hCRFR1,hUCN1x83x122,,,,Full agonist,NH2,
+hACKR2,hCCL14x20x93,"CCL2, CCL3, CCL4, CCL5, CCL7, CCL8, CCL11, CCL13, CCL14, CCL17, CCL22",,,,,
+hGASR,hCCKNx46x103,"CCK-8, CCK-39, CCK-33, CCK-58 &ge; gastrin-17, desulfated cholecystokinin-8, CCK-4",,,,NH2,
+hPTH2R,hPTHRx37x70,"TIP39, PTH >> PTHrP",,,Full agonist,,6.1
+hFZD6,hWNT5Ax62x380,,,,Agonist,,
+hGHRHR,hSLIBx32x75,,,,Agonist,NH2,
+hCCR5,hCCL7x24x99,,,,Antagonist,,7.5
+hNPY4R,hNPYx29x64,pancreatic polypeptide >> neuropeptide Y = peptide YY,,,Full agonist,NH2,8
+hNPBW2,hNPWx33x62,neuropeptide W-23 > neuropeptide W-30 > neuropeptide B-29 > neuropeptide B-23,,,Full agonist,,9.4
+hCALCR,hADMLx95x146,"calcitonin &ge; amylin, &alpha;-CGRP, &beta;-CGRP > adrenomedullin, adrenomedullin 2/intermedin",,,Full agonist,NH2,9.2
+hMC5R,hAGRPx21x132,&alpha;-MSH > &beta;-MSH > ACTH > &gamma;-MSH,,,Inverse agonist,,6.5
+hAPJ,hAPELx61x77,[Pyr<sup>1</sup>]apelin-13 &ge; apelin-13 > apelin-36,,,Agonist,,
+hACKR2,hCCL7x24x99,"CCL2, CCL3, CCL4, CCL5, CCL7, CCL8, CCL11, CCL13, CCL14, CCL17, CCL22",,,,,
+hNPFF1,hNPFFx93x110,"RFRP-1 > RFRP-3 > FMRFneuropeptide FF > neuropeptide AF > neuropeptide SF, QRFP43 (43RFa), PrRP-31",,,,NH2,
+hCXCR4,hSDF1x22x89,,,,Full agonist|Agonist,,9.3
+hCCR3,hCCL11x24x97,,,,Full agonist,,
+hPRLHR,hPRRPx23x53,PrRP-20 = PrRP-31,,,Full agonist,NH2,
+hSSR1,hSMSx89x116,,,,Full agonist,,
+hCRFR1,hUCN2x72x109,,,,Full agonist,NH2,
+hCCR5,hCCL14x20x93,,,,Full agonist,,7.2
+hCCKAR,hGASTx76x92,"CCK-8, CCK-58, CCK-39, CCK-33 >> gastrin-17, desulfated cholecystokinin-8 > CCK-4",,,,NH2,
+hVIPR1,hVIPx81x107,"VIP, PACAP-27, PACAP-38 >> GHRH, PHI (pig), secretin",,,Agonist,NH2,5.7
+hPACR,hPACAx132x158,"PACAP-27, PACAP-38 >> VIP",,,Agonist,NH2,8.7|7.6|7.4|9.1|6.9|9|10.6|8.5
+hUR2R,hUTS2Bx112x119,,,,Full agonist,,9.6|8.6
+hPKR1,hPROK2x28x129,prokineticin-2 > prokineticin-1 > prokineticin-2&beta;,,,Full agonist,,
+hFZD6,hWNT4x23x351,,,,Agonist,,
+hMC4R,hCOLIx138x176,"&beta;-MSH > &alpha;-MSH, ACTH > &gamma;-MSH",acet,,Agonist,,6.16
+hCCR5,hCCL3x24x92,,,,Full agonist,,
+hOPRK,hPDYNx207x219,"big dynorphin, dynorphin A",,,Full agonist,,
+hACKR2,hCCL3x24x92,"CCL2, CCL3, CCL4, CCL5, CCL7, CCL8, CCL11, CCL13, CCL14, CCL17, CCL22",,,,,
+hG37L1,hSAPx318x339,,,,Agonist,,8.3
+hCXCR3,hCCL20x27x96,,,,Full agonist,,6.8
+hCCR5,hCCL16x24x120,,,,Full agonist,,
+hMC3R,hCOLIx77x87,"&gamma;-MSH, &beta;-MSH > ACTH, &alpha;-MSH",,,Full agonist,NH2,8.5
+hMCHR2,hMCHx147x165,,,,Full agonist,,
+hSSR2,hSMSx89x116,,,,Full agonist,,
+hFZD1,hWNT5Ax62x380,,,,,,
+hCML2,hRARR2x21x154,,,,Full agonist,,8.28
+hCXCR1,hIL8x23x99,,,,Full agonist|Agonist,,8.1
+hPRLHR,hPTHRx37x177,PrRP-20 = PrRP-31,,,Full agonist,,
+hCCR5,hCCL8x24x99,,,,Full agonist,,9.3
+hACKR2,hCCL8x24x99,"CCL2, CCL3, CCL4, CCL5, CCL7, CCL8, CCL11, CCL13, CCL14, CCL17, CCL22",,,,,
+hCCR8,hCCL8x24x99,,,,Agonist,,
+hPTH1R,hPTHRx37x72,PTH = PTHrP,,,Full agonist,,6.5
+hGASR,hCCKNx65x103,"CCK-8, CCK-39, CCK-33, CCK-58 &ge; gastrin-17, desulfated cholecystokinin-8, CCK-4",,,,NH2,
+hNTR2,hNEUTx151x163,neurotensin = neuromedin N,,,Full agonist,,8.8
+hSSR3,hSMSx103x116,,,,Full agonist,,
+hOXYR,hNEU2x20x28,oxytocin > vasopressin,,,Partial agonist,NH2,
+hNPSR1,hNPSx70x89,,,,Full agonist,,8|7.34
+hGLP2R,hGLUCx146x178,,,,Full agonist,,8.5
+hBKRB1,hKNG1x380x388,[des-Arg<sup>10</sup>]kallidin > [des-Arg<sup>9</sup>]bradykinin = kallidin > bradykinin,,,Full agonist,,
+hCXCR2,hCXCL7x55x128,,,,Full agonist,,
+hEDNRB,hEDN3x97x117,"endothelin-1 = endothelin-2, endothelin-3",,,Full agonist,,
+hQRFPR,hOX26x108x133,,,,Full agonist,NH2,8.15
+hAGTR2,hANGTx25x31,,,,Agonist,,6.61
+hTRFR,hTRHx84x86,,,,,NH2,
+hCCR3,hCCL26x24x94,,,,Full agonist,,
+hCXCR1,hCXCL6x38x114,,,,Full agonist,,7
+hNPY1R,hNPYx29x64,neuropeptide Y = peptide YY >> pancreatic polypeptide,,,Agonist,NH2,
+hNMBR,hGRPx41x50,neuromedin B >> gastrin-releasing peptide,,,,NH2,
+hPTH2R,hPTHRx37x177,"TIP39, PTH >> PTHrP",,,,,
+hMC3R,hCOLIx217x234,"&gamma;-MSH, &beta;-MSH > ACTH, &alpha;-MSH",,,,,
+hCCR7,hCCL21x24x134,,,,Agonist,,9.3
+hNPBW1,hNPWx33x55,neuropeptide B-29 > neuropeptide B-23 > neuropeptide W-23 > neuropeptide W-30,,,Full agonist,,10
+hOPRD,hCOLIx237x267,"&beta;-endorphin, [Leu]enkephalin, [Met]enkephalin",,,Full agonist,,8.3
+hVIPR2,hSLIBx32x75,"VIP, PACAP-38, PACAP-27 > PHI (pig) >> GHRH, secretin",,,,NH2,
+hCCR2,hCCL16x24x120,,,,Full agonist,,
+hCCR1,hCCL4x24x92,,,,Antagonist,,
+hKISSR,hKISS1x108x121,,,,Full agonist,NH2,8.8
+hCCKAR,hCCKNx96x103,"CCK-8, CCK-58, CCK-39, CCK-33 >> gastrin-17, desulfated cholecystokinin-8 > CCK-4",,,Agonist,NH2,
+hCCR2,hCCL7x24x99,,,,Full agonist,,
+hBKRB1,hKNG1x376x389dLMK,,,,,,
+hGPR75,hCCL5x24x91,,,,Full agonist,,9.59
+hCXCR3,hCXL10x22x98,,,,Full agonist,,
+hGPR39,hGHRLx76x98,,,,,NH2,
+hNPFF2,hOX26x91x133,"neuropeptide AF, neuropeptide FF > PrRP-31 > FMRF, QRFP43 (43RFa) > neuropeptide SF",,,,NH2,
+hMCHR1,hMCHx147x165,,,,Full agonist,,
+hRL3R1,hREL3x26x52,relaxin-3 > relaxin-3 (B chain) > relaxin,,,Full agonist,,6.9
+hCCR1,hCCL5x24x91,,,,Full agonist,,
+hAGTR1,hANGTx25x32,,,,Full agonist,,
+hPTH1R,hPTHRx37x177,PTH = PTHrP,,,,,
+hNPBW1,hNPBx25x47,neuropeptide B-29 > neuropeptide B-23 > neuropeptide W-23 > neuropeptide W-30,,,Full agonist,,8.8
+hFPR2,hCAMPx134x170,Lipid mediators for resolution of inflammation: LXA<sub>4</sub> = aspirin triggered lipoxin A4 = ATLa2 = resolvin D1 > LTC<sub>4</sub> = LTD<sub>4</sub> ≫ 15-deoxy-LXA4 ≫ C16:0 ceramide<br>Proteins and peptides for balanced activation: fMLKLIV = fMTPMRKINPLMKLIN > serum amyloid A > LL-37|For lipid mediators (resolving) LXA<sub>4</sub> = aspirin triggered lipoxin A4 = ATLa2 = resolvin D1 >> 15-deoxy-LXA4 > C16:0 ceramide<br>For other ligands: WKYMVm > BMS-986235 > ACT-389949 > mitochondrial formyl peptides,,,Full agonist,,6
+hCCR3,hCCL24x27x119,,,,Full agonist,,
+hV1AR,hNEU1x20x28,vasopressin > oxytocin,,,Full agonist,NH2,
+hPKR2,hPROK2x28x129,prokineticin-2 > prokineticin-1 > prokineticin-2&beta;,,,Full agonist,,
+hCRFR2,hCRFx154x194,,,,Full agonist,NH2,
+hCCR1,hCCL13x17x98,,,,Agonist,,
+hMC3R,hCOLIx138x150,"&gamma;-MSH, &beta;-MSH > ACTH, &alpha;-MSH",acet,,Full agonist,NH2,
+hPRLHR,hNPYx29x64,PrRP-20 = PrRP-31,,,Antagonist,NH2,5.4
+hSSR5,hCORTx89x105,,,,Full agonist,,
+hCCR2,hCCL8x24x99,,,,Full agonist,,8.6
+hACKR2,hCCL17x24x94,"CCL2, CCL3, CCL4, CCL5, CCL7, CCL8, CCL11, CCL13, CCL14, CCL17, CCL22",,,,,
+hCCR9,hCCL25x24x150,,,,Full agonist,,
+hC5AR2,hCO5x678x750,"C5a, C5a des-Arg > C3a",,,Partial agonist,,
+hNPFF2,hNPVFx81x92,"neuropeptide AF, neuropeptide FF > PrRP-31 > FMRF, QRFP43 (43RFa) > neuropeptide SF",,,,NH2,
+hNMUR1,hNMUx142x166,,,,Full agonist|Agonist,NH2,9.5
+hCCR5,hCCL11x24x97,,,,Full agonist,,7.7
+hSSR4,hSMSx89x116,,,,Full agonist,,
+hACKR2,hCCL11x24x97,"CCL2, CCL3, CCL4, CCL5, CCL7, CCL8, CCL11, CCL13, CCL14, CCL17, CCL22",,,,,
+hBKRB2,hKNG1x380x388,"kallidin > bradykinin >> [des-Arg<sup>9</sup>]bradykinin, [des-Arg<sup>10</sup>]kallidin",,,,,
+hSCTR,hVIPx125x152,,,,Partial agonist,NH2,5.4
+hCCR2,hCCL24x27x119,,,,Antagonist,,6.2
+hNPFF2,hNPFFx66x76,"neuropeptide AF, neuropeptide FF > PrRP-31 > FMRF, QRFP43 (43RFa) > neuropeptide SF",,,,NH2,
+hGASR,hCCKNx71x103,"CCK-8, CCK-39, CCK-33, CCK-58 &ge; gastrin-17, desulfated cholecystokinin-8, CCK-4",,,Full agonist,NH2,8.8
+hFPR3,hANXA1x2x26,,acet,,Full agonist,,
+hNK2R,hQ9Y494x37x57,,,,,,
+hACKR4,hCCL21x24x134,,,,Agonist,,6.9
+hVIPR1,hPACAx132x169,"VIP, PACAP-27, PACAP-38 >> GHRH, PHI (pig), secretin",,,Agonist,NH2,7.4|8.2|9.7
+hFPR2,hANXA1x1x346,Lipid mediators for resolution of inflammation: LXA<sub>4</sub> = aspirin triggered lipoxin A4 = ATLa2 = resolvin D1 > LTC<sub>4</sub> = LTD<sub>4</sub> ≫ 15-deoxy-LXA4 ≫ C16:0 ceramide<br>Proteins and peptides for balanced activation: fMLKLIV = fMTPMRKINPLMKLIN > serum amyloid A > LL-37|For lipid mediators (resolving) LXA<sub>4</sub> = aspirin triggered lipoxin A4 = ATLa2 = resolvin D1 >> 15-deoxy-LXA4 > C16:0 ceramide<br>For other ligands: WKYMVm > BMS-986235 > ACT-389949 > mitochondrial formyl peptides,,,Full agonist,,6.5
+hOPRK,hPDYNx207x214,"big dynorphin, dynorphin A",,,Full agonist,,
+hNTR1,hNEUTx151x163,neurotensin > neuromedin N,,,Full agonist,,
+hEDNRA,hEDN2x49x69,endothelin-1 = endothelin-2 > endothelin-3,,,Full agonist,,8.2
+hNTR2,hCOPAx1x25,neurotensin = neuromedin N,,,,,
+hCXCR2,hCXCL5x37x114,,,,Full agonist,,
+hCXCR3,hCCL13x17x98,,,,Full agonist,,7.2
+hSSR1,hCORTx89x105,,,,Full agonist,,
+hACKR2,hCCL22x25x93,"CCL2, CCL3, CCL4, CCL5, CCL7, CCL8, CCL11, CCL13, CCL14, CCL17, CCL22",,,,,
+hGNRHR,hGON1x24x33,GnRH I > GnRH II,,,Full agonist,NH2,10|8.6
+hPTH2R,hTIP39x62x100,"TIP39, PTH >> PTHrP",,,Full agonist,,
+hVIPR1,hSLIBx32x75,"VIP, PACAP-27, PACAP-38 >> GHRH, PHI (pig), secretin",,,Agonist,NH2,6.2
+hFZD1,hWNT1x28x370,,,,,,
+hGRPR,hNMBx47x56,"gastrin-releasing peptide > neuromedin C, gastrin releasing peptide(14-27) (human)",,,Full agonist,NH2,
+hGHSR,hGHRLx24x51,ghrelin = [des-Gln<sup>14</sup>]ghrelin,,,Full agonist,,9.47|8.15
+hCCR4,hCCL22x25x93,,,,Full agonist,,9.2
+hCALCR,hCALCx85x116,"calcitonin &ge; amylin, &alpha;-CGRP, &beta;-CGRP > adrenomedullin, adrenomedullin 2/intermedin",,,Full agonist,NH2,11.4
+hGASR,hGASTx22x92,"CCK-8, CCK-39, CCK-33, CCK-58 &ge; gastrin-17, desulfated cholecystokinin-8, CCK-4",,,Agonist,NH2,
+hGNRHR,hGON2x24x33,GnRH I > GnRH II,,,Full agonist,NH2,
+hBKRB2,hKNG1x376x389dLMK,,,T-kinin (correct dLMK sequence) pairing,,,
+hCCR4,hCCL17x24x94,,,,Full agonist,,8.7
+hFPR2,hHUNINx1x24,Lipid mediators for resolution of inflammation: LXA<sub>4</sub> = aspirin triggered lipoxin A4 = ATLa2 = resolvin D1 > LTC<sub>4</sub> = LTD<sub>4</sub> ≫ 15-deoxy-LXA4 ≫ C16:0 ceramide<br>Proteins and peptides for balanced activation: fMLKLIV = fMTPMRKINPLMKLIN > serum amyloid A > LL-37|For lipid mediators (resolving) LXA<sub>4</sub> = aspirin triggered lipoxin A4 = ATLa2 = resolvin D1 >> 15-deoxy-LXA4 > C16:0 ceramide<br>For other ligands: WKYMVm > BMS-986235 > ACT-389949 > mitochondrial formyl peptides,,,Full agonist,,8.46
+hFZD1,hWNT7Bx25x349,,,,,,
+hOPRM,hPDYNx226x238,"&beta;-endorphin, [Met]enkephalin, [Leu]enkephalin|endomorphin-1, endomorphin-2|Several additional extended enkephalin peptides or truncated beta-endorphin peptides.",,,Full agonist,,8.5
+hV1BR,hNEU1x20x28,vasopressin > oxytocin,,,Full agonist,NH2,
+hFPR1,hANXA1x1x346,mitochondrial peptde fMMYALF > fMLKLIV > mitochondrial peptide fMFADRW > annexin I-(2-26)|fMet-Leu-Phe-Ile-Ile > fMet-Leu-Phe  > compound 43 [PMID: 21173551] > AG-14 > annexin I-(2-26) >  compound 17b [PMID: 19639995],,,,,
+hLGR6,hRSPO1x21x263,,,,Full agonist,,
+hNPBW2,hNPWx33x55,neuropeptide W-23 > neuropeptide W-30 > neuropeptide B-29 > neuropeptide B-23,,,Full agonist,,9.6
+hGASR,hGASTx59x92,"CCK-8, CCK-39, CCK-33, CCK-58 &ge; gastrin-17, desulfated cholecystokinin-8, CCK-4",,,Agonist,NH2,
+hCCR3,hCCL13x17x98,,,,Full agonist,,
+hOPRD,hPDYNx226x238,"&beta;-endorphin, [Leu]enkephalin, [Met]enkephalin",,,Full agonist,,7.8
+hGLP1R,hGLUCx98x127,,,,Full agonist,NH2,9.2
+hFPR1,hHBBx33x39,mitochondrial peptde fMMYALF > fMLKLIV > mitochondrial peptide fMFADRW > annexin I-(2-26)|fMet-Leu-Phe-Ile-Ile > fMet-Leu-Phe  > compound 43 [PMID: 21173551] > AG-14 > annexin I-(2-26) >  compound 17b [PMID: 19639995],,,Antagonist,,4.3
+hC5AR1,hRS19x2x145,"C5a, C5a des-Arg > C3a",,,Full agonist,,
+hPACR,hVIPx81x107,"PACAP-27, PACAP-38 >> VIP",,,,NH2,
+hNPY5R,hPAHOx30x65,neuropeptide Y > peptide YY > pancreatic polypeptide,,,Full agonist,NH2,8
+hNPY2R,hNPYx31x64,peptide YY = peptide YY(3-36) = neuropeptide Y = neuropeptide Y(3-36) >> pancreatic polypeptide,,,Full agonist,NH2,
+hGRPR,hGRPx37x50,"gastrin-releasing peptide > neuromedin C, gastrin releasing peptide(14-27) (human)",,,Full agonist,,
+hCCRL2,hRARR2x149x157,"chemerin C-terminal peptide, CCL19",,,,,
+hOX1R,hOREXx70x97,"orexin-A > orexin-B (for Ca<sup>2+</sup> elevation, unclear/variable for other responses)",,,Full agonist,NH2,
+hMC3R,hAGRPx21x132,"&gamma;-MSH, &beta;-MSH > ACTH, &alpha;-MSH",,,Inverse agonist,,7.7
+hGASR,hCCKNx100x103,"CCK-8, CCK-39, CCK-33, CCK-58 &ge; gastrin-17, desulfated cholecystokinin-8, CCK-4",,,Full agonist,NH2,7.5
+hNK2R,hTKN1x58x68,neurokinin A > neurokinin B >> substance P,,,Full agonist,NH2,
+hC5AR1,hCO3x672x748,"C5a, C5a des-Arg > C3a",,,,,
+hCXCR2,hIL8x23x99,,,,Full agonist,,
+hGLP1R,hGLUCx53x81,,,,Full agonist,,
+hGALR1,hGALAx33x62,galanin > galanin-like peptide >> spexin-1,,,Full agonist,,
+hOPRX,hPNOCx130x146,nociceptin/orphanin FQ,,,Full agonist|Agonist,,
+hQRFPR,hOX26x91x133,,,,Full agonist,NH2,
+hPACR,hVIPx81x122,"PACAP-27, PACAP-38 >> VIP",,,,,
+hNK3R,hTKN1x58x68,neurokinin B > neurokinin A > substance P,,,Full agonist,NH2,
+hNPY2R,hPAHOx30x65,peptide YY = peptide YY(3-36) = neuropeptide Y = neuropeptide Y(3-36) >> pancreatic polypeptide,,,,NH2,
+hGRPR,hGRPx24x50,"gastrin-releasing peptide > neuromedin C, gastrin releasing peptide(14-27) (human)",,,Full agonist,NH2,
+hOPRD,hPDYNx175x184,"&beta;-endorphin, [Leu]enkephalin, [Met]enkephalin",,,,,
+hFPR2,hSAA1x18x122,Lipid mediators for resolution of inflammation: LXA<sub>4</sub> = aspirin triggered lipoxin A4 = ATLa2 = resolvin D1 > LTC<sub>4</sub> = LTD<sub>4</sub> ≫ 15-deoxy-LXA4 ≫ C16:0 ceramide<br>Proteins and peptides for balanced activation: fMLKLIV = fMTPMRKINPLMKLIN > serum amyloid A > LL-37|For lipid mediators (resolving) LXA<sub>4</sub> = aspirin triggered lipoxin A4 = ATLa2 = resolvin D1 >> 15-deoxy-LXA4 > C16:0 ceramide<br>For other ligands: WKYMVm > BMS-986235 > ACT-389949 > mitochondrial formyl peptides,,,Full agonist,,6.6
+hGPR35,hCXL17x22x119,,,,Agonist,,
+hOPRD,hPENKx210x214,"&beta;-endorphin, [Leu]enkephalin, [Met]enkephalin",,,,,
+hFPR2,hA4x672x713,,,PMID35365641,Full agonist,,7
+hCALRL,hCALCAx83x119,,,,Full agonist,NH2,6
+hMRGX2,hTKN1x58x68,,,,Agonist,NH2,5.97
+hOPRK,hPENKx261x265,"big dynorphin, dynorphin A",,,,,
+hOPRD,hPENKx230x234,"&beta;-endorphin, [Leu]enkephalin, [Met]enkephalin",,,Full agonist,,8.7
+hMRGX1,hGP15Lx1x81,,,,Agonist,,4.74
+hCALRL,hADMLx95x146,,,,Full agonist,NH2,8.1
+hGNRR2,hGON2x24x33,GnRH II > GnRH I,,,,NH2,
+hNPY2R,hPYYx31x64,peptide YY = peptide YY(3-36) = neuropeptide Y = neuropeptide Y(3-36) >> pancreatic polypeptide,,,Full agonist,NH2,
+hGPR68,hCARTx76x96,,,,Agonist,NH2,5.98
+hFPR1,hANXA1x2x26,mitochondrial peptde fMMYALF > fMLKLIV > mitochondrial peptide fMFADRW > annexin I-(2-26)|fMet-Leu-Phe-Ile-Ile > fMet-Leu-Phe  > compound 43 [PMID: 21173551] > AG-14 > annexin I-(2-26) >  compound 17b [PMID: 19639995],,,Full agonist,,
+hSCTR,hSECRx28x54,,,,Full agonist,,9.7
+hGPR55,hSG11Bx61x103,,,,Agonist,,5.69
+hGPR68,hOSTNx115x133,,,,Agonist,,6.42
+hOPRK,hPENKx210x214,"big dynorphin, dynorphin A",,,,,
+hGP182,hCCL1x24x96,"CXCL10, CXCL11, CXCL12&alpha;, CXCL13, CXCL14, CXCL17, CCL1, CCL11, CCL19, CCL25, CCL26, CXCL1|GPR15L, big dynorphin, apelin-36, PACAP-38",,,,,
+hCCR3,hCCL18x21x89,,,,Antagonist,,
+hOPRD,hPENKx186x190,"&beta;-endorphin, [Leu]enkephalin, [Met]enkephalin",,,,,
+hGPR15,hGP15Lx71x81,,,,Agonist,,6.84
+hGP182,hCXL17x22x119,"CXCL10, CXCL11, CXCL12&alpha;, CXCL13, CXCL14, CXCL17, CCL1, CCL11, CCL19, CCL25, CCL26, CXCL1|GPR15L, big dynorphin, apelin-36, PACAP-38",,,,,
+hOPRK,hPENKx230x234,"big dynorphin, dynorphin A",,,,,
+hGP182,hCXL14x35x111,"CXCL10, CXCL11, CXCL12&alpha;, CXCL13, CXCL14, CXCL17, CCL1, CCL11, CCL19, CCL25, CCL26, CXCL1|GPR15L, big dynorphin, apelin-36, PACAP-38",,,,,
+hOPRM,hPENKx261x265,"&beta;-endorphin, [Met]enkephalin, [Leu]enkephalin|endomorphin-1, endomorphin-2|Several additional extended enkephalin peptides or truncated beta-endorphin peptides.",,,,,
+hGP182,hCCL26x24x94,"CXCL10, CXCL11, CXCL12&alpha;, CXCL13, CXCL14, CXCL17, CCL1, CCL11, CCL19, CCL25, CCL26, CXCL1|GPR15L, big dynorphin, apelin-36, PACAP-38",,,,,
+hTRFR,hTRHx227x229,,,,,NH2,
+hNPY1R,hPYYx29x64,neuropeptide Y = peptide YY >> pancreatic polypeptide,,,Agonist,NH2,
+hNPY2R,hPYYx29x64,peptide YY = peptide YY(3-36) = neuropeptide Y = neuropeptide Y(3-36) >> pancreatic polypeptide,,,Full agonist|Agonist,NH2,
+hCCR1,hCCL15x22x113,,,,Full agonist,,7.9
+hAPJ,hAPELx42x77,[Pyr<sup>1</sup>]apelin-13 &ge; apelin-13 > apelin-36,,,Full agonist,,
+hACTHR,hCRFx154x194,,,,Agonist,NH2,
+hGP182,hCXL10x22x98,"CXCL10, CXCL11, CXCL12&alpha;, CXCL13, CXCL14, CXCL17, CCL1, CCL11, CCL19, CCL25, CCL26, CXCL1|GPR15L, big dynorphin, apelin-36, PACAP-38",,,,,
+hCCR1,hCCL18x21x89,,,,Antagonist,,
+hOPRK,hPENKx186x190,"big dynorphin, dynorphin A",,,,,
+hNPY4R,hPYYx29x64,pancreatic polypeptide >> neuropeptide Y = peptide YY,,,Full agonist,NH2,8.8
+hOPRD,hPENKx107x111,"&beta;-endorphin, [Leu]enkephalin, [Met]enkephalin",,,,,
+hOPRD,hPENKx261x265,"&beta;-endorphin, [Leu]enkephalin, [Met]enkephalin",,,,,
+hVIPR2,hSECRx28x54,"VIP, PACAP-38, PACAP-27 > PHI (pig) >> GHRH, secretin",,,,,
+hC5AR2,hCO3x672x748,"C5a, C5a des-Arg > C3a",,,,,
+hCCR3,hCCL15x22x113,,,,Full agonist,,8.6
+hGPR55,hMSMBx91x114,,,,Agonist,,6.65
+hOPRD,hPENKx136x140,"&beta;-endorphin, [Leu]enkephalin, [Met]enkephalin",,,,,
+hTRFR,hTRHx186x188,,,,,NH2,
+hMRGX2,hSMSx89x116,,,,Agonist,,5.38
+hVIPR1,hSECRx28x54,"VIP, PACAP-27, PACAP-38 >> GHRH, PHI (pig), secretin",,,,,
+hOPRM,hPENKx210x214,"&beta;-endorphin, [Met]enkephalin, [Leu]enkephalin|endomorphin-1, endomorphin-2|Several additional extended enkephalin peptides or truncated beta-endorphin peptides.",,,,,
+hOPRM,hPENKx230x234,"&beta;-endorphin, [Met]enkephalin, [Leu]enkephalin|endomorphin-1, endomorphin-2|Several additional extended enkephalin peptides or truncated beta-endorphin peptides.",,,Partial agonist,,8.1
+hOPRM,hPENKx186x190,"&beta;-endorphin, [Met]enkephalin, [Leu]enkephalin|endomorphin-1, endomorphin-2|Several additional extended enkephalin peptides or truncated beta-endorphin peptides.",,,,,
+hGP182,hCCL19x22x98,"CXCL10, CXCL11, CXCL12&alpha;, CXCL13, CXCL14, CXCL17, CCL1, CCL11, CCL19, CCL25, CCL26, CXCL1|GPR15L, big dynorphin, apelin-36, PACAP-38",,,,,
+hCALRL,hCALCBx82x118,,,,Full agonist,NH2,
+hCALRL,hADM2x101x147,,,,Full agonist,NH2,
+hMRGX2,hGP15Lx1x81,,,,Agonist,,5.72
+hGP182,hCXL11x22x94,"CXCL10, CXCL11, CXCL12&alpha;, CXCL13, CXCL14, CXCL17, CCL1, CCL11, CCL19, CCL25, CCL26, CXCL1|GPR15L, big dynorphin, apelin-36, PACAP-38",,,,,
+hGP182,hCCL11x24x97,"CXCL10, CXCL11, CXCL12&alpha;, CXCL13, CXCL14, CXCL17, CCL1, CCL11, CCL19, CCL25, CCL26, CXCL1|GPR15L, big dynorphin, apelin-36, PACAP-38",,,,,
+hTRFR,hTRHx135x137,,,,,NH2,
+hFZD4,hNDPx25x133,,,,Full agonist,,
+hNPY5R,hPYYx29x64,neuropeptide Y > peptide YY > pancreatic polypeptide,,,,NH2,
+hFPR2,hANXA1x2x26,Lipid mediators for resolution of inflammation: LXA<sub>4</sub> = aspirin triggered lipoxin A4 = ATLa2 = resolvin D1 > LTC<sub>4</sub> = LTD<sub>4</sub> ≫ 15-deoxy-LXA4 ≫ C16:0 ceramide<br>Proteins and peptides for balanced activation: fMLKLIV = fMTPMRKINPLMKLIN > serum amyloid A > LL-37|For lipid mediators (resolving) LXA<sub>4</sub> = aspirin triggered lipoxin A4 = ATLa2 = resolvin D1 >> 15-deoxy-LXA4 > C16:0 ceramide<br>For other ligands: WKYMVm > BMS-986235 > ACT-389949 > mitochondrial formyl peptides,,,Full agonist,,
+hGNRR2,hGON1x24x33,GnRH II > GnRH I,,,,NH2,
+hGP182,hCXL13x23x109,"CXCL10, CXCL11, CXCL12&alpha;, CXCL13, CXCL14, CXCL17, CCL1, CCL11, CCL19, CCL25, CCL26, CXCL1|GPR15L, big dynorphin, apelin-36, PACAP-38",,,,,
+hC5AR2,hRS19x2x145,"C5a, C5a des-Arg > C3a",,,Agonist,,
+hOPRK,hPENKx136x140,"big dynorphin, dynorphin A",,,,,
+hGP182,hSDF1x22x89,"CXCL10, CXCL11, CXCL12&alpha;, CXCL13, CXCL14, CXCL17, CCL1, CCL11, CCL19, CCL25, CCL26, CXCL1|GPR15L, big dynorphin, apelin-36, PACAP-38",,,,,
+hGP182,hCCL25x24x150,"CXCL10, CXCL11, CXCL12&alpha;, CXCL13, CXCL14, CXCL17, CCL1, CCL11, CCL19, CCL25, CCL26, CXCL1|GPR15L, big dynorphin, apelin-36, PACAP-38",,,,,
+hGPR19,hENHOx34x76,,,,Agonist,,8.11
+hTRFR,hTRHx114x116,,,,,NH2,
+hGP182,hGROAx35x107,"CXCL10, CXCL11, CXCL12&alpha;, CXCL13, CXCL14, CXCL17, CCL1, CCL11, CCL19, CCL25, CCL26, CXCL1|GPR15L, big dynorphin, apelin-36, PACAP-38",,,,,
+hOPRM,hPENKx107x111,"&beta;-endorphin, [Met]enkephalin, [Leu]enkephalin|endomorphin-1, endomorphin-2|Several additional extended enkephalin peptides or truncated beta-endorphin peptides.",,,,,
+hGPR55,hMANS1x415x431,,,,Agonist,,5.51
+hOPRK,hPENKx107x111,"big dynorphin, dynorphin A",,,,,
+hGP107,hSMSx31x43,,,,,,
+hOPRM,hPENKx136x140,"&beta;-endorphin, [Met]enkephalin, [Leu]enkephalin|endomorphin-1, endomorphin-2|Several additional extended enkephalin peptides or truncated beta-endorphin peptides.",,,,,
+hGALR1,hSPXNx36x49,galanin > galanin-like peptide >> spexin-1,,,,,
+hCML2,hRARR2x149x157,,,,Agonist,,9
+hGHSR,hLEAP2x1x77,ghrelin = [des-Gln<sup>14</sup>]ghrelin,,,Antagonist,,8.22
+hGPR55,hCLUL1x52x77,,,,Agonist,,6.74
+hTRFR,hTRHx152x154,,,,,NH2,
+hGPR25,hCXL17x22x119,,,PMID39293486,,,
+hGPR25,hCXL17x64x119,,,PMID39293486,,,
+hGPR15,hGP15Lx25x81,,,PMID36930875,,,
+hCCR3,hCCL28x23x103,,,PMID40502012,,,
+hCCR3,hCCL28x23x127,,,PMID40502012,,,
+hCCR3,mCCL28x23x103,,,PMID40502012,,,
+hCCR3,mCCL28x23x130,,,PMID40502012,,,
+hCCR10,hCCL28x23x103,,,PMID40502012,,,
+hCCR10,hCCL28x23x127,,,PMID40502012,,,
+hCCR10,mCCL28x23x103,,,PMID40502012,,,
+hCCR10,mCCL28x23x130,,,PMID40502012,,,
+hCX3C1,hX3CL1x25x100,,,,,,
+hCCR9,hCCL25x24x98,,,,,,
+hACKR4,hCCL25x24x98,,,,,,
+hCCR1,hCL3L1x26x93,,,PMID10961862,,,
+hCCR3,hCL3L1x26x93,,,PMID10961862,,,
+hCCR5,hCL3L1x26x93,,,PMID10961862,,,
+hCX3C1,hCCL26x24x94,,,PMID20974991,,,
+hCCR1,hCCL14x28x93,,,PMID11085751,,,
+hCCR3,hCCL14x28x93,,,PMID11085751,,,
+hCCR5,hCCL14x28x93,,,PMID11085751,,,
+hCXCR6,hCXL16x30x107,,,PMID11017100,,,
+hCCR7,hCCL21x24x102,,,PMID40502012,,,
+hACKR4,hCCL21x24x102,,,,,,
+hXCR1,hXCL2x22x114,,,SP-less active form,,,
+hCCR1,hCCL15x43x113,,,PMID15905581,,,
+hCCR1,hCCL15x50x113,,,PMID15905581,,,
+hCCR1,hCCL15x46x113,,,PMID15905581,,,
+hCCR3,hCCL15x43x113,,,PMID15905581,,,
+hCCR3,hCCL15x50x113,,,PMID15905581,,,
+hCCR3,hCCL15x46x113,,,PMID15905581,,,
+hPAR1,hPAR1x42x47,,,tethered ago,,,
+hPAR1,hPAR1x42x48,,,tethered ago,,,
+hPAR1,hPAR1x42x49,,,tethered ago,,,
+hPAR1,hPAR1x42x50,,,tethered ago,,,
+hCML1,hRARR2x21x157,,,PMID39616240,,,
+hCML2,hRARR2x21x157,,,PMID18165312,,,
+hBKRB1,hKNG1x376x388dLMK,,,T-kinin-desR (correct dLMK sequence) pairing,,,
+hBKRB2,hKNG1x376x388dLMK,,,T-kinin-desR (correct dLMK sequence) pairing,,,
+hMAS,hNPFFx69x76,,,a textbook pairing according to ECB but GtoP has mMAS only,,,
+hMAS,hANGTx25x31,,,a textbook pairing according to ECB but GtoP has mMAS only,,,
+hNPY1R,hPYYx31x64,,,by similarity with GtoP 305/1517 rNPY1R/hPYYx31x64|by similarity with GtoP 307/1517 rNPY1R/hPYYx31x64,,,
+hFPR2,hHEBP1x1x21,,,by similarity with GtoP 223/3935 mFPR2/hHEBP1x1x21 PMID15623572,,,
+hPTH1R,hPTHRx37x70,,,by similarity with GtoP 331/1822 rPTH1R/hPTHRx37x70,,,
+hCCR1,hCL3L1x24x93,,,PMID23145839 and UniProt,,,
+hCCR3,hCL3L1x24x93,,,PMID23145839 and UniProt,,,
+hCCR5,hCL3L1x24x93,,,PMID23145839 and UniProt,,,
+hCCR5,hCL3L1x28x93,,,PMID23145839 and UniProt but this truncate has much reduced potency,,,
+hCCR1,hCC4Lx24x92,,,UniProt,,,
+hCCR5,hCC4Lx24x92,,,UniProt,,,
+hCCR1,hCCL4x26x92,,,UniProt,,,
+hCCR2,hCCL4x26x92,,,UniProt,,,
+hCCR5,hCCL4x26x92,,,UniProt,,,
+hCCR1,hCCL3x27x92,,,PMID23145839 and UniProt,,,
+hCCR4,hCCL3x27x92,,,UniProt,,,
+hCXCR1,hCXCL6x43x114,,,PMID23145839 and UniProt,,,
+hCXCR2,hCXCL6x43x114,,,PMID23145839 and UniProt,,,
+hCXCR1,hCXCL6x40x114,,,PMID23145839 and UniProt,,,
+hCXCR2,hCXCL6x40x114,,,PMID23145839 and UniProt,,,

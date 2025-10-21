@@ -72,20 +72,30 @@ parse_pdb <- function(pdb) {
   if(!bio3d::is.pdb(pdb)) pdb <- bio3d::read.pdb(pdb)
 
   pdb[["atom"]]    %>%
+    filter(type == "ATOM") %>%
     mutate(AA = bio3d::aa321(resid)) %>%
-    select(all_of(c("AA", "x", "y", "z", "resno", "b", "chain", "elety", "elesy"))) %>%
-    nest_by(chain, resno, .key = "atom_level") %>%
+    select(all_of(c("AA", "x", "y", "z", "resno", "b", "chain", "elety", "elesy", "insert"))) %>%
+    nest_by(chain, resno, insert, .key = "atom_level") %>%
     ungroup %>%
     mutate(AA = map_chr(atom_level, ~unique(.[["AA"]])), .before = everything()) %>%
     mutate(pLDDT = map_dbl(atom_level, ~mean(.[["b"]])), .after = "AA") %>%
-    mutate(map_df(atom_level, \(x) {bind_cols(x %>%
-                                                filter(elety == "CA") %>%
-                                                select(all_of(c("x", "y", "z"))) %>%
-                                                rename_with(.fn = ~paste0("CA_", .x)),
-                                              x %>%
-                                                filter(!elety %in% c("CA", "N", "O", "C")) %>%
-                                                summarise(across(all_of(c("x", "y", "z")), mean))
-    )})) %>%
+    mutate(map_df(atom_level, \(x) {
+      tmp <- bind_cols(x %>%
+                        filter(elety == "CA") %>%
+                        select(all_of(c("x", "y", "z"))) %>%
+                        rename_with(.fn = ~paste0("CA_", .x)),
+                      x %>%
+                        filter(!elety %in% c("CA", "N", "O", "C")) %>%
+                        summarise(across(all_of(c("x", "y", "z")), mean))
+    )
+
+    if(nrow(tmp) == 0) {
+      tmp[1, ] <- NA
+    }
+
+      return(tmp)
+
+      })) %>%
     mutate(
       x = coalesce(na_if(x, NaN), CA_x),
       y = coalesce(na_if(y, NaN), CA_y),
@@ -163,15 +173,28 @@ import_raw_metrics <- function(dir_name,
                                run_name = run_id,
                                algorithm = alg,
                                pdb = "_ark_.*.pdb$",
+                               pdb_alt = "_xtr_.*.pdb$",
                                pae = "_pae_.*.json$",
                                code_model_rank = "_[A-Z]{4}[a-z]{7}_s\\d+m\\d+p\\d+_r\\d+") {
 
   message("importing raw metrics for ", dir_name)
 
-  files <- list.files(paste(input_path_models, dir_name, sep = "/"))
+  files <- list.files(dir_name)
 
-  models <- tibble(pdb_files = grep(pdb, files, value = TRUE),
-                   pae_files = grep(pae, files, value = TRUE),
+  pdb_files = grep(pdb, files, value = TRUE)
+  pae_files = grep(pae, files, value = TRUE)
+
+  if(length(pdb_files) != length(pae_files)) {
+    pdb_files = grep(pdb_alt, files, value = TRUE)
+    code_model_rank = "_[A-Z]{4}[a-z]{7}_s\\d+m\\d+p\\d+"
+  }
+
+  if(length(pdb_files) != length(pae_files)) {
+    stop("incompatible number of models")
+  } else {
+
+  models <- tibble(pdb_files = pdb_files,
+                   pae_files = pae_files,
                    code_model_rank = stringr::str_extract(pdb_files, code_model_rank),
                    rlx = stringr::str_extract(pdb_files, "_[ru]_") %>%
                          stringr::str_remove(., "^_") %>%
@@ -187,7 +210,7 @@ import_raw_metrics <- function(dir_name,
                    select(-code_model_rank)
 
 
-  dat <- jsonlite::read_json(paste(input_path_models, dir_name, "ranking_debug.json", sep = "/"))
+  dat <- jsonlite::read_json(paste(dir_name, "ranking_debug.json", sep = "/"))
 
   dat <- tibble(model_e = names(dat[["iptm"]]),
                 iptm = unlist(dat[["iptm"]]),
@@ -195,7 +218,7 @@ import_raw_metrics <- function(dir_name,
 
   if(sum(models[["model_e"]] %in% dat[["model_e"]]) != nrow(models)) warning("file name models do not match ranking_debug.json")
 
-  pairing_info <- parse_dirname(pairing_dir = dir_name,
+  pairing_info <- parse_dirname(pairing_dir = fs::path_file(dir_name),
                                 delim_proteins = "_",
                                 delim_ranges = "x",
                                 delim_start_end = "x") %>%
@@ -212,15 +235,17 @@ import_raw_metrics <- function(dir_name,
   dat %>%
     mutate(pdb_files = setNames(models[["pdb_files"]], models[["model_e"]])[model_e]) %>%
 
-    mutate(pdb = map(pdb_files, ~bio3d::read.pdb(paste(input_path_models, dir_name, ., sep = "/")))) %>%
+    mutate(pdb = map(pdb_files, ~bio3d::read.pdb(paste(dir_name, ., sep = "/")))) %>%
 
     mutate(pdb.xyz = map(pdb, parse_pdb)) %>%
 
     mutate(pae = map(setNames(models[["pae_files"]], models[["model_e"]])[model_e],
                      \(x) {
-      tmp <- jsonlite::read_json(paste(input_path_models, dir_name, x, sep = "/"))
+      tmp <- jsonlite::read_json(paste(dir_name, x, sep = "/"))
       tmp[[1]][["predicted_aligned_error"]]
-    }))
+    })) %>%
+    mutate(afpd_dir = dir_name)
+  }
 
 }
 
@@ -310,6 +335,17 @@ process_metrics <- function(input_data) {
 
 compute_RLdists <- function(input_data) {
 
+  project_point <- function(P, A, v) {
+    AP <- P - A
+    t <- sum(AP * v) / sum(v * v)
+
+    tmp <- A + t * v
+
+    tibble(proj_x = tmp[1],
+           proj_y = tmp[2],
+           proj_z = tmp[3])
+  }
+
   input_data %>%
     mutate(RLdists = map2(.x = pdb.xyz, .y = tm_inds, \(.x, .y) {
 
@@ -365,12 +401,38 @@ compute_RLdists <- function(input_data) {
         pivot_wider(names_from = final_name, values_from = distance) %>%
         mutate(lig1_location = case_when(EC_lig1_mid < IC_lig1_mid ~ "E",
                                          EC_lig1_mid > IC_lig1_mid ~ "I",
-                                         TRUE ~ NA), .before = everything())
+                                         TRUE ~ NA), .before = everything()) %>%
+        mutate(lig1_location_dif = IC_lig1_mid - EC_lig1_mid) %>%
+        mutate(sd = sd(c_across(ends_with("EC_lig1_mid"))))
 
 
-      receptor_mid <- receptors %>%
-                        filter(TM_type2 == "mid") %>%
-                        summarise(across(all_of(c("CA_x", "CA_y", "CA_z")), mean))
+      receptor_refs <- bind_rows(
+        receptors %>%
+            group_by(TM_type2) %>%
+            summarise(across(all_of(c("CA_x", "CA_y", "CA_z")), mean)),
+
+      receptors %>%
+        filter(TM_type2 != "mid") %>%
+        group_by(type) %>%
+        summarise(across(starts_with("CA_"), ~sum(.)/2)) %>%
+        summarise(TM_type2 = "mid2", across(starts_with("CA_"), mean))
+      )
+
+      receptor_refs <- receptor_refs %>%
+        rowwise %>%
+        mutate(point = list(c(c_across(starts_with("CA_"))))) %>%
+        pull(point, TM_type2)
+
+      receptor_length = distance(s = receptor_refs[["EC"]], p = receptor_refs[["IC"]])
+
+      receptor_radius = receptors %>%
+                          filter(TM_type2 == "EC") %>%
+                          rowwise %>%
+                          mutate(radius = distance(s = c_across(starts_with("CA_")),
+                                                   p = receptor_refs[["EC"]])) %>%
+                          ungroup %>%
+                          summarise(radius = mean(radius)) %>%
+                          pull(radius)
 
       if(length(ligands) > 1) {
         stop
@@ -379,17 +441,38 @@ compute_RLdists <- function(input_data) {
         filter(chain == ligands) %>%
         rowwise %>%
         mutate(mid_dist = distance(s = c_across(all_of(c("CA_x", "CA_y", "CA_z"))),
-                                   p = receptor_mid)) %>%
+                                   p = receptor_refs[["mid"]]),
+               mid_dist2 = distance(s = c_across(all_of(c("CA_x", "CA_y", "CA_z"))),
+                                    p = receptor_refs[["mid2"]])) %>%
+        mutate(project_point(c_across(starts_with("CA_")),
+                                         receptor_refs[["EC"]],
+                                         receptor_refs[["IC"]])) %>%
+        mutate(EC_dist = distance(s = c_across(starts_with("proj_")),
+                                  p = receptor_refs[["EC"]])/receptor_length) %>%
+        mutate(IC_dist = distance(s = c_across(starts_with("proj_")),
+                                  p = receptor_refs[["IC"]])/receptor_length) %>%
+        mutate(in_pocket_v = EC_dist < 1 & IC_dist < 1) %>%
+        mutate(h_dist = distance(s = c_across(starts_with("proj_")),
+                                 p = c_across(all_of(c("CA_x", "CA_y", "CA_z"))))/receptor_radius) %>%
+        mutate(in_pocket_h = h_dist < 1) %>%
+        mutate(in_pocket = in_pocket_h & in_pocket_v) %>%
         ungroup
 
-      closest_res <- which.min(lig_dat[["mid_dist"]])
+      deepest_res <- which.min(lig_dat[["mid_dist"]])
 
-      lig_end <- c(N = closest_res,
-                   C = nrow(lig_dat) - closest_res + 1)
+      lig_end <- c(N = deepest_res,
+                   C = nrow(lig_dat) - deepest_res + 1)
 
       lig_end <- lig_end[which.min(lig_end)]
 
-      lig_end <- tibble(lig1_end = paste0(lig_end, names(lig_end)), ligand_dist = list(lig_dat))
+      lig_end <- tibble(lig1_end = paste0(lig_end, names(lig_end)),
+                        depth_mid = min(lig_dat[["mid_dist"]]),
+                        depth_mid2 = min(lig_dat[["mid_dist2"]]),
+                        depth = lig_dat[["EC_dist"]][deepest_res] * (1 - 2*as.integer(lig_dat[["in_pocket_v"]][deepest_res] | (lig_dat[["EC_dist"]][deepest_res] > lig_dat[["IC_dist"]][deepest_res]))),
+                        radius = lig_dat[["h_dist"]][deepest_res],
+                        num_res_in_pocket = sum(lig_dat[["in_pocket"]]),
+                        ip_v_to_ip_h = (sum(lig_dat[["in_pocket_v"]]) + 1)/(sum(lig_dat[["in_pocket_h"]]) + 1),
+                        ligand_dist = list(lig_dat))
 
       }
 
@@ -496,13 +579,18 @@ extract_contact_data <- function(bw,
                                  pae,
                                  ligand_dist,
                                  pdb_files,
-                                 afpd_dir_name,
+                                 afpd_dir,
                                  p1_name,
                                  p2_name,
                                  residue_data) {
 
+tryCatch({
 
-  contacts <- run_voronota(pdb_file = paste(input_path_models, afpd_dir_name, pdb_files, sep = "/"))
+  input_file <- paste(afpd_dir, pdb_files, sep = "/")
+
+  if(file.exists(input_file)) {
+
+  contacts <- run_voronota(pdb_file = input_file)
 
   chains <- unname(pdb.xyz[["chain"]])
   uni_chains <- unique(chains)
@@ -540,7 +628,7 @@ extract_contact_data <- function(bw,
                             mutate(ligand_index = paste0("L", 1:n())) %>%
                             mutate(pLDDT_lig1 = pLDDT/100) %>%
                             rename(pdb_index_lig1 = pdb_index) %>%
-                            select(residue_name, pLDDT_lig1, mid_dist, ligand_index, pdb_index_lig1),
+                            select(-AA, chain, resno, atom_level),
                           by = join_by(lig1_residue == residue_name))
 
     contacts <- left_join(contacts,
@@ -567,11 +655,21 @@ extract_contact_data <- function(bw,
       ungroup
 
   left_join(contacts, bw_align, by = "BW")
+  } else {
+    NULL
+  }
+
+}, error = function(e) NULL)
+
 
 }
 
 
 summarize_contacts <- function(contacts) {
+
+  if(is.null(contacts)) {
+    return(NULL)
+  }
 
   score_cols <- c("paeL",
                   "paeR",
@@ -600,14 +698,11 @@ summarize_contacts <- function(contacts) {
                      "area",
                      "dist",
                      "doubleSmooth_scaled_rec",
-                     "doubleSmooth_scaled_lig1",
-                     "mid_dist",
-                     "ligand_index")
+                     "doubleSmooth_scaled_lig1")
 
 
-
-  all_contacts <- contacts %>%
-    summarise(across(all_of(c(score_cols, extr_sum_cols)), mean, na.rm = TRUE, .names = "{.col}_mean_all"))
+  all_cons <- contacts %>%
+    summarise(across(all_of(c(score_cols, extr_sum_cols)), ~mean(., na.rm = TRUE), .names = "{.col}_mean_all"))
 
   top_contacts <- c(5, 10, 20)
 
@@ -616,15 +711,15 @@ summarize_contacts <- function(contacts) {
   top_cons <- map(top_contacts, \(x) {
     if(x < total_cons) {
       df <- contacts %>%
-        slice(1:x) %>%
+        dplyr::slice(1:!!x) %>%
         summarise(across(all_of(c(score_cols, extr_sum_cols)),
                          mean, na.rm = TRUE,
-                         .names = paste0("{.col}_mean_top", x)))
+                         .names = paste0("{.col}_mean_top", !!x)))
     } else {
       df <- contacts %>%
         summarise(across(all_of(c(score_cols, extr_sum_cols)),
-                         mean, na.rm = TRUE,
-                         .names = paste0("{.col}_mean_top", x)))
+                         ~mean(., na.rm = TRUE),
+                         .names = paste0("{.col}_mean_top", !!x)))
       df[,] <- NA
     }
     return(df)
@@ -632,30 +727,26 @@ summarize_contacts <- function(contacts) {
 
   top_cons <- bind_cols(top_cons)
 
-  grped_contacts <- contacts %>%
-    group_by(protein_segment) %>%
-    summarise(across(all_of(c(score_cols, extr_sum_cols)), mean, .names = "{.col}_mean"))
+  pocket_cons <- contacts %>%
+    mutate(in_pocket = if_else(in_pocket, "in", "out")) %>%
+    group_by(in_pocket) %>%
+    summarise(across(all_of(c(score_cols, extr_sum_cols)), mean, .names = "{.col}_mean")) %>%
+    pivot_wider(names_from = in_pocket, values_from = -in_pocket)
 
-  grped_contacts <- left_join(bw_segs, grped_contacts, by = "protein_segment") %>%
-    mutate(across(-protein_segment, ~replace_na(., 0))) %>%
-    pivot_wider(names_from = protein_segment, values_from = -protein_segment)
-
-  cp_contacts <- contacts %>%
+  cp_cons <- contacts %>%
     mutate(CP = if_else(CP != 1 | is.na(CP), "nonCP", "CP")) %>%
     group_by(CP) %>%
     summarise(across(any_of(c(score_cols, extr_sum_cols)), mean, .names = "{.col}_mean")) %>%
     pivot_wider(names_from = CP, values_from = -CP)
 
-
-
-  cp_contacts
+  bind_cols(pocket_cons, all_cons, cp_cons, top_cons)
 
 }
 
 
-do_metrics <- function(directory, job, residue_data) {
-  tryCatch({
+do_metrics <- function(directory, job, res_dat) {
 
+tryCatch({
     metrics <- import_raw_metrics(dir_name = directory,
                                   run_name = run_id,
                                   algorithm = alg)
@@ -670,54 +761,74 @@ do_metrics <- function(directory, job, residue_data) {
 
     metrics <- bind_rows(
       compute_RLdists(input_data = metrics %>%
-                        filter(seq_match == "match")),
+                        filter(seq_match2 == "match")),
       metrics %>%
         filter(seq_match2 == "different"))
 
-    if("lig1_location" %in% colnames(metrics)) {
+    if("depth" %in% colnames(metrics)) {
 
-      metrics <- bind_rows(
-        metrics %>%
-          filter(seq_match2 == "match" & lig1_location != "I") %>%
-          mutate(contacts = pmap(list(bw = `bw: full_table`,
+    metrics <- metrics %>%
+        mutate(location = case_when(depth < 1.2 & depth > -0.5 & radius < 1 ~ "relevant",
+                                    TRUE ~ "irrelevant")) %>%
+        split(., f = .[["location"]])
+
+     if("relevant" %in% names(metrics) & all(metrics[["relevant"]][["seq_match2"]] == "match")) {
+
+       metrics[["relevant"]] <- metrics[["relevant"]] %>%
+         mutate(contacts = pmap(list(bw = `bw: full_table`,
                                       pdb.xyz = pdb.xyz,
                                       pae = pae,
                                       ligand_dist = ligand_dist,
                                       pdb_files = pdb_files,
-                                      afpd_dir_name = afpd_dir_name,
+                                      afpd_dir = afpd_dir,
                                       p1_name = p1_name,
                                       p2_name = p2_name,
-                                      residue_data = list(residue_data)),
-                                 extract_contact_data)),
+                                      residue_data = list(res_dat)),
+                                 extract_contact_data))
 
-        metrics %>%
-          filter(seq_match2 == "different" | lig1_location == "I")
-      )
+       if("contacts" %in% colnames(metrics[["relevant"]])) {
+         metrics[["relevant"]] <- metrics[["relevant"]] %>%
+           mutate(sum_contacts = map(contacts, summarize_contacts)) %>%
+           unnest(sum_contacts, keep_empty = TRUE)
+       }
 
-      modify_file_names(input_path_models = input_path_models,
-                        dir_name = directory,
-                        run_name = run_id,
-                        algorithm = alg,
-                        metrics = metrics)
+     }
 
+      metrics <- bind_rows(metrics)
+      # modify_file_names(input_path_models = input_path_models,
+      #                   dir_name = directory,
+      #                   run_name = run_id,
+      #                   algorithm = alg,
+      #                   metrics = metrics)
     }
 
+    data.table::fwrite(metrics %>% select(!where(is.list)),
+                       file = paste(directory, "metrics_v2.csv", sep = "/"))
+
+    message("saved to ", paste(directory, "metrics_v2.csv", sep = "/"))
+
     saveRDS(metrics[["contacts"]],
-            file = paste(input_path_models, directory, "metrics_v2c.rds", sep = "/"))
+            file = paste(directory, "metrics_v2c.rds", sep = "/"))
 
-    metrics <- metrics %>%
-      mutate(sum_contacts = map(contacts, summarize_contacts)) %>%
-      unnest(sum_contacts)
-
-    metrics <- metrics %>% select(!where(is.list))
-
-    data.table::fwrite(metrics,
-                       file = paste(input_path_models, directory, "metrics_v2.csv", sep = "/"))
-
-    message("saved to ", paste(input_path_models, directory, "metrics_v2.csv", sep = "/"))
-
-
-  }, error = function(e) message("problem with ", job, " ", directory))
+}, error = function(e) {
+  message("Skipping due to error: ", e[["message"]])
+  return(NULL)
+})
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

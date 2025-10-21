@@ -63,7 +63,7 @@ map_AA_sequence_to_uniprot <- function(x,
                    paste("-o", out_path))
   )
 
-  data.table::fread(out_path,
+  res <- data.table::fread(out_path,
                     sep = "\t",
                     skip = 1,
                     fill = TRUE) %>%
@@ -71,5 +71,10 @@ map_AA_sequence_to_uniprot <- function(x,
     rename(sequence = `##Query`) %>%
     mutate(species = stringr::str_extract(`Subject`, "[^_]*$")) %>%
     filter(species == toupper(!!species))
+
+  if(nrow(res) < 1) {
+    res[1, ] <- NA
+  }
+  return(res)
 
 }

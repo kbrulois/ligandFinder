@@ -8,12 +8,16 @@ library(ligandFinder)
 
 
 
+
 gpcr_sub <- gpcr_list %>%
               filter(grepl("^#", `ecb: Order of runs (priority)`)) %>%
-              filter(`ecb: Exclude due to N term >160AA` == "Exclude due to N term >160AA") %>% #########caution
-              filter(map_lgl(`bw: full_table`, ~nrow(.) > 0))
+              filter(`ecb: Prioritization Notes` != "Small organic molecule") %>% #########caution
+              filter(map_lgl(`bw: full_table`, ~nrow(.) > 0)) %>%
+              mutate(model = ifelse(`bw: length N-term` > 160, model_name_dNT, model_name))
 
+job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/brinp_more"
 
+dir.create(job_dir)
 
 urls <- c("https://stacks.stanford.edu/file/druid:sc075gg6264/c_terminal.csv",
           "https://stacks.stanford.edu/file/druid:sc075gg6264/n_terminal.csv")
@@ -40,7 +44,8 @@ ligand_list <- dat %>%
   mutate(uniprot_name = setNames(id_map[["Entry Name"]], id_map[["Entry"]])[accession], .before = everything()) %>%
   mutate(model_id = paste0(accession, ",", start, "-", end), .before = everything()) %>%
   mutate(model_name = paste0(uniprot_name, ",", start, "-", end), .before = everything()) %>%
-  slice_max(n = 200, order_by = score_nn10c__entire)
+  slice_max(n = 200, order_by = score_nn10c__entire) %>%
+  relocate(terminus, score_nn10c__entire, .after = "length2")
 
 
 to_run <- expand.grid(ligand = ligand_list[["model_name"]],
@@ -91,9 +96,51 @@ ligand_list <- tibble(uniprot_name = c("LUZP2", "LUZP2", "LUZP2", "LUZP2"),
                       end = c(167, 154, 62, 346),
                       run = "luzp2")
 
+ligand_list <- tibble(uniprot_name = c("BRNP2", "BRNP2", "BRNP1", "BRNP3", "BRNP2", "BRNP1", "BRNP3"),
+                      start = c(372, 347, 356, 369, 386, 356, 369),
+                      end = c(397, 397, 368, 380, 397, 368, 380),
+                      run = "brinp")
+
+ligand_list <- tibble(uniprot_name = c("BRNP2", "BRNP2", "BRNP1", "BRNP3", "BRNP2", "BRNP1", "BRNP3"),
+                      start = c(372, 347, 356, 369, 386, 356, 369),
+                      end = c(397, 397, 368, 380, 397, 368, 380),
+                      run = "brinp")
+
+ligand_list <- tibble(model = c("BRNP1,317-368", "BRNP1,318-368", "BRNP1,342-368", "BRNP1,354-368",
+                                "BRNP3,330-380", "BRNP3,331-380", "BRNP3,355-380", "BRNP3,364-380",
+                                "BRNP2,348-397"))
+
+ligand_list <- test %>%
+  mutate(V1 = stringr::str_extract(V1, "h\\w+x\\d+x\\d+")) %>%
+  mutate(parse_proteins(file_name = V1, delim_ranges = "x", delim_start_end = "x")) %>%
+  mutate(p1_range = stringr::str_replace(p1_range, "x", "-")) %>%
+  mutate(model = paste0(p1_id, ",", p1_range))
+
+add_bm <- readRDS(system.file("extdata/aug4_ligands.rds", package = "ligandFinder"))
+add_bm <- readRDS("~/R_projects/ligandFinder/inst/extdata/aug4_ligands.rds")
+
+add_bm <- tibble(ligs = add_bm) %>%
+          mutate(ligs = if_else(ligs == ">hANF104x151", ">hANFx104x151", ligs)) %>%
+          mutate(uniprot_name = stringr::str_remove(ligs, "^>h") %>% stringr::str_remove(., "x\\d+x\\d+")) %>%
+          mutate(p2_range = stringr::str_extract(ligs, "x\\d+x\\d+") %>% stringr::str_remove(., "^x") %>% stringr::str_replace(., "x", "-")) %>%
+          mutate(start = stringr::str_extract(p2_range, "^[^-]+") %>% as.numeric) %>%
+          mutate(end = stringr::str_remove(p2_range, paste0(start, "-")) %>% as.numeric) %>%
+          mutate(aug4_list = "yes") %>%
+          mutate(model_name = paste0(uniprot_name, ",", start, "-", end), .before = everything())
 
 
 ligand_list <- readRDS(system.file("extdata/ligand_list.rds", package = "ligandFinder"))
+
+
+ligand_list <- full_join(ligand_list, add_bm, by = join_by(uniprot_name, start, end))
+
+ligand_list %>%
+  filter(ecb_cull == "y" | is.na(ecb_cull)) %>%
+  select(uniprot_name, start, end) -> ligand_list_CZ
+
+
+ligand_list %>%
+  filter()
 
 ligand_list <- ligand_list %>%
   mutate(included_in_bm = if_else(ecb_cull == "y" & database %in% c("both", "gpcrdb") & !is.na(start),
@@ -155,9 +202,10 @@ to_run <- to_run %>%
 
 
 to_run <- expand.grid(ligand = ligand_list[["model"]],
-                      receptor = gpcr_sub[["model_name"]],
+                      receptor = gpcr_sub[["model"]],
                       stringsAsFactors = FALSE) %>%
           as_tibble %>%
+          drop_na() %>%
           mutate(model = paste(receptor, ligand, sep = ";"))
 
 
@@ -168,18 +216,23 @@ to_run <- to_run %>%
 group_size <- 48
 
 to_run <- to_run %>%
-    mutate(group = rep(paste0("job", 1:ceiling(n() / group_size), ".txt"), each = group_size, length.out = n()))
-
+  slice_sample(prop = 1) %>%
+    mutate(group = rep(paste0("job", 1:ceiling(n() / group_size), ".txt"), each = group_size, length.out = n())) %>%
+    group_by(group) %>%
+  arrange(if_else(grepl("^NPY", model), 0, 1), .by_group = TRUE)
 
 to_run %>%
       group_by(group) %>%
-      group_walk(~ write.table(.x[["model_trunc"]], file = .y[["group"]],
+      group_walk(~ write.table(.x[["model"]], file = paste0(job_dir, "/", .y[["group"]]),
                                row.names = FALSE, col.names = FALSE, quote = FALSE))
 
 saveRDS(to_run, "to_run.rds")
 
+job_dir
 
+out_dir <- "/scratch/groups/ebutcher/deorphan/models/brinp_more"
 
+dir.create(out_dir)
 
 
 

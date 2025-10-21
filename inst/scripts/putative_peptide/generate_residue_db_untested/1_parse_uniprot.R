@@ -1,7 +1,9 @@
 
-###parse uniprot (~2h)
+###parse uniprot (~4.5h)
 
 s_localDir <- "~/peptide_alg/build_residue_db"
+
+dir.create(paste0(s_localDir, "/processed"))
 
 uniprot_file <- paste0(s_localDir, "/raw/UP000005640_9606.xml")
 
@@ -125,11 +127,12 @@ for(c in seq_along(chunks2)) {
                  start <- xml2::xml_attr(xml2::xml_find_first(x = position_nodes, "d1:begin"), "position")
                }
 
-
                tibble(type = xml2::xml_attr(y, attr = "type"),
                       evidence = paste0(xml2::xml_attr(y, attr = "evidence"), collapse = "_"),
                       start = start,
-                      end = xml2::xml_attr(xml2::xml_find_first(x = position_nodes, "d1:end"), "position"))
+                      end = xml2::xml_attr(xml2::xml_find_first(x = position_nodes, "d1:end"), "position"),
+                      description = xml2::xml_attr(y, attr = "description")
+)
              }))),
              annotations = list(annotations))
 
@@ -147,10 +150,30 @@ end <- Sys.time()
 end - start
 
 uniprot_t <- dplyr::bind_rows(
-  lapply(list.files(uni_dir), \(x) {
-    readRDS(paste0(uni_dir, "/", x))
-  }
-  ))
+  map(list.files(uni_dir), ~readRDS(paste0(uni_dir, "/", .)))
+  )
 
 saveRDS(uniprot_t, paste0(s_localDir, "/processed/uniprot.rds"))
+
+to_save <- uniprot_t %>%
+  select(-annotations, -full_name, -sequence) %>%
+  unnest(features)
+
+
+data.table::fwrite(to_save, "~/Desktop/uniprot_features.csv")
+
+to_save <- uniprot_t %>%
+  select(-features, -full_name, -sequence) %>%
+  unnest(annotations)
+
+
+data.table::fwrite(to_save, "~/Desktop/uniprot_annotations.csv")
+
+
+uniprot_t %>%
+  filter(gene %in% c("GPR15", "MARCH4F")) %>%
+  select(-annotations, -full_name, -sequence) %>%
+  unnest(features) %>%
+  View
+
 
