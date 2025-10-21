@@ -14,7 +14,9 @@ job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/top200NC"
 
 out_dir <- c("/scratch/groups/ebutcher/deorphan/models/top200NC",
              "/scratch/groups/ebutcher/deorphan/models/top200NCnew",
-             "/scratch/groups/ebutcher/deorphan/models/top200NC_tar")
+             "/scratch/groups/ebutcher/deorphan/models/top200NC_tar",
+             "/scratch/groups/ebutcher/deorphan/models/top200NCnewnew",
+             "/scratch/groups/ebutcher/deorphan/models/top200NCsep18")
 
 job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/brinp"
 
@@ -22,18 +24,18 @@ out_dir <- c("/scratch/groups/ebutcher/deorphan/models/brinp_peps",
              "/scratch/groups/ebutcher/deorphan/models/brinp_peps2")
 
 
-job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/brinp_more"
+job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/add_bm"
 
-out_dir <- c("/scratch/groups/ebutcher/deorphan/models/brinp_more")
+out_dir <- c("/scratch/groups/ebutcher/deorphan/models/add_bm")
 
 
 
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 gpcr_sub <- gpcr_list %>%
-  filter(grepl("^#", `ecb: Order of runs (priority)`)) %>%
-  filter(`ecb: Prioritization Notes` != "Small organic molecule") %>% #########caution
-  filter(map_lgl(`bw: full_table`, ~nrow(.) > 0)) %>%
-  mutate(model = ifelse(`bw: length N-term` > 160, model_name_dNT, model_name))
+  #filter(grepl("^#", `ecb: Order of runs (priority)`)) %>%
+  #filter(`ecb: Prioritization Notes` != "Small organic molecule") %>% #########caution
+  #filter(map_lgl(`bw: full_table`, ~nrow(.) > 0)) %>%
+  mutate(model = ifelse(`bw: length N-term` > 160 | is.na(`bw: length N-term`), model_name_dNT, model_name))
 
 gpcr_cols <- c("p1_id",
                "model")
@@ -82,7 +84,7 @@ if("raw_afpd" %in% names(out_dat)) {
   out_dat[["raw_afpd"]] <- out_dat[["raw_afpd"]] %>%
     mutate(parse_proteins(file = afpd_dir_name)) %>%
     mutate(across(ends_with("_id"), ~setNames(id_map[["Entry Name"]], id_map[["Entry"]])[.])) %>%
-    {left_join(., gpcr_sub %>% rename(p1_id = uniprot_name) %>% select(all_of(gpcr_cols)),
+    {left_join(., gpcr_sub %>% dplyr::rename(p1_id = uniprot_name) %>% select(all_of(gpcr_cols)),
                by = "p1_id")} %>%
     mutate(model = paste0(model,
                           ";",
@@ -106,19 +108,46 @@ sum(job_dat[["model"]] %in% out_dat[["model"]])
 job_dat <- job_dat %>%
   mutate(complete = model %in% out_dat[["model"]])
 
+job_dat <- job_dat %>%
+  mutate(wanted = if_else(grepl("CXL17|GP15L", model), "yes", "no"))
+
+out_dat <- out_dat %>%
+  mutate(in_job_dat = out_dir %in% c("/scratch/groups/ebutcher/deorphan/models/top200NCnew", "/scratch/groups/ebutcher/deorphan/models/top200NCnewnew"))
+
+out_dat <- out_dat %>%
+  filter(in_job_dat)
+
+out_dat %>%
+  filter(!afpd_dir_name %in% list.files("/scratch/groups/ebutcher/deorphan/models/top200NC_final")) %>%
+  {furrr::future_walk2(.x = .[["out_dir"]], .y = .[["afpd_dir_name"]], \(x, y) {
+    fs::dir_copy(fs::path(x, y), new_path = "/scratch/groups/ebutcher/deorphan/models/top200NC_final", overwrite = TRUE)
+  })}
+
+
 job_dat %>%
   group_by(jobs) %>%
   filter(!all(complete)) %>%
   pull(jobs) %>%
   unique
 
+table(job_dat$complete)
 
 
+afpd_db <- tibble(files = list.files("/oak/stanford/groups/ebutcher/deorphan-AI-ze/alphapulldown/input_features/Homo_sapiens"))
 
-job_names <- system("squeue -h -o %j -t RUNNING -A ebutcher", intern = TRUE) %>% stringr::str_subset(., "^job")
+afpd_db <- afpd_db %>% filter(grepl(".pkl.xz$", files)) %>% mutate(uniprot_name = stringr::str_remove(files, ".pkl.xz$")) %>% pull(uniprot_name)
+
+job_dat <- job_dat %>%
+    mutate(parse_proteins(model, delim_proteins = ";", delim_ranges = ",", delim_start_end = "-")) %>%
+    mutate(in_afpd_db = p1_id %in% afpd_db & p2_id %in% afpd_db)
+
+table(job_dat[["in_afpd_db"]])
+
+#job_names <- system("squeue -h -o %j -t RUNNING -A ebutcher", intern = TRUE) %>% stringr::str_subset(., "^job")
 
 to_still_run <- job_dat %>%
-  filter(!model %in% out_dat[["model"]]) %>%
+  filter(!model %in% out_dat[["model"]][out_dat[["in_job_dat"]]]) %>%
+  filter(in_afpd_db) %>%
   #filter(!jobs %in% paste0(job_names, ".txt")) %>%
   distinct(model, .keep_all = TRUE)
 
@@ -154,13 +183,19 @@ to_still_run %>%
 
 message(job_dir)
 out_dir
-unique(to_still_run[["group"]])
+unique(to_still_run[["group"]] %>% stringr::str_remove(., "^job") %>% stringr::str_remove(., ".txt$") %>% as.numeric(.) %>% max(.))
 
 
 
 
-afpd_db <- tibble(files = list.files("/oak/stanford/groups/ebutcher/deorphan-AI-ze/alphapulldown/input_features/Homo_sapiens"))
 
-afpd_db <- afpd_db %>% filter(grepl(".pkl.xz$", files)) %>% mutate(uniprot_name = stringr::str_remove(files, ".pkl.xz$"))
+
+
+
+
+
+
+
+
 
 

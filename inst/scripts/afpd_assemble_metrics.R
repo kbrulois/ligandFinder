@@ -41,7 +41,7 @@ num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK"))
 
 run_dirs <- c("bm_sep28", "GPCRvCXCL14_oct7", "CXCL14_jh_w", "CXCL14_jh_wo", "CXCL14_mm_w", "CXCL14_mm_wo", "brinp_final", "top200NCnew")
 
-run_dirs <- c("bm_sep28", "GPCRvCXCL14_oct7", "brinp_final", "top200NCnew")
+run_dirs <- c("bm_sep28", "GPCRvCXCL14_oct7", "brinp_final", "cxc17_gp15l")
 
 
 tmp <- map(run_dirs, ~fs::dir_ls(fs::path(scratch_models, .))) %>% do.call(c, .)
@@ -201,10 +201,10 @@ runs_m <- runs_m %>%
 
 runs_c <- runs_m %>%
     mutate(run_name = fs::path_file(run_dir)) %>%
-        filter(location == "relevant") %>%
-        rename(pLDDT_lig1_og = pLDDT_lig1,
-               pLDDT_rec_og = pLDDT_rec) %>%
-          unnest(contacts)
+    filter(location == "relevant") %>%
+    rename(pLDDT_lig1_og = pLDDT_lig1,
+           pLDDT_rec_og = pLDDT_rec) %>%
+    unnest(contacts)
 
 
 
@@ -214,7 +214,7 @@ runs_c <- runs_m %>%
 
 out_dir <- "/oak/stanford/groups/ebutcher/kevin"
 local_dir <- "~/AF2_analysis"
-file_name <- "all_metrics_oct14.csv"
+file_name <- "all_metrics_oct17.csv"
 
 data.table::fwrite(runs_m %>%
                      select(!where(is.list)),

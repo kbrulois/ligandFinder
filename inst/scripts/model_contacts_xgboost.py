@@ -226,35 +226,35 @@ dat.drop('known_pair', axis=1, inplace=True)
   
 x='data_split_1'
 
-dtrain = xgb.DMatrix(dat[dat[x] == "train"], label=y_all[dat[x] == "train"], enable_categorical=True)
-dtest = xgb.DMatrix(x_test, label=y_test, feature_names = feat_names)
-dnot_train = xgb.DMatrix(x_not_train, label=y_not_train, feature_names = feat_names)
-dall = xgb.DMatrix(dat, label = y_all, feature_names = feat_names)
+dsp=dat.filter(regex='^data_split')
+dat=dat.drop(columns=dsp.columns)
+
+dtrain = xgb.DMatrix(dat[dsp[x] == "train"], label=y_all[dsp[x] == "train"], enable_categorical=True)
+dtest = xgb.DMatrix(dat[dsp[x] == "test"], label=y_all[dsp[x] == "test"], enable_categorical=True)
+dnot_train = xgb.DMatrix(dat[dsp[x] != "test"], label=y_all[dsp[x] != "test"], enable_categorical=True)
+dall = xgb.DMatrix(dat, label = y_all, enable_categorical=True)
 
 
-evallist = [(dtrain, 'test')]
-evallist = [(dtrain, 'train')]
-
+evallist = [(dtrain, 'test'), (dtest, 'train')]
+evallist = [(dtrain, 'train'), (dtest, 'test')]
 param = {
 'max_depth': 6, 
 'eta': 0.08, 
 'tree_method': 'auto', #default 'auto'
 'objective': 'binary:logistic', 
 'subsample': 0.5, #default 1
-'colsample_bytree': 1, #default 1
+'colsample_bytree': 0.5, #default 1
 'min_child_weight': 0,
-'gamma': 0,#default 0
-'lambda': 0,#default 1
+'gamma': 0.2,#default 0
+'lambda': 3,#default 1
 'alpha': 1,#default 1
 'nthread': 16,
 'eval_metric': 'auc'}
 
 
 
-
-
 print(f"using {x}")
-num_round = 200
+num_round = 1000
 bst = xgb.train(param, dtrain, num_round, evallist, num_boost_round=400, verbose_eval=1)
 pred_train = bst.predict(dtrain)
 pred_not_train = bst.predict(dnot_train)

@@ -212,7 +212,7 @@ pair_lut <- setNames(res_pairs[["name"]], res_pairs[["pairs"]])
 
 runs_c <- runs_c %>%
   mutate(AA_pair = paste0(AA_rec, AA_lig1)) %>%
-  mutate(AA_pair_type = if_else(AA_pair %in% res_pairs[["pairs"]], pair_lut[AA_pair], NA))
+  mutate(AA_pair_type = if_else(AA_pair %in% res_pairs[["pairs"]], pair_lut[AA_pair], "unclassified"))
 
 test <- runs_c %>%
   #filter(mean_af_missense_rec > 0.8 & mean_af_missense_lig1 > 0.8) %>%
@@ -244,7 +244,7 @@ runs_c %>%
 
 
 test <- runs_c %>%
-  filter(in_pocket & AA_pair_type == "hydrophobic_interactions" & protein_segment %in% paste0("TM", 1:7) & dist < 2) %>%
+  filter(in_pocket & AA_pair_type == "hydrophobic_interactions" & protein_segment %in% paste0("TM", 1:7) & dist > 2) %>%
   mutate(critical = case_when(mean_af_missense_rec > 0.7 & mean_af_missense_lig1 > 0.7 ~ "good",
                               TRUE ~ "bad")) %>%
   group_by(code) %>%

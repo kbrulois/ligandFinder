@@ -1,6 +1,52 @@
 
 
 
+
+
+residue_pairs <- list(
+  favorable = list(
+    hydrogen_bonds = list(
+      c("D", "R"), c("E", "K"), c("S", "D"), c("Y", "H"),
+      c("S", "E"), c("T", "E"), c("S", "R"), c("N", "Q"),
+      c("H", "D"), c("H", "E")
+    ),
+    salt_bridges = list(
+      c("D", "K"), c("E", "R"), c("D", "H"), c("E", "K"),
+      c("D", "R"), c("E", "H")
+    ),
+    hydrophobic_interactions = combn(
+      c("A", "V", "L", "I", "M", "F", "W", "Y"), 2, simplify = FALSE
+    ),
+    aromatic_stacking = list(
+      c("F", "Y"), c("Y", "W"), c("F", "W")
+    ),
+    cation_pi = list(
+      c("F", "R"), c("F", "K"), c("Y", "R"), c("Y", "K"), c("W", "R"), c("W", "K")
+    )
+  ),
+  unfavorable = list(
+    steric_clashes = list(
+      c("W", "W"), c("F", "W"), c("F", "F"), c("I", "L"), c("L", "L"), c("Y", "W")
+    ),
+    electrostatic_repulsion = list(
+      c("D", "E"), c("K", "R"), c("D", "D"), c("E", "E"), c("K", "K"), c("R", "R")
+    ),
+    desolvation_penalty = list(
+      c("S", "S"), c("T", "T"), c("N", "N"), c("Q", "Q")
+    )
+  )
+)
+
+residue_pairs <- c(residue_pairs$favorable, residue_pairs$unfavorable)
+
+res_pairs <- lapply(names(residue_pairs), \(x) tibble(pairs = map(residue_pairs[[x]], \(x) c(paste0(x[1], x[2]), paste0(x[2], x[1]))) %>% do.call(args = ., what = base::c),
+                                         name = x)) %>%
+  bind_rows
+
+
+
+
+
 ss_features <- c(setNames("Alpha helix (4-12)", "H"),
                  setNames("Isolated beta-bridge residue", "B"),
                  setNames("Strand", "E"),
@@ -61,6 +107,40 @@ residue_pairs <- list(
 )
 
 residue_pairs <- lapply(residue_pairs, \(x) unname(do.call(c, x)))
+
+
+residue_pairs <- list(
+
+  # Favorable interactions: Hydrogen bonds, salt bridges, hydrophobic packing
+  favorable = list(
+    hydrogen_bonds = list(
+      c("D", "R"), c("E", "K"), c("S", "D"), c("Y", "H")
+    ),
+    salt_bridges = list(
+      c("D", "K"), c("E", "R"), c("D", "H"), c("E", "K")
+    ),
+    hydrophobic_interactions = list(
+      c("L", "I"), c("F", "L"), c("V", "M"), c("W", "A")
+    ),
+    aromatic_stacking = list(
+      c("F", "Y"), c("Y", "W"), c("F", "W")
+    )
+  ),
+
+  # Unfavorable interactions: Steric clashes, repulsive electrostatics, desolvation penalties
+  unfavorable = list(
+    steric_clashes = list(
+      c("W", "W"), c("F", "W"), c("I", "I"), c("L", "L")
+    ),
+    electrostatic_repulsion = list(
+      c("D", "E"), c("K", "R"), c("D", "D"), c("E", "E")
+    ),
+    desolvation_penalty = list(
+      c("S", "S"), c("T", "T"), c("D", "D")
+    )
+  )
+)
+
 
 bw_segs <- tibble::tibble(protein_segment = c("N-term", "TM1", "ICL1", "TM2", "ECL1", "TM3", "ICL2", "TM4",
   "ECL2", "TM5", "ICL3", "TM6", "ECL3", "TM7", "H8", "C-term"))
