@@ -9,14 +9,16 @@ library(tidyr)
 remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
 library(ligandFinder)
 
+num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK"))
+future::plan(strategy = future::multicore(workers = num_cores))
 
 job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/top200NC"
 
-out_dir <- c("/scratch/groups/ebutcher/deorphan/models/top200NC",
-             "/scratch/groups/ebutcher/deorphan/models/top200NCnew",
-             "/scratch/groups/ebutcher/deorphan/models/top200NC_tar",
-             "/scratch/groups/ebutcher/deorphan/models/top200NCnewnew",
-             "/scratch/groups/ebutcher/deorphan/models/top200NCsep18")
+out_dir <- c("/scratch/groups/ebutcher/deorphan/models/top200NC_ffinal")
+
+
+out_dir <- c("/scratch/groups/ebutcher/deorphan/models/top200NCnew",
+             "/scratch/groups/ebutcher/deorphan/models/top200NCnewnew")
 
 job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/brinp"
 
@@ -108,20 +110,46 @@ sum(job_dat[["model"]] %in% out_dat[["model"]])
 job_dat <- job_dat %>%
   mutate(complete = model %in% out_dat[["model"]])
 
-job_dat <- job_dat %>%
-  mutate(wanted = if_else(grepl("CXL17|GP15L", model), "yes", "no"))
 
-out_dat <- out_dat %>%
-  mutate(in_job_dat = out_dir %in% c("/scratch/groups/ebutcher/deorphan/models/top200NCnew", "/scratch/groups/ebutcher/deorphan/models/top200NCnewnew"))
 
-out_dat <- out_dat %>%
-  filter(in_job_dat)
+
+
+
+
+cur_dirs <- list.files("/scratch/groups/ebutcher/deorphan/models/top200NC_ffinal")
 
 out_dat %>%
-  filter(!afpd_dir_name %in% list.files("/scratch/groups/ebutcher/deorphan/models/top200NC_final")) %>%
+  filter(!afpd_dir_name %in% cur_dirs) %>%
   {furrr::future_walk2(.x = .[["out_dir"]], .y = .[["afpd_dir_name"]], \(x, y) {
-    fs::dir_copy(fs::path(x, y), new_path = "/scratch/groups/ebutcher/deorphan/models/top200NC_final", overwrite = TRUE)
+    fs::dir_copy(fs::path(x, y), new_path = fs::path("/scratch/groups/ebutcher/deorphan/models/top200NC_ffinal", y), overwrite = TRUE)
   })}
+
+out_dat %>%
+  {furrr::future_walk2(.x = .[["out_dir"]], .y = .[["afpd_dir_name"]], \(x, y) {
+    fs::dir_copy(fs::path(x, y), new_path = fs::path("/scratch/groups/ebutcher/deorphan/models/top200NC_ffinal", y), overwrite = TRUE)
+  })}
+
+
+
+
+
+
+furrr::future_walk2(.x = out_dat[["out_dir"]], .y = out_dat[["afpd_dir_name"]], \(x, y) {
+
+    tar_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/top200NC"
+    f <- fs::path(x, y)
+    f2 <- fs::path(tar_dir, y)
+
+    tar_cmd <- glue::glue("tar --format=posix -cf {f2}.tar -C {f} .")
+
+    tryCatch({
+      system(tar_cmd)
+    }, error = function(e) {
+      message("❌ Failed to tar ", f, ": ", conditionMessage(e))
+    })
+
+})
+
 
 
 job_dat %>%

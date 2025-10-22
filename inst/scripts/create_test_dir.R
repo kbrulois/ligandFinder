@@ -8,10 +8,16 @@ models <- out_dat %>%
   filter(model %in% (job_dat %>% filter(complete & wanted == "yes") %>% pull(model))) %>%
   pull(afpd_dir_name)
 
+models <- out_dat %>%
+  slice(1:20) %>% pull(afpd_dir_name)
 
-dest <- "/scratch/groups/ebutcher/deorphan/models/cxc17_gp15l"
 
-source_dir <- "/scratch/groups/ebutcher/deorphan/models/add_bm"
+dest <- "/scratch/groups/ebutcher/deorphan/models/test_top200"
+
+dest2 <- "/scratch/groups/ebutcher/deorphan/models/test_top200_test"
+
+
+source_dir <- "/scratch/groups/ebutcher/deorphan/models/top200NC_ffinal"
 
 dir.create(dest)
 
@@ -20,7 +26,22 @@ num_cores <- 16
 future::plan(strategy = future::multicore(workers = num_cores))
 
 
-furrr::future_map(models, ~fs::dir_copy(fs::path(source_dir, .),
-                                        fs::path(dest, .)))
+furrr::future_map(unname(models), \(x) {fs::dir_copy(fs::path(source_dir, x),
+                                        fs::path(dest, x))})
+
+
+future::plan(strategy = future::sequential())
+
+furrr::future_walk(models, \(x) {
+  f <- fs::path(dest, x)
+  f2 <- fs::path(dest2, x)
+  tar_cmd <- glue::glue("tar --format=posix -cf {f2}.tar -C {f} .")
+
+  tryCatch({
+    system(tar_cmd)
+  }, error = function(e) {
+    message("❌ Failed to tar ", f, ": ", conditionMessage(e))
+  })
+})
 
 

@@ -15,7 +15,7 @@ gpcr_sub <- gpcr_list %>%
               filter(map_lgl(`bw: full_table`, ~nrow(.) > 0)) %>%
               mutate(model = ifelse(`bw: length N-term` > 160, model_name_dNT, model_name))
 
-job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/brinp_more"
+job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/brinp_w_gai"
 
 dir.create(job_dir)
 
