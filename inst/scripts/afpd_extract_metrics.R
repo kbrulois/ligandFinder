@@ -44,24 +44,24 @@ run_id <- "cxc17_gp15l"
 run_dirs <- c("CXCL14_jh_w", "CXCL14_jh_wo", "CXCL14_mm_w", "CXCL14_mm_wo")
 run_dirs <- "bm_sep28"
 run_dirs <- "GPCRvCXCL14_oct7"
-run_dirs <- c("top200NC", "top200NCnew")
-run_dirs <- "cxc17_gp15l"
+run_dirs <- c("top200NC")
+run_dirs <- "brinp"
 
 ###extract from OAK
 
-fs::dir_create(fs::path(scratch_models, run_dirs))
+start <- Sys.time()
+
+time <- format(Sys.time(), "%b%e")
+
+fs::dir_create(fs::path(scratch_models, paste0(run_dirs, "_", time)), mode = "u=rwx,g=rwx")
 
 tar_files <- Map(\(x) fs::dir_ls(fs::path(oak_models, x), glob = "*.tar"), run_dirs)
-
-future::plan(multisession, workers = num_cores)
 
 for(run_dir in run_dirs) {
 
 furrr::future_walk2(tar_files[[run_dir]], run_dir, \(f, rd) {
 
-  outdir <- fs::path(scratch_models, rd)
-
-  message("Extracting: ", f, " → ", outdir)
+  outdir <- fs::path(scratch_models, paste0(rd, "_", time), stringr::str_remove(fs::path_file(f), ".tar$"))
 
   tryCatch({
     utils::untar(f, exdir = outdir)
@@ -72,9 +72,19 @@ furrr::future_walk2(tar_files[[run_dir]], run_dir, \(f, rd) {
 
 }
 
+end <- Sys.time()
+
+start - end
+
+yo()
+
 
 
 ####Check run dirs
+
+if(exists("time")) {
+  run_dirs <- stringr::str_c(run_dirs, "_", time)
+}
 
 
 tmp <- furrr::future_map(run_dirs, ~fs::dir_ls(fs::path(scratch_models, .))) %>% do.call(c, .)

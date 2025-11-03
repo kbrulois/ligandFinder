@@ -4,6 +4,7 @@
 library(dplyr)
 library(purrr)
 library(tidyr)
+remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
 library(ligandFinder)
 
 
@@ -15,7 +16,7 @@ gpcr_sub <- gpcr_list %>%
               filter(map_lgl(`bw: full_table`, ~nrow(.) > 0)) %>%
               mutate(model = ifelse(`bw: length N-term` > 160, model_name_dNT, model_name))
 
-job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/brinp_w_gai"
+job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/neuro"
 
 dir.create(job_dir)
 
@@ -201,6 +202,32 @@ to_run <- to_run %>%
 
 
 
+
+neuro <- openxlsx::read.xlsx(system.file("extdata/MultiPep_Scores_Top1068_EXTRA_BMP8B_to_COL16A1_updated_peptides_2025-10-20T20-06-57-002Z_html orig.xlsx",
+                                         package = "ligandFinder"))
+
+colnames(neuro)[c(9, 32)] <- c("Peptide2", "GeneName2")
+
+ligand_list <- neuro %>%
+  as_tibble %>%
+  mutate(p1_range = stringr::str_extract(AF2.Code, "x\\d+x\\d+") %>%
+                    stringr::str_remove(., "^x") %>%
+                    stringr::str_replace(., "x", "-"),
+         .before = everything()) %>%
+  mutate(p1_name = stringr::str_remove(AF2.Code, "x\\d+x\\d+") %>%
+                   stringr::str_remove(., "^h"), .before = everything()) %>%
+  drop_na(p1_name) %>%
+  mutate(model = paste0(p1_name, ",", p1_range)) %>%
+  mutate(order = 1:nrow(.), .before = everything())
+
+
+afpd_db <- tibble(files = list.files("/oak/stanford/groups/ebutcher/deorphan-AI-ze/alphapulldown/input_features/Homo_sapiens"))
+
+afpd_db <- afpd_db %>% filter(grepl(".pkl.xz$", files)) %>% mutate(uniprot_name = stringr::str_remove(files, ".pkl.xz$")) %>% pull(uniprot_name)
+
+
+
+
 to_run <- expand.grid(ligand = ligand_list[["model"]],
                       receptor = gpcr_sub[["model"]],
                       stringsAsFactors = FALSE) %>%
@@ -210,16 +237,26 @@ to_run <- expand.grid(ligand = ligand_list[["model"]],
 
 
 to_run <- to_run %>%
-              mutate(known = if_else(model %in% ligand_list$known_model, "known", "unknown")) %>%
-              arrange(known)
+  mutate(parse_proteins(model, delim_proteins = ";", delim_ranges = ",", delim_start_end = "-")) %>%
+  mutate(in_afpd_db = p1_id %in% afpd_db & p2_id %in% afpd_db)
+
+table(to_run[["in_afpd_db"]])
+
+to_run <-  to_run %>%
+  filter(in_afpd_db)
+
+to_run <- left_join(to_run, ligand_list %>% select(model, order) %>% rename(ligand = model), by = "ligand") %>%
+  arrange(order)
+
 
 group_size <- 48
 
 to_run <- to_run %>%
-  slice_sample(prop = 1) %>%
-    mutate(group = rep(paste0("job", 1:ceiling(n() / group_size), ".txt"), each = group_size, length.out = n())) %>%
-    group_by(group) %>%
-  arrange(if_else(grepl("^NPY", model), 0, 1), .by_group = TRUE)
+  #slice_sample(prop = 1) %>%
+    mutate(group = rep(paste0("job", 1:ceiling(n() / group_size), ".txt"), each = group_size, length.out = n()))
+  #%>%
+   # group_by(group) %>%
+  #arrange(if_else(grepl("^NPY", model), 0, 1), .by_group = TRUE)
 
 to_run %>%
       group_by(group) %>%

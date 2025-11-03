@@ -678,3 +678,60 @@ add_new_file_type <- function(file_type = "spc") {
 }
 
 
+
+do_renaming <- function(run_dir,
+                        run_name = basename(run_dir),
+                        pairing_dir = NULL,
+                        afpd_raw = TRUE,
+                        delim_proteins = "_",
+                        delim_ranges = "x",
+                        delim_start_end = "x",
+                        p1_prefix = "h",
+                        p1_suffix = NA,
+                        p2_prefix = "h",
+                        exclude_p1_range = TRUE,
+                        site = "SU",
+                        submitter = "KB",
+                        algorithm = "AF2v3",
+                        random_seed = 42) {
+
+  rename_data <- parse_dirname(run_dir = run_dir,
+                               pairing_dir = pairing_dir,
+                               afpd_raw = afpd_raw)
+
+  rename_data <- make_new_dirname(input = rename_data,
+                                  delim_proteins = delim_proteins,
+                                  delim_ranges = delim_ranges,
+                                  delim_start_end = delim_start_end,
+                                  p1_prefix = p1_prefix,
+                                  p1_suffix = p1_suffix,
+                                  p2_prefix = p2_prefix,
+                                  exclude_p1_range = exclude_p1_range)
+
+  rename_dir(run_dir = run_dir,
+             input = rename_data,
+             from = "afpd_dir_name",
+             to = "new_dir_name")
+
+
+  rename_data <- parse_afpd_files(input = rename_data,
+                                  dir_name = "new_dir_name",
+                                  run_dir = run_dir)
+
+  rename_data <- make_new_file_names(input = rename_data,
+                                     dir_name = "new_dir_name",
+                                     run_name = run_name,
+                                     site = site,
+                                     submitter = submitter,
+                                     algorithm = algorithm,
+                                     random_seed = random_seed)
+
+  rename_data <- rename_files(run_dir = run_dir,
+                              input = rename_data,
+                              from = "og_file_name",
+                              to = "new_file_name")
+
+
+}
+
+

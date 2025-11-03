@@ -14,21 +14,23 @@ future::plan(strategy = future::multicore(workers = num_cores))
 
 job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/top200NC"
 
-out_dir <- c("/scratch/groups/ebutcher/deorphan/models/top200NC_ffinal")
+out_dir <- c("/scratch/groups/ebutcher/deorphan/models/top200NC_Oct23",
+             "/scratch/groups/ebutcher/deorphan/models/top200NC_Oct23_cleanup")
 
 
 out_dir <- c("/scratch/groups/ebutcher/deorphan/models/top200NCnew",
              "/scratch/groups/ebutcher/deorphan/models/top200NCnewnew")
 
 job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/brinp"
-
-out_dir <- c("/scratch/groups/ebutcher/deorphan/models/brinp_peps",
-             "/scratch/groups/ebutcher/deorphan/models/brinp_peps2")
+out_dir <- c("/scratch/groups/ebutcher/deorphan/models/brinp_final")
 
 
 job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/add_bm"
-
 out_dir <- c("/scratch/groups/ebutcher/deorphan/models/add_bm")
+
+
+job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/neuro"
+out_dir <- c("/scratch/groups/ebutcher/deorphan/models/neuro")
 
 
 
@@ -111,32 +113,40 @@ job_dat <- job_dat %>%
   mutate(complete = model %in% out_dat[["model"]])
 
 
+table(job_dat$complete)
 
 
 
 
+#####rename current models
 
-cur_dirs <- list.files("/scratch/groups/ebutcher/deorphan/models/top200NC_ffinal")
+run_dir <- unique(out_dat$out_dir)
 
-out_dat %>%
-  filter(!afpd_dir_name %in% cur_dirs) %>%
-  {furrr::future_walk2(.x = .[["out_dir"]], .y = .[["afpd_dir_name"]], \(x, y) {
-    fs::dir_copy(fs::path(x, y), new_path = fs::path("/scratch/groups/ebutcher/deorphan/models/top200NC_ffinal", y), overwrite = TRUE)
-  })}
+do_renaming(run_dir = run_dir,
+            run_name = basename(run_dir),
+            pairing_dir = NULL,
+            afpd_raw = TRUE,
+            delim_proteins = "_",
+            delim_ranges = "x",
+            delim_start_end = "x",
+            p1_prefix = "h",
+            p1_suffix = NA,
+            p2_prefix = "h",
+            exclude_p1_range = TRUE,
+            site = "SU",
+            submitter = "KB",
+            algorithm = "AF2v3",
+            random_seed = 42)
 
-out_dat %>%
-  {furrr::future_walk2(.x = .[["out_dir"]], .y = .[["afpd_dir_name"]], \(x, y) {
-    fs::dir_copy(fs::path(x, y), new_path = fs::path("/scratch/groups/ebutcher/deorphan/models/top200NC_ffinal", y), overwrite = TRUE)
-  })}
 
 
 
-
+####tar existing models
 
 
 furrr::future_walk2(.x = out_dat[["out_dir"]], .y = out_dat[["afpd_dir_name"]], \(x, y) {
 
-    tar_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/top200NC"
+    tar_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/add_bm"
     f <- fs::path(x, y)
     f2 <- fs::path(tar_dir, y)
 
@@ -152,13 +162,13 @@ furrr::future_walk2(.x = out_dat[["out_dir"]], .y = out_dat[["afpd_dir_name"]], 
 
 
 
-job_dat %>%
-  group_by(jobs) %>%
-  filter(!all(complete)) %>%
-  pull(jobs) %>%
-  unique
 
-table(job_dat$complete)
+
+
+
+
+
+####set up clean up run
 
 
 afpd_db <- tibble(files = list.files("/oak/stanford/groups/ebutcher/deorphan-AI-ze/alphapulldown/input_features/Homo_sapiens"))
@@ -171,10 +181,10 @@ job_dat <- job_dat %>%
 
 table(job_dat[["in_afpd_db"]])
 
-#job_names <- system("squeue -h -o %j -t RUNNING -A ebutcher", intern = TRUE) %>% stringr::str_subset(., "^job")
+#job_names <- system("squeue -h -o %j -t RUNNING -u kbrulois", intern = TRUE) %>% stringr::str_subset(., "^job")
 
 to_still_run <- job_dat %>%
-  filter(!model %in% out_dat[["model"]][out_dat[["in_job_dat"]]]) %>%
+  filter(!model %in% out_dat[["model"]]) %>%
   filter(in_afpd_db) %>%
   #filter(!jobs %in% paste0(job_names, ".txt")) %>%
   distinct(model, .keep_all = TRUE)
@@ -196,10 +206,11 @@ group_size <- min(c(group_size, 48))
 
 to_still_run <- to_still_run %>%
   slice_sample(prop = 1) %>%
-  mutate(group = rep(paste0("job", 1:ceiling(n() / group_size), ".txt"), each = group_size, length.out = n())) %>%
-  mutate(group = if_else(grepl("^NPY", model) & !group %in% paste0("job", 1:4, ".txt"), paste0("job", sample(1:4, 1), ".txt"), group)) %>%
-  group_by(group) %>%
-  arrange(if_else(grepl("^NPY", model), 0, 1), .by_group = TRUE)
+  mutate(group = rep(paste0("job", 1:ceiling(n() / group_size), ".txt"), each = group_size, length.out = n()))
+  #%>%
+  #mutate(group = if_else(grepl("^NPY", model) & !group %in% paste0("job", 1:4, ".txt"), paste0("job", sample(1:4, 1), ".txt"), group)) %>%
+  #group_by(group) %>%
+  #arrange(if_else(grepl("^NPY", model), 0, 1), .by_group = TRUE)
 
 to_still_run %>%
   group_by(group) %>%
