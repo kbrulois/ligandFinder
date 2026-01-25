@@ -67,6 +67,24 @@ uniprotID_to_uniprotName <- function(x) {
 
 }
 
+tibble_split <- function(..., names = NULL) {
+  tmp <- stringr::str_split(..., simplify = TRUE)
+  if(is.null(names)) {
+    names <- paste0("split", 1:ncol(tmp))
+  }
+  if(length(names) != ncol(tmp)) {
+    stop("names not equal to number of split fields")
+  }
+  colnames(tmp) <- names
+  tmp %>% as_tibble
+}
+
+tibble_table <- function(x) {
+  tmp <- table(x)
+  tibble(AA = names(tmp),
+         freq = as.vector(unname(tmp)))
+}
+
 
 
 alpha_fold_AA_order <- c('A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y', 'V', 'X', '-')

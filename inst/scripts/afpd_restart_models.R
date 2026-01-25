@@ -26,7 +26,7 @@ out_dir <- c("/scratch/groups/ebutcher/deorphan/models/brinp_final")
 
 
 job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/add_bm"
-out_dir <- c("/scratch/groups/ebutcher/deorphan/models/add_bm")
+out_dir <- c("/scratch/groups/ebutcher/deorphan/models/add_bm_Oct28")
 
 
 job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/neuro"
@@ -115,15 +115,22 @@ job_dat <- job_dat %>%
 
 table(job_dat$complete)
 
+out_dat %>%
+  filter(!model %in% job_dat$model) %>%
+  select(p1_id, p2_id) %>%
+  print(n = 1000)
 
+job_dat %>%
+  filter(!complete) %>%
+  print(n = 1000)
 
 
 #####rename current models
 
 run_dir <- unique(out_dat$out_dir)
 
-do_renaming(run_dir = run_dir,
-            run_name = basename(run_dir),
+do_renaming(run_dir = "/scratch/groups/ebutcher/deorphan/models/top200NC_Oct23_cleanup",
+            run_name = "top200NC",
             pairing_dir = NULL,
             afpd_raw = TRUE,
             delim_proteins = "_",
@@ -223,9 +230,6 @@ to_still_run %>%
 message(job_dir)
 out_dir
 unique(to_still_run[["group"]] %>% stringr::str_remove(., "^job") %>% stringr::str_remove(., ".txt$") %>% as.numeric(.) %>% max(.))
-
-
-
 
 
 

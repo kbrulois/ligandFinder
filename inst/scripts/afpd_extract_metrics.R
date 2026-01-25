@@ -33,7 +33,7 @@ scratch_models <- "/scratch/groups/ebutcher/deorphan/models"
 
 
 alg <- "AF2v3"
-num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK"))
+num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK")) %/% 1.5
 
 #num_cores <- 60
 future::plan(strategy = future::multicore(workers = num_cores))
@@ -44,14 +44,17 @@ run_id <- "cxc17_gp15l"
 run_dirs <- c("CXCL14_jh_w", "CXCL14_jh_wo", "CXCL14_mm_w", "CXCL14_mm_wo")
 run_dirs <- "bm_sep28"
 run_dirs <- "GPCRvCXCL14_oct7"
-run_dirs <- c("top200NC")
+run_dirs <- c("top200NC_Nov12", "top200NC_Oct23_cleanup")
 run_dirs <- "brinp"
+run_dirs <- "neuro"
 
 ###extract from OAK
 
 start <- Sys.time()
 
 time <- format(Sys.time(), "%b%e")
+
+run_dirs <- c("top200NC")
 
 fs::dir_create(fs::path(scratch_models, paste0(run_dirs, "_", time)), mode = "u=rwx,g=rwx")
 
@@ -242,7 +245,7 @@ metrics_good <- jobs %>%
 jobs <- jobs %>%
   mutate(metrics_good = afpd_dir_name %in% !!metrics_good)
 
-table(jobs[["metrics_good"]])
+table(jobs[["metrics_good"]], jobs[["run_dir"]])
 
 
 
@@ -311,6 +314,8 @@ furrr::future_map(unique(jobs[["group"]]), \(job) {
   dirs2 <- to_do %>% pull(afpd_dir)
 
   proteins <- c(to_do[["p1_name"]], to_do[["p2_name"]]) %>% unique
+
+  res_db <- arrow::open_dataset(source = pq_path)
 
   residue_data <- res_db %>%
     filter(uni_gene %in% proteins) %>%

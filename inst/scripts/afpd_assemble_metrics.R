@@ -42,6 +42,10 @@ num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK"))
 run_dirs <- c("bm_sep28", "GPCRvCXCL14_oct7", "CXCL14_jh_w", "CXCL14_jh_wo", "CXCL14_mm_w", "CXCL14_mm_wo", "brinp_final", "top200NCnew")
 
 run_dirs <- c("bm_sep28", "GPCRvCXCL14_oct7", "brinp_final", "cxc17_gp15l")
+run_dirs <- c("bm_sep28", "top200NC_ffinal")
+run_dirs <- c("bm_sep28", "brinp_final", "top200NC_Nov12", "top200NC_Oct23_cleanup")
+
+run_dirs <- c("bm_sep28", "brinp_Oct28", "CXCL14vGPCRs")
 
 
 tmp <- map(run_dirs, ~fs::dir_ls(fs::path(scratch_models, .))) %>% do.call(c, .)
@@ -173,7 +177,60 @@ runs <- runs %>%
 
 
 
-####expand out contacts
+all_ligands <- runs[["p2_name"]] %>% unique(.)
+
+res_db <- arrow::open_dataset(source = pq_path)
+
+residue_data <- res_db %>%
+  filter(uni_gene %in% all_ligands) %>%
+  select(uni_gene, sequence_uni) %>%
+  collect()
+
+
+
+ligs <- runs %>%
+  distinct(p2_name, p2_range) %>%
+  separate_wider_delim(p2_range, delim = "x", names = c("start", "end")) %>%
+  mutate(across(all_of(c("start", "end")), as.numeric)) %>%
+  {left_join(., residue_data, by = join_by(p2_name == uni_gene))}
+
+
+find_adjacent_dibasic <- function(start,
+                                  end,
+                                  sequence_uni) {
+
+  start_seq <- stringr::str_sub(sequence_uni, start = max(c(1, start - 5)), end = max(c(1, start - 1)))
+
+  start_gap <- stringr::str_locate(stringi::stri_reverse(start_seq), "KK|KR|RK|RR")[1] - 1
+
+  term <- nchar(sequence_uni)
+
+  end_seq <- stringr::str_sub(sequence_uni, start = min(c(term, end + 1)), end = min(c(term, end + 5)))
+
+  end_gap <- stringr::str_locate(end_seq, "KK|KR|RK|RR")[1] - 1
+
+  end_gap2 <- stringr::str_locate(end_seq, "(KK|KR|RR|RK)[^HRGAVLIP]")[1] - 1
+
+  tibble(N_term_db = start_gap,
+         C_term_db = end_gap,
+         C_term_PHC = end_gap2)
+}
+
+ligs <- ligs %>%
+  mutate(dibasic = pmap(.l = list(start, end, sequence_uni), .f = find_adjacent_dibasic)) %>%
+  mutate(bind_rows(dibasic)) %>%
+  mutate(p2_range = stringr::str_c(start, end, sep = "x")) %>%
+  select(-dibasic, -sequence_uni, -start, -end)
+
+runs <- runs %>%
+  {left_join(., ligs, by = join_by(p2_name, p2_range))}
+
+
+
+
+
+
+####expand out models
 
 runs <- runs %>%
   filter(metrics_good) %>%
@@ -195,9 +252,24 @@ runs_m <- runs %>%
   unnest(metrics)
 
 runs_m <- runs_m %>%
-  mutate(lig1_end_clean = if_else(lig1_end %in% c("1C", "1N"), lig1_end, "loop"))
+  mutate(lig1_end_clean = if_else(lig1_end %in% c("1C", "1N"), stringr::str_remove(lig1_end, "^1"), "L"))
+
+runs_m <- runs_m %>%
+  mutate(dibasic = case_when(!is.na(N_term_db) & !is.na(C_term_db) ~ "Bphs",
+                             is.na(N_term_db) & !is.na(C_term_db) ~ "Cphs",
+                             !is.na(N_term_db) & !is.na(C_term_db) ~ "B",
+                             is.na(N_term_db) & !is.na(C_term_db) ~ "C",
+                             !is.na(N_term_db) & is.na(C_term_db) ~ "N",
+                             TRUE ~ "X")) %>%
+  mutate(lig1_insert = paste0(lig1_end_clean, dibasic))
 
 
+
+
+
+
+
+####expand out contacts
 
 runs_c <- runs_m %>%
     mutate(run_name = fs::path_file(run_dir)) %>%
@@ -214,7 +286,7 @@ runs_c <- runs_m %>%
 
 out_dir <- "/oak/stanford/groups/ebutcher/kevin"
 local_dir <- "~/AF2_analysis"
-file_name <- "all_metrics_oct17.csv"
+file_name <- "bm_brinp_top200_Nov18.csv"
 
 data.table::fwrite(runs_m %>%
                      select(!where(is.list)),

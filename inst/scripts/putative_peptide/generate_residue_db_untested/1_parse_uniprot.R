@@ -156,14 +156,14 @@ uniprot_t <- dplyr::bind_rows(
 saveRDS(uniprot_t, paste0(s_localDir, "/processed/uniprot.rds"))
 
 to_save <- uniprot_t %>%
-  select(-annotations, -full_name, -sequence) %>%
+  select(-annotations) %>%
   unnest(features)
 
 
 data.table::fwrite(to_save, "~/Desktop/uniprot_features.csv")
 
 to_save <- uniprot_t %>%
-  select(-features, -full_name, -sequence) %>%
+  select(-features, -full_name, -sequence, -gene) %>%
   unnest(annotations)
 
 
@@ -175,5 +175,4 @@ uniprot_t %>%
   select(-annotations, -full_name, -sequence) %>%
   unnest(features) %>%
   View
-
 

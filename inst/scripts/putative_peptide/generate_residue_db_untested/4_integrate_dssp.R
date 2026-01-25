@@ -3,9 +3,10 @@
 ##https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000005640_9606_HUMAN_v4.tar
 ##run dssp.py to extract ss data ~14h
 
+
 library(Biostrings)
 
-secretome <- readRDS(paste0(s_localDir, "/processed/secretome_1.rds"))
+uniprot_t <- readRDS(paste0(s_localDir, "/processed/uniprot_1.rds"))
 
 dssp_dir <- paste0(s_localDir, "/processed/alphafold_dssp")
 
@@ -20,9 +21,9 @@ dssp <- tibble(files = list.files(dssp_dir),
   distinct(accession, .keep_all = TRUE)
 
 
-secretome <- left_join(secretome, dssp, by = "accession")
+uniprot_t <- left_join(uniprot_t, dssp, by = "accession")
 
-secretome <- secretome %>%
+uniprot_t <- uniprot_t %>%
   mutate(sequence_dssp = map_chr(dssp, ~paste(.[["AA"]], collapse = ""))) %>%
   mutate(dssp = map(.x = dssp, .f = \(x) {
     if(!is.null(x)) {
@@ -36,13 +37,13 @@ secretome <- secretome %>%
       return(x)
     }
   })) %>%
-  mutate(uni_af_exact = sequence_af == sequence_uni)
+  mutate(uni_af_exact = sequence_dssp == sequence_uni)
 
 
 start <- Sys.time()
 
-secretome <- secretome %>%
-  mutate(dssp = pmap(.l = list(seq1 = sequence_af, seq2 = sequence_uni, to_map = dssp),
+uniprot_t <- uniprot_t %>%
+  mutate(dssp = pmap(.l = list(seq1 = sequence_dssp, seq2 = sequence_uni, to_map = dssp),
                           .f = map_table))
 
 end <- Sys.time()
@@ -50,8 +51,8 @@ end - start
 
 
 add_dssp_features <- function(features, dssp) {
-  
-  tf <- af_mapped[["ms"]]
+
+  tf <- dssp[["ms"]]
   if(!"SS" %in% names(tf)) {
     return(features %>%
              mutate(source = "uniprot") %>%
@@ -63,33 +64,37 @@ add_dssp_features <- function(features, dssp) {
     af_feats <- bind_rows(
       lapply(uni_tf[!uni_tf == "-"], \(x) {
         vec <- which(tf == x)
-        
+
         breaks <- c(0, which(diff(vec) != 1), length(vec))
-        
+
         sequences <- lapply(seq_along(breaks[-1]), \(i) vec[(breaks[i] + 1):breaks[i + 1]])
-        
+
         bind_rows(lapply(sequences, \(y) tibble(type = x,
                                                 evidence = "af",
                                                 start = min(y),
                                                 end = max(y),
                                                 source = "alpha fold")
         ))
-        
+
       })
     )
-    
+
     features <- features %>%
       mutate(source = "uniprot") %>%
       mutate(start = as.integer(start),
              end = as.integer(end))
-    
+
     return(bind_rows(features, af_feats))
   }
 }
 
-secretome <- secretome %>%
+uniprot_t <- uniprot_t %>%
   mutate(features = pmap(list(features, dssp), add_dssp_features))
 
-saveRDS(secretome, paste0(s_localDir, "/processed/secretome_2.rds"))
+uniprot_t <- uniprot_t %>%
+  mutate(dssp_map_score = map_dbl(dssp, `[[`, "score")) %>%
+  mutate(dssp = map(dssp, `[[`, "ms"))
+
+saveRDS(uniprot_t, paste0(s_localDir, "/processed/uniprot_2.rds"))
 
 
