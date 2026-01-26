@@ -58,7 +58,6 @@ uniprot_t <- uniprot_t %>%
                                       seq2 = sequence_uni,
                                       to_map = af_missense),
                             .f = map_table))
-
 end <- Sys.time()
 end - start
 
@@ -66,26 +65,30 @@ uniprot_t <- uniprot_t %>%
   mutate(afm_map_score = map_dbl(af_missense, `[[`, "score")) %>%
   mutate(af_missense = map(af_missense, `[[`, "ms"))
 
-start <- Sys.time()
 
-options(future.globals.maxSize = Inf)
-future::plan(strategy = future::multisession(workers = 2))
-#future::plan(strategy = future::sequential())
-
-
-uniprot_t <- uniprot_t %>%
-  mutate(af_missense = furrr::future_map(af_missense, \(x) {
-    if(is.data.frame(x)) {
+summarize_afm <- function(x) {
+  if(is.data.frame(x)) {
     x %>%
       rowwise() %>%
       mutate(min_afm = min(c_across(!any_of(c("AA", "mean_afm", "mean_af_missense"))), na.rm = TRUE), .after = "AA") %>%
       mutate(max_afm = max(c_across(!any_of(c("AA", "mean_afm", "mean_af_missense"))), na.rm = TRUE), .after = "AA") %>%
       mutate(max_AA = names(.)[!names(.) %in% c("AA", "mean_afm", "mean_af_missense", "max_afm")][which.max(c_across(!any_of(c("AA", "mean_afm", "mean_af_missense", "max_afm"))))], .after = "AA") %>%
-      mutate(min_AA = names(.)[!names(.) %in% c("AA", "mean_afm", "mean_af_missense", "min_afm", "max_AA")][which.min(c_across(!any_of(c("AA", "mean_afm", "mean_af_missense", "min_afm", "max_AA"))))], .after = "AA")
-    } else {
-        x
+      mutate(min_AA = names(.)[!names(.) %in% c("AA", "mean_afm", "mean_af_missense", "min_afm", "max_AA")][which.min(c_across(!any_of(c("AA", "mean_afm", "mean_af_missense", "min_afm", "max_AA"))))], .after = "AA") %>%
+      mutate(across(all_of(c("min_afm", "max_afm", "max_AA", "min_AA")), ~if_else(is.na(AA), NA, .)))
+  } else {
+    x
   }
-  }))
+}
+
+start <- Sys.time()
+
+options(future.globals.maxSize = Inf)
+future::plan(strategy = future::multisession(workers = 8))
+#future::plan(strategy = future::sequential())
+
+
+uniprot_t$af_missense <- furrr::future_map(uniprot_t$af_missense,
+                                           summarize_afm)
 
 end <- Sys.time()
 end - start

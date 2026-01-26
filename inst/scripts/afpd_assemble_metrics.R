@@ -13,8 +13,8 @@ remotes::install_github("kbrulois/ligandFinder", auth_token = "ghp_Hcwhpbw1cVDTH
 library(ligandFinder)
 
 set_db_path("/scratch/groups/ebutcher/deorphan/ligandFinder")
-pq_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/residue_db"
-voronota_path <- "/home/groups/ebutcher/programs/voronota/bin/voronota-contacts"
+pq_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/ligandFinder/residue_db"
+voronota_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/voronota/bin/voronota-contacts"
 
 res_db <- arrow::open_dataset(source = pq_path)
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
@@ -47,7 +47,9 @@ run_dirs <- c("bm_sep28", "brinp_final", "top200NC_Nov12", "top200NC_Oct23_clean
 
 run_dirs <- c("bm_sep28", "brinp_Oct28", "CXCL14vGPCRs")
 
+run_dirs <- c("CXCL14peptides")
 
+run_dirs <- "new_peps"
 tmp <- map(run_dirs, ~fs::dir_ls(fs::path(scratch_models, .))) %>% do.call(c, .)
 
 runs <- tibble(afpd_dir_name = fs::path_file(tmp),
@@ -149,7 +151,13 @@ table(runs[["contacts_good"]])
 
 ####add critical columns
 
-ligand_list <- readRDS("/oak/stanford/groups/ebutcher/kevin/ligand_list.rds")
+
+ligand_list <- data.table::fread(system.file("extdata/GPCRdb_known_pairings_human_plus2more_unique.csv",
+                                             package = "ligandFinder")) %>% as_tibble
+
+ligand_list <- ligand_list %>%
+  mutate(afpd_dir_name = paste0(rec, "_", lig),
+         known_pair = "known")
 
 runs <- runs %>%
   {left_join(., ligand_list %>% select(afpd_dir_name, known_pair), by = "afpd_dir_name")} %>%
@@ -209,11 +217,8 @@ find_adjacent_dibasic <- function(start,
 
   end_gap <- stringr::str_locate(end_seq, "KK|KR|RK|RR")[1] - 1
 
-  end_gap2 <- stringr::str_locate(end_seq, "(KK|KR|RR|RK)[^HRGAVLIP]")[1] - 1
-
   tibble(N_term_db = start_gap,
-         C_term_db = end_gap,
-         C_term_PHC = end_gap2)
+         C_term_db = end_gap)
 }
 
 ligs <- ligs %>%
@@ -286,7 +291,7 @@ runs_c <- runs_m %>%
 
 out_dir <- "/oak/stanford/groups/ebutcher/kevin"
 local_dir <- "~/AF2_analysis"
-file_name <- "bm_brinp_top200_Nov18.csv"
+file_name <- "new_peps_scg_tm_focused.csv"
 
 data.table::fwrite(runs_m %>%
                      select(!where(is.list)),

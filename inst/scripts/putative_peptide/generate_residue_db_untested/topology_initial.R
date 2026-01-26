@@ -28,6 +28,8 @@ seqs <- uniprot_t %>%
   filter(gene %in% c("MARCHF4")) %>%
   pull(sequence)
 
+
+
 uniprot_t <- uniprot_t %>%
   mutate(has_TM = map_lgl(features, \(x) {"transmembrane region" %in% x[["type"]]})) %>%
   mutate(has_topo = map_lgl(features, \(x) {"topological domain" %in% x[["type"]]})) %>%

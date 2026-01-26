@@ -118,7 +118,7 @@ saveRDS(cons_dat, paste0(s_localDir,"/processed/aminode_seq.rds"))
 library(tidyverse)
 s_localDir <- "~/peptide_alg/build_residue_db"
 
-cons_dat <- readRDS("~/peptide_alg/aminode.rds")
+cons_dat <- readRDS(paste0(s_localDir,"/processed/aminode.rds"))
 
 cons_dat_s <- readRDS(paste0(s_localDir,"/processed/aminode_seq.rds"))
 
@@ -132,7 +132,7 @@ cons_dat <- left_join(cons_dat, cons_dat_s, by = "gene")
 
 
 
-####assemble species data. skip...already done...
+####assemble species data. skip...already saved as package file...
 
 if(FALSE) {
 
@@ -211,6 +211,12 @@ dev.off()
 
 species_dat <- readRDS(system.file("extdata/species_dat.rds", package = "ligandFinder"))
 
+
+
+#####assemble similarity matrices. skip....already saved as package file...
+
+if(FALSE) {
+
 g_mat <- grantham::grantham_distances_matrix
 
 rownames(g_mat) <- grantham::as_one_letter(rownames(g_mat))
@@ -242,6 +248,13 @@ blos_mat[ , "-"] <- NA
 sim_mats <- list(blos = blos_mat,
                  gran = g_mat)
 
+saveRDS(sim_mats, "~/R_projects/ligandFinder/data/sim_mats.rds")
+
+
+}
+
+
+
 
 
 cons_dat <- cons_dat %>%
@@ -265,9 +278,6 @@ cons_dat[["cons"]] <- cons_dat %>%
   mutate(index = row_number(), .by = gene) %>%
   nest(.by = gene) %>%
   pull(data)
-
-cons_dat <- cons_dat %>%
-  filter(gene %in% !!genes)
 
 cons_dat <- cons_dat %>%
   mutate(alignment_AA = map(alignment, \(x) {
@@ -300,7 +310,7 @@ cons_dat <- cons_dat %>%
   dplyr::slice(-17102) %>%
   mutate(cons = map2(cons, alignment_AA, do_cons))
 
-saveRDS(cons_dat, fs::path(s_localDir, "processed/aminode.rds"))
+saveRDS(cons_dat, fs::path(s_localDir, "processed/aminode_comb.rds"))
 
 
 

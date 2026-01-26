@@ -413,20 +413,12 @@ c("IGLV5-39", "CGB1", "CST4", "IGFBP1", "CXCL1", "GIP", "HTN3",
   "FAM78A", "GPC2", "LILRA3", "PDILT", "SPOCK3", "R3HDML", "PDF"
 ) -> sec_genes
 
-table_tibble <- function(x) {
-  tmp <- table(x)
-  tibble(name = names(tmp),
-         freq = unname(tmp))
-}
-
-
+library(tidyverse)
+library(ligandFinder)
 s_localDir <- "~/peptide_alg/build_residue_db"
 
-uni_dir <- paste0(s_localDir, "/chunked_tibble")
+uniprot_t <- readRDS(paste0(s_localDir, "/processed/uniprot_5.rds"))
 
-uniprot_t <- dplyr::bind_rows(
-  map(list.files(uni_dir), ~readRDS(paste0(uni_dir, "/", .)))
-)
 
 all_uniprot_topo <- map(uniprot_t[["features"]], \(x) {if(nrow(x) > 0) {
                                                 to_return <- x %>%
@@ -440,7 +432,7 @@ all_uniprot_topo <- map(uniprot_t[["features"]], \(x) {if(nrow(x) > 0) {
 
 all_uniprot_topo <- do.call("c", all_uniprot_topo)
 
-all_uniprot_topo <- table_tibble(all_uniprot_topo)
+all_uniprot_topo <- tibble_table(all_uniprot_topo)
 
 #data.table::fwrite(all_uniprot_topo, "~/Desktop/uniprot_topo.csv")
 
@@ -480,7 +472,7 @@ hpa_location %>%
   select(c(1, 61, 62,63, 74,75)) %>%
   filter(`Subcellular location` != "") %>%
   pull(`Subcellular location`) %>%
-  table_tibble %>%
+  tibble_table %>%
   data.table::fwrite(., "~/Desktop/hpa_cell_loc.csv")
 
 
@@ -552,13 +544,14 @@ uniprot_t <- uniprot_t %>%
 
 topolize <- function(seq,
                      features) {
+
   if("type" %in% colnames(features)) {
     feats_sub <- features %>%
       filter(type %in% c("transmembrane region", "topological domain", "signal peptide")) %>%
       mutate(final = case_when(type == "transmembrane region" ~ "t",
                                type == "topological domain" & description %in% c("Extracellular", "Exoplasmic loop") ~ "e",
-                               type == "topological domain" & grepl("Lumenal", description) ~ "L",
-                               type == "topological domain" & grepl("Vesicular", description) ~ "V",
+                               type == "topological domain" & grepl("Lumenal", description) ~ "l",
+                               type == "topological domain" & grepl("Vesicular", description) ~ "v",
                                type == "topological domain" & description %in% c("Cytoplasmic", "Intragranular", "Mitochondrial intermembrane", "Mitochondrial matrix", "Mother cell cytoplasmic", "Nuclear", "Perinuclear space", "Peroxisomal", "Peroxisomal matrix", "Vacuolar")  ~ "i",
                                type == "signal peptide" ~ "s",
                                TRUE ~ "-"))
@@ -567,10 +560,10 @@ topolize <- function(seq,
       topo <- rep("-", nchar(seq))
 
       for(i in 1:nrow(feats_sub)) {
-        strt <- feats_sub %>% slice(i) %>% pull(start)
-        end <- feats_sub %>% slice(i) %>% pull(end)
+        strt <- feats_sub %>% dplyr::slice(i) %>% pull(start)
+        end <- feats_sub %>% dplyr::slice(i) %>% pull(end)
         if(is.na(strt) | is.na(end)) {next}
-        topo[strt:end] <- feats_sub %>% slice(i) %>% pull(final)
+        topo[strt:end] <- feats_sub %>% dplyr::slice(i) %>% pull(final)
       }
 
       topo <- stringr::str_c(topo, collapse = "")
@@ -586,9 +579,13 @@ topolize <- function(seq,
 }
 
 uniprot_t <- uniprot_t %>%
-  mutate(topo = map2_chr(.x = sequence, .y = features,
+  mutate(topo = map2_chr(.x = sequence_uni, .y = features,
                          .f = topolize))
 
+uniprot_t <- full_join(uniprot_t, hpa_location %>% distinct(Gene, .keep_all = TRUE), by = join_by(gene == Gene))
+
+
+saveRDS(uniprot_t, paste0(s_localDir, "/processed/uniprot_6.rds"))
 
 
 
@@ -596,14 +593,10 @@ uniprot_t <- uniprot_t %>%
 
 
 
-final_thing <- full_join(uniprot_t, hpa_location %>% distinct(Gene, .keep_all = TRUE), by = join_by(gene == Gene))
+#final_thing <- final_thing %>%
+#  mutate(og_sec_proteins = gene %in% sec_genes)
 
-final_thing <- final_thing %>%
-  mutate(og_sec_proteins = gene %in% sec_genes)
-
-
-
-data.table::fwrite(final_thing %>% select(!where(is.list)), "~/Desktop/uniprot_stuff2.csv")
+#data.table::fwrite(final_thing %>% select(!where(is.list)), "~/Desktop/uniprot_stuff2.csv")
 
 
 
@@ -617,4 +610,5 @@ c(s = "signal peptide",
   t = "TM",
   e = "extracellular",
   l = "luminal",
+  v = "vesicular",
   `-` = "no data available")

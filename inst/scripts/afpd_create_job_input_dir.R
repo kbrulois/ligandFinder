@@ -9,73 +9,134 @@ library(ligandFinder)
 
 
 
-
 gpcr_sub <- gpcr_list %>%
               filter(grepl("^#", `ecb: Order of runs (priority)`)) %>%
               filter(`ecb: Prioritization Notes` != "Small organic molecule") %>% #########caution
               filter(map_lgl(`bw: full_table`, ~nrow(.) > 0)) %>%
               mutate(model = ifelse(`bw: length N-term` > 160, model_name_dNT, model_name))
 
-job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/neuro"
+job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/new_pep"
 
 dir.create(job_dir)
 
-urls <- c("https://stacks.stanford.edu/file/druid:sc075gg6264/c_terminal.csv",
-          "https://stacks.stanford.edu/file/druid:sc075gg6264/n_terminal.csv")
 
-map(urls, ~download_roi_data(url = .))
-
-termini <- c("c", "n")
-
-dat <- bind_rows(map(termini,
-                     \(x) data.table::fread(paste0(get_db_path(), "/", x, "_terminal.csv")) %>%
-                       as_tibble %>%
-                       mutate(terminus = x)))
-
-ligand_list <- dat %>%
-  group_by(terminus) %>%
-  filter(is.na(!!rlang::sym("percent_ol_phs_hsr:gtp"))) %>%
-  mutate(stringr::str_remove(!!rlang::sym("overlap_region_phs:phs_hsr"), "^phs_") %>%
-           stringr::str_split_fixed(., "-", n = 2) %>%
-           as.data.frame %>%
-           rename(start = V1, end = V2) %>%
-           mutate(across(everything(), as.integer)), .before = everything()) %>%
-  mutate(length2 = end - start + 1, .after = "end") %>%
-  filter(length2 > 5 & length2 < 50) %>%
-  mutate(uniprot_name = setNames(id_map[["Entry Name"]], id_map[["Entry"]])[accession], .before = everything()) %>%
-  mutate(model_id = paste0(accession, ",", start, "-", end), .before = everything()) %>%
-  mutate(model_name = paste0(uniprot_name, ",", start, "-", end), .before = everything()) %>%
-  slice_max(n = 200, order_by = score_nn10c__entire) %>%
-  relocate(terminus, score_nn10c__entire, .after = "length2")
+id_map <- system.file("data/id_mapping.rds", package = "ligandFinder")
+id_map <- readRDS(id_map)
+sym2name <- setNames(id_map$`Entry Name`, id_map$`Gene Names (primary)`)
+sym2id <- setNames(id_map$`Entry`, id_map$`Gene Names (primary)`)
 
 
-to_run <- expand.grid(ligand = ligand_list[["model_name"]],
-                      receptor = gpcr_sub[["model_name"]],
-                      stringsAsFactors = FALSE) %>%
-          as_tibble %>%
-          mutate(model_name = paste(receptor, ligand, sep = ";"))
+afpd_db <- tibble(files = list.files("/oak/stanford/groups/ebutcher/deorphan-AI-ze/alphapulldown/input_features/Homo_sapiens"))
 
-to_run2 <- expand.grid(ligand = ligand_list[["model_id"]],
-                      receptor = gpcr_sub[["model_id"]],
+afpd_db <- afpd_db %>% filter(grepl(".pkl.xz$", files)) %>% mutate(uniprot_name = stringr::str_remove(files, ".pkl.xz$")) %>% pull(uniprot_name)
+
+
+ligand_list <- peps %>%
+              filter(selection %in% c("secretoglobin", "tm_focused")) %>%
+              mutate(uniprot_name = sym2name[gene]) %>%
+              filter(uniprot_name %in% afpd_db) %>%
+              mutate(model_name = paste0(uniprot_name, ",", start, "-", end))
+
+ligand_list <- ligand_list %>%
+  mutate(model = paste0(uniprot_name, ",", start, "-", end))
+
+
+to_run <- expand.grid(ligand = ligand_list[["model"]],
+                      receptor = gpcr_sub[["model"]],
                       stringsAsFactors = FALSE) %>%
   as_tibble %>%
-  mutate(model_id = paste(receptor, ligand, sep = ";"))
+  drop_na() %>%
+  mutate(model = paste(receptor, ligand, sep = ";"))
 
-to_run <- bind_cols(to_run, to_run2 %>% select(-ligand, -receptor))
 
+to_run <- to_run %>%
+  mutate(parse_proteins(model, delim_proteins = ";", delim_ranges = ",", delim_start_end = "-")) %>%
+  mutate(in_afpd_db = p1_id %in% afpd_db & p2_id %in% afpd_db)
+
+
+to_run <-  to_run %>%
+  filter(in_afpd_db)
 
 group_size <- 48
 
 to_run <- to_run %>%
   mutate(group = rep(paste0("job", 1:ceiling(n() / group_size), ".txt"), each = group_size, length.out = n()))
 
-
 to_run %>%
   group_by(group) %>%
-  group_walk(~ write.table(.x[["model_name"]], file = .y[["group"]],
+  group_walk(~ write.table(.x[["model"]], file = paste0(job_dir, "/", .y[["group"]]),
                            row.names = FALSE, col.names = FALSE, quote = FALSE))
 
-data.table::fwrite(to_run, "~/Desktop/n_c_term_candidates_May_2025.csv")
+job_dir
+
+out_dir <- "/scratch/groups/ebutcher/deorphan/models/new_pep"
+
+dir.create(out_dir)
+
+
+
+
+
+
+
+
+
+
+
+
+####Katrin Svensson peptides
+
+id_map <- system.file("data/id_mapping.rds", package = "ligandFinder")
+id_map <- readRDS(id_map)
+name2id <- setNames(id_map$Entry, id_map$`Entry Name`)
+id2name <- setNames(id_map$`Entry Name`, id_map$Entry)
+
+ks_peps <- system.file("extdata/Katrin Svensson THRILL BRP Nature peptide list 2023-08-14576C-Supplementary Table 2.xlsx", package = "ligandFinder")
+
+ks_peps <- openxlsx::read.xlsx(ks_peps, startRow = 3) %>% as_tibble
+
+
+ks_peps <- ks_peps %>%
+  mutate(tibble_split(Protein, "\\|", names = c("sp", "accession", "gene"))) %>%
+  mutate(uniprot_name = id2name[accession])
+
+uniprot_goi <- c("FSTL4", "EDIL3", "SCG1", "FGF5", "FGF3", "CHGB")
+peptide_num <- c(3, 5, 9, 5, 4, 9)
+pep_names <- paste0(uniprot_goi, "_pep", peptide_num)
+
+ks_peps %>%
+  filter(uniprot_name %in% uniprot_goi) %>%
+  arrange(desc(PeptideRanker_score)) %>%
+  group_by(uniprot_name) %>%
+  mutate(peptide_num = row_number()) %>%
+  mutate(peptide_name = paste0(uniprot_name, "_pep", peptide_num)) %>%
+  filter(peptide_name %in% pep_names)
+
+ks_peps2 <- uniprot_t %>%
+            filter(gene %in% c(uniprot_goi, "CHGB")) %>%
+            select(features, gene) %>%
+            mutate(bind_rows(map2(features, gene, \(x, y) {
+              x %>%
+                filter(source == "sven") %>%
+                arrange(desc(PeptideRanker_score)) %>%
+                mutate(rank = row_number()) %>%
+                mutate(peptide_name = paste0(y, "_pep", rank)) %>%
+                filter(peptide_name %in% pep_names) %>%
+                select(peptide_name, start, end)
+            })))
+
+ks_peps2[4,"gene"][[1]] <- "SCG1"
+
+ligand_list <- ks_peps2 %>%
+                dplyr::rename(uniprot_name = gene) %>%
+                select(uniprot_name, start, end)
+
+
+
+
+
+
+
 
 
 
@@ -83,9 +144,9 @@ ligand_list <- tibble(uniprot_name = c("GP15L", "GP15L", "CXL17", "CCL25", "RARR
                       start = c(25, 71, 64, 24, 21, 21, 21,21),
                       end = c(81, 81, 119, 150, 163, 157, 158, 156))
 
-ligand_list <- tibble(end = c(87,95:104),
+ligand_list <- tibble(end = c(95:111),
                       uniprot_name = "CXL14",
-                      start = 35)
+                      start = 88)
 
 ligand_list <- tibble(uniprot_name = c("CART", "CART", "CART", "CART", "CQ067", "CQ067", "SDF1", "SDF1", "CO061", "CO061", "CO061", "RARR2", "CCL27", "DMKN", "DMKN", "DMKN"),
                       start = c(28, 64, 76, 93, 19, 38, 71, 71, 29, 31, 45, 29, 77, 460, 355, 395),
@@ -152,10 +213,6 @@ ligand_list <- ligand_list %>%
 
 ligand_list <- ligand_list %>%
                   filter(ecb_cull == "y" & database %in% c("both", "gpcrdb") & !is.na(start))
-
-
-ligand_list <- ligand_list %>%
-  mutate(model = paste0(uniprot_name, ",", start, "-", end))
 
 
 ligand_list <- left_join(ligand_list, gpcr_list %>% dplyr::rename(receptor = uniprot_name), by = "receptor") %>%
@@ -228,6 +285,10 @@ afpd_db <- afpd_db %>% filter(grepl(".pkl.xz$", files)) %>% mutate(uniprot_name 
 
 
 
+ligand_list <- ligand_list %>%
+  mutate(model = paste0(uniprot_name, ",", start, "-", end))
+
+
 to_run <- expand.grid(ligand = ligand_list[["model"]],
                       receptor = gpcr_sub[["model"]],
                       stringsAsFactors = FALSE) %>%
@@ -251,12 +312,13 @@ to_run <- left_join(to_run, ligand_list %>% select(model, order) %>% rename(liga
 
 group_size <- 48
 
+receptors_first <- c("AGTR1", "AGTR2", "BKRB1", "BKRB2", "APJ", "GPR25", "GPR15", "RXFP1", "RXFP2", "RL3R1", "RL3R2")
+
 to_run <- to_run %>%
   #slice_sample(prop = 1) %>%
-    mutate(group = rep(paste0("job", 1:ceiling(n() / group_size), ".txt"), each = group_size, length.out = n()))
-  #%>%
-   # group_by(group) %>%
-  #arrange(if_else(grepl("^NPY", model), 0, 1), .by_group = TRUE)
+  mutate(group = rep(paste0("job", 1:ceiling(n() / group_size), ".txt"), each = group_size, length.out = n())) %>%
+  #group_by(group) %>%
+  #arrange(if_else(p1_id %in% receptors_first, 0, 1))
 
 to_run %>%
       group_by(group) %>%
@@ -267,7 +329,7 @@ saveRDS(to_run, "to_run.rds")
 
 job_dir
 
-out_dir <- "/scratch/groups/ebutcher/deorphan/models/brinp_more"
+out_dir <- "/scratch/groups/ebutcher/deorphan/models/new_pep"
 
 dir.create(out_dir)
 

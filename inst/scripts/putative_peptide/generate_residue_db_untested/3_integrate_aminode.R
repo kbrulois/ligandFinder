@@ -1,5 +1,7 @@
 ###combine uniprot and aminode ~20min
 
+s_localDir <- "~/peptide_alg/build_residue_db"
+
 uniprot_f <- data.table::fread(fs::path(s_localDir, "processed/uniprot_features.csv")) %>% as_tibble
 uniprot_a <- data.table::fread(fs::path(s_localDir, "processed/uniprot_annotations.csv")) %>% as_tibble
 
@@ -14,7 +16,7 @@ uniprot_t <- left_join(uniprot_f, uniprot_a, by = "accession")
 
 
 
-aminode <- readRDS(paste0(s_localDir, "/processed/aminode.rds"))
+aminode <- readRDS(paste0(s_localDir, "/processed/aminode_comb.rds"))
 
 aminode <- aminode %>%
             select(-alignment, -sim_mat)
@@ -45,12 +47,11 @@ library(Biostrings)
 
 start <- Sys.time()
 
-future::plan(strategy = future::multisession(workers = 8))
+future::plan(strategy = future::multisession(workers = 10))
 #future::plan(strategy = future::sequential())
 
-uniprot_t <- uniprot_t %>%
-  mutate(cons = furrr::future_pmap(.l = list(seq1 = sequence_ami, seq2 = sequence_uni, to_map = cons),
-                                   .f = map_table))
+uniprot_t[["cons"]] <- furrr::future_pmap(.l = list(seq1 = uniprot_t[["sequence_ami"]], seq2 = uniprot_t[["sequence_uni"]], to_map = uniprot_t[["cons"]]),
+                                   .f = map_table)
 
 gc()
 
@@ -99,28 +100,28 @@ saveRDS(uniprot_t, paste0(s_localDir, "/processed/uniprot_1.rds"))
 
 
 
-
-
-secretome_og <- data.table::fread(paste0(s_localDir, "/raw/sa_location_Secreted HPA 2793 genes-1.tsv"))
-
-secretome <- uniprot_t %>%
-  mutate(secreted_any = map_lgl(.x = annotations, .f = \(x) {
-    x %>%
-      filter(annotation_name == "comment" &
-               annotation_type == "subcellular location" &
-               name_2 == "location") %>%
-      {any(.[["annotation"]] == "Secreted")}
-  })) %>%
-  mutate(secreted_all = map_lgl(.x = annotations, .f = \(x) {
-    x %>%
-      filter(annotation_name == "comment" &
-               annotation_type == "subcellular location" &
-               name_2 == "location") %>%
-      {all(.[["annotation"]] == "Secreted")}
-  })) %>%
-  mutate(secreted_HPA = gene %in% secretome_og[["Gene"]]) %>%
-  mutate(secreted_final = secreted_any | secreted_HPA)
-
-rm(uniprot_t, secretome_og)
-
-
+#
+#
+# secretome_og <- data.table::fread(paste0(s_localDir, "/raw/sa_location_Secreted HPA 2793 genes-1.tsv"))
+#
+# secretome <- uniprot_t %>%
+#   mutate(secreted_any = map_lgl(.x = annotations, .f = \(x) {
+#     x %>%
+#       filter(annotation_name == "comment" &
+#                annotation_type == "subcellular location" &
+#                name_2 == "location") %>%
+#       {any(.[["annotation"]] == "Secreted")}
+#   })) %>%
+#   mutate(secreted_all = map_lgl(.x = annotations, .f = \(x) {
+#     x %>%
+#       filter(annotation_name == "comment" &
+#                annotation_type == "subcellular location" &
+#                name_2 == "location") %>%
+#       {all(.[["annotation"]] == "Secreted")}
+#   })) %>%
+#   mutate(secreted_HPA = gene %in% secretome_og[["Gene"]]) %>%
+#   mutate(secreted_final = secreted_any | secreted_HPA)
+#
+# rm(uniprot_t, secretome_og)
+#
+#

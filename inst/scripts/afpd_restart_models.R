@@ -32,7 +32,14 @@ out_dir <- c("/scratch/groups/ebutcher/deorphan/models/add_bm_Oct28")
 job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/neuro"
 out_dir <- c("/scratch/groups/ebutcher/deorphan/models/neuro")
 
+job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/CXCL14peptides"
+out_dir <- c("/scratch/groups/ebutcher/deorphan/models/CXCL14peptides")
 
+job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/sven_fig_peps"
+out_dir <- c("/scratch/groups/ebutcher/deorphan/models/sven_fig_peps")
+
+job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/new_pep"
+out_dir <- c("/scratch/groups/ebutcher/deorphan/models/new_peps")
 
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 gpcr_sub <- gpcr_list %>%
@@ -129,8 +136,8 @@ job_dat %>%
 
 run_dir <- unique(out_dat$out_dir)
 
-do_renaming(run_dir = "/scratch/groups/ebutcher/deorphan/models/top200NC_Oct23_cleanup",
-            run_name = "top200NC",
+do_renaming(run_dir = "/scratch/groups/ebutcher/deorphan/models/CXCL14peptides",
+            run_name = "CXCL14peptides",
             pairing_dir = NULL,
             afpd_raw = TRUE,
             delim_proteins = "_",
