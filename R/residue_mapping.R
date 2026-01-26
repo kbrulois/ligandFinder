@@ -21,8 +21,6 @@ map_table <- function(seq1 = paste(to_map[["AA"]], collapse = ""),
 
     alignment <- Biostrings::pairwiseAlignment(seq1, seq2, type = "global-local", gapOpening = -10, gapExtension = -1)
 
-    print(alignment)
-
     norm_score <- Biostrings::score(alignment) / Biostrings::width(Biostrings::alignedPattern(alignment))
 
     aligned_seqs <- tibble(aligned_seq1 = strsplit(as.character(Biostrings::pattern(alignment)), "")[[1]],

@@ -11,8 +11,8 @@ remotes::install_github("kbrulois/ligandFinder", auth_token = "ghp_Hcwhpbw1cVDTH
 library(ligandFinder)
 
 set_db_path("/scratch/groups/ebutcher/deorphan/ligandFinder")
-pq_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/residue_db"
-voronota_path <- "/scratch/groups/ebutcher/kevin/voronota/bin/voronota-contacts"
+pq_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/ligandFinder/residue_db"
+voronota_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/voronota/bin/voronota-contacts"
 
 res_db <- arrow::open_dataset(source = pq_path)
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
@@ -39,14 +39,17 @@ num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK")) %/% 1.5
 future::plan(strategy = future::multicore(workers = num_cores))
 
 
-run_id <- "cxc17_gp15l"
 
 run_dirs <- c("CXCL14_jh_w", "CXCL14_jh_wo", "CXCL14_mm_w", "CXCL14_mm_wo")
 run_dirs <- "bm_sep28"
 run_dirs <- "GPCRvCXCL14_oct7"
 run_dirs <- c("top200NC_Nov12", "top200NC_Oct23_cleanup")
 run_dirs <- "brinp"
-run_dirs <- "neuro"
+run_dirs <- "CXCL14peptides"
+run_dirs <- "new_peps"
+
+run_id <- "new_peps"
+
 
 ###extract from OAK
 
@@ -54,7 +57,7 @@ start <- Sys.time()
 
 time <- format(Sys.time(), "%b%e")
 
-run_dirs <- c("top200NC")
+run_dirs <- c("add_bm")
 
 fs::dir_create(fs::path(scratch_models, paste0(run_dirs, "_", time)), mode = "u=rwx,g=rwx")
 
@@ -142,7 +145,7 @@ if("raw_afpd" %in% names(jobs)) {
 to_rename <- jobs[["raw_afpd"]] %>%
               filter(!model %in% !!jobs[["renamed_dir"]][["model"]])
 
-rename_dir <- fs::path(scratch_models, "top200NCnewnew")
+rename_dir <- fs::path(scratch_models, "new_pepss")
 
 fs::dir_create(rename_dir)
 

@@ -2,6 +2,8 @@
 
 ##download aminode: data https://drive.google.com/file/d/1RGGxmud7YL-ipBA6IF9-03TEZH9_0sx3/view
 
+s_localDir <- "~/peptide_alg/build_residue_db"
+
 aminode <- readLines(paste0(s_localDir, "/raw/Aminode Bulk Data/Bulk_RelativeSubstitutionScore.txt"))
 
 entry_inds <- stringr::str_detect(aminode, "^>")
@@ -42,27 +44,27 @@ for(c in seq_along(chunks2)) {
 
 
 
-length(unique(entries[["gene"]])) == last_entry
+length(unique(entries[["gene"]])) == last_entry_og
 
 future::plan(strategy = future::multisession(workers = 10))
 
 cons_dat <- furrr::future_map(.x = list.files(cons_dir), .f = \(cf) {
-  
+
   aminode <- readLines(paste0(cons_dir, "/", cf))
-  
+
   entry_inds <- stringr::str_detect(aminode, "^>")
-  
+
   entries <- aminode[entry_inds]
-  
+
   entries <- dplyr::bind_rows(lapply(entries, \(x) {
     x <- strsplit(x, " ")[[1]]
     tibble(gene = x[1],
            ensemble = x[2])
   }))
-  
+
   last_entry <- nrow(entries)
-  
-  
+
+
   entries[["cons"]] <- lapply(1:nrow(entries), \(x) {
     if(x == last_entry) {
       inds <- c(which(stringr::str_detect(aminode, entries[["gene"]][x])) + 1,
@@ -75,7 +77,7 @@ cons_dat <- furrr::future_map(.x = list.files(cons_dir), .f = \(cf) {
       return(aminode[inds[1]:inds[2]])
     }
   })
-  
+
   clean_cons <- function(x) {
     bind_rows(lapply(x, \(y) {
       z <- strsplit(y, " ")[[1]]
@@ -85,11 +87,11 @@ cons_dat <- furrr::future_map(.x = list.files(cons_dir), .f = \(cf) {
     }
     ))
   }
-  
+
   entries %>%
     dplyr::mutate(gene = sub("^>", "", gene)) %>%
     dplyr::mutate(cons = map(.x = cons, .f = clean_cons))
-  
+
 })
 
 end <- Sys.time()

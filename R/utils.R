@@ -81,7 +81,7 @@ tibble_split <- function(..., names = NULL) {
 
 tibble_table <- function(x) {
   tmp <- table(x)
-  tibble(AA = names(tmp),
+  tibble(name = names(tmp),
          freq = as.vector(unname(tmp)))
 }
 
