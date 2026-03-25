@@ -1,5 +1,48 @@
 
 
+
+
+tar_run_dir <- function(run_dir) {
+
+  if(!grepl("/scratch/groups/ebutcher/deorphan/models", run_dir)) {
+    run_dir <- fs::path("/scratch/groups/ebutcher/deorphan/models", run_dir)
+  }
+
+  tar_dir <- stringr::str_replace(run_dir,
+                                  "/scratch/groups/ebutcher/deorphan/models",
+                                  "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models")
+
+  to_tar <- list.files(run_dir)
+
+  if(!dir.exists(tar_dir)) {
+    dir.create(tar_dir)
+  }
+
+  num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK")) %/% 1.5
+
+  future::plan(strategy = future::multicore(workers = num_cores))
+
+
+  furrr::future_walk(to_tar, \(x) {
+
+    f <- fs::path(run_dir, x)
+    f2 <- fs::path(tar_dir, x)
+
+    tar_cmd <- glue::glue("tar --format=posix -cf {f2}.tar -C {f} .")
+
+    tryCatch({
+      system(tar_cmd)
+    }, error = function(e) {
+      message("❌ Failed to tar ", f, ": ", conditionMessage(e))
+    })
+
+  })
+
+}
+
+
+
+
 generate_random_codes <- function(file_path) {
 
   if(file.exists(file_path)) {

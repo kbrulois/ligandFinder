@@ -10,12 +10,19 @@ library(tidyr)
 remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
 library(ligandFinder)
 
-fs::dir_copy("/home/groups/ebutcher/kevin/ligandFinder/residue_db", "/scratch/groups/ebutcher/deorphan/ligandFinder")
+fs::dir_copy("/home/groups/ebutcher/kevin/ligandFinder/residue_db",
+             "/scratch/groups/ebutcher/deorphan/ligandFinder",
+             overwrite = TRUE)
+
+fs::dir_copy("/home/groups/ebutcher/programs/voronota",
+             "/scratch/groups/ebutcher/deorphan/ligandFinder",
+             overwrite = TRUE)
+
+
 
 set_db_path("/scratch/groups/ebutcher/deorphan/ligandFinder")
 pq_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/residue_db"
 voronota_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/voronota/bin/voronota-contacts"
-voronota_path <- "/home/groups/ebutcher/programs/voronota/bin/voronota-contacts"
 
 
 res_db <- arrow::open_dataset(source = pq_path)
@@ -57,6 +64,8 @@ run_dirs <- "bm"
 run_dirs <- list.files(scratch_models)
 
 run_dirs <- "known_pairs"
+
+run_dirs <- c("cxcl14spep", "uni_pep")
 ###extract from OAK
 
 start <- Sys.time()
@@ -119,37 +128,10 @@ sapply(jobs, nrow)
 
 if(FALSE) {
 
-if("renamed_dir" %in% names(jobs)) {
-  jobs[["renamed_dir"]] <- jobs[["renamed_dir"]] %>%
-    mutate(parse_proteins(file = afpd_dir_name, delim_proteins = "_", delim_ranges = "x", delim_start_end = "x")) %>%
-    #mutate(across(ends_with("_id"), ~setNames(id_map[["Entry Name"]], id_map[["Entry"]])[.])) %>%
-    {left_join(., gpcr_sub %>% rename(p1_id = uniprot_name) %>% select(all_of(gpcr_cols)),
-               by = "p1_id")} %>%
-    mutate(model = paste0(model,
-                          ";",
-                          p2_id,
-                          ",",
-                          stringr::str_replace(p2_range, "x", "-")))
-}
+purrr::walk(unique(jobs[["raw_afpd"]][["run_dir"]]),
 
-if("raw_afpd" %in% names(jobs)) {
-  jobs[["raw_afpd"]] <- jobs[["raw_afpd"]] %>%
-    mutate(parse_proteins(file = afpd_dir_name)) %>%
-    mutate(across(ends_with("_id"), ~setNames(id_map[["Entry Name"]], id_map[["Entry"]])[.])) %>%
-    {left_join(., gpcr_sub %>% rename(p1_id = uniprot_name) %>% select(all_of(gpcr_cols)),
-               by = "p1_id")} %>%
-    mutate(model = paste0(model,
-                          ";",
-                          p2_id,
-                          if_else(p2_range == "", "", paste0(",", p2_range))))
-
-
-}
-
-run_dir <- "????"
-
-do_renaming(run_dir = run_dir,
-            run_name = fs::path_file(run_dir),
+~do_renaming(run_dir = .,
+            run_name = fs::path_file(.),
             pairing_dir = NULL,
             afpd_raw = TRUE,
             delim_proteins = "_",
@@ -163,13 +145,10 @@ do_renaming(run_dir = run_dir,
             submitter = "KB",
             algorithm = "AF2v3",
             random_seed = 42)
-
+)
 
 
 }
-
-
-
 
 jobs <- jobs[["renamed_dir"]]
 
@@ -210,6 +189,16 @@ job_codes <- jobs$codes %>%
 sum(used_ids %in% job_codes)
 
 #fs::file_copy("/scratch/groups/ebutcher/deorphan/ligandFinder/random_codes.csv", "/home/groups/ebutcher/kevin/ligandFinder", overwrite = TRUE)
+
+
+}
+
+
+####tar existing
+
+if(FALSE) {
+
+purrr::walk(run_dirs, tar_run_dir)
 
 
 }
