@@ -6,10 +6,12 @@ all_feat_cols <- unique(do.call(c, lapply(secretome$features, \(x) colnames(x)))
 
 
 
+
+secretome$features %>% map(., ~unique(.[["source"]])) %>% do.call(`c`, .) %>% unique(.)
+
 extract_roi <- \(x, y) {
   rois <- x %>%
-    filter(source %in% c("gpcrdb_gtp", "sven", "phs")) %>%
-    dplyr::select(-start, -end, -evidence) %>%
+    filter(source %in% c("gpcrdb_gtp", "sven", "phs", "top200NC", "disha", "uni_pep")) %>%
     dplyr::rename("roi_name" = "type", "roi_type" = "source")
 
   dummy_table <- tibble(accession = y, roi_name = NA, roi_type = NA)
@@ -31,17 +33,36 @@ secretome_roi <- secretome_roi %>%
   mutate(SV = if_else(`SV_sequence variant_entire` > 0, "yes", "no")) %>%
   mutate(across(starts_with("percent_ol_"), ~replace_na(., replace = 0)))
 
+secretome_roi <- secretome_roi %>%
+    mutate(peptide_seq = stringr::str_sub(sequence_uni, start = start, end = end)) %>%
+    mutate(has_cys = if_else(grepl("C", peptide_seq), 1, 0))
+
+
+secretome_roi <- secretome_roi %>%
+  mutate(has_cterm_amid = if_else(grepl("G(?:KK|KR|RK|RR)", seq_dbcenter_end), 1, 0)) %>%
+  mutate(if_else(has_cterm_amid == 1 & roi_type == "phs",
+                 tibble(roi_name = paste0("phs_", start, "-", (end - 1)), end = end - 1),
+                 tibble(roi_name = roi_name, end = end)))
 
 
 
 
 
 
+secretome_roi <- secretome_roi %>%
+  rowwise() %>%
+  mutate(max_dbc = max(c_across(c(NTC_tot_start, CTC_tot_end)), na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(max_dbc = if_else(max_dbc == -Inf, 0, max_dbc))
 
-subsetter <- secretome_roi$roi_length < 3 & !is.na(secretome_roi$roi_length)
+
+
+
+
+subsetter <- secretome_roi$roi_length < 4 | is.na(secretome_roi$roi_length) | is.na(secretome_roi$pep_xgb4c_max)
 
 to_umap <- secretome_roi[!subsetter, ] %>%
-  dplyr::select(c(17:249, 315:318)) %>%
+  dplyr::select(c(12:243, 378, 382:384)) %>%
   dplyr::select(!where(is.character)) %>%
   mutate(across(everything(), .fns = ~replace_na(data = ., replace = 0))) %>%
   #mutate(across(everything(), .fns = \(x) {x[is.infinite(x)] <- 0; return(x)})) %>%
@@ -65,7 +86,6 @@ secretome_roi[["UMAP2"]][!subsetter] <- umap_res[["layout"]][,2]
 
 
 
-data.table::fwrite(secretome_roi %>% select(!where(is.list)), "~/AF2_analysis/roi_initial5.csv")
 
 
 
@@ -112,10 +132,10 @@ dibasic_context <- secretome_roi %>%
   filter(`percent_ol_phs:uni_pep` == 0) %>%
   filter(`percent_ol_phs:top200NC` == 0) %>%
   filter(has_db3_start | has_db3_end) %>%
-  #filter(CTC_tot_end > 0.5 | NTC_tot_start > 0.5) %>%
+  filter(CTC_tot_end > 0.5 | NTC_tot_start > 0.5) %>%
   #filter(dbc_term_start == "N" & dbc_term_end == "C") %>%
   select(gene, roi_name, pep_xgb4c_max, pep_nn4c_max, NTC_tot_start, CTC_tot_end) %>%
-  mutate(selection = "dibasic_context")
+  mutate(selection = "db_context")
 
 
 secretoglobins <- secretome_roi %>%
@@ -133,24 +153,6 @@ secretoglobins <- secretome_roi %>%
   select(gene, roi_name, pep_xgb4c_max, pep_nn4c_max, NTC_tot_start, CTC_tot_end) %>%
   arrange(desc(pep_xgb4c_max)) %>%
   mutate(selection = "secretoglobin")
-
-
-
-umap_gated <- secretome_roi %>%
-  filter(umap_gate != "no") %>%
-  #filter(!location %in% c("4l", "3l", "2l")) %>%
-  filter(roi_length > 10) %>%
-  filter(db_per_AA > 0.01) %>%
-  filter(roi_type == "phs") %>%
-  filter(pep_xgb4c_max > 0.6 | pep_nn4c_max > 0.6) %>%
-  filter(`percent_ol_phs:gpcrdb_gtp` == 0) %>%
-  filter(`percent_ol_phs:uni_pep` == 0) %>%
-  filter(`percent_ol_phs:top200NC` == 0) %>%
-  filter(has_db3_start & has_db3_end) %>%
-  #filter(CTC_tot_end > 0.5 | NTC_tot_start > 0.5) %>%
-  #filter(dbc_term_start == "N" & dbc_term_end == "C") %>%
-  select(gene, roi_name, pep_xgb4c_max, pep_nn4c_max, NTC_tot_start, CTC_tot_end) %>%
-  mutate(selection = "umap_gated")
 
 
 c_term_amid <- secretome_roi %>%
@@ -194,7 +196,6 @@ single_db <- secretome_roi %>%
 peps <- bind_rows(secretoglobins,
                   tm_focused,
                   dibasic_context,
-                  umap_gated,
                   c_term_amid,
                   single_db)
 
@@ -206,9 +207,8 @@ peps <- peps %>%
         distinct(gene, roi_name, .keep_all = T)
 
 all_peps <- secretome_roi %>%
-                mutate(final_max = max(pep_xgb4c_max, pep_nn4c_max, na.rm = TRUE)) %>%
                 group_by(gene) %>%
-                slice_max(final_max, n = 1, with_ties = FALSE) %>%
+                slice_max(best_model_max, n = 1, with_ties = FALSE) %>%
                 ungroup() %>%
                 select(gene, roi_name, pep_xgb4c_max, pep_nn4c_max, NTC_tot_start, CTC_tot_end) %>%
                 mutate(selection = "best")

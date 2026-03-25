@@ -438,7 +438,12 @@ all_uniprot_topo <- tibble_table(all_uniprot_topo)
 
 
 
-all_uniprot_prot <- map(uniprot_t[["annotations"]], \(x) {if(nrow(x) > 0) {
+all_uniprot_prot <- map(uniprot_t[["annotations"]], \(x) {
+  if(is.null(x)) {
+    return(NULL)
+  }
+
+  if(nrow(x) > 0) {
   to_return <- x %>%
     filter(annotation_type == "subcellular location" & name_2 == "location") %>%
     pull(annotation)
@@ -493,20 +498,30 @@ hpa_location <- hpa_location %>%
 
 uniprot_t <- uniprot_t %>%
   mutate(map_df(annotations, \(x) {
+    if(is.null(x)) {
+      return(tibble(uniprot_loc_max = 'missing',
+             uniprot_loc_mean = NA,
+             uniprot_loc_min = 'missing',
+             uniprot_loc = 'missing'))
+    }
 
-      tmp <- x %>%
+      all_locs <- x %>%
       filter(annotation_type == "subcellular location") %>%
-      pull(annotation) %>%
-      loc_luts[["lut"]][["uniprot_loc"]][.]
+      pull(annotation)
+
+
+      tmp <- loc_luts[["lut"]][["uniprot_loc"]][all_locs]
 
       if(length(tmp) == 0) {
-        tibble(uniprot_loc_max = 'missing',
+        return(tibble(uniprot_loc_max = 'missing',
                uniprot_loc_mean = NA,
-               uniprot_loc_min = 'missing')
+               uniprot_loc_min = 'missing',
+               uniprot_loc = 'missing'))
       } else {
-      tibble(uniprot_loc_max = as.character(max(tmp, na.rm = TRUE)),
+      return(tibble(uniprot_loc_max = as.character(max(tmp, na.rm = TRUE)),
              uniprot_loc_mean = mean(tmp, na.rm = TRUE),
-             uniprot_loc_min = as.character(min(tmp, na.rm = TRUE)))
+             uniprot_loc_min = as.character(min(tmp, na.rm = TRUE)),
+             uniprot_loc = paste0(all_locs, collapse = "; ")))
       }
   }))
 

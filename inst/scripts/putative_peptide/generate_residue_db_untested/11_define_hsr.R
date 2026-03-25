@@ -1,6 +1,62 @@
 
 
 
+####integrate top200NC peptides
+
+
+id_map <- readRDS(system.file("/data/id_mapping.rds", package = "ligandFinder"))
+
+
+dat <- data.table::fread("~/AF2_analysis/Export_4test_peptide_highlight_html_Top1068_0120_ALL_GENES_AND_KNOWN_Good_MOD_20260124 copy.csv") %>% as_tibble
+
+dat <- dat %>%
+  mutate(type = paste0("disha", row_number()), .by = UniProt_ID) %>%
+  mutate(lig = paste0(Entry, "x", Start, "x", End))
+
+pep_accessions <- unique(dat[["UniProt_ID"]])
+
+pep_accessions <- pep_accessions[pep_accessions %in% secretome[["accession"]]]
+
+
+for(x in pep_accessions) {
+
+  feats <- secretome %>% filter(accession == x) %>% pull(features) %>% `[[`(1)
+  pep <- dat %>% filter(UniProt_ID == x)
+
+  new_feats <- bind_rows(feats,
+                         tibble(type = pep[["type"]],
+                                evidence = "disha",
+                                start = pep[["Start"]],
+                                end = pep[["End"]],
+                                description = pep[["lig"]],
+                                source = "disha")
+  )
+
+  secretome[secretome[["accession"]] == x & !is.na(secretome[["accession"]]), "features"][[1]][[1]] <- new_feats
+
+}
+
+secretome %>%
+  mutate(test = map_lgl(features, \(x) "disha" %in% x[["source"]])) %>%
+  pull(test) %>%
+  sum
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ###add KK/KR and other features
 
@@ -43,12 +99,12 @@ end <- Sys.time()
 end - start
 
 
-features <- secretome %>% filter(accession == "P01275") %>% pull(features) %>% `[[`(1)
+features <- secretome %>% filter(accession == "P01871") %>% pull(features) %>% `[[`(1)
 
-aa_scores <- secretome %>% filter(accession == "P01275") %>% pull(aa_scores) %>% `[[`(1)
+aa_scores <- secretome %>% filter(accession == "P01871") %>% pull(aa_scores) %>% `[[`(1)
 
 
-sequence_uni <- secretome %>% filter(accession == "P01275") %>% pull(sequence_uni)
+sequence_uni <- secretome %>% filter(accession == "P01871") %>% pull(sequence_uni)
 
 
 
@@ -338,17 +394,12 @@ secretome <- secretome %>%
   mutate(features = map(features, .f = ~define_ol(x = ., a = "phs_hsr", b = "gpcrdb_gtp"))) %>%
   mutate(features = map(features, .f = ~define_ol(x = ., a = "phs", b = "gpcrdb_gtp"))) %>%
   mutate(features = map(features, .f = ~define_ol(x = ., a = "phs_hsr", b = "phs"))) %>%
-  mutate(features = map(features, .f = ~combine_a_b(x = ., a = "phs_c-term", b = "phs_c-term-Cys", tag = "phs_C"))) %>%
-  mutate(features = map(features, .f = ~combine_a_b(x = ., a = "phs_n-term", b = "phs_n-term-Cys", tag = "phs_N"))) %>%
+  mutate(features = map(features, .f = ~combine_a_b(x = ., a = "phs_c-term", b = "phs_c-term-Cys", tag = "phs"))) %>%
+  mutate(features = map(features, .f = ~combine_a_b(x = ., a = "phs_n-term", b = "phs_n-term-Cys", tag = "phs"))) %>%
   mutate(features = map(features, .f = ~define_ol(x = ., a = "phs_hsr", b = "phs_N"))) %>%
-  mutate(features = map(features, .f = ~define_ol(x = ., a = "phs_hsr", b = "phs_C")))
-
-
-secretome <- secretome %>%
-  mutate(features = map(features, .f = ~define_ol(x = ., a = "phs", b = "top200NC")))
-
-
-secretome <- secretome %>%
+  mutate(features = map(features, .f = ~define_ol(x = ., a = "phs_hsr", b = "phs_C"))) %>%
+  mutate(features = map(features, .f = ~define_ol(x = ., a = "phs", b = "top200NC"))) %>%
+  mutate(features = map(features, .f = ~define_ol(x = ., a = "phs", b = "disha"))) %>%
   mutate(features = map(features, .f = ~define_ol(x = ., a = "phs", b = "uni_pep")))
 
 
@@ -386,9 +437,9 @@ score_regions <- function(features,
                           to_score = c(basic, angles, energy, "DB_Dibasic",  "SV_sequence variant",
                                        paste0(c("chem", "pep"), "_", nn[["neural_net"]]),
                                        paste0(c("chem", "pep"), "_", sub("nn", "xgb", nn[["neural_net"]]))),
-                          n_v_c = "pep_xgb4c") {
+                          n_v_c = c("pep_nn4c", "pep_xgb4c")) {
 
-  roi_to_score <- c("gpcrdb_gtp", "sven", "phs", "top200NC", "peptide")
+  roi_to_score <- c("gpcrdb_gtp", "sven", "phs", "top200NC", "uni_pep", "disha")
 
   if("peptide" %in% roi_to_score) {
     rts <- bind_rows(features %>%
@@ -409,18 +460,38 @@ score_regions <- function(features,
       filter(!source %in% roi_to_score)
   }
 
-
   if(nrow(rts) > 0) {
+
+    rts <- rts %>%
+      rowwise %>%
+      mutate(score_regions_h(start, end,
+                             to_score = to_score,
+                             aa_scores = aa_scores)) %>%
+      ungroup %>%
+      mutate(best_model = if_else(!!rlang::sym(paste0(n_v_c[1], "_max")) > !!rlang::sym(paste0(n_v_c[2], "_max")),
+                                  n_v_c[1],
+                                  n_v_c[2]))
+
+      for(x in seq_along(rts$best_model)) {
+        if(is.na(rts[["best_model"]][x])) {
+          rts[["best_model_entire"]][x] <- NA
+          rts[["best_model_max"]][x] <- NA
+          rts[["best_model_nterm"]][x] <- NA
+          rts[["best_model_cterm"]][x] <- NA
+        } else {
+          rts[["best_model_entire"]][x] <- rts[[paste0(rts[["best_model"]][x], "_entire")]][x]
+          rts[["best_model_max"]][x] <- rts[[paste0(rts[["best_model"]][x], "_max")]][x]
+          rts[["best_model_nterm"]][x] <- rts[[paste0(rts[["best_model"]][x], "_nterm")]][x]
+          rts[["best_model_cterm"]][x] <- rts[[paste0(rts[["best_model"]][x], "_cterm")]][x]
+        }
+      }
+
+    rts <- rts %>%
+    mutate(hsterm = if_else(best_model_nterm > best_model_cterm, "N", "C")) %>%
+      mutate(dterm = abs(best_model_nterm - best_model_cterm))
+
     features <- bind_rows(tmp2,
-                          rts %>%
-                            rowwise %>%
-                            mutate(score_regions_h(start, end,
-                                                   to_score = to_score,
-                                                   aa_scores = aa_scores)) %>%
-                            ungroup %>%
-                            mutate(max_score = pmax(!!!syms(paste0(n_v_c, c("_entire", "_nterm", "_cterm"))))) %>%
-                            mutate(hsterm = ifelse(.data[[paste0(n_v_c, "_nterm")]] > .data[[paste0(n_v_c, "_cterm")]], "N", "C")) %>%
-                            mutate(dterm = abs(.data[[paste0(n_v_c, "_nterm")]] - .data[[paste0(n_v_c, "_cterm")]])))
+                          rts)
   }
 
   return(features)
@@ -434,8 +505,9 @@ gc()
 start <- Sys.time()
 
 future::plan(strategy = future::multisession(workers = 8))
+#future::plan(strategy = future::sequential())
 
-secretome[["features"]] <- furrr::future_map2(secretome[["features"]], secretome[["aa_scores"]], .f = score_regions)
+secretome[["features"]] <- furrr::future_map2(secretome[["features"]], secretome[["aa_scores"]], .f = score_regions, .progress = TRUE)
 
 end <- Sys.time()
 end - start
@@ -522,7 +594,7 @@ score_dbc <- function(seq_dbcenter, start_dbc, shift) {
 
 
 get_db_sites <- function(features, sequence_uni,
-                         db_pep_source = c("gpcrdb_gtp", "phs", "sven", "peptide"), wN = 10, wC = 10) {
+                         db_pep_source = c("gpcrdb_gtp", "phs", "sven", "peptide", "top200NC", "disha"), wN = 10, wC = 10) {
 
 
   shift <- max(c(wN, wC))
@@ -661,13 +733,17 @@ get_db_sites <- function(features, sequence_uni,
 
 get_db_sites(features, sequence_uni)
 
+secretome <- secretome %>%
+  filter(nchar(sequence_uni) > 10)
+
 gc()
 gc()
 start <- Sys.time()
 future::plan(strategy = future::multisession(workers = 8))
+#future::plan(strategy = future::sequential())
 
 secretome[["features"]] <- furrr::future_map2(.x = secretome[["features"]],
-                                              .y = secretome[["sequence_uni"]], .f = \(x, y) get_db_sites(features = x, sequence_uni = y))
+                                              .y = secretome[["sequence_uni"]], .f = \(x, y) get_db_sites(features = x, sequence_uni = y), .progress = TRUE)
 
 end <- Sys.time()
 end - start

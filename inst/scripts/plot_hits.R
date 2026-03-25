@@ -8,6 +8,10 @@ files <- c("~/AF2_analysis/top200NC_Nov17.csv", "~/AF2_analysis/all_metrics_oct1
 
 files <- c("~/AF2_analysis/new_peps_scg_tm_focused.csv")
 
+files <- c("~/AF2_analysis/jan30.csv")
+files <- c("~/AF2_analysis/gdf5.csv")
+
+
 
 metrics <- c("iptm", "paeL_mean_in", "paeL_mean_all", "paeL_mean_out")
 
@@ -72,7 +76,7 @@ residue_data <- res_db %>%
 
 
 
-file_name <- "~/AF2_analysis/new_peps_scg_tm_focused_paeL.svg"
+file_name <- "~/AF2_analysis/gdf5_paeL_mean_all.svg"
 
 dat2 <- dat %>%
   #filter(p1_name %in% !!common_receptors) %>%
@@ -102,7 +106,7 @@ dat2 <- dat2 %>%
 
 
 
-p <- ggplot(data = dat2, aes(x = id, y = paeL_mean_in_loc, fill = depth2, shape = location)) +
+p <- ggplot(data = dat2, aes(x = id, y = paeL_mean_all, fill = depth2, shape = location)) +
   ggplot2::geom_point(size = 1.5, stroke = 0.1) +
   #ggiraph::geom_point_interactive(aes(tooltip = p1_name), size = 0.6) +
   ggplot2::facet_grid(rows = vars(pep), cols = vars(p1_name), switch = "y") +
@@ -120,7 +124,7 @@ p <- ggplot(data = dat2, aes(x = id, y = paeL_mean_in_loc, fill = depth2, shape 
                                  name = "insertion\ndepth", na.value = "black") +
   xlab("") +
   ylab("") +
-  ggtitle("PAEL_mean_in") +
+  ggtitle("paeL_mean_all") +
   theme(axis.text.x = element_blank(),
         strip.text.y.left = element_text(angle = 0, hjust = 0),
         strip.text.x = element_text(angle = 90, hjust = 0), strip.placement = "outside",

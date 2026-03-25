@@ -10,9 +10,13 @@ library(tidyr)
 remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
 library(ligandFinder)
 
+fs::dir_copy("/home/groups/ebutcher/kevin/ligandFinder/residue_db", "/scratch/groups/ebutcher/deorphan/ligandFinder")
+
 set_db_path("/scratch/groups/ebutcher/deorphan/ligandFinder")
-pq_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/ligandFinder/residue_db"
+pq_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/residue_db"
 voronota_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/voronota/bin/voronota-contacts"
+voronota_path <- "/home/groups/ebutcher/programs/voronota/bin/voronota-contacts"
+
 
 res_db <- arrow::open_dataset(source = pq_path)
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
@@ -47,17 +51,17 @@ run_dirs <- c("top200NC_Nov12", "top200NC_Oct23_cleanup")
 run_dirs <- "brinp"
 run_dirs <- "CXCL14peptides"
 run_dirs <- "new_peps"
+run_dirs <- "jan30"
+run_dirs <- "bm"
 
-run_id <- "new_peps"
+run_dirs <- list.files(scratch_models)
 
-
+run_dirs <- "known_pairs"
 ###extract from OAK
 
 start <- Sys.time()
 
-time <- format(Sys.time(), "%b%e")
-
-run_dirs <- c("add_bm")
+time <- format(Sys.time(), "%b%e") %>% stringr::str_remove(., " ")
 
 fs::dir_create(fs::path(scratch_models, paste0(run_dirs, "_", time)), mode = "u=rwx,g=rwx")
 
@@ -70,7 +74,7 @@ furrr::future_walk2(tar_files[[run_dir]], run_dir, \(f, rd) {
   outdir <- fs::path(scratch_models, paste0(rd, "_", time), stringr::str_remove(fs::path_file(f), ".tar$"))
 
   tryCatch({
-    utils::untar(f, exdir = outdir)
+    utils::untar(f, exdir = outdir, extra = "--strip-components=1")
   }, error = function(e) {
     message("❌ Failed to extract ", f, ": ", conditionMessage(e))
   })
@@ -80,7 +84,7 @@ furrr::future_walk2(tar_files[[run_dir]], run_dir, \(f, rd) {
 
 end <- Sys.time()
 
-start - end
+end - start
 
 yo()
 
@@ -142,65 +146,23 @@ if("raw_afpd" %in% names(jobs)) {
 
 }
 
-to_rename <- jobs[["raw_afpd"]] %>%
-              filter(!model %in% !!jobs[["renamed_dir"]][["model"]])
+run_dir <- "????"
 
-rename_dir <- fs::path(scratch_models, "new_pepss")
-
-fs::dir_create(rename_dir)
-
-to_rename <- to_rename %>%
-  mutate(rename_dir = rename_dir)
-
-
-furrr::future_walk(to_rename[["afpd_dir"]], \(d) {
-  fs::dir_copy(d, fs::path(rename_dir, fs::path_file(d)))
-})
-
-yo()
-
-test <- fs::dir_ls(rename_dir)
-
-run_dir_rename <- jobs[["raw_afpd"]][["run_dir"]][[1]]
-
-rename_data <- parse_dirname(run_dir = run_dir_rename,
-                             afpd_raw = TRUE)
-
-rename_data <- make_new_dirname(input = rename_data,
-                                delim_proteins = "_",
-                                delim_ranges = "x",
-                                delim_start_end = "x",
-                                p1_prefix = "h",
-                                p1_suffix = NA,
-                                p2_prefix = "h",
-                                exclude_p1_range = TRUE)
-
-rename_dir(run_dir = run_dir_rename,
-           input = rename_data,
-           from = "afpd_dir_name",
-           to = "new_dir_name")
-
-
-rename_data <- parse_afpd_files(input = rename_data,
-                                dir_name = "new_dir_name",
-                                run_dir = run_dir_rename)
-
-rename_data <- make_new_file_names(input = rename_data,
-                                   dir_name = "new_dir_name",
-                                   run_name = run_id,
-                                   site = "SU",
-                                   submitter = "KB",
-                                   algorithm = "AF2v3",
-                                   random_seed = 42)
-
-rename_data <- rename_files(run_dir = run_dir_rename,
-                            input = rename_data,
-                            from = "og_file_name",
-                            to = "new_file_name")
-
-
-
-
+do_renaming(run_dir = run_dir,
+            run_name = fs::path_file(run_dir),
+            pairing_dir = NULL,
+            afpd_raw = TRUE,
+            delim_proteins = "_",
+            delim_ranges = "x",
+            delim_start_end = "x",
+            p1_prefix = "h",
+            p1_suffix = NA,
+            p2_prefix = "h",
+            exclude_p1_range = TRUE,
+            site = "SU",
+            submitter = "KB",
+            algorithm = "AF2v3",
+            random_seed = 42)
 
 
 
@@ -217,7 +179,40 @@ jobs <- jobs %>%
   mutate(file_names = map(afpd_dir, ~fs::dir_ls(.) %>% fs::path_file(.)))
 
 
+###check file name codes
+if(FALSE) {
 
+
+jobs <- jobs %>%
+          mutate(codes = map(file_names, ~stringr::str_extract(., "_[A-Z]{4}[a-z0-9]{7}_") %>%
+                                            stringr::str_remove(., "^_[A-Z]{4}") %>%
+                                            stringr::str_remove(., "_$") %>%
+                                            .[!is.na(.)] %>%
+                                            unique))
+
+
+jobs <- jobs %>%
+          select(-file_names) %>%
+          unnest(codes)
+
+codes <- data.table::fread("/home/groups/ebutcher/kevin/ligandFinder/random_codes.csv")
+
+codes <- codes %>% as_tibble()
+
+used_ids <- codes %>%
+  dplyr::filter(usage == "used") %>%
+  dplyr::pull(id) %>%
+  stringr::str_remove("^[A-Z]{4}")
+
+job_codes <- jobs$codes %>%
+  stringr::str_remove(".{2}$")
+
+sum(used_ids %in% job_codes)
+
+#fs::file_copy("/scratch/groups/ebutcher/deorphan/ligandFinder/random_codes.csv", "/home/groups/ebutcher/kevin/ligandFinder", overwrite = TRUE)
+
+
+}
 
 ####check curent metrics
 
@@ -269,7 +264,7 @@ jobs <- jobs %>%
 
 contacts_good <- jobs %>%
   filter(has_contact_rds) %>%
-  #filter(!map_lgl(contacts, is.null)) %>%
+  filter(!map_lgl(contacts, is.null)) %>%
   filter(map2_lgl(metrics, contacts, \(x, y) {
       if(is.null(y)) {test <- rep("irrelevant", nrow(x))} else {
       test <- map_chr(y, \(z) {
@@ -298,7 +293,9 @@ jobs <- jobs %>%
 jobs <- jobs %>%
   mutate(group = paste0("job", ntile(n = num_cores)))
 
-jobs <- jobs %>% select(p1_name, p2_name, afpd_dir, group)
+jobs <- jobs %>% select(p1_name, p2_name, afpd_dir, group, ru)
+
+run_id <- "gdf5"
 
 gc()
 

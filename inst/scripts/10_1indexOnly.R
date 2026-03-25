@@ -1,0 +1,453 @@
+
+
+
+
+
+
+
+
+
+library(keras3)
+library(tensorflow)
+library(yardstick)
+
+
+
+classes <- c(nn_input$N$train$known_idx, nn_input$C$train$known_idx) %>% do.call(`c`, .) %>% unique
+classes <- classes[classes != "unknown"]
+classes <- setNames(0:(length(classes) - 1), classes)
+seq_len <- nn_input$N$train$data %>% `[[`(1) %>% nrow
+n_channels <- nn_input$N$train$data %>% `[[`(1) %>% ncol
+K <- nn_input$N$train$known_idx %>% do.call(`c`, .) %>% unique %>% length
+kernel_size <- 8
+
+
+models <- list()
+
+val_pred <- list()
+
+for(term in c("N", "C")) {
+
+  nn_in <- nn_input[[term]]
+
+  nn_in$train <- nn_in$train %>% filter(known == 1)
+
+  n_samples <- length(nn_in$train$data)
+
+  x_train <- array(
+    unlist(nn_in$train$data),
+    dim = c(seq_len, n_channels, length(nn_in$train$data))
+  )
+
+  x_train <- aperm(x_train, c(3, 1, 2))
+
+
+  y_train_global <- matrix(nn_in$train$known,
+                           ncol = 1)
+
+  y_train_per_index <- array(nn_in$train$known_idx %>% do.call(`c`, .) %>% classes[.],
+                             dim = c(seq_len, n_samples)) %>% t
+  #y_train_per_index[,,8] <- 0
+
+
+
+  n_samples <- length(nn_in$val$data)
+
+  x_val <- array(
+    unlist(nn_in$val$data),
+    dim = c(seq_len, n_channels, length(nn_in$val$data))
+  )
+
+  x_val <- aperm(x_val, c(3, 1, 2))
+
+
+  y_val_global <- matrix(nn_in$val$known,
+                         ncol = 1)
+
+  y_val_per_index <- array(nn_in$val$known_idx %>% do.call(`c`, .) %>% classes[.],
+                           dim = c(n_samples, seq_len))
+
+
+  inputs <- layer_input(shape = c(seq_len, n_channels))
+
+  shared <- inputs |>
+    layer_conv_1d(64, kernel_size,
+                  padding="same",
+                  activation="relu") |>
+    layer_conv_1d(64, kernel_size,
+                  padding="same",
+                  activation="relu")
+
+  per_index_output <- shared |>
+    layer_conv_1d(1, 1, activation="sigmoid", name="per_index")
+
+  model <- keras_model(inputs, per_index_output)
+
+  model |> compile(
+    optimizer = optimizer_adam(1e-3),
+    loss = "binary_crossentropy",
+    metrics = list(metric_precision(), metric_recall())
+  )
+
+
+  model |> fit(
+    x = x_train,
+    y = list(
+      per_index = y_train_per_index
+    ),
+    epochs = 300,
+    callbacks = list(early_stopping),
+    batch_size = 32
+  )
+
+  models[[term]] <- model
+
+
+}
+
+
+
+val_pred_comb <- map(val_pred, ~.[,1]) %>% do.call(`c`, .) %>% unname
+
+
+metrics <- metric_set(
+  roc_auc,
+  pr_auc,
+  accuracy,
+  mcc,
+  f_meas,
+  precision,
+  recall,
+)
+
+df <- tibble(
+  truth = factor(c(nn_input$N$val$known,
+                   nn_input$C$val$known)),
+  .pred_class = ifelse(val_pred_comb > 0.6, 1, 0) %>% factor(., levels = c(0,1)),
+  .pred_1 = val_pred_comb
+)
+
+#df <- bind_rows(df_c, df_n)
+
+metrics(df, truth = truth, estimate = .pred_class, .pred_1, event_level = "second")
+
+
+nn_input_comb <- bind_rows(nn_input$N$val, nn_input$C$val)
+
+nn_input_comb$pred <- val_pred_comb
+
+nn_input_comb <- nn_input_comb %>%
+  arrange(desc(pred)) %>%
+  mutate(rank = row_number(), .by = known) %>%
+  mutate(uni_pep = if_else(gene %in% uniprot_peps$gene, 1, 0))
+
+nn_input_comb <- nn_input_comb %>%
+  mutate(gene = stringr::str_extract(pep_name, "^[^_]+")) %>%
+  {left_join(., secretome %>% distinct(gene, .keep_all = T) %>% select(gene, location), by = "gene")}
+
+View(nn_input_comb %>% filter(known == 0))
+
+uniprot_peps <- data.table::fread("~/Desktop/uniprot_peptides.csv") %>% as_tibble()
+
+
+nn_input$val$pred <- val_pred[,1]
+
+p <- yardstick::roc_curve(data = df, truth = "truth", ".pred_1",
+                          event_level = "second") %>%
+  autoplot() + ggtitle("All peptide prediction")
+
+
+ggsave("~/AF2_analysis/all_peps_roc_AUC.svg", p)
+
+model_stats <- bind_cols(
+  metrics(df_n, truth = truth, estimate = .pred_class, .pred_1, event_level = "second") %>%
+    dplyr::rename(N_term = .estimate) %>%
+    select(.metric, N_term),
+  metrics(df_c, truth = truth, estimate = .pred_class, .pred_1, event_level = "second") %>%
+    dplyr::rename(C_term = .estimate) %>%
+    select(C_term),
+  metrics(df, truth = truth, estimate = .pred_class, .pred_1, event_level = "second") %>%
+    dplyr::rename(all = .estimate) %>%
+    select(all)
+)
+
+write.csv(model_stats, "~/AF2_analysis/model_stats_new.csv")
+
+
+
+
+predict_combined <- function(x, category) {
+  ifelse(
+    category == 1,
+    predict(model_A, x),
+    predict(model_B, x)
+  )
+}
+
+
+
+
+
+
+
+
+
+
+saliency_fn <- function(model, x_batch) {
+  x_tensor <- tf$convert_to_tensor(x_batch)
+
+  with(tf$GradientTape() %as% tape, {
+    tape$watch(x_tensor)
+    preds <- model(x_tensor)[[1]]  # global output
+  })
+
+  grads <- tape$gradient(preds, x_tensor)
+  as.array(grads)
+}
+
+
+targs <- list(
+  c("C", "loop_C"),
+  c("N", "loop_N")
+)
+
+
+met_it <- list(core = all_params3[1:4],
+               motif1 = c("AA_Y", "AA_W", "AA_F"),
+               motif2 = c("AA_Q", "AA_E", "AA_D"),
+               motif3 = c("AA_G", "AA_H", "AA_V"),
+               SS = c("SS_G", "SS_B", "SS_H"))
+
+for(y in seq_along(met_it)) {
+
+  mets <- met_it[[y]]
+  p_final <- list()
+
+
+  for(x in seq_along(targs)) {
+
+    targ <- targs[[x]]
+
+    shap_vals <- saliency_fn(models[[targ[1]]], x_val)
+
+
+    dat_toplot <- lapply(mets, \(x) shap_vals[y_val_global == 1,,which(all_params3 == x)] %>% as_tibble %>% mutate(metric = x)) %>%
+      bind_rows() %>%
+      pivot_longer(cols = -metric) %>%
+      mutate(index = setNames(1:36, paste0("V", 1:36))[name]) %>%
+      select(-name)
+
+    non_zero_mean <- function(x) {
+      mean(x[!x == 0], na.rm = TRUE)
+    }
+
+    center_func <- if(names(met_it)[y] == "core") {center_func <- non_zero_mean} else {center_func <- mean}
+
+    dat_toplot2 <- map(known_dat$data[known_dat$target %in% targ], \(x) {
+
+      x[, mets] %>%
+        mutate(index = row_number())
+
+    }) %>%
+      bind_rows %>%
+      group_by(index) %>%
+      summarise(across(everything(), center_func),
+                index = first(index)) %>%
+      pivot_longer(cols = -index) %>%
+      mutate(type = "average of residues within or adjacent to known GPCR ligands")
+
+    dat_toplot3 <- map(c_dat$data[c_dat$target %in% targ], \(x) {
+
+      x[, mets] %>%
+        mutate(index = row_number())
+
+    }) %>%
+      bind_rows %>%
+      pivot_longer(cols = -index) %>%
+      mutate(type = "average of residues from ~40K candidate regions")
+
+
+
+    p <- ggplot2::ggplot(dat_toplot %>% group_by(index, metric) %>%
+                           summarise(across(everything(), mean, na.rm = T))) +
+      #ggplot2::geom_violin(aes(x = name, y = value), trim = TRUE) +
+      ggplot2::geom_point(aes(x = index, y = value)) +
+      ylab("model sensitivity") +
+      scale_x_continuous(expand = expansion(mult = c(0.01, 0.01)),
+                         breaks = seq(0, max_index, by = 10),
+                         minor_breaks = seq(0, max_index, by = 5)) +
+      ggplot2::facet_grid(rows = vars(metric), scales = "free_y") +
+      theme_bw() +
+      theme(
+        strip.background = element_blank(),     # removes grey box
+        strip.text = element_text(
+          color = "black",
+          size = 10
+        )  )
+
+
+    p2 <- ggplot2::ggplot(data = dat_toplot3, aes(x = index, y = value)) +
+      stat_summary(
+        fun = mean,
+        geom = "point",
+        size = 1, mapping = aes(shape = type)
+      )
+
+    if(names(met_it)[y] == "core") {
+      p2 <- p2 +
+        stat_summary(
+          fun.min = ~ quantile(.x, 0.25),
+          fun.max = ~ quantile(.x, 0.75),
+          geom = "errorbar",
+          width = 0.2, linewidth = 0.2
+        )
+    }
+
+    p2 <- p2 +
+      ylab("input data") +
+      scale_x_continuous(expand = expansion(mult = c(0.01, 0.01)),
+                         breaks = seq(0, max_index, by = 10),
+                         minor_breaks = seq(0, max_index, by = 5)) +
+      ggplot2::geom_point(data = dat_toplot2, aes(x = index, y = value, shape = type), size = 2) +
+      ggplot2::facet_grid(rows = vars(name), scales = "free_y") +
+      scale_shape_manual(
+        values = c(
+          "average of residues within or adjacent to known GPCR ligands" = 21,
+          "average of residues from ~40K candidate regions" = 15
+        )
+      ) +
+      theme_bw() +
+      theme(
+        strip.background = element_blank(),     # removes grey box
+        strip.text = element_text(
+          color = "black",
+          size = 10
+        )  )
+
+
+    seq_dat <- nn_input_comb %>%
+      filter(target %in% targ & known == 1) %>%
+      mutate(meta_data = map2(meta_data, pep_id, \(x,y) x %>% mutate(metric = y) %>% mutate(index_og = index) %>% mutate(index = row_number()))) %>%
+      pull(meta_data) %>%
+      bind_rows
+
+
+    seq_dat$metric <- factor(seq_dat$metric,
+                             levels = rev(sort(unique(seq_dat$metric))))
+
+    p3 <- ggplot2::ggplot(seq_dat) +
+      ggplot2::geom_tile(mapping = aes(x = index, y = metric, fill = known_idx)) +
+      ggiraph::geom_point_interactive(data = seq_dat %>%
+                                        mutate(tt_value = "test"),
+                                      aes(x = index, y = metric, tooltip = tt_value, data_id = index), pch = 15, size = 2.5, color = "grey85") +
+
+      scale_fill_discrete(palette = ggsci::pal_simpsons()) +
+      ylab("") +
+      xlab("") +
+
+      scale_x_continuous(expand = expansion(mult = c(0, 0)),
+                         breaks = seq(0, max_index, by = 10),
+                         minor_breaks = seq(0, max_index, by = 5)) +
+      ggplot2::geom_text(aes(x = index, y = metric, label = AA), size = 1.8, fontface = "bold", color = "black") +
+      theme_bw()
+
+
+
+
+
+    p_final[[targ[1]]] <- list(p3, p2, p)
+
+
+
+  }
+
+  p_final <- unlist(p_final, recursive = FALSE)
+
+  p_final2 <- Reduce(`+`, p_final) +  patchwork::plot_layout(ncol = 2, nrow = 3, byrow = FALSE, heights = c(0.6,1,1),
+                                                             guides = "collect") &
+    theme(legend.position = "top", legend.title = element_blank())
+
+  ggsave(filename = paste0("~/AF2_analysis/shap_1dcnn_", names(met_it)[y], ".svg"), p_final2, width = 16, height = 14)
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+library(fastshap)
+
+pred_fun <- function(object, newdata) {
+
+  n <- nrow(newdata)
+
+  reshaped <- array(
+    newdata,
+    dim = c(n, 36, 110)
+  )
+
+  preds <- predict(object, reshaped)
+
+  as.numeric(preds$global[,1])
+}
+
+
+x_val_flat <- matrix(
+  x_val,
+  nrow = dim(x_val)[1],
+  ncol = prod(dim(x_val)[-1])
+)
+
+baseline <- mean(pred_fun(models[["C"]], x_val_flat))
+
+shap_values <- fastshap::explain(
+  object = models[["C"]],
+  X = x_val_flat,
+  pred_wrapper = pred_fun,
+  nsim = 100,
+  baseline = baseline
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
