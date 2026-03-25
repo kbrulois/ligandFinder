@@ -133,7 +133,7 @@ to_download <- unique(to_download[!is.na(to_download)])
 
 
 #run_dir <- "/scratch/groups/ebutcher/deorphan/models/bm_sep28"
-run_dir <- "/scratch/groups/ebutcher/deorphan/models/top200NC_Oct23"
+run_dir <- "/scratch/groups/ebutcher/deorphan/models/top200NC"
 run_dir <- "/scratch/groups/ebutcher/deorphan/models/brinp_Oct28"
 
 local_dir <- " ~/Desktop"
@@ -148,7 +148,7 @@ local_dir))
 
 test <- clipr::read_clip_tbl()
 
-to_download <- c("hGPR25_hCXL11x22x94")
+to_download <- c("hKISSR_hSG3A1x95x104")
 
 brnp123 npy2R with or with g_alpha
 

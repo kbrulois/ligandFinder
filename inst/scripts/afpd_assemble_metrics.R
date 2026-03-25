@@ -13,7 +13,7 @@ remotes::install_github("kbrulois/ligandFinder", auth_token = "ghp_Hcwhpbw1cVDTH
 library(ligandFinder)
 
 set_db_path("/scratch/groups/ebutcher/deorphan/ligandFinder")
-pq_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/ligandFinder/residue_db"
+pq_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/residue_db"
 voronota_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/voronota/bin/voronota-contacts"
 
 res_db <- arrow::open_dataset(source = pq_path)
@@ -50,6 +50,13 @@ run_dirs <- c("bm_sep28", "brinp_Oct28", "CXCL14vGPCRs")
 run_dirs <- c("CXCL14peptides")
 
 run_dirs <- "new_peps"
+
+run_dirs <- "bm_sep28"
+
+run_dirs <- list.files(scratch_models)
+
+run_dirs <- "known_pairs"
+
 tmp <- map(run_dirs, ~fs::dir_ls(fs::path(scratch_models, .))) %>% do.call(c, .)
 
 runs <- tibble(afpd_dir_name = fs::path_file(tmp),
@@ -126,10 +133,9 @@ runs <- runs %>%
   }))
 
 
-
 contacts_good <- runs %>%
   filter(has_contact_rds) %>%
-  #filter(!map_lgl(contacts, is.null)) %>%
+  filter(!map_lgl(contacts, is.null)) %>%
   filter(map2_lgl(metrics, contacts, \(x, y) {
     if(is.null(y)) {test <- rep("irrelevant", nrow(x))} else {
       test <- map_chr(y, \(z) {
@@ -291,7 +297,7 @@ runs_c <- runs_m %>%
 
 out_dir <- "/oak/stanford/groups/ebutcher/kevin"
 local_dir <- "~/AF2_analysis"
-file_name <- "new_peps_scg_tm_focused.csv"
+file_name <- "gdf5.csv"
 
 data.table::fwrite(runs_m %>%
                      select(!where(is.list)),
@@ -299,8 +305,11 @@ data.table::fwrite(runs_m %>%
 
 message("scp kbrulois@dtn.sherlock.stanford.edu:", out_dir, "/", file_name, " ", local_dir, "/", file_name)
 
+file_name <- "gdf5.rds"
 
+saveRDS(runs_m, paste0(out_dir, "/", file_name))
 
+message("scp kbrulois@dtn.sherlock.stanford.edu:", out_dir, "/", file_name, " ", local_dir, "/", file_name)
 
 
 

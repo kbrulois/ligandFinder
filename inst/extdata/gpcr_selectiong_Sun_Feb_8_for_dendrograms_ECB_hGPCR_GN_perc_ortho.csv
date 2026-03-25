@@ -1,0 +1,364 @@
+Gene,seqnm,1,namex,upid,upid 2,decision_Feb8_ecb,exclude_or_add_working,Notes,not_run,n_ortho_af2,n_ortho_af3,perc_ortho_af2,perc_ortho_af3,fam_lig
+ACKR1,hACKR1,2,"Atypical chemokine receptor 1 ID=ACKR1_HUMAN AC=Q16570 GN=ACKR1,DARC,FY,GPD class=A TM=64-308",ackr1_human,,exclude?,exclude?,interceptor,,146,692,92.41,81.22,A Protein
+ACKR2,hACKR2,3,"Atypical chemokine receptor 2 ID=ACKR2_HUMAN AC=O00590 GN=ACKR2,CCBP2,CCR10,CMKBR9,D6 class=A TM=51-314",ackr2_human,,exclude?,exclude?,interceptor,,131,704,82.91,82.63,A Protein
+ACKR3,hACKR3,4,"Atypical chemokine receptor 3 ID=ACKR3_HUMAN AC=P25106 GN=ACKR3,CMKOR1,CXCR7,GPR159,RDC1 class=A TM=41-319",ackr3_human,,exclude?,exclude?,interceptor,,145,699,91.77,82.04,A Protein
+ACKR4,hACKR4,5,"Atypical chemokine receptor 4 ID=ACKR4_HUMAN AC=Q9NPB9 GN=ACKR4,CCBP2,CCR11,CCRL1,VSHK1 class=A TM=43-310",ackr4_human,,exclude?,exclude?,interceptor,,113,575,71.52,67.49,A Protein
+ADCYAP1R1,hPACR,6,Pituitary adenylate cyclase-activating polypeptide type I receptor ID=PACR_HUMAN AC=P41586 GN=ADCYAP1R1 class=B TM=153-403,pacr_human,,include,,,,72,,45.57,,B1 Peptide
+ADGRA1,hAGRA1,7,"Adhesion G protein-coupled receptor A1 ID=AGRA1_HUMAN AC=Q86SQ6 GN=ADGRA1,GPR123,KIAA1828 class=B TM=20-305",agra1_human,,include,,,,56,,35.44,,B2 Adhesion
+ADORA1,hAA1R,8,Adenosine receptor A1 ID=AA1R_HUMAN AC=P30542 GN=ADORA1 class=A TM=11-292,aa1r_human,,exclude,exclude,,,12,,7.595,,A Nucleotide
+ADORA2A,hAA2AR,9,"Adenosine receptor A2a ID=AA2AR_HUMAN AC=P29274 GN=ADORA2A,ADORA2 class=A TM=8-290",aa2ar_human,,include,,,,93,,58.86,,A Nucleotide
+ADORA2B,hAA2BR,10,Adenosine receptor A2b ID=AA2BR_HUMAN AC=P29275 GN=ADORA2B class=A TM=9-291,aa2br_human,,exclude,exclude,,,4,,2.532,,A Nucleotide
+ADORA3,hAA3R,11,Adenosine receptor A3 ID=AA3R_HUMAN AC=P0DMS8 GN=ADORA3 class=A TM=15-284,aa3r_human,,exclude,,,not run,,,,,A Nucleotide
+ADRA1A,hADA1A,12,"Alpha-1A adrenergic receptor ID=ADA1A_HUMAN AC=P35348 GN=ADRA1A,ADRA1C class=A TM=28-329",ada1a_human,,exclude,exclude,,,15,,9.494,,A Aminergic
+ADRA1B,hADA1B,13,Alpha-1B adrenergic receptor ID=ADA1B_HUMAN AC=P35368 GN=ADRA1B class=A TM=46-351,ada1b_human,,exclude,exclude,,,23,,14.56,,A Aminergic
+ADRA1D,hADA1D,14,"Alpha-1D adrenergic receptor ID=ADA1D_HUMAN AC=P25100 GN=ADRA1D,ADRA1A class=A TM=96-405",ada1d_human,,exclude,,,,36,,22.78,,A Aminergic
+ADRA2A,hADA2A,15,"Alpha-2A adrenergic receptor ID=ADA2A_HUMAN AC=P08913 GN=ADRA2A,ADRA2R,ADRAR class=A TM=49-444",ada2a_human,,exclude,exclude,,,2,,1.266,,A Aminergic
+ADRA2B,hADA2B,16,"Alpha-2B adrenergic receptor ID=ADA2B_HUMAN AC=P18089 GN=ADRA2B,ADRA2L1,ADRA2RL1 class=A TM=13-426",ada2b_human,,exclude,exclude,,,13,,8.228,,A Aminergic
+ADRA2C,hADA2C,17,"Alpha-2C adrenergic receptor ID=ADA2C_HUMAN AC=P18825 GN=ADRA2C,ADRA2L2,ADRA2RL2 class=A TM=52-441",ada2c_human,,exclude,exclude,,,18,,11.39,,A Aminergic
+ADRB1,hADRB1,18,"Beta-1 adrenergic receptor ID=ADRB1_HUMAN AC=P08588 GN=ADRB1,ADRB1R,B1AR class=A TM=56-377",adrb1_human,,exclude,,,,18,,11.39,,A Aminergic
+ADRB2,hADRB2,19,"Beta-2 adrenergic receptor ID=ADRB2_HUMAN AC=P07550 GN=ADRB2,ADRB2R,B2AR class=A TM=35-329",adrb2_human,,exclude,exclude,,,14,,8.861,,A Aminergic
+ADRB3,hADRB3,20,"Beta-3 adrenergic receptor ID=ADRB3_HUMAN AC=P13945 GN=ADRB3,ADRB3R,B3AR class=A TM=37-347",adrb3_human,,exclude,exclude,,,15,,9.494,,A Aminergic
+AGTR1,hAGTR1,21,"Type-1 angiotensin II receptor ID=AGTR1_HUMAN AC=P30556 GN=AGTR1,AGTR1A,AGTR1B,AT2R1,AT2R1B class=A TM=26-304",agtr1_human,,include,,,,87,621,55.06,72.89,A Peptide
+AGTR2,hAGTR2,22,Type-2 angiotensin II receptor ID=AGTR2_HUMAN AC=P50052 GN=AGTR2 class=A TM=46-320,agtr2_human,,include,,,,150,715,94.94,83.92,A Peptide
+APLNR,hAPJ,23,"Apelin receptor ID=APJ_HUMAN AC=P35414 GN=APLNR,AGTRL1,APJ class=A TM=31-312",apj_human,,include,,,,126,669,79.75,78.52,A Peptide
+AVPR1A,hV1AR,24,"Vasopressin V1a receptor ID=V1AR_HUMAN AC=P37288 GN=AVPR1A,AVPR1 class=A TM=53-351",v1ar_human,,include,,,,139,675,87.97,79.23,A Peptide
+AVPR1B,hV1BR,25,"Vasopressin V1b receptor ID=V1BR_HUMAN AC=P47901 GN=AVPR1B,AVPR3,VPR3 class=A TM=36-341",v1br_human,,include,,,,148,701,93.67,82.28,A Peptide
+AVPR2,hV2R,26,"Vasopressin V2 receptor ID=V2R_HUMAN AC=P30518 GN=AVPR2,ADHR,DIR,DIR3,V2R class=A TM=39-328",v2r_human,,include,,,,136,707,86.08,82.98,A Peptide
+BDKRB1,hBKRB1,27,"B1 bradykinin receptor ID=BKRB1_HUMAN AC=P46663 GN=BDKRB1,BRADYB1 class=A TM=41-314",bkrb1_human,,include,,,,138,722,87.34,84.74,A Peptide
+BDKRB2,hBKRB2,28,"B2 bradykinin receptor ID=BKRB2_HUMAN AC=P30411 GN=BDKRB2,BKR2 class=A TM=61-335",bkrb2_human,,include,,,,112,685,70.89,80.4,A Peptide
+BRS3,hBRS3,29,Bombesin receptor subtype-3 ID=BRS3_HUMAN AC=P32247 GN=BRS3 class=A TM=42-333,brs3_human,Add,add,add,,not run,,595,,69.84,A Peptide
+C3AR1,hC3AR,30,"C3a anaphylatoxin chemotactic receptor ID=C3AR_HUMAN AC=Q16581 GN=C3AR1,AZ3B,C3R1,HNFAG09 class=A TM=24-438",c3ar_human,,include,,,,108,609,68.35,71.48,A Peptide
+C5AR1,hC5AR1,31,"C5a anaphylatoxin chemotactic receptor 1 ID=C5AR1_HUMAN AC=P21730 GN=C5AR1,C5AR,C5R1 class=A TM=38-303",c5ar1_human,,include,,,,139,589,87.97,69.13,A Peptide
+C5AR2,hC5AR2,32,"C5a anaphylatoxin chemotactic receptor 2 ID=C5AR2_HUMAN AC=Q9P296 GN=C5AR2,C5L2,GPR77 class=A TM=39-294",c5ar2_human,,include,,,,141,663,89.24,77.82,A Peptide
+CALCR,hCALCR,33,Calcitonin receptor ID=CALCR_HUMAN AC=P30988 GN=CALCR class=B TM=147-394,calcr_human,,include,,,,128,,81.01,,B1 Peptide
+CALCRL,hCALRL,34,"Calcitonin gene-related peptide type 1 receptor ID=CALRL_HUMAN AC=Q16602 GN=CALCRL,CGRPR class=B TM=140-387",calrl_human,,include,,,,110,,69.62,,B1 Peptide
+CASR,hCASR,35,"Extracellular calcium-sensing receptor ID=CASR_HUMAN AC=P41180 GN=CASR,GPRC2A,PCAR1 class=C TM=611-854",casr_human,,exclude,,,not run,,,,,C Ion
+CCKAR,hCCKAR,36,"Cholecystokinin receptor type A ID=CCKAR_HUMAN AC=P32238 GN=CCKAR,CCKRA class=A TM=42-373",cckar_human,,include,,,,106,542,67.09,63.62,A Peptide
+CCKBR,hGASR,37,"Gastrin/cholecystokinin type B receptor ID=GASR_HUMAN AC=P32239 GN=CCKBR,CCKRB class=A TM=58-394",gasr_human,,include,,,,80,578,50.63,67.84,A Peptide
+CCR1,hCCR1,38,"C-C chemokine receptor type 1 ID=CCR1_HUMAN AC=P32246 GN=CCR1,CMKBR1,CMKR1,SCYAR1 class=A TM=35-305",ccr1_human,,include,,,,107,625,67.72,73.36,A Protein
+CCR10,hCCR10,39,"C-C chemokine receptor type 10 ID=CCR10_HUMAN AC=P46092 GN=CCR10,GPR2 class=A TM=53-313",ccr10_human,,include,,,,129,618,81.65,72.54,A Protein
+CCR2,hCCR2,40,"C-C chemokine receptor type 2 ID=CCR2_HUMAN AC=P41597 GN=CCR2,CMKBR2 class=A TM=43-309",ccr2_human,,include,,,,76,525,48.1,61.62,A Protein
+CCR3,hCCR3,41,"C-C chemokine receptor type 3 ID=CCR3_HUMAN AC=P51677 GN=CCR3,CMKBR3 class=A TM=35-305",ccr3_human,,include,,,,123,598,77.85,70.19,A Protein
+CCR4,hCCR4,42,"C-C chemokine receptor type 4 ID=CCR4_HUMAN AC=P51679 GN=CCR4,CMKBR4 class=A TM=40-308",ccr4_human,,include,,,,103,519,65.19,60.92,A Protein
+CCR5,hCCR5,43,"C-C chemokine receptor type 5 ID=CCR5_HUMAN AC=P51681 GN=CCR5,CMKBR5 class=A TM=31-301",ccr5_human,,include,,,,128,587,81.01,68.9,A Protein
+CCR6,hCCR6,44,"C-C chemokine receptor type 6 ID=CCR6_HUMAN AC=P51684 GN=CCR6,CKRL3,CMKBR6,GPR29,STRL22 class=A TM=48-321",ccr6_human,,include,,,,75,444,47.47,52.11,A Protein
+CCR7,hCCR7,45,"C-C chemokine receptor type 7 ID=CCR7_HUMAN AC=P32248 GN=CCR7,CMKBR7,EBI1,EVI1 class=A TM=60-331",ccr7_human,,include,,,,60,516,37.97,60.56,A Protein
+CCR8,hCCR8,46,"C-C chemokine receptor type 8 ID=CCR8_HUMAN AC=P51685 GN=CCR8,CKRL1,CMKBR8,CMKBRL2 class=A TM=36-304",ccr8_human,,include,,,,108,582,68.35,68.31,A Protein
+CCR9,hCCR9,47,"C-C chemokine receptor type 9 ID=CCR9_HUMAN AC=P51686 GN=CCR9,GPR28 class=A TM=49-321",ccr9_human,,include,,,,134,590,84.81,69.25,A Protein
+CCRL2,hCCRL2,48,"C-C chemokine receptor-like 2 ID=CCRL2_HUMAN AC=O00421 GN=CCRL2,CCR11,CCR6,CKRX,CRAM,HCR class=A TM=44-307",ccrl2_human,,include,,,,78,400,49.37,46.95,A Protein
+CHRM1,hACM1,49,Muscarinic acetylcholine receptor M1 ID=ACM1_HUMAN AC=P11229 GN=CHRM1 class=A TM=23-420,acm1_human,,include,,,,55,,34.81,,A Aminergic
+CHRM2,hACM2,50,Muscarinic acetylcholine receptor M2 ID=ACM2_HUMAN AC=P08172 GN=CHRM2 class=A TM=23-442,acm2_human,,include,,,,55,,34.81,,A Aminergic
+CHRM3,hACM3,51,Muscarinic acetylcholine receptor M3 ID=ACM3_HUMAN AC=P20309 GN=CHRM3 class=A TM=68-546,acm3_human,,exclude,exclude,,,21,,13.29,,A Aminergic
+CHRM4,hACM4,52,Muscarinic acetylcholine receptor M4 ID=ACM4_HUMAN AC=P08173 GN=CHRM4 class=A TM=32-456,acm4_human,,include,,,,51,,32.28,,A Aminergic
+CHRM5,hACM5,53,Muscarinic acetylcholine receptor M5 ID=ACM5_HUMAN AC=P08912 GN=CHRM5 class=A TM=30-498,acm5_human,,include,,,,44,,27.85,,A Aminergic
+CMKLR1,hCML1,54,"Chemerin-like receptor 1 ID=CML1_HUMAN AC=Q99788 GN=CMKLR1,CHEMR23,DEZ class=A TM=42-320",cml1_human,,include,,,,147,693,93.04,81.34,A Protein
+CMKLR2,hCML2,55,"Chemerin-like receptor 2 ID=CML2_HUMAN AC=P46091 GN=CMKLR2,GPR1 class=A TM=42-307",cml2_human,,add,add,,not run,,800,,93.9,A Protein
+CNR1,hCNR1,56,"Cannabinoid receptor 1 ID=CNR1_HUMAN AC=P21554 GN=CNR1,CNR class=A TM=117-399",cnr1_human,,exclude,exclude,,,2,,1.266,,A Lipid
+CNR2,hCNR2,57,"Cannabinoid receptor 2 ID=CNR2_HUMAN AC=P34972 GN=CNR2,CB2A,CB2B class=A TM=34-301",cnr2_human,,exclude,exclude,,,1,,0.6329,,A Lipid
+CRHR1,hCRFR1,58,"Corticotropin-releasing factor receptor 1 ID=CRFR1_HUMAN AC=P34998 GN=CRHR1,CRFR,CRFR1,CRHR class=B TM=112-368",crfr1_human,,include,,,,133,,84.18,,B1 Peptide
+CRHR2,hCRFR2,59,"Corticotropin-releasing factor receptor 2 ID=CRFR2_HUMAN AC=Q13324 GN=CRHR2,CRF2R,CRH2R class=B TM=109-364",crfr2_human,,include,,,,140,,88.61,,B1 Peptide
+CX3CR1,hCX3C1,60,"CX3C chemokine receptor 1 ID=CX3C1_HUMAN AC=P49238 GN=CX3CR1,CMKBRL1,GPR13 class=A TM=32-297",cx3c1_human,,include,,,,130,616,82.28,72.3,A Protein
+CXCR1,hCXCR1,61,"C-X-C chemokine receptor type 1 ID=CXCR1_HUMAN AC=P25024 GN=CXCR1,CMKAR1,IL8RA class=A TM=40-308",cxcr1_human,,include,,,,73,575,46.2,67.49,A Protein
+CXCR2,hCXCR2,62,"C-X-C chemokine receptor type 2 ID=CXCR2_HUMAN AC=P25025 GN=CXCR2,IL8RB class=A TM=49-315",cxcr2_human,,include,,,,62,589,39.24,69.13,A Protein
+CXCR3,hCXCR3,63,"C-X-C chemokine receptor type 3 ID=CXCR3_HUMAN AC=P49682 GN=CXCR3,GPR9 class=A TM=54-321",cxcr3_human,,include,,,,113,567,71.52,66.55,A Protein
+CXCR4,hCXCR4,64,C-X-C chemokine receptor type 4 ID=CXCR4_HUMAN AC=P61073 GN=CXCR4 class=A TM=39-302,cxcr4_human,,include,,,,113,555,71.52,65.14,A Protein
+CXCR5,hCXCR5,65,"C-X-C chemokine receptor type 5 ID=CXCR5_HUMAN AC=P32302 GN=CXCR5,BLR1,MDR15 class=A TM=56-325",cxcr5_human,,include,,,,111,547,70.25,64.2,A Protein
+CXCR6,hCXCR6,66,"C-X-C chemokine receptor type 6 ID=CXCR6_HUMAN AC=O00574 GN=CXCR6,BONZO,STRL33,TYMSTR class=A TM=33-293",cxcr6_human,,include,,,,105,636,66.46,74.65,A Protein
+CYSLTR1,hCLTR1,67,"Cysteinyl leukotriene receptor 1 ID=CLTR1_HUMAN AC=Q9Y271 GN=CYSLTR1,CYSLT1 class=A TM=29-297",cltr1_human,,include,,,,102,,64.56,,A Lipid
+CYSLTR2,hCLTR2,68,"Cysteinyl leukotriene receptor 2 ID=CLTR2_HUMAN AC=Q9NS75 GN=CYSLTR2,CYSLT2,CYSLT2R,PSEC0146 class=A TM=43-307",cltr2_human,,include,,,,92,,58.23,,A Lipid
+DRD1,hDRD1,69,D(1A) dopamine receptor ID=DRD1_HUMAN AC=P21728 GN=DRD1 class=A TM=24-337,drd1_human,,exclude,exclude,,,13,,8.228,,A Aminergic
+DRD2,hDRD2,70,D(2) dopamine receptor ID=DRD2_HUMAN AC=P14416 GN=DRD2 class=A TM=38-431,drd2_human,,include,,,,64,,40.51,,A Aminergic
+DRD3,hDRD3,71,D(3) dopamine receptor ID=DRD3_HUMAN AC=P35462 GN=DRD3 class=A TM=33-386,drd3_human,,include,,,,60,,37.97,,A Aminergic
+DRD4,hDRD4,72,D(4) dopamine receptor ID=DRD4_HUMAN AC=P21917 GN=DRD4 class=A TM=30-403,drd4_human,,include,,,,54,,34.18,,A Aminergic
+DRD5,hDRD5,73,"D(1B) dopamine receptor ID=DRD5_HUMAN AC=P21918 GN=DRD5,DRD1B,DRD1L2 class=A TM=40-360",drd5_human,,exclude,exclude,,,19,,12.03,,A Aminergic
+EDNRA,hEDNRA,74,"Endothelin-1 receptor ID=EDNRA_HUMAN AC=P25101 GN=EDNRA,ETA,ETRA class=A TM=81-372",ednra_human,,include,,,,95,778,60.13,91.31,A Peptide
+EDNRB,hEDNRB,75,"Endothelin receptor type B ID=EDNRB_HUMAN AC=P24530 GN=EDNRB,ETRB class=A TM=102-389",ednrb_human,,include,,,,130,715,82.28,83.92,A Peptide
+F2R,hPAR1,76,"Proteinase-activated receptor 1 ID=PAR1_HUMAN AC=P25116 GN=F2R,CF2R,PAR1,TR class=A TM=103-374",par1_human,,include,,,,73,374,46.2,43.9,A Peptide
+F2RL1,hPAR2,77,"Proteinase-activated receptor 2 ID=PAR2_HUMAN AC=P55085 GN=F2RL1,GPR11,PAR2 class=A TM=72-347",par2_human,,include,,,,29,343,18.35,40.26,A Peptide
+F2RL2,hPAR3,78,"Proteinase-activated receptor 3 ID=PAR3_HUMAN AC=O00254 GN=F2RL2,PAR3 class=A TM=95-361",par3_human,,include,,,,62,356,39.24,41.78,A Peptide
+F2RL3,hPAR4,79,"Proteinase-activated receptor 4 ID=PAR4_HUMAN AC=Q96RI0 GN=F2RL3,PAR4 class=A TM=83-343",par4_human,,include,,,,30,476,18.99,55.87,A Peptide
+FFAR1,hFFAR1,80,"Free fatty acid receptor 1 ID=FFAR1_HUMAN AC=O14842 GN=FFAR1,GPR40 class=A TM=9-279",ffar1_human,,exclude,exclude,,,1,,0.6329,,A Lipid
+FFAR2,hFFAR2,81,"Free fatty acid receptor 2 ID=FFAR2_HUMAN AC=O15552 GN=FFAR2,FFA2,GPCR43,GPR43 class=A TM=13-276",ffar2_human,,exclude,exclude,,,3,,1.899,,A Lipid
+FFAR3,hFFAR3,82,"Free fatty acid receptor 3 ID=FFAR3_HUMAN AC=O14843 GN=FFAR3,GPR41 class=A TM=20-279",ffar3_human,,exclude,exclude,,,10,246,6.329,28.87,A Lipid
+FFAR4,hFFAR4,83,"Free fatty acid receptor 4 ID=FFAR4_HUMAN AC=Q5NUL3 GN=FFAR4,GPR120,GPR129,O3FAR1,PGR4 class=A TM=46-316",ffar4_human,,exclude,exclude,,,0,,0,,A Lipid
+FPR1,hFPR1,84,fMet-Leu-Phe receptor ID=FPR1_HUMAN AC=P21462 GN=FPR1 class=A TM=28-305,fpr1_human,,include,,,,149,606,94.3,71.13,A Peptide
+FPR2,hFPR2,85,"N-formyl peptide receptor 2 ID=FPR2_HUMAN AC=P25090 GN=FPR2,FPRH1,FPRL1,LXA4R class=A TM=28-306",fpr2_human,,include,,,,156,668,98.73,78.4,A Peptide
+FPR3,hFPR3,86,"N-formyl peptide receptor 3 ID=FPR3_HUMAN AC=P25089 GN=FPR3,FPRH1,FPRL2 class=A TM=28-306",fpr3_human,,include,,,,140,590,88.61,69.25,A Peptide
+FSHR,hFSHR,87,"Follicle-stimulating hormone receptor ID=FSHR_HUMAN AC=P23945 GN=FSHR,LGR1 class=A TM=367-630",fshr_human,,exclude,exclude,don't add too big LGR related,not run,,174,,20.42,A Protein
+FZD1,hFZD1,88,Frizzled-1 ID=FZD1_HUMAN AC=Q9UP38 GN=FZD1 class=F TM=323-622,fzd1_human,,exclude,,,not run,,,,,F Protein
+FZD10,hFZD10,89,Frizzled-10 ID=FZD10_HUMAN AC=Q9ULW2 GN=FZD10 class=F TM=226-523,fzd10_human,,exclude,,,not run,,,,,F Protein
+FZD2,hFZD2,90,Frizzled-2 ID=FZD2_HUMAN AC=Q14332 GN=FZD2 class=F TM=248-540,fzd2_human,,exclude,,,not run,,,,,F Protein
+FZD3,hFZD3,91,Frizzled-3 ID=FZD3_HUMAN AC=Q9NPG1 GN=FZD3 class=F TM=206-498,fzd3_human,,exclude,,,not run,,,,,F Protein
+FZD4,hFZD4,92,Frizzled-4 ID=FZD4_HUMAN AC=Q9ULV1 GN=FZD4 class=F TM=213-495,fzd4_human,,exclude,,,not run,,,,,F Protein
+FZD5,hFZD5,93,"Frizzled-5 ID=FZD5_HUMAN AC=Q13467 GN=FZD5,C2orf31 class=F TM=239-521",fzd5_human,,exclude,,,not run,,,,,F Protein
+FZD6,hFZD6,94,Frizzled-6 ID=FZD6_HUMAN AC=O60353 GN=FZD6 class=F TM=202-494,fzd6_human,,exclude,,,not run,,,,,F Protein
+FZD7,hFZD7,95,Frizzled-7 ID=FZD7_HUMAN AC=O75084 GN=FZD7 class=F TM=257-549,fzd7_human,,exclude,,,not run,,,,,F Protein
+FZD8,hFZD8,96,Frizzled-8 ID=FZD8_HUMAN AC=Q9H461 GN=FZD8 class=F TM=276-605,fzd8_human,,exclude,,,not run,,,,,F Protein
+FZD9,hFZD9,97,"Frizzled-9 ID=FZD9_HUMAN AC=O00144 GN=FZD9,FZD3 class=F TM=230-529",fzd9_human,,exclude,,,not run,,,,,F Protein
+GABBR1,hGABR1,98,"Gamma-aminobutyric acid type B receptor subunit 1 ID=GABR1_HUMAN AC=Q9UBS5 GN=GABBR1,GPRC3A class=C TM=592-854",gabr1_human,,exclude,,,not run,,,,,C Amino acid
+GABBR2,hGABR2,99,"Gamma-aminobutyric acid type B receptor subunit 2 ID=GABR2_HUMAN AC=O75899 GN=GABBR2,GPR51,GPRC3B class=C TM=484-741",gabr2_human,,exclude,,,not run,,,,,C Amino acid
+GALR1,hGALR1,100,"Galanin receptor type 1 ID=GALR1_HUMAN AC=P47211 GN=GALR1,GALNR,GALNR1 class=A TM=37-292",galr1_human,,include,,,,143,772,90.51,90.61,A Peptide
+GALR2,hGALR2,101,"Galanin receptor type 2 ID=GALR2_HUMAN AC=O43603 GN=GALR2,GALNR2 class=A TM=29-281",galr2_human,,include,,,,145,804,91.77,94.37,A Peptide
+GALR3,hGALR3,102,"Galanin receptor type 3 ID=GALR3_HUMAN AC=O60755 GN=GALR3,GALNR3 class=A TM=21-280",galr3_human,,include,,,,152,815,96.2,95.66,A Peptide
+GCGR,hGLR,103,Glucagon receptor ID=GLR_HUMAN AC=P47871 GN=GCGR class=B TM=137-402,glr_human,,include,,,,69,,43.67,,B1 Peptide
+GHRHR,hGHRHR,104,Growth hormone-releasing hormone receptor ID=GHRHR_HUMAN AC=Q02643 GN=GHRHR class=B TM=131-378,ghrhr_human,,include,,,,109,,68.99,,B1 Peptide
+GHSR,hGHSR,105,Growth hormone secretagogue receptor type 1 ID=GHSR_HUMAN AC=Q92847 GN=GHSR class=A TM=41-326,ghsr_human,,include,,,,133,692,84.18,81.22,A Peptide
+GIPR,hGIPR,106,Gastric inhibitory polypeptide receptor ID=GIPR_HUMAN AC=P48546 GN=GIPR class=B TM=139-398,gipr_human,,include,,,,115,,72.78,,B1 Peptide
+GLP1R,hGLP1R,107,Glucagon-like peptide 1 receptor ID=GLP1R_HUMAN AC=P43220 GN=GLP1R class=B TM=140-404,glp1r_human,,include,,,,116,,73.42,,B1 Peptide
+GLP2R,hGLP2R,108,Glucagon-like peptide 2 receptor ID=GLP2R_HUMAN AC=O95838 GN=GLP2R class=B TM=174-438,glp2r_human,,add(check_size),add?,too big as is,not run,,,,,B1 Peptide
+GNRHR,hGNRHR,109,"Gonadotropin-releasing hormone receptor ID=GNRHR_HUMAN AC=P30968 GN=GNRHR,GRHR class=A TM=39-326",gnrhr_human,,include,,,,149,764,94.3,89.67,A Peptide
+GPBAR1,hGPBAR,110,"G-protein coupled bile acid receptor 1 ID=GPBAR_HUMAN AC=Q8TDU6 GN=GPBAR1,TGR5 class=A TM=20-282",gpbar_human,,include,,,,88,,55.7,,A Steroid
+GPER1,hGPER1,111,"G-protein coupled estrogen receptor 1 ID=GPER1_HUMAN AC=Q99527 GN=GPER1,CEPR,CMKRL2,DRY12,GPER,GPR30 class=A TM=63-327",gper1_human,,include_temp,,nice NT ok frylaiv,,23,,14.56,,A Steroid
+GPR101,hGP101,112,Probable G-protein coupled receptor 101 ID=GP101_HUMAN AC=Q96P66 GN=GPR101 class=A TM=36-454,gp101_human,,exclude,exclude,related LBP to 135 and 161,,0,56,0,6.573,A Orphan
+GPR107,hGP107,113,"Protein GPR107 ID=GP107_HUMAN AC=Q5VW38 GN=GPR107,KIAA1624,LUSTR1 class=LU7TM TM=264-544",gp107_human,,exclude,??,,not run,,,,,Other Orphan
+GPR119,hGP119,114,Glucose-dependent insulinotropic receptor ID=GP119_HUMAN AC=Q8TDV5 GN=GPR119 class=A TM=13-283,gp119_human,,exclude,exclude,IBD related to GPR21 119 52,,1,46,0.6329,5.399,A Lipid
+GPR12,hGPR12,115,G-protein coupled receptor 12 ID=GPR12_HUMAN AC=P47775 GN=GPR12 class=A TM=49-303,gpr12_human,,exclude,exclude,,,0,73,0,8.568,A Orphan
+GPR132,hGP132,116,"Probable G-protein coupled receptor 132 ID=GP132_HUMAN AC=Q9UNW8 GN=GPR132,G2A class=A TM=46-311",gp132_human,,include,,,,96,431,60.76,50.59,A Orphan
+GPR135,hGP135,117,G-protein coupled receptor 135 ID=GP135_HUMAN AC=Q8IZ08 GN=GPR135 class=A TM=13-283,gp135_human,,exclude,exclude,,,6,17,3.797,1.995,A Orphan
+GPR137,hG137A,118,"Integral membrane protein GPR137 ID=G137A_HUMAN AC=Q96N19 GN=GPR137,C11orf4,GPR137A,TM7SF1L1 class=GPR137 TM=32-295",g137a_human,,exclude,??,,not run,,,,,Other Orphan
+GPR139,hGP139,119,"Probable G-protein coupled receptor 139 ID=GP139_HUMAN AC=Q6DWJ6 GN=GPR139,GPRG1,PGR3 class=A TM=30-289",gp139_human,,include,,,,79,664,50,77.93,A Orphan
+GPR141,hGP141,120,"Probable G-protein coupled receptor 141 ID=GP141_HUMAN AC=Q7Z602 GN=GPR141,PGR13 class=A TM=23-288",gp141_human,,include_temp,,,,27,173,17.09,20.31,A Orphan
+GPR142,hGP142,121,"Probable G-protein coupled receptor 142 ID=GP142_HUMAN AC=Q7Z601 GN=GPR142,PGR2 class=A TM=153-418",gp142_human,,include,,,,109,657,68.99,77.11,A Orphan
+GPR143,hGP143,122,"G-protein coupled receptor 143 ID=GP143_HUMAN AC=P51810 GN=GPR143,OA1 class=A TM=29-313",gp143_human,,exclude,??,,not run,,,,,Other Orphan
+GPR146,hGP146,123,"G-protein coupled receptor 146 ID=GP146_HUMAN AC=Q96CH1 GN=GPR146,PGR8 class=A TM=31-300",gp146_human,,include,,,,115,300,72.78,35.21,A Orphan
+GPR148,hGP148,124,"Probable G-protein coupled receptor 148 ID=GP148_HUMAN AC=Q8TDV2 GN=GPR148,BTR,PGR6 class=A TM=52-322",gp148_human,,include,,,,48,209,30.38,24.53,A Orphan
+GPR149,hGP149,125,"Probable G-protein coupled receptor 149 ID=GP149_HUMAN AC=Q86SP6 GN=GPR149,PGR10 class=A TM=36-363",gp149_human,,include_temp,,low but AF3 OK and related to good binders,,4,132,2.532,15.49,A Orphan
+GPR15,hGPR15,126,G-protein coupled receptor 15 ID=GPR15_HUMAN AC=P49685 GN=GPR15 class=A TM=34-305,gpr15_human,,include,,,,109,633,68.99,74.3,A Orphan
+GPR150,hGP150,127,Probable G-protein coupled receptor 150 ID=GP150_HUMAN AC=Q8NGU9 GN=GPR150 class=A TM=4-355,gp150_human,,include,,,,28,410,17.72,48.12,A Orphan
+GPR151,hGP151,128,"G-protein coupled receptor 151 ID=GP151_HUMAN AC=Q8TDV0 GN=GPR151,GALR4,GALRL,PGR7 class=A TM=42-307",gp151_human,,include,,,,43,340,27.22,39.91,A Orphan
+GPR152,hGP152,129,"Probable G-protein coupled receptor 152 ID=GP152_HUMAN AC=Q8TDT2 GN=GPR152,PGR5 class=A TM=34-302",gp152_human,,include,,,,143,660,90.51,77.46,A Orphan
+GPR153,hGP153,130,"Probable G-protein coupled receptor 153 ID=GP153_HUMAN AC=Q6NV75 GN=GPR153,PGR1 class=A TM=12-297",gp153_human,,exclude,exclude,,,0,38,0,4.46,A Orphan
+GPR156,hGP156,131,"Probable G-protein coupled receptor 156 ID=GP156_HUMAN AC=Q8NFN8 GN=GPR156,GABABL,PGR28 class=C TM=48-309",gp156_human,,exclude(run_protein_domains),??,many Nterm C's,,20,,12.66,,C Orphan
+GPR157,hGP157,132,G-protein coupled receptor 157 ID=GP157_HUMAN AC=Q5UAW9 GN=GPR157 class=B TM=16-279,gp157_human,,exclude,,,not run,,,,,Other Orphan
+GPR158,hMGLYR,133,"Metabotropic glycine receptor ID=MGLYR_HUMAN AC=Q5T848 GN=GPR158,KIAA1136 class=C TM=418-664",mglyr_human,,exclude,,,not run,,,,,C Orphan
+GPR160,hGP160,134,"Probable G-protein coupled receptor 160 ID=GP160_HUMAN AC=Q9UJ42 GN=GPR160,GPCR150 class=A TM=24-289",gp160_human,,include,,,,86,150,54.43,17.61,A Orphan
+GPR161,hGP161,135,G-protein coupled receptor 161 ID=GP161_HUMAN AC=Q8N6U8 GN=GPR161 class=A TM=31-327,gp161_human,,exclude,exclude,,,2,9,1.266,1.056,A Orphan
+GPR162,hGP162,136,"Probable G-protein coupled receptor 162 ID=GP162_HUMAN AC=Q16538 GN=GPR162,GRCA class=A TM=18-324",gp162_human,,exclude,exclude,,,2,45,1.266,5.282,A Orphan
+GPR17,hGPR17,137,Uracil nucleotide/cysteinyl leukotriene receptor ID=GPR17_HUMAN AC=Q13304 GN=GPR17 class=A TM=65-329,gpr17_human,,include_temp,?exclude or include,LBD related to GPR183,,3,171,1.899,20.07,A Orphan
+GPR171,hGP171,138,"G-protein coupled receptor 171 ID=GP171_HUMAN AC=O14626 GN=GPR171,H963 class=A TM=22-289",gp171_human,,include,,,,16,233,10.13,27.35,A Orphan
+GPR173,hGP173,139,"Probable G-protein coupled receptor 173 ID=GP173_HUMAN AC=Q9NS66 GN=GPR173,SREB3 class=A TM=27-343",gp173_human,,include,,interesting related to exxluded GPR6 61 26 78 27,,34,38,21.52,4.46,A Orphan
+GPR174,hGP174,140,"Probable G-protein coupled receptor 174 ID=GP174_HUMAN AC=Q9BXC1 GN=GPR174,FKSG79,GPCR17 class=A TM=28-290",gp174_human,,exclude,exclude,,,0,203,0,23.83,A Orphan
+GPR176,hGP176,141,G-protein coupled receptor 176 ID=GP176_HUMAN AC=Q14439 GN=GPR176 class=A TM=43-320,gp176_human,,include,,,,41,660,25.95,77.46,A Orphan
+GPR179,hGP179,142,"Probable G-protein coupled receptor 179 ID=GP179_HUMAN AC=Q6PRD1 GN=GPR179,GPR158L,GPR158L1 class=C TM=382-628",gp179_human,,exclude,??why not run,??too big extracell? Not in classA dendrogram,,,,,,C Orphan
+GPR18,hGPR18,143,"N-arachidonyl glycine receptor ID=GPR18_HUMAN AC=Q14330 GN=GPR18,GPCRW class=A TM=27-289",gpr18_human,,include,,,,36,232,22.78,27.23,A Lipid
+GPR182,hGP182,144,"G-protein coupled receptor 182 ID=GP182_HUMAN AC=O15218 GN=GPR182,ADMR class=A TM=58-320",gp182_human,,exclude?,,interceptor,,147,783,93.04,91.9,A Orphan
+GPR183,hGP183,145,"G-protein coupled receptor 183 ID=GP183_HUMAN AC=P32249 GN=GPR183,EBI2 class=A TM=32-312",gp183_human,,include_temp,?exclude or include,AF3 pretty high oxxysterol rec but lymph Cx,,6,192,3.797,22.54,A Orphan
+GPR19,hGPR19,146,Probable G-protein coupled receptor 19 ID=GPR19_HUMAN AC=Q15760 GN=GPR19 class=A TM=70-325,gpr19_human,,exclude,exclude,,,4,14,2.532,1.643,A Orphan
+GPR20,hGPR20,147,G-protein coupled receptor 20 ID=GPR20_HUMAN AC=Q99678 GN=GPR20 class=A TM=49-296,gpr20_human,,include,?exclude or include,FFAR ws but GPR183 LBD related but smells like CxR DRYLAIV related,,1,471,0.6329,55.28,A Orphan
+GPR21,hGPR21,148,Probable G-protein coupled receptor 21 ID=GPR21_HUMAN AC=Q99679 GN=GPR21 class=A TM=33-304,gpr21_human,,exclude,exclude,IBD related to GPR21 119 52,,1,60,0.6329,7.042,A Orphan
+GPR22,hGPR22,149,G-protein coupled receptor 22 ID=GPR22_HUMAN AC=Q99680 GN=GPR22 class=A TM=46-370,gpr22_human,,include_temp,,FFAR related,,36,126,22.78,14.79,A Orphan
+GPR25,hGPR25,150,Probable G-protein coupled receptor 25 ID=GPR25_HUMAN AC=O00155 GN=GPR25 class=A TM=40-310,gpr25_human,,include,,,,145,620,91.77,72.77,A Orphan
+GPR26,hGPR26,151,G-protein coupled receptor 26 ID=GPR26_HUMAN AC=Q8NDV2 GN=GPR26 class=A TM=11-297,gpr26_human,,exclude,exclude,IBD related to  GPR6 61 26 78 27,,0,0,0,0,A Orphan
+GPR27,hGPR27,152,"Probable G-protein coupled receptor 27 ID=GPR27_HUMAN AC=Q9NS67 GN=GPR27,SREB1 class=A TM=24-341",gpr27_human,,include,,interesting related to exluded GPR6 61 26 78 27,,113,376,71.52,44.13,A Orphan
+GPR3,hGPR3,153,"G-protein coupled receptor 3 ID=GPR3_HUMAN AC=P46089 GN=GPR3,ACCA class=A TM=43-299",gpr3_human,,exclude,exclude,,,2,185,1.266,21.71,A Orphan
+GPR31,hGPR31,154,"12-(S)-hydroxy-5,8,10,14-eicosatetraenoic acid receptor ID=GPR31_HUMAN AC=O00270 GN=GPR31 class=A TM=17-284",gpr31_human,,include,,,,61,414,38.61,48.59,A Orphan
+GPR32,hGPR32,155,Probable G-protein coupled receptor 32 ID=GPR32_HUMAN AC=O75388 GN=GPR32 class=A TM=45-320,gpr32_human,,include,,,,88,271,55.7,31.81,A Orphan
+GPR33,hGPR33,156,Probable G-protein coupled receptor 33 ID=GPR33_HUMAN AC=Q49SQ1 GN=GPR33 class=A TM=31-303,gpr33_human,,include,,,,55,511,34.81,59.98,A Orphan
+GPR34,hGPR34,157,Probable G-protein coupled receptor 34 ID=GPR34_HUMAN AC=Q9UPC5 GN=GPR34 class=A TM=62-331,gpr34_human,,include,,,,24,229,15.19,26.88,A Orphan
+GPR35,hGPR35,158,G-protein coupled receptor 35 ID=GPR35_HUMAN AC=Q9HC97 GN=GPR35 class=A TM=25-279,gpr35_human,,include temp,exclude?,LBD related to FL related to FZD6? And GPR151; FL to GPR55 and 18 which bind peps,,3,196,1.899,23,A Orphan
+GPR37,hGPR37,159,Prosaposin receptor GPR37 ID=GPR37_HUMAN AC=O15354 GN=GPR37 class=A TM=266-552,gpr37_human,,?? Add for Irina> OR TOO LARGE? Run separatelY,?? Add for Irina> OR TOO LARGE? Run separatelY,,not run,,173,,20.31,A Orphan
+GPR37L1,hG37L1,160,"G-protein coupled receptor 37-like 1 ID=G37L1_HUMAN AC=O60883 GN=GPR37L1,ETBRLP2 class=A TM=135-419",g37l1_human,,?? Add for Irina> OR TOO LARGE? Run separatelY,?? Add for Irina> OR TOO LARGE? Run separatelY,,not run,,408,,47.89,A Orphan
+GPR39,hGPR39,161,G-protein coupled receptor 39 ID=GPR39_HUMAN AC=O43194 GN=GPR39 class=A TM=35-344,gpr39_human,,include,,,,62,554,39.24,65.02,A Orphan
+GPR4,hGPR4,162,G-prodeshotein coupled receptor 4 ID=GPR4_HUMAN AC=P46093 GN=GPR4 class=A TM=9-289,gpr4_human,,include,,,,45,129,28.48,15.14,A Orphan
+GPR42,hGPR42,163,"G-protein coupled receptor 42 ID=GPR42_HUMAN AC=O15529 GN=GPR42,GPR42P class=A TM=20-279",gpr42_human,,include,,,,23,256,14.56,30.05,A Lipid
+GPR45,hGPR45,164,Probable G-protein coupled receptor 45 ID=GPR45_HUMAN AC=Q9Y5Y3 GN=GPR45 class=A TM=39-326,gpr45_human,,exclude,exclude,related to GPR63 101 etc,,2,65,1.266,7.629,A Orphan
+GPR50,hMTR1L,165,Melatonin-related receptor ID=MTR1L_HUMAN AC=Q13585 GN=GPR50 class=A TM=31-294,mtr1l_human,,include_temp,,interesting LBD related to MTNR1's which bind few peptideisi,,4,351,2.532,41.2,A Orphan
+GPR52,hGPR52,166,G-protein coupled receptor 52 ID=GPR52_HUMAN AC=Q9Y2T5 GN=GPR52 class=A TM=45-317,gpr52_human,,exclude,exclude?,LBD related to nonbinder GPR21 119 52,,9,152,5.696,17.84,A Orphan
+GPR55,hGPR55,167,G-protein coupled receptor 55 ID=GPR55_HUMAN AC=Q9Y2T6 GN=GPR55 class=A TM=22-292,gpr55_human,,include,,,,60,171,37.97,20.07,A Lipid
+GPR6,hGPR6,168,G-protein coupled receptor 6 ID=GPR6_HUMAN AC=P46095 GN=GPR6 class=A TM=75-331,gpr6_human,,exclude,exclude,related to  GPR6 61 26 78 27,,1,25,0.6329,2.934,A Orphan
+GPR61,hGPR61,169,"G-protein coupled receptor 61 ID=GPR61_HUMAN AC=Q9BZJ8 GN=GPR61,BALGR,GPCR3 class=A TM=45-344",gpr61_human,,exclude,exclude,related to  GPR6 61,,0,49,0,5.751,A Orphan
+GPR62,hGPR62,170,G-protein coupled receptor 62 ID=GPR62_HUMAN AC=Q9BZJ7 GN=GPR62 class=A TM=19-293,gpr62_human,,exclude,exclude,related to  GPR6 61,,0,85,0,9.977,A Orphan
+GPR63,hGPR63,171,"Probable G-protein coupled receptor 63 ID=GPR63_HUMAN AC=Q9BZJ6 GN=GPR63,PSP24B class=A TM=82-375",gpr63_human,,exclude,exclude?,related to GPR45,,9,75,5.696,8.803,A Orphan
+GPR65,hGPR65,172,"G-protein coupled receptor 65 ID=GPR65_HUMAN AC=Q8IYL9 GN=GPR65,TDAG8 class=A TM=6-293",gpr65_human,,include_temp,,,,11,97,6.962,11.38,A Orphan
+GPR68,hGPR68,173,"G-protein coupled receptor 68 ID=GPR68_HUMAN AC=Q15743 GN=GPR68,OGR1 class=A TM=13-289",gpr68_human,,include_temp,,,,16,115,10.13,13.5,A Orphan
+GPR75,hGPR75,174,Probable G-protein coupled receptor 75 ID=GPR75_HUMAN AC=O95800 GN=GPR75 class=A TM=47-371,gpr75_human,,include_temp,,,,34,27,21.52,3.169,A Orphan
+GPR78,hGPR78,175,"G-protein coupled receptor 78 ID=GPR78_HUMAN AC=Q96P69 GN=GPR78,UNQ5925/PRO19818 class=A TM=8-297",gpr78_human,,exclude,exclude,related to  GPR6 61 26 78 27,,0,1,0,0.1174,A Orphan
+GPR82,hGPR82,176,Probable G-protein coupled receptor 82 ID=GPR82_HUMAN AC=Q96P67 GN=GPR82 class=A TM=12-272,gpr82_human,,include_temp,,,,11,148,6.962,17.37,A Orphan
+GPR83,hGPR83,177,"G-protein coupled receptor 83 ID=GPR83_HUMAN AC=Q9NYM4 GN=GPR83,GPR72,JP05,KIAA1540 class=A TM=72-348",gpr83_human,,include,,,,141,543,89.24,63.73,A Orphan
+GPR84,hGPR84,178,"G-protein coupled receptor 84 ID=GPR84_HUMAN AC=Q9NQS5 GN=GPR84,EX33 class=A TM=27-373",gpr84_human,,include,,,,42,173,26.58,20.31,A Orphan
+GPR85,hGPR85,179,"Probable G-protein coupled receptor 85 ID=GPR85_HUMAN AC=P60893 GN=GPR85,SREB2 class=A TM=26-334",gpr85_human,,exclude,exclude,related to  GPR6 61 26 78 27,,4,29,2.532,3.404,A Orphan
+GPR87,hGPR87,180,"G-protein coupled receptor 87 ID=GPR87_HUMAN AC=Q9BY21 GN=GPR87,GPR95,FKSG78 class=A TM=48-318",gpr87_human,,include,,,,72,553,45.57,64.91,A Orphan
+GPR88,hGPR88,181,"G protein-coupled receptor 88 ID=GPR88_HUMAN AC=Q9GZN0 GN=GPR88,STRG class=A TM=36-331",gpr88_human,,include,,,,51,227,32.28,26.64,A Orphan
+GPRC5A,hRAI3,182,"Retinoic acid-induced protein 3 ID=RAI3_HUMAN AC=Q8NFJ5 GN=GPRC5A,GPCR5A,RAI3,RAIG1 class=C TM=34-268",rai3_human,,include_temp,,,,30,,18.99,,C Orphan
+GPRC5B,hGPC5B,183,"G-protein coupled receptor family C group 5 member B ID=GPC5B_HUMAN AC=Q9NZH0 GN=GPRC5B,RAIG2 class=C TM=57-292",gpc5b_human,,include_temp,,,,49,,31.01,,C Orphan
+GPRC5C,hGPC5C,184,"G-protein coupled receptor family C group 5 member C ID=GPC5C_HUMAN AC=Q9NQ84 GN=GPRC5C,RAIG3,PSEC0087 class=C TM=51-300",gpc5c_human,,include_temp,,,,22,,13.92,,C Orphan
+GPRC5D,hGPC5D,185,G-protein coupled receptor family C group 5 member D ID=GPC5D_HUMAN AC=Q9NZD1 GN=GPRC5D class=C TM=28-260,gpc5d_human,,include_temp,,,,68,,43.04,,C Orphan
+GPRC6A,hGPC6A,186,G-protein coupled receptor family C group 6 member A ID=GPC6A_HUMAN AC=Q5T6X5 GN=GPRC6A class=C TM=595-831,gpc6a_human,,exclude,,,not run,,,,,C Orphan
+GRM1,hGRM1,187,"Metabotropic glutamate receptor 1 ID=GRM1_HUMAN AC=Q13255 GN=GRM1,GPRC1A,MGLUR1 class=C TM=593-840",grm1_human,,exclude,,,not run,,,,,C Amino acid
+GRM2,hGRM2,188,"Metabotropic glutamate receptor 2 ID=GRM2_HUMAN AC=Q14416 GN=GRM2,GPRC1B,MGLUR2 class=C TM=568-819",grm2_human,,exclude,,,not run,,,,,C Amino acid
+GRM3,hGRM3,189,"Metabotropic glutamate receptor 3 ID=GRM3_HUMAN AC=Q14832 GN=GRM3,GPRC1C,MGLUR3 class=C TM=577-828",grm3_human,,exclude,,,not run,,,,,C Amino acid
+GRM4,hGRM4,190,"Metabotropic glutamate receptor 4 ID=GRM4_HUMAN AC=Q14833 GN=GRM4,GPRC1D,MGLUR4 class=C TM=588-847",grm4_human,,exclude,,,not run,,,,,C Amino acid
+GRM5,hGRM5,191,"Metabotropic glutamate receptor 5 ID=GRM5_HUMAN AC=P41594 GN=GRM5,GPRC1E,MGLUR5 class=C TM=581-820",grm5_human,,exclude,,,not run,,,,,C Amino acid
+GRM6,hGRM6,192,"Metabotropic glutamate receptor 6 ID=GRM6_HUMAN AC=O15303 GN=GRM6,GPRC1F,MGLUR6 class=C TM=586-845",grm6_human,,exclude,,,not run,,,,,C Amino acid
+GRM7,hGRM7,193,"Metabotropic glutamate receptor 7 ID=GRM7_HUMAN AC=Q14831 GN=GRM7,GPRC1G,MGLUR7 class=C TM=591-850",grm7_human,,exclude,,,not run,,,,,C Amino acid
+GRM8,hGRM8,194,"Metabotropic glutamate receptor 8 ID=GRM8_HUMAN AC=O00222 GN=GRM8,GPRC1H,MGLUR8 class=C TM=584-843",grm8_human,,exclude,,,not run,,,,,C Amino acid
+GRPR,hGRPR,195,Gastrin-releasing peptide receptor ID=GRPR_HUMAN AC=P30550 GN=GRPR class=A TM=39-325,grpr_human,,add(check_size),,,not run,,672,,78.87,A Peptide
+HCAR1,hHCAR1,196,"Hydroxycarboxylic acid receptor 1 ID=HCAR1_HUMAN AC=Q9BXC0 GN=HCAR1,GPR104,GPR81,HCA1,FKSG80 class=A TM=22-281",hcar1_human,,include_temp,,,,70,,44.3,,A Alicarboxylic acid
+HCAR2,hHCAR2,197,"Hydroxycarboxylic acid receptor 2 ID=HCAR2_HUMAN AC=Q8TDS4 GN=HCAR2,GPR109A,HCA2,HM74A,NIACR1 class=A TM=34-294",hcar2_human,,include_temp,,,,65,,41.14,,A Alicarboxylic acid
+HCAR3,hHCAR3,198,"Hydroxycarboxylic acid receptor 3 ID=HCAR3_HUMAN AC=P49019 GN=HCAR3,GPR109B,HCA3,HM74B,NIACR2 class=A TM=29-298",hcar3_human,,include_temp,,,,63,,39.87,,A Alicarboxylic acid
+HCRTR1,hOX1R,199,Orexin/Hypocretin receptor type 1 ID=OX1R_HUMAN AC=O43613 GN=HCRTR1 class=A TM=47-360,ox1r_human,,include,,,,145,576,91.77,67.61,A Peptide
+HCRTR2,hOX2R,200,Orexin receptor type 2 ID=OX2R_HUMAN AC=O43614 GN=HCRTR2 class=A TM=55-366,ox2r_human,,include,,,,133,593,84.18,69.6,A Peptide
+HRH1,hHRH1,201,Histamine H1 receptor ID=HRH1_HUMAN AC=P35367 GN=HRH1 class=A TM=30-469,hrh1_human,,exclude,exclude,,,23,,14.56,,A Aminergic
+HRH2,hHRH2,202,Histamine H2 receptor ID=HRH2_HUMAN AC=P25021 GN=HRH2 class=A TM=23-289,hrh2_human,,exclude,exclude,,,1,,0.6329,,A Aminergic
+HRH3,hHRH3,203,"Histamine H3 receptor ID=HRH3_HUMAN AC=Q9Y5N1 GN=HRH3,GPCR97 class=A TM=40-416",hrh3_human,,include_temp,,,,122,,77.22,,A Aminergic
+HRH4,hHRH4,204,"Histamine H4 receptor ID=HRH4_HUMAN AC=Q9H3N8 GN=HRH4,GPCR105 class=A TM=20-362",hrh4_human,,include_temp,,,,93,,58.86,,A Aminergic
+HTR1A,h5HT1A,205,"5-hydroxytryptamine receptor 1A ID=5HT1A_HUMAN AC=P08908 GN=HTR1A,ADRB2RL1,ADRBRL1 class=A TM=39-403",5ht1a_human,,exclude,exclude,,,20,,12.66,,A Aminergic
+HTR1B,h5HT1B,206,"5-hydroxytryptamine receptor 1B ID=5HT1B_HUMAN AC=P28222 GN=HTR1B,HTR1DB class=A TM=47-370",5ht1b_human,,include_temp,,,,32,,20.25,,A Aminergic
+HTR1D,h5HT1D,207,"5-hydroxytryptamine receptor 1D ID=5HT1D_HUMAN AC=P28221 GN=HTR1D,HTR1DA,HTRL class=A TM=39-359",5ht1d_human,,include_temp,,,,35,,22.15,,A Aminergic
+HTR1E,h5HT1E,208,5-hydroxytryptamine receptor 1E ID=5HT1E_HUMAN AC=P28566 GN=HTR1E class=A TM=22-345,5ht1e_human,,exclude,exclude,,,17,,10.76,,A Aminergic
+HTR1F,h5HT1F,209,"5-hydroxytryptamine receptor 1F ID=5HT1F_HUMAN AC=P30939 GN=HTR1F,HTR1EL class=A TM=25-350",5ht1f_human,,exclude,exclude,,,13,,8.228,,A Aminergic
+HTR2A,h5HT2A,210,"5-hydroxytryptamine receptor 2A ID=5HT2A_HUMAN AC=P28223 GN=HTR2A,HTR2 class=A TM=81-382",5ht2a_human,,exclude,exclude,,,13,,8.228,,A Aminergic
+HTR2B,h5HT2B,211,5-hydroxytryptamine receptor 2B ID=5HT2B_HUMAN AC=P41595 GN=HTR2B class=A TM=57-382,5ht2b_human,,include_temp,,,,32,,20.25,,A Aminergic
+HTR2C,h5HT2C,212,"5-hydroxytryptamine receptor 2C ID=5HT2C_HUMAN AC=P28335 GN=HTR2C,HTR1C class=A TM=56-370",5ht2c_human,,exclude,exclude,,,16,,10.13,,A Aminergic
+HTR4,h5HT4R,213,5-hydroxytryptamine receptor 4 ID=5HT4R_HUMAN AC=Q13639 GN=HTR4 class=A TM=20-314,5ht4r_human,,exclude,exclude,,,30,,18.99,,A Aminergic
+HTR5A,h5HT5A,214,5-hydroxytryptamine receptor 5A ID=5HT5A_HUMAN AC=P47898 GN=HTR5A class=A TM=37-339,5ht5a_human,,exclude,exclude,,,5,,3.165,,A Aminergic
+HTR6,h5HT6R,215,5-hydroxytryptamine receptor 6 ID=5HT6R_HUMAN AC=P50406 GN=HTR6 class=A TM=28-323,5ht6r_human,,exclude,exclude,,,23,,14.56,,A Aminergic
+HTR7,h5HT7R,216,5-hydroxytryptamine receptor 7 ID=5HT7R_HUMAN AC=P34969 GN=HTR7 class=A TM=84-387,5ht7r_human,,exclude,exclude,,,21,,13.29,,A Aminergic
+KISS1R,hKISSR,217,"KiSS-1 receptor ID=KISSR_HUMAN AC=Q969F8 GN=KISS1R,AXOR12,GPR54 class=A TM=47-328",kissr_human,,include,,,,140,676,88.61,79.34,A Peptide
+LGR4,hLGR4,218,"Leucine-rich repeat-containing G-protein coupled receptor 4 ID=LGR4_HUMAN AC=Q9BXB1 GN=LGR4,GPR48 class=A TM=545-804",lgr4_human,,exclude_temp,,,not run,,203,,23.83,A Orphan
+LGR5,hLGR5,219,"Leucine-rich repeat-containing G-protein coupled receptor 5 ID=LGR5_HUMAN AC=O75473 GN=LGR5,GPR49,GPR67 class=A TM=562-823",lgr5_human,,exclude_temp,,,not run,,85,,9.977,A Orphan
+LGR6,hLGR6,220,"Leucine-rich repeat-containing G-protein coupled receptor 6 ID=LGR6_HUMAN AC=Q9HBX8 GN=LGR6,UNQ6427/PRO21331,VTS20631 class=A TM=568-830",lgr6_human,,exclude_temp,,,not run,,164,,19.25,A Orphan
+LHCGR,hLSHR,221,"Lutropin-choriogonadotropic hormone receptor ID=LSHR_HUMAN AC=P22888 GN=LHCGR,LCGR,LGR2,LHRHR class=A TM=364-627",lshr_human,,exclude_temp,,,not run,,134,,15.73,A Protein
+LPAR1,hLPAR1,222,"Lysophosphatidic acid receptor 1 ID=LPAR1_HUMAN AC=Q92633 GN=LPAR1,EDG2,LPA1 class=A TM=51-315",lpar1_human,,exclude,exclude,,,2,,1.266,,A Lipid
+LPAR2,hLPAR2,223,"Lysophosphatidic acid receptor 2 ID=LPAR2_HUMAN AC=Q9HBW0 GN=LPAR2,EDG4,LPA2 class=A TM=31-294",lpar2_human,,exclude,exclude,,,1,,0.6329,,A Lipid
+LPAR3,hLPAR3,224,"Lysophosphatidic acid receptor 3 ID=LPAR3_HUMAN AC=Q9UBY5 GN=LPAR3,EDG7,LPA3 class=A TM=32-297",lpar3_human,,exclude,exclude,,,2,,1.266,,A Lipid
+LPAR4,hLPAR4,225,"Lysophosphatidic acid receptor 4 ID=LPAR4_HUMAN AC=Q99677 GN=LPAR4,GPR23,LPA4,P2RY9 class=A TM=44-315",lpar4_human,,include_temp,,,,58,,36.71,,A Lipid
+LPAR5,hLPAR5,226,"Lysophosphatidic acid receptor 5 ID=LPAR5_HUMAN AC=Q9H1C0 GN=LPAR5,GPR92,GPR93 class=A TM=27-297",lpar5_human,,include_temp,,,,34,,21.52,,A Lipid
+LPAR6,hLPAR6,227,"Lysophosphatidic acid receptor 6 ID=LPAR6_HUMAN AC=P43657 GN=LPAR6,P2RY5 class=A TM=20-292",lpar6_human,,include_temp,,,,77,,48.73,,A Lipid
+LTB4R,hLT4R1,228,"Leukotriene B4 receptor 1 ID=LT4R1_HUMAN AC=Q15722 GN=LTB4R,BLT,BLT1,BLTR,CMKRL1,GPR16,P2RY7 class=A TM=20-289",lt4r1_human,,include,,,,99,,62.66,,A Lipid
+LTB4R2,hLT4R2,229,"Leukotriene B4 receptor 2 ID=LT4R2_HUMAN AC=Q9NPC1 GN=LTB4R2,BLT2R,BLTR2 class=A TM=25-296",lt4r2_human,,include,,,,48,,30.38,,A Lipid
+MAS1,hMAS,230,"Proto-oncogene Mas ID=MAS_HUMAN AC=P04201 GN=MAS1,MAS class=A TM=37-284",mas_human,,include,,,,153,713,96.84,83.69,A Orphan
+MAS1L,hMAS1L,231,"Mas-related G-protein coupled receptor MRG ID=MAS1L_HUMAN AC=P35410 GN=MAS1L,MRG class=A TM=78-317",mas1l_human,,include,,,,136,738,86.08,86.62,A Orphan
+MC1R,hMSHR,232,"Melanocyte-stimulating hormone receptor ID=MSHR_HUMAN AC=Q01726 GN=MC1R,MSHR class=A TM=38-300",mshr_human,,include,,,,126,673,79.75,78.99,A Peptide
+MC2R,hACTHR,233,"Adrenocorticotropic hormone receptor ID=ACTHR_HUMAN AC=Q01718 GN=MC2R,ACTHR class=A TM=24-278",acthr_human,,include,,,,106,692,67.09,81.22,A Peptide
+MC3R,hMC3R,234,Melanocortin receptor 3 ID=MC3R_HUMAN AC=P41968 GN=MC3R class=A TM=38-301,mc3r_human,,include,,,,119,734,75.32,86.15,A Peptide
+MC4R,hMC4R,235,Melanocortin receptor 4 ID=MC4R_HUMAN AC=P32245 GN=MC4R class=A TM=44-304,mc4r_human,,include,,,,103,687,65.19,80.63,A Peptide
+MC5R,hMC5R,236,Melanocortin receptor 5 ID=MC5R_HUMAN AC=P33032 GN=MC5R class=A TM=38-297,mc5r_human,,include,,,,104,671,65.82,78.76,A Peptide
+MCHR1,hMCHR1,237,"Melanin-concentrating hormone receptor 1 ID=MCHR1_HUMAN AC=Q99705 GN=MCHR1,GPR24,SLC1 class=A TM=45-312",mchr1_human,,include,,,,142,789,89.87,92.61,A Peptide
+MCHR2,hMCHR2,238,"Melanin-concentrating hormone receptor 2 ID=MCHR2_HUMAN AC=Q969V1 GN=MCHR2,GPR145,SLT class=A TM=40-309",mchr2_human,,include,,,,145,763,91.77,89.55,A Peptide
+MLNR,hMTLR,239,"Motilin receptor ID=MTLR_HUMAN AC=O43193 GN=MLNR,GPR38,MTLR,MTLR1 class=A TM=36-358",mtlr_human,,include,,,,133,643,84.18,75.47,A Peptide
+MRGPRD,hMRGRD,240,"Mas-related G-protein coupled receptor member D ID=MRGRD_HUMAN AC=Q8TDS7 GN=MRGPRD,MRGD class=A TM=34-280",mrgrd_human,,include,,,,155,808,98.1,94.84,A Orphan
+MRGPRE,hMRGRE,241,"Mas-related G-protein coupled receptor member E ID=MRGRE_HUMAN AC=Q86SM8 GN=MRGPRE,GPR167,MRGE class=A TM=21-262",mrgre_human,,include,,,,155,809,98.1,94.95,A Orphan
+MRGPRF,hMRGRF,242,"Mas-related G-protein coupled receptor member F ID=MRGRF_HUMAN AC=Q96AM1 GN=MRGPRF,GPR140,GPR168,MRGF,PSEC0142 class=A TM=45-294",mrgrf_human,,include,,,,143,605,90.51,71.01,A Orphan
+MRGPRX1,hMRGX1,243,"Mas-related G-protein coupled receptor member X1 ID=MRGX1_HUMAN AC=Q96LB2 GN=MRGPRX1,MRGX1,SNSR3,SNSR4 class=A TM=32-275",mrgx1_human,,include,,,,158,752,100,88.26,A Orphan
+MRGPRX2,hMRGX2,244,"Mas-related G-protein coupled receptor member X2 ID=MRGX2_HUMAN AC=Q96LB1 GN=MRGPRX2,MRGX2 class=A TM=34-285",mrgx2_human,,include,,,,154,710,97.47,83.33,A Orphan
+MRGPRX3,hMRGX3,245,"Mas-related G-protein coupled receptor member X3 ID=MRGX3_HUMAN AC=Q96LB0 GN=MRGPRX3,MRGX3,SNSR1,SNSR2 class=A TM=32-275",mrgx3_human,,include,,,,155,601,98.1,70.54,A Orphan
+MRGPRX4,hMRGX4,246,"Mas-related G-protein coupled receptor member X4 ID=MRGX4_HUMAN AC=Q96LA9 GN=MRGPRX4,MRGX4,SNSR5,SNSR6 class=A TM=32-275",mrgx4_human,,include,,,,154,533,97.47,62.56,A Orphan
+MTNR1A,hMTR1A,247,Melatonin receptor type 1A ID=MTR1A_HUMAN AC=P48039 GN=MTNR1A class=A TM=30-295,mtr1a_human,,include_temp,,interesting,,0,,0,,A Melatonin
+MTNR1B,hMTR1B,248,Melatonin receptor type 1B ID=MTR1B_HUMAN AC=P49286 GN=MTNR1B class=A TM=43-308,mtr1b_human,,include_temp,,interesting,,5,,3.165,,A Melatonin
+NMBR,hNMBR,249,Neuromedin-B receptor ID=NMBR_HUMAN AC=P28336 GN=NMBR class=A TM=42-327,nmbr_human,,add,add,,not run,,772,,90.61,A Peptide
+NMUR1,hNMUR1,250,"Neuromedin-U receptor 1 ID=NMUR1_HUMAN AC=Q9HB89 GN=NMUR1,GPR66 class=A TM=66-359",nmur1_human,,include,,,,99,678,62.66,79.58,A Peptide
+NMUR2,hNMUR2,251,"Neuromedin-U receptor 2 ID=NMUR2_HUMAN AC=Q9GZQ4 GN=NMUR2,NMU2R,TGR1 class=A TM=50-322",nmur2_human,,include,,,,117,647,74.05,75.94,A Peptide
+NPBWR1,hNPBW1,252,"Neuropeptides B/W receptor type 1 ID=NPBW1_HUMAN AC=P48145 GN=NPBWR1,GPR7 class=A TM=38-298",npbw1_human,,include,,,,119,738,75.32,86.62,A Peptide
+NPBWR2,hNPBW2,253,"Neuropeptides B/W receptor type 2 ID=NPBW2_HUMAN AC=P48146 GN=NPBWR2,GPR8 class=A TM=46-307",npbw2_human,,include,,,,120,724,75.95,84.98,A Peptide
+NPFFR1,hNPFF1,254,"Neuropeptide FF receptor 1 ID=NPFF1_HUMAN AC=Q9GZQ6 GN=NPFFR1,GPR147,NPFF1 class=A TM=44-328",npff1_human,,include,,,,128,636,81.01,74.65,A Peptide
+NPFFR2,hNPFF2,255,"Neuropeptide FF receptor 2 ID=NPFF2_HUMAN AC=Q9Y5X5 GN=NPFFR2,GPR74,NPFF2,NPGPR class=A TM=148-434",npff2_human,,include,,,,125,690,79.11,80.99,A Peptide
+NPSR1,hNPSR1,256,"Neuropeptide S receptor ID=NPSR1_HUMAN AC=Q6W5P4 GN=NPSR1,GPR154,GPRA,PGR14 class=A TM=53-333",npsr1_human,,include,,,,141,757,89.24,88.85,A Peptide
+NPY1R,hNPY1R,257,"Neuropeptide Y receptor type 1 ID=NPY1R_HUMAN AC=P25929 GN=NPY1R,NPYR,NPYY1 class=A TM=45-320",npy1r_human,,include,,,,127,601,80.38,70.54,A Peptide
+NPY2R,hNPY2R,258,Neuropeptide Y receptor type 2 ID=NPY2R_HUMAN AC=P49146 GN=NPY2R class=A TM=52-325,npy2r_human,,include,,,,122,604,77.22,70.89,A Peptide
+NPY4R,hNPY4R,259,"Neuropeptide Y receptor type 4 ID=NPY4R_HUMAN AC=P50391 GN=NPY4R,PPYR1 class=A TM=40-322",npy4r_human,,include,,,,121,673,76.58,78.99,A Peptide
+NPY5R,hNPY5R,260,"Neuropeptide Y receptor type 5 ID=NPY5R_HUMAN AC=Q15761 GN=NPY5R,NPYR5 class=A TM=43-428",npy5r_human,,include,,,,136,634,86.08,74.41,A Peptide
+NTSR1,hNTR1,261,"Neurotensin receptor type 1 ID=NTR1_HUMAN AC=P30989 GN=NTSR1,NTRR class=A TM=68-364",ntr1_human,,include,,,,97,581,61.39,68.19,A Peptide
+NTSR2,hNTR2,262,Neurotensin receptor type 2 ID=NTR2_HUMAN AC=O95665 GN=NTSR2 class=A TM=33-358,ntr2_human,,include,,,,137,650,86.71,76.29,A Peptide
+OPRD1,hOPRD,263,"Delta-type opioid receptor ID=OPRD_HUMAN AC=P41143 GN=OPRD1,OPRD class=A TM=48-321",oprd_human,,include,,,,76,653,48.1,76.64,A Peptide
+OPRK1,hOPRK,264,"Kappa-type opioid receptor ID=OPRK_HUMAN AC=P41145 GN=OPRK1,OPRK class=A TM=58-333",oprk_human,,include,,,,72,536,45.57,62.91,A Peptide
+OPRL1,hOPRX,265,"Nociceptin receptor ID=OPRX_HUMAN AC=P41146 GN=OPRL1,OOR,ORL1 class=A TM=49-322",oprx_human,,include,,,,115,533,72.78,62.56,A Peptide
+OPRM1,hOPRM,266,"Mu-type opioid receptor ID=OPRM_HUMAN AC=P35372 GN=OPRM1,MOR1 class=A TM=69-338",oprm_human,,include,,,,71,534,44.94,62.68,A Peptide
+OXER1,hOXER1,267,"Oxoeicosanoid receptor 1 ID=OXER1_HUMAN AC=Q8TDS5 GN=OXER1,GPR170,TG1019 class=A TM=59-318",oxer1_human,,include,,,,82,,51.9,,A Lipid
+OXGR1,hOXGR1,268,"2-oxoglutarate receptor 1 ID=OXGR1_HUMAN AC=Q96P68 GN=OXGR1,GPR80,GPR99,P2RY15,P2Y15 class=A TM=35-305",oxgr1_human,,include_temp,,,,31,,19.62,,A Alicarboxylic acid
+OXTR,hOXYR,269,Oxytocin receptor ID=OXYR_HUMAN AC=P30559 GN=OXTR class=A TM=39-332,oxyr_human,,include,,,,137,734,86.71,86.15,A Peptide
+P2RY1,hP2RY1,270,P2Y purinoceptor 1 ID=P2RY1_HUMAN AC=P47900 GN=P2RY1 class=A TM=52-325,p2ry1_human,,include_temp,,,,28,,17.72,,A Nucleotide
+P2RY10,hP2Y10,271,Putative P2Y purinoceptor 10 ID=P2Y10_HUMAN AC=O00398 GN=P2RY10 class=A TM=40-309,p2y10_human,,include_temp,,,,34,416,21.52,48.83,A Orphan
+P2RY11,hP2Y11,272,P2Y purinoceptor 11 ID=P2Y11_HUMAN AC=Q96G91 GN=P2RY11 class=A TM=30-329,p2y11_human,,include_temp,,,,26,,16.46,,A Nucleotide
+P2RY12,hP2Y12,273,"P2Y purinoceptor 12 ID=P2Y12_HUMAN AC=Q9H244 GN=P2RY12,HORK3 class=A TM=28-298",p2y12_human,,include_temp,,,,29,,18.35,,A Nucleotide
+P2RY13,hP2Y13,274,"P2Y purinoceptor 13 ID=P2Y13_HUMAN AC=Q9BPV8 GN=P2RY13,GPR86,GPR94,FKSG77 class=A TM=50-321",p2y13_human,,include_temp,,,,45,,28.48,,A Nucleotide
+P2RY14,hP2Y14,275,"P2Y purinoceptor 14 ID=P2Y14_HUMAN AC=Q15391 GN=P2RY14,GPR105,KIAA0001 class=A TM=30-299",p2y14_human,,include_temp,exclude?,Neg charge NT Related to gpr87 and p2yr12 and 13 by LBP,,9,,5.696,,A Nucleotide
+P2RY2,hP2RY2,276,"P2Y purinoceptor 2 ID=P2RY2_HUMAN AC=P41231 GN=P2RY2,P2RU1 class=A TM=33-309",p2ry2_human,,include,,,,110,,69.62,,A Nucleotide
+P2RY4,hP2RY4,277,"P2Y purinoceptor 4 ID=P2RY4_HUMAN AC=P51582 GN=P2RY4,NRU class=A TM=35-309",p2ry4_human,,include,,,,131,,82.91,,A Nucleotide
+P2RY6,hP2RY6,278,"P2Y purinoceptor 6 ID=P2RY6_HUMAN AC=Q15077 GN=P2RY6,PP2891 class=A TM=28-303",p2ry6_human,,include,,,,62,,39.24,,A Nucleotide
+P2RY8,hP2RY8,279,S-geranylgeranyl-glutathione receptor P2RY8 ID=P2RY8_HUMAN AC=Q86VZ1 GN=P2RY8 class=A TM=20-296,p2ry8_human,,include,,,,81,429,51.27,50.35,A Orphan
+PRLHR,hPRLHR,280,"Prolactin-releasing peptide receptor ID=PRLHR_HUMAN AC=P49683 GN=PRLHR,GPR10,GR3 class=A TM=63-338",prlhr_human,,include,,,,152,653,96.2,76.64,A Peptide
+PROKR1,hPKR1,281,"Prokineticin receptor 1 ID=PKR1_HUMAN AC=Q8TCW9 GN=PROKR1,GPR73,PKR1 class=A TM=63-343",pkr1_human,,include,,,,133,672,84.18,78.87,A Protein
+PROKR2,hPKR2,282,"Prokineticin receptor 2 ID=PKR2_HUMAN AC=Q8NFJ6 GN=PROKR2,GPR73L1,PKR2 class=A TM=55-334",pkr2_human,,include,,,,131,675,82.91,79.23,A Protein
+PTAFR,hPTAFR,283,"Platelet-activating factor receptor ID=PTAFR_HUMAN AC=P25105 GN=PTAFR,PAFR class=A TM=17-296",ptafr_human,,include,,,,57,373,36.08,43.78,A Lipid
+PTGDR,hPD2R,284,Prostaglandin D2 receptor ID=PD2R_HUMAN AC=Q13258 GN=PTGDR class=A TM=22-331,pd2r_human,,exclude,exclude,,,2,,1.266,,A Lipid
+PTGDR2,hPD2R2,285,"Prostaglandin D2 receptor 2 ID=PD2R2_HUMAN AC=Q9Y5Y4 GN=PTGDR2,CRTH2,DL1R,GPR44 class=A TM=34-308",pd2r2_human,,include,,,,123,,77.85,,A Lipid
+PTGER1,hPE2R1,286,Prostaglandin E2 receptor EP1 subtype ID=PE2R1_HUMAN AC=P34995 GN=PTGER1 class=A TM=36-354,pe2r1_human,,exclude,exclude,,,5,,3.165,,A Lipid
+PTGER2,hPE2R2,287,Prostaglandin E2 receptor EP2 subtype ID=PE2R2_HUMAN AC=P43116 GN=PTGER2 class=A TM=24-323,pe2r2_human,,exclude,exclude,,,2,,1.266,,A Lipid
+PTGER3,hPE2R3,288,Prostaglandin E2 receptor EP3 subtype ID=PE2R3_HUMAN AC=P43115 GN=PTGER3 class=A TM=54-349,pe2r3_human,,exclude,exclude,,,0,,0,,A Lipid
+PTGER4,hPE2R4,289,"Prostaglandin E2 receptor EP4 subtype ID=PE2R4_HUMAN AC=P35408 GN=PTGER4,PTGER2 class=A TM=20-332",pe2r4_human,,include_temp,,,,27,,17.09,,A Lipid
+PTGFR,hPF2R,290,Prostaglandin F2-alpha receptor ID=PF2R_HUMAN AC=P43088 GN=PTGFR class=A TM=32-307,pf2r_human,,exclude,exclude,,,1,,0.6329,,A Lipid
+PTGIR,hPI2R,291,"Prostacyclin receptor ID=PI2R_HUMAN AC=P43119 GN=PTGIR,PRIPR class=A TM=17-295",pi2r_human,,exclude,exclude,,,3,,1.899,,A Lipid
+PTH1R,hPTH1R,292,"Parathyroid hormone/parathyroid hormone-related peptide receptor ID=PTH1R_HUMAN AC=Q03431 GN=PTH1R,PTHR,PTHR1 class=B TM=187-462",pth1r_human,,include,,,,132,,83.54,,B1 Peptide
+PTH2R,hPTH2R,293,"Parathyroid hormone 2 receptor ID=PTH2R_HUMAN AC=P49190 GN=PTH2R,PTHR2 class=B TM=146-417",pth2r_human,,include,,,,145,,91.77,,B1 Peptide
+QRFPR,hQRFPR,294,"Pyroglutamylated RF-amide peptide receptor ID=QRFPR_HUMAN AC=Q96P65 GN=QRFPR,GPR103 class=A TM=47-332",qrfpr_human,,include,,,,138,494,87.34,57.98,A Peptide
+RGR,hRGR,295,RPE-retinal G protein-coupled receptor ID=RGR_HUMAN AC=P47804 GN=RGR class=A TM=16-268,rgr_human,,exclude,,,not run,,0,,0,A Sensory
+RRH,hOPSX,296,Visual pigment-like receptor peropsin ID=OPSX_HUMAN AC=O14718 GN=RRH class=A TM=27-297,opsx_human,,exclude,,,not run,,131,,15.38,A Sensory
+RXFP1,hRXFP1,297,"Relaxin receptor 1 ID=RXFP1_HUMAN AC=Q9HBX9 GN=RXFP1,LGR7 class=A TM=410-672",rxfp1_human,,exclude,exclude,FSHR related,not run,,21,,2.465,A Peptide
+RXFP2,hRXFP2,298,"Relaxin receptor 2 ID=RXFP2_HUMAN AC=Q8WXD0 GN=RXFP2,GPR106,GREAT,LGR8 class=A TM=417-691",rxfp2_human,,exclude,exclude,Relaxin binds LDL dom; no peptide insertion site,not run,,53,,6.221,A Peptide
+RXFP3,hRL3R1,299,"Relaxin-3 receptor 1 ID=RL3R1_HUMAN AC=Q9NSD7 GN=RXFP3,GPCR135,RLN3R1,SALPR class=A TM=82-377",rl3r1_human,,include,,,,152,814,96.2,95.54,A Peptide
+RXFP4,hRL3R2,300,"Relaxin-3 receptor 2 ID=RL3R2_HUMAN AC=Q8TDU9 GN=RXFP4,GPCR142,GPR100,RLN3R2 class=A TM=44-302",rl3r2_human,,include,,,,155,785,98.1,92.14,A Peptide
+S1PR1,hS1PR1,301,"Sphingosine 1-phosphate receptor 1 ID=S1PR1_HUMAN AC=P21453 GN=S1PR1,CHEDG1,EDG1 class=A TM=47-310",s1pr1_human,,exclude,exclude,,,1,,0.6329,,A Lipid
+S1PR2,hS1PR2,302,"Sphingosine 1-phosphate receptor 2 ID=S1PR2_HUMAN AC=O95136 GN=S1PR2,EDG5 class=A TM=35-292",s1pr2_human,,exclude,exclude,,,3,,1.899,,A Lipid
+S1PR3,hS1PR3,303,"Sphingosine 1-phosphate receptor 3 ID=S1PR3_HUMAN AC=Q99500 GN=S1PR3,C9orf108,C9orf47,EDG3 class=A TM=41-302",s1pr3_human,,exclude,exclude,,,0,,0,,A Lipid
+S1PR4,hS1PR4,304,"Sphingosine 1-phosphate receptor 4 ID=S1PR4_HUMAN AC=O95977 GN=S1PR4,EDG6 class=A TM=51-309",s1pr4_human,,exclude,exclude,,,6,,3.797,,A Lipid
+S1PR5,hS1PR5,305,"Sphingosine 1-phosphate receptor 5 ID=S1PR5_HUMAN AC=Q9H228 GN=S1PR5,EDG8 class=A TM=41-308",s1pr5_human,,exclude,exclude,,,4,,2.532,,A Lipid
+SCTR,hSCTR,306,Secretin receptor ID=SCTR_HUMAN AC=P47872 GN=SCTR class=B TM=142-391,sctr_human,,include,,,,127,,80.38,,B1 Peptide
+SMO,hSMO,307,"Protein smoothened ID=SMO_HUMAN AC=Q99835 GN=SMO,SMOH class=F TM=234-545",smo_human,,exclude,,,not run,,,,,F Protein
+SSTR1,hSSR1,308,Somatostatin receptor type 1 ID=SSR1_HUMAN AC=P30872 GN=SSTR1 class=A TM=57-327,ssr1_human,,include,,,,107,639,67.72,75,A Peptide
+SSTR2,hSSR2,309,Somatostatin receptor type 2 ID=SSR2_HUMAN AC=P30874 GN=SSTR2 class=A TM=44-303,ssr2_human,,include,,,,104,754,65.82,88.5,A Peptide
+SSTR3,hSSR3,310,Somatostatin receptor type 3 ID=SSR3_HUMAN AC=P32745 GN=SSTR3 class=A TM=44-316,ssr3_human,,include,,,,132,766,83.54,89.91,A Peptide
+SSTR4,hSSR4,311,Somatostatin receptor type 4 ID=SSR4_HUMAN AC=P31391 GN=SSTR4 class=A TM=47-314,ssr4_human,,include,,,,85,642,53.8,75.35,A Peptide
+SSTR5,hSSR5,312,Somatostatin receptor type 5 ID=SSR5_HUMAN AC=P35346 GN=SSTR5 class=A TM=39-308,ssr5_human,,include,,,,115,687,72.78,80.63,A Peptide
+SUCNR1,hSUCR1,313,"Succinate receptor 1 ID=SUCR1_HUMAN AC=Q9BXA5 GN=SUCNR1,GPR91 class=A TM=32-302",sucr1_human,,include_temp,,,,64,,40.51,,A Alicarboxylic acid
+TAAR1,hTAAR1,314,"Trace amine-associated receptor 1 ID=TAAR1_HUMAN AC=Q96RJ0 GN=TAAR1,TA1,TAR1,TRAR1 class=A TM=25-307",taar1_human,,exclude,exclude,,,14,,8.861,,A Aminergic
+TAAR2,hTAAR2,315,"Trace amine-associated receptor 2 ID=TAAR2_HUMAN AC=Q9P1P5 GN=TAAR2,GPR58 class=A TM=49-322",taar2_human,,include,,,,70,301,44.3,35.33,A Orphan
+TAAR5,hTAAR5,316,"Trace amine-associated receptor 5 ID=TAAR5_HUMAN AC=O14804 GN=TAAR5,PNR class=A TM=35-307",taar5_human,,include,,,,91,454,57.59,53.29,A Orphan
+TAAR9,hTAAR9,317,"Trace amine-associated receptor 9 ID=TAAR9_HUMAN AC=Q96RI9 GN=TAAR9,TA3,TAR3,TRAR3 class=A TM=34-314",taar9_human,,include,,,,112,550,70.89,64.55,A Orphan
+TACR1,hNK1R,318,"Substance-P receptor ID=NK1R_HUMAN AC=P25103 GN=TACR1,NK1R,TAC1R class=A TM=32-308",nk1r_human,,include,,,,138,711,87.34,83.45,A Peptide
+TACR2,hNK2R,319,"Substance-K receptor ID=NK2R_HUMAN AC=P21452 GN=TACR2,NK2R,NKNAR,TAC2R class=A TM=33-310",nk2r_human,,include,,,,119,640,75.32,75.12,A Peptide
+TACR3,hNK3R,320,"Neuromedin-K receptor ID=NK3R_HUMAN AC=P29371 GN=TACR3,NK3R,TAC3R class=A TM=85-359",nk3r_human,,include,,,,130,681,82.28,79.93,A Peptide
+TAS1R1,hTS1R1,321,"Taste receptor type 1 member 1 ID=TS1R1_HUMAN AC=Q7RTX1 GN=TAS1R1,GPR70,T1R1,TR1,GM148 class=C TM=568-816",ts1r1_human,,exclude temp,,,not run,,,,,C Sensory
+TAS1R2,hTS1R2,322,"Taste receptor type 1 member 2 ID=TS1R2_HUMAN AC=Q8TE23 GN=TAS1R2,GPR71,T1R2,TR2 class=C TM=567-805",ts1r2_human,,exclude temp,,,not run,,,,,C Sensory
+TAS1R3,hTS1R3,323,"Taste receptor type 1 member 3 ID=TS1R3_HUMAN AC=Q7RTX0 GN=TAS1R3,T1R3,TR3 class=C TM=571-810",ts1r3_human,,exclude temp,,,not run,,,,,C Sensory
+TAS2R1,hTA2R1,324,Taste receptor type 2 member 1 ID=TA2R1_HUMAN AC=Q9NYW7 GN=TAS2R1 class=T2 TM=10-278,ta2r1_human,,exclude,exclude,,,16,,10.13,,T2 Sensory
+TAS2R10,hT2R10,325,Taste receptor type 2 member 10 ID=T2R10_HUMAN AC=Q9NYW0 GN=TAS2R10 class=T2 TM=7-278,t2r10_human,figure out which tasr's are expressed in the periphery and exclude others,exclude temp,,,,123,,77.85,,T2 Sensory
+TAS2R13,hT2R13,326,Taste receptor type 2 member 13 ID=T2R13_HUMAN AC=Q9NYV9 GN=TAS2R13 class=T2 TM=8-282,t2r13_human,,exclude temp,,,,134,,84.81,,T2 Sensory
+TAS2R14,hT2R14,327,Taste receptor type 2 member 14 ID=T2R14_HUMAN AC=Q9NYV8 GN=TAS2R14 class=T2 TM=8-282,t2r14_human,,exclude temp,,,,140,,88.61,,T2 Sensory
+TAS2R19,hT2R19,328,"Taste receptor type 2 member 19 ID=T2R19_HUMAN AC=P59542 GN=TAS2R19,TAS2R23,TAS2R48 class=T2 TM=2-280",t2r19_human,,exclude temp,,,,117,,74.05,,T2 Sensory
+TAS2R20,hT2R20,329,"Taste receptor type 2 member 20 ID=T2R20_HUMAN AC=P59543 GN=TAS2R20,TAS2R49 class=T2 TM=7-280",t2r20_human,,exclude temp,,,,151,,95.57,,T2 Sensory
+TAS2R3,hTA2R3,330,Taste receptor type 2 member 3 ID=TA2R3_HUMAN AC=Q9NYW6 GN=TAS2R3 class=T2 TM=7-287,ta2r3_human,,exclude temp,,,,118,,74.68,,T2 Sensory
+TAS2R30,hT2R30,331,"Taste receptor type 2 member 30 ID=T2R30_HUMAN AC=P59541 GN=TAS2R30,TAS2R47 class=T2 TM=2-280",t2r30_human,,exclude temp,,,,117,,74.05,,T2 Sensory
+TAS2R31,hT2R31,332,"Taste receptor type 2 member 31 ID=T2R31_HUMAN AC=P59538 GN=TAS2R31,TAS2R44 class=T2 TM=3-280",t2r31_human,,exclude temp,,,,109,,68.99,,T2 Sensory
+TAS2R38,hT2R38,333,"Taste receptor type 2 member 38 ID=T2R38_HUMAN AC=P59533 GN=TAS2R38,PTC class=T2 TM=18-297",t2r38_human,,exclude,exclude,,,6,,3.797,,T2 Sensory
+TAS2R39,hT2R39,334,Taste receptor type 2 member 39 ID=T2R39_HUMAN AC=P59534 GN=TAS2R39 class=T2 TM=31-312,t2r39_human,,exclude temp,,,,101,,63.92,,T2 Sensory
+TAS2R4,hTA2R4,335,Taste receptor type 2 member 4 ID=TA2R4_HUMAN AC=Q9NYW5 GN=TAS2R4 class=T2 TM=10-283,ta2r4_human,,exclude temp,,,,124,,78.48,,T2 Sensory
+TAS2R40,hT2R40,336,"Taste receptor type 2 member 40 ID=T2R40_HUMAN AC=P59535 GN=TAS2R40,GPR60 class=T2 TM=15-297",t2r40_human,,exclude temp,,,,84,,53.16,,T2 Sensory
+TAS2R41,hT2R41,337,Taste receptor type 2 member 41 ID=T2R41_HUMAN AC=P59536 GN=TAS2R41 class=T2 TM=8-285,t2r41_human,,exclude temp,,,,59,,37.34,,T2 Sensory
+TAS2R42,hT2R42,338,"Taste receptor type 2 member 42 ID=T2R42_HUMAN AC=Q7RTR8 GN=TAS2R42,TAS2R55 class=T2 TM=8-286",t2r42_human,,exclude temp,,,,107,,67.72,,T2 Sensory
+TAS2R43,hT2R43,339,Taste receptor type 2 member 43 ID=T2R43_HUMAN AC=P59537 GN=TAS2R43 class=T2 TM=2-280,t2r43_human,,exclude temp,,,,102,,64.56,,T2 Sensory
+TAS2R46,hT2R46,340,Taste receptor type 2 member 46 ID=T2R46_HUMAN AC=P59540 GN=TAS2R46 class=T2 TM=2-280,t2r46_human,,exclude temp,,,,73,,46.2,,T2 Sensory
+TAS2R5,hTA2R5,341,Taste receptor type 2 member 5 ID=TA2R5_HUMAN AC=Q9NYW4 GN=TAS2R5 class=T2 TM=2-274,ta2r5_human,,exclude temp,,,,65,,41.14,,T2 Sensory
+TAS2R50,hT2R50,342,Taste receptor type 2 member 50 ID=T2R50_HUMAN AC=P59544 GN=TAS2R50 class=T2 TM=2-280,t2r50_human,,exclude temp,,,,120,,75.95,,T2 Sensory
+TAS2R60,hT2R60,343,Taste receptor type 2 member 60 ID=T2R60_HUMAN AC=P59551 GN=TAS2R60 class=T2 TM=8-285,t2r60_human,,exclude temp,,,,143,,90.51,,T2 Sensory
+TAS2R7,hTA2R7,344,Taste receptor type 2 member 7 ID=TA2R7_HUMAN AC=Q9NYW3 GN=TAS2R7 class=T2 TM=10-287,ta2r7_human,,exclude temp,,,,118,,74.68,,T2 Sensory
+TAS2R8,hTA2R8,345,Taste receptor type 2 member 8 ID=TA2R8_HUMAN AC=Q9NYW2 GN=TAS2R8 class=T2 TM=8-287,ta2r8_human,,exclude temp,,,,135,,85.44,,T2 Sensory
+TAS2R9,hTA2R9,346,Taste receptor type 2 member 9 ID=TA2R9_HUMAN AC=Q9NYW1 GN=TAS2R9 class=T2 TM=10-284,ta2r9_human,,exclude temp,,,,111,,70.25,,T2 Sensory
+TBXA2R,hTA2R,347,Thromboxane A2 receptor ID=TA2R_HUMAN AC=P21731 GN=TBXA2R class=A TM=30-311,ta2r_human,,exclude,exclude,related to classic PG rec,,30,,18.99,,A Lipid
+TPRA1,hTPRA1,348,"Transmembrane protein adipocyte-associated 1 ID=TPRA1_HUMAN AC=Q86W33 GN=TPRA1,GPR175,TMEM227,PP6566 class=UPF0359 TM=48-285",tpra1_human,,exclude,,,not run,,,,,Other Orphan
+TRHR,hTRFR,349,Thyrotropin-releasing hormone receptor ID=TRFR_HUMAN AC=P34981 GN=TRHR class=A TM=29-319,trfr_human,,include,,,,80,689,50.63,80.87,A Peptide
+TSHR,hTSHR,350,"Thyrotropin receptor ID=TSHR_HUMAN AC=P16473 GN=TSHR,LGR3 class=A TM=414-682",tshr_human,,add(check_size),add,,not run,,103,,12.09,A Protein
+UTS2R,hUR2R,351,"Urotensin-2 receptor ID=UR2R_HUMAN AC=Q9UKP6 GN=UTS2R,GPR14 class=A TM=55-318",ur2r_human,,include,,,,139,727,87.97,85.33,A Peptide
+VIPR1,hVIPR1,352,Vasoactive intestinal polypeptide receptor 1 ID=VIPR1_HUMAN AC=P32241 GN=VIPR1 class=B TM=142-391,vipr1_human,,include,,,,104,,65.82,,B1 Peptide
+VIPR2,hVIPR2,353,"Vasoactive intestinal polypeptide receptor 2 ID=VIPR2_HUMAN AC=P41587 GN=VIPR2,VIP2R class=B TM=125-378",vipr2_human,,include,,,,76,,48.1,,B1 Peptide
+VN1R1,hVN1R1,354,"Vomeronasal type-1 receptor 1 ID=VN1R1_HUMAN AC=Q9GZP7 GN=VN1R1,V1RL1,VNR19I1 class=A TM=57-324",vn1r1_human,,exclude,,,not run,,,,,V1 Odorant
+VN1R2,hVN1R2,355,"Vomeronasal type-1 receptor 2 ID=VN1R2_HUMAN AC=Q8NFZ6 GN=VN1R2,V1RL2 class=A TM=12-367",vn1r2_human,,exclude,,,not run,,,,,V1 Odorant
+VN1R4,hVN1R4,356,"Vomeronasal type-1 receptor 4 ID=VN1R4_HUMAN AC=Q7Z5H5 GN=VN1R4,V1RL4 class=A TM=6-285",vn1r4_human,,exclude,,,not run,,,,,V1 Odorant
+VN1R5,hVN1R5,357,"Vomeronasal type-1 receptor 5 ID=VN1R5_HUMAN AC=Q7Z5H4 GN=VN1R5,V1RL5 class=A TM=4-321",vn1r5_human,,exclude,,,not run,,,,,V1 Odorant
+XCR1,hXCR1,358,"Chemokine XC receptor 1 ID=XCR1_HUMAN AC=P46094 GN=XCR1,CCXCR1,GPR5 class=A TM=32-291",xcr1_human,,include,,,,76,611,48.1,71.71,A Protein
+,,359,,,,exclude,,,,,,,,
+OR51E2,,360,,,,add,add,,not run,,,,,
+,,361,,,,exclude,,,,,,,,
+OR51E1,,362,,,,add,add,,not run,,,,,
+,,363,,,,exclude,,,,,,,,
+OR14C36,,364,,,,add,add,,not run,,,,,

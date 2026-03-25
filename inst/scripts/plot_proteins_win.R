@@ -413,95 +413,95 @@ make_protein_plot <- function(input,
                               pep_tp
 ) {
 
-tryCatch({
-  to_plot <- expand_by_residue(input)
+  tryCatch({
+    to_plot <- expand_by_residue(input)
 
 
-  to_plot <- to_plot %>%
-    group_by(gene) %>%
-    mutate(max = max(index)) %>%
-    mutate(across(starts_with(c("pep_nn", "pep_xgb", "chem_nn", "chem_xgb")), .fns = ~smoother_func(x = ., append_name = "s"), .unpack = TRUE))
+    to_plot <- to_plot %>%
+      group_by(gene) %>%
+      mutate(max = max(index)) %>%
+      mutate(across(starts_with(c("pep_nn", "pep_xgb", "chem_nn", "chem_xgb")), .fns = ~smoother_func(x = ., append_name = "s"), .unpack = TRUE))
 
-  transfrom_aligments <- function(x, vals_to = "AA") {
-    x %>%
-      mutate(index = row_number()) %>%
-      pivot_longer(cols = -index, names_to = "metric", values_to = vals_to)
-  }
+    transfrom_aligments <- function(x, vals_to = "AA") {
+      x %>%
+        mutate(index = row_number()) %>%
+        pivot_longer(cols = -index, names_to = "metric", values_to = vals_to)
+    }
 
-  to_plot_aln <- tryCatch({input %>%
-      mutate(sim_mat = map(alignment_AA, \(x) {
-        ref_seq <- x[["Homo_sapiens"]]
-        Map(\(sm) {
-          x %>%
-            mutate(across(everything(), \(y) {
-              sm[cbind(ref_seq, y)]
-            }))
-        }, sim_mats)
+    to_plot_aln <- tryCatch({input %>%
+        mutate(sim_mat = map(alignment_AA, \(x) {
+          ref_seq <- x[["Homo_sapiens"]]
+          Map(\(sm) {
+            x %>%
+              mutate(across(everything(), \(y) {
+                sm[cbind(ref_seq, y)]
+              }))
+          }, sim_mats)
 
-      })) %>%
-      mutate(alignment_AA = map(alignment_AA, ~transfrom_aligments(.))) %>%
-      mutate(sim_mat = map(sim_mat, \(x) {
+        })) %>%
+        mutate(alignment_AA = map(alignment_AA, ~transfrom_aligments(.))) %>%
+        mutate(sim_mat = map(sim_mat, \(x) {
 
-        tmp <- map(names(x), ~transfrom_aligments(x[[.]], vals_to = .))
+          tmp <- map(names(x), ~transfrom_aligments(x[[.]], vals_to = .))
 
-        tmp <- purrr::reduce(tmp, function(x, y) {
-          bind_cols(x, y %>% select(!any_of(names(x))))
-        })
+          tmp <- purrr::reduce(tmp, function(x, y) {
+            bind_cols(x, y %>% select(!any_of(names(x))))
+          })
 
 
-        bind_rows(
-          species_dat %>%
-            mutate(metric = as.character(aminode)) %>%
-            mutate(index = 0) %>%
-            mutate(blos = myo_sim,
-                   gran = myo_sim) %>%
-            select(index, metric, blos, gran) %>%
-            filter(metric %in% unique(tmp[["metric"]])),
-          tmp)
+          bind_rows(
+            species_dat %>%
+              mutate(metric = as.character(aminode)) %>%
+              mutate(index = 0) %>%
+              mutate(blos = myo_sim,
+                     gran = myo_sim) %>%
+              select(index, metric, blos, gran) %>%
+              filter(metric %in% unique(tmp[["metric"]])),
+            tmp)
 
-      })) %>%
-      mutate(alignment_final = map2(alignment_AA, sim_mat, ~right_join(.x, .y, by = c("index", "metric")))) %>%
-      select(gene, alignment_final) %>%
-      unnest(alignment_final)
-  }, error = function(e) return(NULL))
+        })) %>%
+        mutate(alignment_final = map2(alignment_AA, sim_mat, ~right_join(.x, .y, by = c("index", "metric")))) %>%
+        select(gene, alignment_final) %>%
+        unnest(alignment_final)
+    }, error = function(e) return(NULL))
 
-  to_plot_c <- to_plot %>%
-    pivot_longer(cols = any_of(all_mets %>% unname),
-                 names_to = "metric",
-                 values_to = "value")
+    to_plot_c <- to_plot %>%
+      pivot_longer(cols = any_of(all_mets %>% unname),
+                   names_to = "metric",
+                   values_to = "value")
 
 
-  desc_vars <- c(DBC,
-                 "modification",
-                 "SV",
-                 "domain",
-                 "topo",
-                 "SS") %>% rev
+    desc_vars <- c(DBC,
+                   "modification",
+                   "SV",
+                   "domain",
+                   "topo",
+                   "SS") %>% rev
 
-  to_plot_desc <- to_plot %>%
-    pivot_longer(cols = any_of(desc_vars),
-                 names_to = "metric",
-                 values_to = "value_desc")
+    to_plot_desc <- to_plot %>%
+      pivot_longer(cols = any_of(desc_vars),
+                   names_to = "metric",
+                   values_to = "value_desc")
 
 
 
-  df <- bind_rows(to_plot_c,
-                  to_plot_aln,
-                  to_plot_desc)
+    df <- bind_rows(to_plot_c,
+                    to_plot_aln,
+                    to_plot_desc)
 
-  mets_in_plot <- unique(df[["metric"]])
+    mets_in_plot <- unique(df[["metric"]])
 
-  met_order <- c(all_mets, desc_vars, levels(species_dat[["aminode"]]))
+    met_order <- c(all_mets, desc_vars, levels(species_dat[["aminode"]]))
 
-  mets_in_plot <- mets_in_plot[match(met_order, mets_in_plot)] %>% .[!is.na(.)]
+    mets_in_plot <- mets_in_plot[match(met_order, mets_in_plot)] %>% .[!is.na(.)]
 
-  df <- df %>%
-    mutate(metric_type = case_when(metric %in% species_dat[["aminode"]] ~ "blosum62\n-------------\ngrantham",
-                                   metric %in% desc_vars ~ "discrete",
-                                   TRUE ~ "")) %>%
-    mutate(metric_type = factor(metric_type, levels = c("", "discrete", "blosum62\n-------------\ngrantham"))) %>%
-    mutate(metric = factor(metric,
-                           levels = mets_in_plot))
+    df <- df %>%
+      mutate(metric_type = case_when(metric %in% species_dat[["aminode"]] ~ "blosum62\n-------------\ngrantham",
+                                     metric %in% desc_vars ~ "discrete",
+                                     TRUE ~ "")) %>%
+      mutate(metric_type = factor(metric_type, levels = c("", "discrete", "blosum62\n-------------\ngrantham"))) %>%
+      mutate(metric = factor(metric,
+                             levels = mets_in_plot))
 
 
 
@@ -510,409 +510,409 @@ tryCatch({
 
 
 
-  y_axis_colors <- tibble(color = c("#709AE1FF", "#FD7446FF", "#46732EFF", "#370335FF", "#8A9197FF"),
-                          class = c("Mammalia", "Aves", "Lepidosauria", "Actinopteri", "Amphibia")
-  )
-
-  y_axis_colors <- left_join(species_dat, y_axis_colors, by = "class") %>%
-    mutate(metric = as.character(aminode)) %>%
-    select(color, metric)
-
-  y_axis_colors <- bind_rows(tibble(metric = mets_in_plot,
-                                    color = "black"),
-                             y_axis_colors)
-
-  y_axis_colors <- setNames(y_axis_colors[["color"]],
-                            y_axis_colors[["metric"]])
-
-
-
-  cons_dat <- df %>% filter(metric_type == "blosum62\n-------------\ngrantham")
-
-  if(nrow(cons_dat) > 0) {seq_offset <- 0.6} else {seq_offset <- -0.45}
-
-  pep_tp <- pep_tp %>% pull(data) %>% `[[`(1)
-
-  max_index <- max(df$index, na.rm = TRUE)
-  ind_tp <- c(1, seq(from = 0, to = max_index, by = 10))
-
-  features <- input %>% pull(features) %>% `[[`(1)
-  AA_sequence <- input %>% pull(sequence_uni) %>% stringr::str_split(., "", simplify = TRUE) %>% `c`
-
-  seq_dat <- bind_rows(tibble(AA = NA, index = 0, index_tp = NA),
-                       tibble(AA = AA_sequence) %>%
-                         mutate(index = row_number()) %>%
-                         mutate(index_tp = if_else(index %in% ind_tp, index, NA))
-  )
-
-  anno_feat_dat <- assemble_anno_feats(features, peps = pep_tp)
-
-  anno1 <- input %>%
-    pull(annotations) %>%
-    `[[`(1) %>%
-    filter(annotation_name == "comment") %>%
-    filter(annotation_type %in% c("subcellular location", "tissue specificity", "disease")) %>%
-    group_by(annotation_type) %>%
-    summarise(annotation = list(paste0(annotation, collapse = "; "))) %>%
-    pivot_wider(names_from = annotation_type, values_from = annotation)
-
-  anno2 <- input %>%
-    pull(annotations) %>%
-    `[[`(1) %>%
-    filter(annotation_name == "dbReference" & name_1 == "disease") %>%
-    group_by(annotation_type) %>%
-    summarise(annotation = paste0(annotation, collapse = "; ")) %>%
-    {paste0(.[["annotation_type"]], ": ", .[["annotation"]])}
-
-
-
-  p_title <- input %>%
-    select(accession, gene, files) %>%
-    mutate(uniprot_name = setNames(id_map$`Entry Name`, id_map$Entry)[accession]) %>%
-    mutate(Aminode = paste0("http://www.aminode.org/?gene=", gene)) %>%
-    mutate(UniProt = paste0("https://www.uniprot.org/uniprotkb/", accession, "/entry")) %>%
-    mutate(chatGPT = paste0("https://chat.openai.com/?q=What+are+the+known+receptors+for+Gene:+", gene, ",+and+are+any+of+these+receptors+GPCRs?+If+so+list+them+first+and+discuss+their+functions.")) %>%
-    mutate(GWAS = paste0("https://www.ebi.ac.uk/gwas/genes/", gene)) %>%
-    mutate(PubMed = paste0("https://pubmed.ncbi.nlm.nih.gov/?term=", gene)) %>%
-    mutate(Disease = paste0("https://chat.openai.com/?q=What+are+the+known+disease+associations+for+", gene, "+.+Give+PubMed+papers+published+in+the+last+three+years+to+support+your+claims.")) %>%
-    mutate(AlphaFoldDB = paste0("https://alphafold.ebi.ac.uk/entry/AF-", accession, "-F1")) %>%
-    mutate(`ChimeraX` = paste0("https://stacks.stanford.edu/file/tc396gg4330/v1/", gene, ".cxc"))
-
-  title_text <- paste(paste0("Gene: ", p_title$gene),
-                      paste0("Entry: ", p_title$accession),
-                      paste0("Entry Name: ", p_title$uniprot_name),
-                      sep = "    |    ")
-
-
-
-  all_links <- c("UniProt",
-                 "Aminode",
-                 "chatGPT",
-                 "GWAS",
-                 "PubMed",
-                 "Disease",
-                 "AlphaFoldDB",
-                 "ChimeraX")
-
-  meta_dat <- tibble(links = list(all_links))
-
-  get_text_width <- function(l) {
-    grid::convertWidth(
-      grid::grobWidth(grid::textGrob(l, gp = grid::gpar(fontsize = 18))),
-      "in",
-      valueOnly = TRUE
-    )
-  }
-
-  meta_dat <- meta_dat %>%
-    pivot_longer(everything()) %>%
-    unnest(value) %>%
-    rowwise() %>%
-    mutate(val_len = get_text_width(value)) %>%
-    ungroup() %>%
-    mutate(index = lag(cumsum(val_len))) %>%
-    mutate(index = replace_na(index, 0)) %>%
-    mutate(index = index * 10) %>%
-    mutate(index2 = seq.default(0, 70, by = 10)) %>%
-    ungroup() %>%
-    rowwise() %>%
-    mutate(tt_value = if(value %in% all_links) {p_title[[value]]} else {NA})
-
-
-  subtitle_text <- bind_cols(tibble(peptides = list(pep_tp$roi_name)),
-                             tibble(selection = list(pep_tp$selection)),
-                             anno1)
-
-  subtitle_text <- lapply(names(subtitle_text), \(x) {paste0(x, ": ", paste0(subtitle_text[[x]][[1]], collapse = "; "))})
-
-  subtitle_text <- paste(subtitle_text, collapse = "\n")
-
-
-
-  meta_p <- ggplot2::ggplot(meta_dat) +
-    ggiraph::geom_text_interactive(aes(x = index2,
-                                       y = name,
-                                       label = value,
-                                       data_id = value,
-                                       onclick = paste0('window.open("', tt_value , '")')), hjust = 0, size = 4) +
-    ggplot2::scale_x_continuous(limits = c(0, max(80, max_index)), expand = grid::unit(0, "lines")) +
-    ggplot2::scale_y_discrete(expand = grid::unit(0, "lines")) +
-    ggplot2::ggtitle(label = title_text, subtitle = subtitle_text) +
-    theme_void()
-
-
-
-
-  seq_p <- ggplot2::ggplot(seq_dat) +
-    ggiraph::geom_text_interactive(aes(x = index, y = 1,
-                                       label = AA,
-                                       data_id = index),
-                                       size = 3.5
-    ) +
-    ggplot2::geom_text(data = seq_dat,
-                       aes(x = index, y = 1, label = index_tp), vjust = -2, size = 2.5, inherit.aes = FALSE) +
-    ggplot2::scale_x_continuous(limits = c(0, (max_index + 1)), expand = expansion(add = c(seq_offset, -0.4))) +
-    ggplot2::scale_y_discrete(expand = grid::unit(0, "lines")) +
-    theme_void() + theme(
-      plot.margin = margin(1, 0, 0, 0),
-      panel.spacing = unit(0, "pt")
+    y_axis_colors <- tibble(color = c("#709AE1FF", "#FD7446FF", "#46732EFF", "#370335FF", "#8A9197FF"),
+                            class = c("Mammalia", "Aves", "Lepidosauria", "Actinopteri", "Amphibia")
     )
 
+    y_axis_colors <- left_join(species_dat, y_axis_colors, by = "class") %>%
+      mutate(metric = as.character(aminode)) %>%
+      select(color, metric)
+
+    y_axis_colors <- bind_rows(tibble(metric = mets_in_plot,
+                                      color = "black"),
+                               y_axis_colors)
+
+    y_axis_colors <- setNames(y_axis_colors[["color"]],
+                              y_axis_colors[["metric"]])
+
+
+
+    cons_dat <- df %>% filter(metric_type == "blosum62\n-------------\ngrantham")
+
+    if(nrow(cons_dat) > 0) {seq_offset <- 0.6} else {seq_offset <- -0.45}
+
+    pep_tp <- pep_tp %>% pull(data) %>% `[[`(1)
+
+    max_index <- max(df$index, na.rm = TRUE)
+    ind_tp <- c(1, seq(from = 0, to = max_index, by = 10))
+
+    features <- input %>% pull(features) %>% `[[`(1)
+    AA_sequence <- input %>% pull(sequence_uni) %>% stringr::str_split(., "", simplify = TRUE) %>% `c`
+
+    seq_dat <- bind_rows(tibble(AA = NA, index = 0, index_tp = NA),
+                         tibble(AA = AA_sequence) %>%
+                           mutate(index = row_number()) %>%
+                           mutate(index_tp = if_else(index %in% ind_tp, index, NA))
+    )
+
+    anno_feat_dat <- assemble_anno_feats(features, peps = pep_tp)
+
+    anno1 <- input %>%
+      pull(annotations) %>%
+      `[[`(1) %>%
+      filter(annotation_name == "comment") %>%
+      filter(annotation_type %in% c("subcellular location", "tissue specificity", "disease")) %>%
+      group_by(annotation_type) %>%
+      summarise(annotation = list(paste0(annotation, collapse = "; "))) %>%
+      pivot_wider(names_from = annotation_type, values_from = annotation)
+
+    anno2 <- input %>%
+      pull(annotations) %>%
+      `[[`(1) %>%
+      filter(annotation_name == "dbReference" & name_1 == "disease") %>%
+      group_by(annotation_type) %>%
+      summarise(annotation = paste0(annotation, collapse = "; ")) %>%
+      {paste0(.[["annotation_type"]], ": ", .[["annotation"]])}
+
+
+
+    p_title <- input %>%
+      select(accession, gene, files) %>%
+      mutate(uniprot_name = setNames(id_map$`Entry Name`, id_map$Entry)[accession]) %>%
+      mutate(Aminode = paste0("http://www.aminode.org/?gene=", gene)) %>%
+      mutate(UniProt = paste0("https://www.uniprot.org/uniprotkb/", accession, "/entry")) %>%
+      mutate(chatGPT = paste0("https://chat.openai.com/?q=What+are+the+known+receptors+for+Gene:+", gene, ",+and+are+any+of+these+receptors+GPCRs?+If+so+list+them+first+and+discuss+their+functions.")) %>%
+      mutate(GWAS = paste0("https://www.ebi.ac.uk/gwas/genes/", gene)) %>%
+      mutate(PubMed = paste0("https://pubmed.ncbi.nlm.nih.gov/?term=", gene)) %>%
+      mutate(Disease = paste0("https://chat.openai.com/?q=What+are+the+known+disease+associations+for+", gene, "+.+Give+PubMed+papers+published+in+the+last+three+years+to+support+your+claims.")) %>%
+      mutate(AlphaFoldDB = paste0("https://alphafold.ebi.ac.uk/entry/AF-", accession, "-F1")) %>%
+      mutate(`ChimeraX` = paste0("https://stacks.stanford.edu/file/tc396gg4330/v1/", gene, ".cxc"))
+
+    title_text <- paste(paste0("Gene: ", p_title$gene),
+                        paste0("Entry: ", p_title$accession),
+                        paste0("Entry Name: ", p_title$uniprot_name),
+                        sep = "    |    ")
+
+
+
+    all_links <- c("UniProt",
+                   "Aminode",
+                   "chatGPT",
+                   "GWAS",
+                   "PubMed",
+                   "Disease",
+                   "AlphaFoldDB",
+                   "ChimeraX")
+
+    meta_dat <- tibble(links = list(all_links))
+
+    get_text_width <- function(l) {
+      grid::convertWidth(
+        grid::grobWidth(grid::textGrob(l, gp = grid::gpar(fontsize = 18))),
+        "in",
+        valueOnly = TRUE
+      )
+    }
+
+    meta_dat <- meta_dat %>%
+      pivot_longer(everything()) %>%
+      unnest(value) %>%
+      rowwise() %>%
+      mutate(val_len = get_text_width(value)) %>%
+      ungroup() %>%
+      mutate(index = lag(cumsum(val_len))) %>%
+      mutate(index = replace_na(index, 0)) %>%
+      mutate(index = index * 10) %>%
+      mutate(index2 = seq.default(0, 70, by = 10)) %>%
+      ungroup() %>%
+      rowwise() %>%
+      mutate(tt_value = if(value %in% all_links) {p_title[[value]]} else {NA})
+
+
+    subtitle_text <- bind_cols(tibble(peptides = list(pep_tp$roi_name)),
+                               tibble(selection = list(pep_tp$selection)),
+                               anno1)
+
+    subtitle_text <- lapply(names(subtitle_text), \(x) {paste0(x, ": ", paste0(subtitle_text[[x]][[1]], collapse = "; "))})
+
+    subtitle_text <- paste(subtitle_text, collapse = "\n")
+
+
+
+    meta_p <- ggplot2::ggplot(meta_dat) +
+      ggiraph::geom_text_interactive(aes(x = index2,
+                                         y = name,
+                                         label = value,
+                                         data_id = value,
+                                         onclick = paste0('window.open("', tt_value , '")')), hjust = 0, size = 4) +
+      ggplot2::scale_x_continuous(limits = c(0, max(80, max_index)), expand = grid::unit(0, "lines")) +
+      ggplot2::scale_y_discrete(expand = grid::unit(0, "lines")) +
+      ggplot2::ggtitle(label = title_text, subtitle = subtitle_text) +
+      theme_void()
 
 
 
 
-  main_p <- ggplot2::ggplot(data = df) +
-
-    ggplot2::geom_tile(data = df %>% filter(metric_type == ""),
-                       mapping = aes(x = index, y = metric, fill = value))
-
-  if(nrow(cons_dat) > 0) {
-
-    main_p <- main_p +
-
-      ggplot2::geom_tile(data = cons_dat,
-                         mapping = aes(x = index, y = metric, fill = gran),
-                         #color = "black",
-                         #lwd = 0.1,
-                         width = 1,
-                         height = 0.5,
-                         position = position_nudge(y = -0.25)) +
-
-      ggplot2::geom_tile(data = cons_dat,
-                         mapping = aes(x = index, y = metric, fill = blos),
-                         #color = "black",
-                         #lwd = 0.1,
-                         width = 1,
-                         height = 0.5,
-                         position = position_nudge(y = 0.25))
-
-  }
-
-
-  main_p <- main_p +
-
-    ggiraph::geom_point_interactive(data = df %>%
-                                      filter(metric_type != "discrete" & index != 0) %>%
-                                      mutate(tt_value = case_when(metric_type == "" ~ paste0(metric, ": ", round(value, 2)),
-                                                                  metric_type == "blosum62\n-------------\ngrantham" ~ tryCatch({paste0(metric, "\n", "blosum62: ", round(blos, 2), "\n", "grantham: ", round(gran, 2))}, error = function(e) NA),
-                                                                  TRUE ~ NA)),
-                                    aes(x = index, y = metric, tooltip = tt_value, data_id = index), pch = 15, size = 2.5, color = "grey85") +
-
-    scale_fill_viridis_c(option = "H", name = "") +
-
-    scale_y_discrete(labels = function(labs) {
-      purrr::map_chr(labs, ~ glue::glue("<span style='color:{y_axis_colors[.x]}'>{.x}</span>"))
-    }) +
-
-    scale_x_continuous(expand = grid::unit(0, "lines"),
-                       breaks = seq(0, max_index, by = 10),
-                       minor_breaks = seq(0, max_index, by = 5))
-
-  main_p <- main_p +
-    ggplot2::geom_text(data = df %>% filter(metric_type != "discrete"),
-                       aes(x = index, y = metric, label = AA), size = 1.8, fontface = "bold", color = "black")
+    seq_p <- ggplot2::ggplot(seq_dat) +
+      ggiraph::geom_text_interactive(aes(x = index, y = 1,
+                                         label = AA,
+                                         data_id = index),
+                                     size = 3.5
+      ) +
+      ggplot2::geom_text(data = seq_dat,
+                         aes(x = index, y = 1, label = index_tp), vjust = -2, size = 2.5, inherit.aes = FALSE) +
+      ggplot2::scale_x_continuous(limits = c(0, (max_index + 1)), expand = expansion(add = c(seq_offset, -0.4))) +
+      ggplot2::scale_y_discrete(expand = grid::unit(0, "lines")) +
+      theme_void() + theme(
+        plot.margin = margin(1, 0, 0, 0),
+        panel.spacing = unit(0, "pt")
+      )
 
 
 
 
-  for(y in desc_vars[desc_vars %in% mets_in_plot]) {
 
-    dat_toplot <- df %>% filter(metric == !!y)
+    main_p <- ggplot2::ggplot(data = df) +
 
-    if(y == "domain") {
-      desc_col_scale <- all_desc_colors[[y]]
-      all_doms <- unique(dat_toplot[["value_desc"]])
-      common_doms <- all_doms[all_doms %in% names(all_desc_colors[[y]])]
-      uncommon_doms <- all_doms[!all_doms %in% names(all_desc_colors[[y]])]
-      desc_col_scale <- all_desc_colors[[y]][all_desc_colors[[y]] %in% common_doms]
-      uncommon_doms <- color_scalify(uncommon_doms, colors = desc_colors[!desc_colors %in% desc_col_scale])
-      desc_col_scale <- c(desc_col_scale, uncommon_doms)
-    } else if(y == "SV") {
+      ggplot2::geom_tile(data = df %>% filter(metric_type == ""),
+                         mapping = aes(x = index, y = metric, fill = value))
 
-      desc_vals <- unique(dat_toplot[["value_desc"]])
-      desc_col_scale <- rep("#709AE1FF", length(desc_vals))
-      names(desc_col_scale) <- desc_vals
+    if(nrow(cons_dat) > 0) {
 
-    } else {
-      desc_col_scale <- all_desc_colors[[y]]
+      main_p <- main_p +
+
+        ggplot2::geom_tile(data = cons_dat,
+                           mapping = aes(x = index, y = metric, fill = gran),
+                           #color = "black",
+                           #lwd = 0.1,
+                           width = 1,
+                           height = 0.5,
+                           position = position_nudge(y = -0.25)) +
+
+        ggplot2::geom_tile(data = cons_dat,
+                           mapping = aes(x = index, y = metric, fill = blos),
+                           #color = "black",
+                           #lwd = 0.1,
+                           width = 1,
+                           height = 0.5,
+                           position = position_nudge(y = 0.25))
+
     }
 
 
     main_p <- main_p +
 
-      ggnewscale::new_scale_fill() +
+      ggiraph::geom_point_interactive(data = df %>%
+                                        filter(metric_type != "discrete" & index != 0) %>%
+                                        mutate(tt_value = case_when(metric_type == "" ~ paste0(metric, ": ", round(value, 2)),
+                                                                    metric_type == "blosum62\n-------------\ngrantham" ~ tryCatch({paste0(metric, "\n", "blosum62: ", round(blos, 2), "\n", "grantham: ", round(gran, 2))}, error = function(e) NA),
+                                                                    TRUE ~ NA)),
+                                      aes(x = index, y = metric, tooltip = tt_value, data_id = index), pch = 15, size = 2.5, color = "grey85") +
 
-      ggplot2::geom_tile(data = dat_toplot,
-                         mapping = aes(x = index, y = metric, fill = value_desc), show.legend = FALSE) +
-      scale_fill_manual(values = desc_col_scale, na.value = "white", name = "")
+      scale_fill_viridis_c(option = "H", name = "") +
+
+      scale_y_discrete(labels = function(labs) {
+        purrr::map_chr(labs, ~ glue::glue("<span style='color:{y_axis_colors[.x]}'>{.x}</span>"))
+      }) +
+
+      scale_x_continuous(expand = grid::unit(0, "lines"),
+                         breaks = seq(0, max_index, by = 10),
+                         minor_breaks = seq(0, max_index, by = 5))
+
+    main_p <- main_p +
+      ggplot2::geom_text(data = df %>% filter(metric_type != "discrete"),
+                         aes(x = index, y = metric, label = AA), size = 1.8, fontface = "bold", color = "black")
 
 
-    if(y %in% c("modification", "topo", "SS")) {
+
+
+    for(y in desc_vars[desc_vars %in% mets_in_plot]) {
+
+      dat_toplot <- df %>% filter(metric == !!y)
+
+      if(y == "domain") {
+        desc_col_scale <- all_desc_colors[[y]]
+        all_doms <- unique(dat_toplot[["value_desc"]])
+        common_doms <- all_doms[all_doms %in% names(all_desc_colors[[y]])]
+        uncommon_doms <- all_doms[!all_doms %in% names(all_desc_colors[[y]])]
+        desc_col_scale <- all_desc_colors[[y]][all_desc_colors[[y]] %in% common_doms]
+        uncommon_doms <- color_scalify(uncommon_doms, colors = desc_colors[!desc_colors %in% desc_col_scale])
+        desc_col_scale <- c(desc_col_scale, uncommon_doms)
+      } else if(y == "SV") {
+
+        desc_vals <- unique(dat_toplot[["value_desc"]])
+        desc_col_scale <- rep("#709AE1FF", length(desc_vals))
+        names(desc_col_scale) <- desc_vals
+
+      } else {
+        desc_col_scale <- all_desc_colors[[y]]
+      }
+
 
       main_p <- main_p +
-        ggiraph::geom_point_interactive(data = dat_toplot %>%
-                                          filter(!is.na(value_desc)) %>%
-                                          mutate(tt_value = tt_lut[[y]][value_desc]), aes(x = index, y = metric, tooltip = tt_value, data_id = index), pch = 15, size = 2.5, color = "grey85", show.legend = FALSE) +
-        ggplot2::geom_text(data = dat_toplot, aes(x = index, y = metric, label = value_desc), size = 1.8, fontface = "bold", color = "black")
 
+        ggnewscale::new_scale_fill() +
+
+        ggplot2::geom_tile(data = dat_toplot,
+                           mapping = aes(x = index, y = metric, fill = value_desc), show.legend = FALSE) +
+        scale_fill_manual(values = desc_col_scale, na.value = "white", name = "")
+
+
+      if(y %in% c("modification", "topo", "SS")) {
+
+        main_p <- main_p +
+          ggiraph::geom_point_interactive(data = dat_toplot %>%
+                                            filter(!is.na(value_desc)) %>%
+                                            mutate(tt_value = tt_lut[[y]][value_desc]), aes(x = index, y = metric, tooltip = tt_value, data_id = index), pch = 15, size = 2.5, color = "grey85", show.legend = FALSE) +
+          ggplot2::geom_text(data = dat_toplot, aes(x = index, y = metric, label = value_desc), size = 1.8, fontface = "bold", color = "black")
+
+      }
+
+      if(y %in% c("NTC", "CTC")) {
+
+        main_p <- main_p +
+          ggiraph::geom_point_interactive(data = dat_toplot %>%
+                                            filter(!is.na(value_desc)) %>%
+                                            mutate(tt_value = value_desc),
+                                          aes(x = index, y = metric, tooltip = tt_value, data_id = index), pch = 15, size = 2.5, color = "grey85", show.legend = FALSE) +
+          ggplot2::geom_text(data = dat_toplot %>%
+                               filter(!is.na(value_desc)),
+                             aes(x = index, y = metric, label = AA), size = 1.8, fontface = "bold", color = "black")
+
+      }
+
+
+      if(y == "domain") {
+
+        main_p <- main_p +
+          ggiraph::geom_point_interactive(data = dat_toplot %>%
+                                            filter(!is.na(value_desc)) %>%
+                                            mutate(tt_value = value_desc), aes(x = index, y = metric, tooltip = tt_value, data_id = index), pch = 15, size = 2.5, color = "grey85", show.legend = FALSE)
+      }
+
+      if(y == "SV") {
+
+        dat_toplot <- dat_toplot %>%
+          filter(!is.na(value_desc)) %>%
+          mutate(SV = "sv") %>%
+          mutate(href_text = stringr::str_replace(value_desc, "dbSNP:", "https://www.ncbi.nlm.nih.gov/snp/"))
+
+        main_p <- main_p +
+          ggiraph::geom_point_interactive(data = dat_toplot, aes(x = index, y = metric, tooltip = value_desc,
+                                                                 onclick = paste0('window.open("', href_text , '")'), data_id = index), pch = 15, size = 2.5, color = "grey85") +
+          ggplot2::geom_text(data = dat_toplot,
+                             aes(x = index, y = metric, label = SV), size = 1.8, fontface = "bold", color = "black")
+
+      }
     }
 
-    if(y %in% c("NTC", "CTC")) {
 
-      main_p <- main_p +
-        ggiraph::geom_point_interactive(data = dat_toplot %>%
-                                          filter(!is.na(value_desc)) %>%
-                                          mutate(tt_value = value_desc),
-                                        aes(x = index, y = metric, tooltip = tt_value, data_id = index), pch = 15, size = 2.5, color = "grey85", show.legend = FALSE) +
-        ggplot2::geom_text(data = dat_toplot %>%
-                             filter(!is.na(value_desc)),
-                           aes(x = index, y = metric, label = AA), size = 1.8, fontface = "bold", color = "black")
+    main_p <- main_p +
+      ggplot2::facet_grid(rows = vars(metric_type), scales = "free_y", switch = "y", space = "free_y") +
 
-    }
+      ggplot2::geom_linerange(
+        data = anno_feat_dat %>%
+          filter(ggp == "v_rec") %>%
+          mutate(start = start - 0.5,
+                 end = end + 0.5) %>%
+          pivot_longer(cols = c("start", "end")),
+        mapping = aes(x = value, ymin = -Inf, ymax = Inf, color = feature), lineend = "round") +
 
+      ggplot2::geom_curve(
+        data = anno_feat_dat %>%
+          filter(ggp == "v_rec") %>%
+          mutate(metric_type = "") %>%
+          mutate(metric_type = factor(metric_type, levels = c("", "discrete", "blosum62\n-------------\ngrantham"))),
+        mapping = aes(x = start - 0.5, xend = end + 0.5, y = Inf, yend = Inf, color = feature),
+        curvature = -1, lineend = "round") +
 
-    if(y == "domain") {
+      ggplot2::geom_curve(
+        data = anno_feat_dat %>%
+          filter(ggp == "v_rec") %>%
+          mutate(metric_type = if(nrow(cons_dat) > 0) {"blosum62\n-------------\ngrantham"} else {"discrete"}) %>%
+          mutate(metric_type = factor(metric_type, levels = c("", "discrete", "blosum62\n-------------\ngrantham"))),
+        mapping = aes(x = start - 0.5, xend = end + 0.5, y = -Inf, yend = -Inf, color = feature),
+        curvature = 1, lineend = "round")
 
-      main_p <- main_p +
-        ggiraph::geom_point_interactive(data = dat_toplot %>%
-                                          filter(!is.na(value_desc)) %>%
-                                          mutate(tt_value = value_desc), aes(x = index, y = metric, tooltip = tt_value, data_id = index), pch = 15, size = 2.5, color = "grey85", show.legend = FALSE)
-    }
+    h_rec_dat <- anno_feat_dat %>%
+      filter(ggp == "h_rec") %>%
+      mutate(metric = "AA_seq") %>%
+      mutate(metric_type = "") %>%
+      mutate(metric_type = factor(metric_type, levels = c("", "discrete", "blosum62\n-------------\ngrantham"))) %>%
+      mutate(nudge = unname(pep_nudges[feature])) %>%
+      mutate(tt_value = paste0(feature))
 
-    if(y == "SV") {
-
-      dat_toplot <- dat_toplot %>%
-        filter(!is.na(value_desc)) %>%
-        mutate(SV = "sv") %>%
-        mutate(href_text = stringr::str_replace(value_desc, "dbSNP:", "https://www.ncbi.nlm.nih.gov/snp/"))
-
-      main_p <- main_p +
-        ggiraph::geom_point_interactive(data = dat_toplot, aes(x = index, y = metric, tooltip = value_desc,
-                                                               onclick = paste0('window.open("', href_text , '")'), data_id = index), pch = 15, size = 2.5, color = "grey85") +
-        ggplot2::geom_text(data = dat_toplot,
-                           aes(x = index, y = metric, label = SV), size = 1.8, fontface = "bold", color = "black")
-
-    }
-  }
-
-
-  main_p <- main_p +
-    ggplot2::facet_grid(rows = vars(metric_type), scales = "free_y", switch = "y", space = "free_y") +
-
-    ggplot2::geom_linerange(
-      data = anno_feat_dat %>%
-        filter(ggp == "v_rec") %>%
-        mutate(start = start - 0.5,
-               end = end + 0.5) %>%
-        pivot_longer(cols = c("start", "end")),
-      mapping = aes(x = value, ymin = -Inf, ymax = Inf, color = feature), lineend = "round") +
-
-    ggplot2::geom_curve(
-      data = anno_feat_dat %>%
-        filter(ggp == "v_rec") %>%
-        mutate(metric_type = "") %>%
-        mutate(metric_type = factor(metric_type, levels = c("", "discrete", "blosum62\n-------------\ngrantham"))),
-      mapping = aes(x = start - 0.5, xend = end + 0.5, y = Inf, yend = Inf, color = feature),
-      curvature = -1, lineend = "round") +
-
-    ggplot2::geom_curve(
-      data = anno_feat_dat %>%
-        filter(ggp == "v_rec") %>%
-        mutate(metric_type = if(nrow(cons_dat) > 0) {"blosum62\n-------------\ngrantham"} else {"discrete"}) %>%
-        mutate(metric_type = factor(metric_type, levels = c("", "discrete", "blosum62\n-------------\ngrantham"))),
-      mapping = aes(x = start - 0.5, xend = end + 0.5, y = -Inf, yend = -Inf, color = feature),
-      curvature = 1, lineend = "round")
-
-  h_rec_dat <- anno_feat_dat %>%
-    filter(ggp == "h_rec") %>%
-    mutate(metric = "AA_seq") %>%
-    mutate(metric_type = "") %>%
-    mutate(metric_type = factor(metric_type, levels = c("", "discrete", "blosum62\n-------------\ngrantham"))) %>%
-    mutate(nudge = unname(pep_nudges[feature])) %>%
-    mutate(tt_value = paste0(feature))
-
-  top_y <- df %>% filter(metric_type == "") %>% mutate(metric = droplevels(metric)) %>% pull(metric) %>% levels %>% length
+    top_y <- df %>% filter(metric_type == "") %>% mutate(metric = droplevels(metric)) %>% pull(metric) %>% levels %>% length
 
 
-  main_p <- main_p + ggiraph::geom_segment_interactive(
-    data = h_rec_dat,
-    aes(x = start - 0.3, xend = end + 0.3, y = top_y + nudge, yend = top_y + nudge, color = feature, tooltip = tt_value),
-    inherit.aes = FALSE,
-    linewidth = 1.2,
-    lineend = "round") +
+    main_p <- main_p + ggiraph::geom_segment_interactive(
+      data = h_rec_dat,
+      aes(x = start - 0.3, xend = end + 0.3, y = top_y + nudge, yend = top_y + nudge, color = feature, tooltip = tt_value),
+      inherit.aes = FALSE,
+      linewidth = 1.2,
+      lineend = "round") +
 
-    ggplot2::geom_curve(data = anno_feat_dat %>%
-                          filter(ggp == "arch") %>%
-                          mutate(metric_type = "discrete") %>%
-                          mutate(metric_type = factor(metric_type, levels = c("", "discrete", "blosum62\n-------------\ngrantham"))),
-                        aes(x = start, xend = end, y = -Inf, yend = -Inf, color = feature),
-                        curvature = -0.3,
-                        lineend = "round",
-                        inherit.aes = FALSE) +
+      ggplot2::geom_curve(data = anno_feat_dat %>%
+                            filter(ggp == "arch") %>%
+                            mutate(metric_type = "discrete") %>%
+                            mutate(metric_type = factor(metric_type, levels = c("", "discrete", "blosum62\n-------------\ngrantham"))),
+                          aes(x = start, xend = end, y = -Inf, yend = -Inf, color = feature),
+                          curvature = -0.3,
+                          lineend = "round",
+                          inherit.aes = FALSE) +
 
-    scale_color_manual(values = setNames(anno_feats$color, anno_feats$feature), name = "disulfide bond source: ") +
+      scale_color_manual(values = setNames(anno_feats$color, anno_feats$feature), name = "disulfide bond source: ") +
 
-    coord_cartesian(clip = "off") +
+      coord_cartesian(clip = "off") +
 
-    theme_bw() +
+      theme_bw() +
 
-    theme(plot.margin = unit(c(0,1,2,1), "lines"),
-          axis.title = element_blank(),
-          axis.text.y = ggtext::element_markdown(size = 9),
-          panel.spacing = grid::unit(0, "lines"),
-          panel.grid = element_blank(),
-          panel.background = element_blank(),
-          panel.border = element_blank(),
-          axis.ticks.y = element_blank(),
-          strip.background = element_blank(),
-          strip.text.y.left = element_blank(),
-          strip.placement = "outside",
-          legend.position = "bottom",
-          legend.justification = "left",
-          legend.ticks = element_line(color = "black", linewidth = 0.1),
-          legend.key.height = unit(0.2, "cm"))
+      theme(plot.margin = unit(c(0,1,2,1), "lines"),
+            axis.title = element_blank(),
+            axis.text.y = ggtext::element_markdown(size = 9),
+            panel.spacing = grid::unit(0, "lines"),
+            panel.grid = element_blank(),
+            panel.background = element_blank(),
+            panel.border = element_blank(),
+            axis.ticks.y = element_blank(),
+            strip.background = element_blank(),
+            strip.text.y.left = element_blank(),
+            strip.placement = "outside",
+            legend.position = "bottom",
+            legend.justification = "left",
+            legend.ticks = element_line(color = "black", linewidth = 0.1),
+            legend.key.height = unit(0.2, "cm"))
 
 
 
-  p <- list(plot = main_p,
-            meta_p = meta_p,
-            seq_p = seq_p,
-            seq_p_index = seq_p_index,
-            title_p = title_text,
-            subtitle_p = subtitle_text,
-            links = p_title)
+    p <- list(plot = main_p,
+              meta_p = meta_p,
+              seq_p = seq_p,
+              seq_p_index = seq_p_index,
+              title_p = title_text,
+              subtitle_p = subtitle_text,
+              links = p_title)
 
-  num_res = df %>% count(metric, gene) %>% group_by(gene) %>% summarise(max = max(n, na.rm = FALSE)) %>% pull(max, gene)
-  num_mets = df %>% count(index, gene) %>% group_by(gene) %>% summarise(max = max(n, na.rm = FALSE)) %>% pull(max, gene)
+    num_res = df %>% count(metric, gene) %>% group_by(gene) %>% summarise(max = max(n, na.rm = FALSE)) %>% pull(max, gene)
+    num_mets = df %>% count(index, gene) %>% group_by(gene) %>% summarise(max = max(n, na.rm = FALSE)) %>% pull(max, gene)
 
 
-  p_width <- num_res/7
-  p_height <- (num_mets  + 3)/4.3
+    p_width <- num_res/7
+    p_height <- (num_mets  + 3)/4.3
 
-  final_p <- p[["meta_p"]] /  p[["seq_p"]]  / p[["plot"]]
+    final_p <- p[["meta_p"]] /  p[["seq_p"]]  / p[["plot"]]
 
-  final_p <- final_p + patchwork::plot_layout(heights = c(0.5, 0.7, p_height)) &
-    theme(panel.spacing = unit(0, "pt"),
-          plot.margin = margin(t = 10, r = 10, b = 10, l = 80)  # l = 50 increases left margin
+    final_p <- final_p + patchwork::plot_layout(heights = c(0.5, 0.7, p_height)) &
+      theme(panel.spacing = unit(0, "pt"),
+            plot.margin = margin(t = 10, r = 10, b = 10, l = 80)  # l = 50 increases left margin
+      )
+    wgt <- ggiraph::girafe(ggobj = final_p,
+                           width_svg = p_width,
+                           height_svg = p_height,
+                           options = list(
+                             ggiraph::opts_sizing(rescale = FALSE),
+                             #ggiraph::opts_hover(css = "stroke-width: 3px; transition: all 0.3s ease;"),
+                             ggiraph::opts_selection(type = "none")
+                           ))
+    wgt$styles <- c(
+      wgt$styles,
+      "text { user-select: text; pointer-events: all; }"
     )
-  wgt <- ggiraph::girafe(ggobj = final_p,
-                         width_svg = p_width,
-                         height_svg = p_height,
-                         options = list(
-                           ggiraph::opts_sizing(rescale = FALSE),
-                           #ggiraph::opts_hover(css = "stroke-width: 3px; transition: all 0.3s ease;"),
-                           ggiraph::opts_selection(type = "none")
-                         ))
-  wgt$styles <- c(
-    wgt$styles,
-    "text { user-select: text; pointer-events: all; }"
-  )
 
 
-  wgt$styles <- c(
-    wgt$styles,
-    "
+    wgt$styles <- c(
+      wgt$styles,
+      "
   text {
     user-select: none;
     pointer-events: all;
@@ -931,15 +931,15 @@ tryCatch({
     pointer-events: none;
   }
   "
-  )
+    )
 
-  # -----------------------------
-  # JAVASCRIPT
-  # -----------------------------
+    # -----------------------------
+    # JAVASCRIPT
+    # -----------------------------
 
-wgt <- htmlwidgets::onRender(
-  wgt,
-  paste0("
+    wgt <- htmlwidgets::onRender(
+      wgt,
+      paste0("
            const GENE   = '", input[["gene"]], "';
            const COLORS = ", jsonlite::toJSON(rep(desc_colors, 4)), ";
 
@@ -1197,19 +1197,119 @@ wgt <- htmlwidgets::onRender(
                document.body.appendChild(box);
              }
            ")
-)
+    )
 
 
-  htmlwidgets::saveWidget(widget = wgt,
-                          file = fs::path(plot_dir, input[["gene"]], ext = "html"),
-                          selfcontained = TRUE,
-                          libdir = fs::path(plot_dir, "dependency_files"),
-                          title = input[["gene"]])
+    htmlwidgets::saveWidget(widget = wgt,
+                            file = fs::path(plot_dir, input[["gene"]], ext = "html"),
+                            selfcontained = TRUE,
+                            libdir = fs::path(plot_dir, "dependency_files"),
+                            title = input[["gene"]])
 
-}, error = function(e) message(e[["message"]]))
+  }, error = function(e) message(e[["message"]]))
 
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+plot_dir <- "~/AF2_analysis/all_peps_v4/"
+
+
+mets <- list(cons = c("blos_wt_all_n", "cons_rs", "blos_wt_mam", "blos_wt_all", "gran_wt_all"),
+             af_missense = c("mean_afm", "min_afm"),
+             dssp = c("relASA"),
+             aa_scores = c("pep_xgb4c", "chem_xgb3c", "pep_nn4c", "chem_nn4c")
+)
+
+mets$aa_scores <- c(mets$aa_scores, paste0(mets$aa_scores, "_s6"))
+
+all_mets <- do.call(`c`, mets) %>% unname
+
+names(all_mets) <- rep(names(mets), sapply(mets, length))
+
+
+secretome <- readRDS("~/AF2_analysis/secretome_latest.rds.rds")
+
+peps_tp <- readRDS("~/AF2_analysis/peps_tp.rds")
+
+
+interv <- 1:2
+
+
+dir.create(plot_dir)
+unlink(plot_dir)
+
+genes <- c("ANO8", "GDF5")
+
+
+the_input <- secretome %>%
+  filter(!accession %in% c("A0AAG2TCD0", "A0AAG2UXZ5")) %>%
+  filter(gene %in% !!genes) %>%
+  mutate(aa_scores = map(aa_scores, \(x) x[, colnames(x) %in% mets[["aa_scores"]]])) %>%
+  group_split(gene)
+
+pep_input <- peps_tp %>%
+  filter(gene %in% genes) %>%
+  group_split(gene)
+
+input_gene <- map_chr(the_input, \(x) x$gene)
+
+pep_input_gene <- map_chr(pep_input, \(x) x$gene)
+
+identical(input_gene, pep_input_gene)
+
+
+
+
+
+to_iterate <- c(seq.default(1, length(input_gene), by = 100), length(input_gene) + 1)
+
+chunks <- length(to_iterate) - 1
+
+for(x in 56:chunks) {
+
+  interv <- to_iterate[x]:(to_iterate[x + 1] - 1)
+
+  message("computing ", x, " of ", chunks)
+
+  start <- Sys.time()
+  #future::plan(strategy = future::multisession(workers = 6))
+  future::plan(strategy = future::sequential())
+
+
+  purrr::walk2(.x = the_input[interv],
+               .y = pep_input[interv],
+               make_protein_plot)
+
+  end <- Sys.time()
+
+  end - start
+
+  gc()
+
+
+}
+
+
+input <- the_input[[1]]
+pep_tp <- pep_input[[1]]
+
+
+
+
+
+
 
 
 

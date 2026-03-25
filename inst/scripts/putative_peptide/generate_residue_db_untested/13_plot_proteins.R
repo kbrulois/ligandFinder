@@ -1,12 +1,18 @@
 
+ml cairo/1.14.10
+ml freetype/2.9.1
+ml fontconfig/2.12.4
 
 
-
-library(tidyverse)
+.libPaths('/home/groups/ebutcher/programs/pipeline/R_libs4.1')
+library(dplyr)
+library(purrr)
+library(tidyr)
+remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
+library(ligandFinder)
 library(ggplot2)
 library(ggtext)
 library(patchwork)
-library(ligandFinder)
 
 
 
@@ -14,7 +20,7 @@ s_localDir <- "~/peptide_alg/build_residue_db"
 
 species_dat <- readRDS(system.file("extdata/species_dat.rds", package = "ligandFinder"))
 
-sim_mats <- readRDS(system.file("data/sim_mats.rds", package = "ligandFinder"))
+sim_mats <- readRDS(system.file("extdata/sim_mats.rds", package = "ligandFinder"))
 
 id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 
@@ -133,20 +139,34 @@ already_run <- c("~/AF2_analysis/new_peps_html", "~/AF2_analysis/known_peps_new"
 
 genes <- genes[!genes %in% c("NPIPB15", already_run)]
 
-#genes <- c("IL5", "KCNV2", "ANO8")
+genes <- c("SVBP", "NLRP3", "BRINP2", "ANO8")
+
+#secretome_roi <- readRDS("~/AF2_analysis/secretome_roi.rds")
+
+peps_tp <- secretome_roi %>%
+              filter(gene %in% genes)
+
+peps_tp <- peps_tp %>%
+  nest(.by = "gene")
 
 
 
 
 
 
-
-
-html_file_name <- "~/AF2_analysis/plot_test.html"
-
-plot_dir <- "~/AF2_analysis/all_peps_new/"
+plot_dir <- "/oak/stanford/groups/ebutcher/kevin/new_peps"
 
 plot_title <- "new_peps"
+
+secretome <- readRDS("/oak/stanford/groups/ebutcher/kevin/secretome.rds")
+
+peps_tp <- readRDS("/oak/stanford/groups/ebutcher/kevin/peps_tp.rds")
+
+
+
+
+plot_dir <- "~/AF2_analysis/all_peps_v4/"
+
 
 mets <- list(cons = c("blos_wt_all_n", "cons_rs", "blos_wt_mam", "blos_wt_all", "gran_wt_all"),
              af_missense = c("mean_afm", "min_afm"),
@@ -161,12 +181,12 @@ all_mets <- do.call(`c`, mets) %>% unname
 names(all_mets) <- rep(names(mets), sapply(mets, length))
 
 
-secretome <- readRDS("~/AF2_analysis/secretome.rds")
+secretome <- readRDS("~/AF2_analysis/secretome_latest.rds.rds")
 
 peps_tp <- readRDS("~/AF2_analysis/peps_tp.rds")
 
 
-
+interv <- 1:2
 
 
 dir.create(plot_dir)
@@ -190,26 +210,44 @@ pep_input_gene <- map_chr(pep_input, \(x) x$gene)
 identical(input_gene, pep_input_gene)
 
 
+
+
+
+to_iterate <- c(seq.default(1, length(input_gene), by = 100), length(input_gene) + 1)
+
+chunks <- length(to_iterate) - 1
+
+for(x in 56:chunks) {
+
+interv <- to_iterate[x]:(to_iterate[x + 1] - 1)
+
+message("computing ", x, " of ", chunks)
+
 start <- Sys.time()
-#future::plan(strategy = future::multisession(workers = 5))
+#future::plan(strategy = future::multisession(workers = 6))
 future::plan(strategy = future::sequential())
 
 
-furrr::future_walk2(.x = the_input[1:5],
-                    .y = pep_input[1:5],
-                    make_protein_plot,
-                    .options = furrr::furrr_options(
-                    packages = c("dplyr", "ggplot2", "patchwork", "ligandFinder")
-                    ))
+purrr::walk2(.x = the_input[interv],
+                    .y = pep_input[interv],
+                    make_protein_plot)
 
 end <- Sys.time()
 
 end - start
 
+gc()
+
+
+}
 
 
 
+###tests
 
+#input <- the_input[[1]]
+
+#pep_tp <- pep_input[[1]]
 
 
 

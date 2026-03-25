@@ -455,9 +455,10 @@ make_new_file_names <- function(input,
                                 site = "SU",
                                 submitter = "KB",
                                 algorithm = "AF2v3",
-                                random_seed = 42) {
+                                random_seed = 42,
+                                rc_file = "/home/groups/ebutcher/kevin/ligandFinder/random_codes.csv") {
 
-  rc <- get_codes(n = nrow(input))
+  rc <- get_codes(n = nrow(input), codes_file = rc_file)
 
   input <- bind_cols(input, random_code = rc)
 
@@ -693,7 +694,8 @@ do_renaming <- function(run_dir,
                         site = "SU",
                         submitter = "KB",
                         algorithm = "AF2v3",
-                        random_seed = 42) {
+                        random_seed = 42,
+                        rc_file = "/home/groups/ebutcher/kevin/ligandFinder/random_codes.csv") {
 
   rename_data <- parse_dirname(run_dir = run_dir,
                                pairing_dir = pairing_dir,
@@ -724,7 +726,8 @@ do_renaming <- function(run_dir,
                                      site = site,
                                      submitter = submitter,
                                      algorithm = algorithm,
-                                     random_seed = random_seed)
+                                     random_seed = random_seed,
+                                     rc_file = rc_file)
 
   rename_data <- rename_files(run_dir = run_dir,
                               input = rename_data,

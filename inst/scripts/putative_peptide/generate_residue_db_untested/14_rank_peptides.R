@@ -1,0 +1,134 @@
+
+
+
+
+library(xgboost)
+
+
+
+
+knowns <- secretome_roi %>%
+  filter(1 %in% known, .by = gene) %>%
+  mutate(train = if_else(grepl("^(CCL|CXCL|XCL|CX3CL)", gene), "chem", "pep")) %>%
+  select(gene, train) %>%
+  split(.[["train"]]) %>%
+  lapply(., \(x) unique(x[["gene"]]))
+
+ctrls <- secretome_roi %>%
+  filter(!1 %in% known, .by = gene) %>%
+  pull(gene) %>%
+  unique(.)
+
+ctrl_genes_sub <- sample(ctrl_genes, size = 100)
+
+known_samp <- sample(c(TRUE, FALSE),
+                     length(known_genes),
+                     replace=TRUE,
+                     prob=c(0.5,0.5))
+
+ctrl_samp <- sample(c(TRUE, FALSE),
+                    length(ctrl_genes_sub),
+                    replace=TRUE,
+                    prob=c(0.5,0.5))
+
+
+train <- secretome_aa[secretome_aa[["accession"]] %in% c(gtp_accession[gtp_samp], ctrl_accession[ctrl_samp]), ]
+
+validate <- secretome_aa[secretome_aa[["accession"]] %in% c(gtp_accession[!gtp_samp], ctrl_accession[!ctrl_samp]), ]
+
+train <- secretome_aa[secretome_aa[["accession"]] %in% c(gtp_accession[gtp_samp]), ]
+
+validate <- secretome_aa[secretome_aa[["accession"]] %in% c(gtp_accession[!gtp_samp]), ]
+
+
+
+
+
+
+
+    x_train <- secretome_roi %>%
+      filter(gene %in% c(known_genes[[tag]][known_samp], ctrl_genes_sub[ctrl_samp])) %>%
+      select(nn[["parameters"]][[x]]) %>%
+      drop_na %>%
+      select(-known) %>%
+      as.matrix
+
+    y_train <- secretome_aa %>%
+      filter(gene %in% c(known_genes[[tag]][known_samp], ctrl_genes_sub[ctrl_samp])) %>%
+      select(nn[["parameters"]][[x]]) %>%
+      drop_na %>%
+      mutate(known = as.integer(known)) %>%
+      pull(known)
+
+    x_val <- secretome_aa %>%
+      filter(gene %in% c(known_genes[[tag]][!known_samp], ctrl_genes_sub[!ctrl_samp])) %>%
+      select(nn[["parameters"]][[x]]) %>%
+      drop_na %>%
+      select(-known) %>%
+      as.matrix
+
+    y_val <- secretome_aa %>%
+      filter(gene %in% c(known_genes[[tag]][!known_samp], ctrl_genes_sub[!ctrl_samp])) %>%
+      select(nn[["parameters"]][[x]]) %>%
+      drop_na %>%
+      mutate(known = as.integer(known)) %>%
+      pull(known)
+
+    dtrain <- xgb.DMatrix(data = x_train, label = y_train)
+    dvalid <- xgb.DMatrix(data = x_val,  label = y_val)
+
+    watchlist <- list(train = dtrain,
+                      eval = dvalid)
+
+    bst <- xgb.train(
+      params = list(
+        objective = "binary:logistic",
+        eta = 0.08,
+        subsample = 0.5,
+        min_child_weight = 0,
+        gamma = 0,
+        lambda = 0,
+        alpha = 1,
+        tree_method = "exact",
+        max_depth = 6,
+        eval_metric = "auc"
+      ),
+      data = dtrain,
+      nrounds = 500,
+      watchlist = watchlist,
+      early_stopping_rounds = 100,
+      verbose = 1
+    )
+
+    secretome_aa[[paste0(tag, "_", sub("^nn", "xgb", x))]] <- bst %>%
+      predict(secretome_aa %>%
+                select(nn[["parameters"]][[x]]) %>%
+                select(-known) %>%
+                as.matrix)
+
+  }
+}
+
+
+
+
+
+
+xgb.importance(model = bst) %>% data.table::fwrite(., "~/AF2_analysis/xgboost_pep3.csv")
+
+
+
+
+params <- c("blos_wt_mam", "blos_wt_all_n", "relASA", "max_afm", "min_afm", "mean_afm",
+            "NH->O_1_energy", "O->NH_1_energy", "NH->O_2_energy", "O->NH_2_energy",
+            "Phi_cos", "Phi_sin", "Psi_cos", "Psi_sin")
+#smooth scores
+
+
+secretome_aa <- secretome_aa %>%
+  mutate(across(starts_with(c("pep_nn", "pep_xgb", "chem_nn", "chem_xgb")), .fns = ~scales::rescale(., to = c(0,1)), .unpack = TRUE)) %>%
+  group_by(accession) %>%
+  mutate(across(starts_with(c("pep_nn", "pep_xgb", "chem_nn", "chem_xgb")), .fns = ~smoother_func(x = ., append_name = "s"), .unpack = TRUE)) %>%
+  mutate(across(all_of(params), .fns = ~smoother_func(x = ., append_name = "s"), .unpack = TRUE)) %>%
+  ungroup()
+

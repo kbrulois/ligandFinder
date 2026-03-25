@@ -41,6 +41,15 @@ out_dir <- c("/scratch/groups/ebutcher/deorphan/models/sven_fig_peps")
 job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/new_pep"
 out_dir <- c("/scratch/groups/ebutcher/deorphan/models/new_peps")
 
+job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/bm_more_rec"
+out_dir <- c("/scratch/groups/ebutcher/deorphan/models/bm_more_rec")
+
+job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/jan30"
+out_dir <- c("/scratch/groups/ebutcher/deorphan/models/jan30")
+
+job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/uni_pep"
+out_dir <- c("/scratch/groups/ebutcher/deorphan/models/uni_pep")
+
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 gpcr_sub <- gpcr_list %>%
   #filter(grepl("^#", `ecb: Order of runs (priority)`)) %>%
@@ -136,8 +145,8 @@ job_dat %>%
 
 run_dir <- unique(out_dat$out_dir)
 
-do_renaming(run_dir = "/scratch/groups/ebutcher/deorphan/models/CXCL14peptides",
-            run_name = "CXCL14peptides",
+do_renaming(run_dir = run_dir,
+            run_name = fs::path_file(run_dir),
             pairing_dir = NULL,
             afpd_raw = TRUE,
             delim_proteins = "_",
@@ -157,12 +166,31 @@ do_renaming(run_dir = "/scratch/groups/ebutcher/deorphan/models/CXCL14peptides",
 
 ####tar existing models
 
+run_dir <- unique(out_dat$out_dir)
 
-furrr::future_walk2(.x = out_dat[["out_dir"]], .y = out_dat[["afpd_dir_name"]], \(x, y) {
+to_tar <- out_dat %>%
+            filter(file_name_type == "renamed_dir") %>%
+            pull(afpd_dir_name)
 
-    tar_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models/add_bm"
-    f <- fs::path(x, y)
-    f2 <- fs::path(tar_dir, y)
+
+tar_dir <- stringr::str_replace(run_dir,
+                                "/scratch/groups/ebutcher/deorphan/models",
+                                "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models")
+
+if(!dir.exists(tar_dir)) {
+  dir.create(tar_dir)
+}
+
+num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK")) %/% 1.5
+
+#num_cores <- 60
+future::plan(strategy = future::multicore(workers = num_cores))
+
+
+furrr::future_walk(to_tar, \(x) {
+
+    f <- fs::path(run_dir, x)
+    f2 <- fs::path(tar_dir, x)
 
     tar_cmd <- glue::glue("tar --format=posix -cf {f2}.tar -C {f} .")
 

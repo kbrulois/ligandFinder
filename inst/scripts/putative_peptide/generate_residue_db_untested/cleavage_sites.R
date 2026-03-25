@@ -11,6 +11,14 @@ uniprot_t <- readRDS(paste0(s_localDir, "/processed/uniprot_4.rds"))
 
 
 
+library(reticulate)
+
+reticulate::py_install("iPython")
+
+source_python(file = "~/Python_scripts/cap_peptides.py")
+
+
+
 
 
 #testing examples
@@ -47,15 +55,17 @@ AA_seq <- stringr::str_sub(string = sequence_uni, start = n_trunc + 1, end = c_t
   stringr::str_c(., stringr::str_c(rep("-", shift), collapse = ""))
 
 tmp <- features %>%
-  filter(source %in% c("gpcrdb_gtp") | (source == "uniprot" & type == "peptide"))
+  filter(source %in% c("gpcrdb_gtp", "uni_pep"))
 
 if(nrow(tmp) > 0) {
 
 tmp <- tmp %>%
+  mutate(pep_id = paste0(gene, "_", start, "x", end)) %>%
   pivot_longer(cols = c("start", "end"), values_to = "position") %>%
   group_by(position) %>%
   summarise(terminus = first(name),
             source = paste0(unique(source), collapse = "."),
+            pep_id = first(pep_id),
             .groups = "drop")
 
 tmp <- tmp %>%
@@ -110,10 +120,92 @@ return(tmp)
 
 }
 
-test <- bind_rows(pmap(list(features = secretome$features,
+known_peps <- bind_rows(pmap(list(features = secretome$features,
                             sequence_uni = secretome$sequence_uni,
                             gene = secretome$gene),
                        get_known_db_sites))
+
+
+
+
+bm_to_join <- dat %>%
+  mutate(gene = setNames(id_map$`Gene Names (primary)`, id_map$Entry)[p2_id]) %>%
+  mutate(pep_id = paste0(gene, "_", p2_range)) %>%
+  filter(known_pair == "known") %>%
+  filter(location == "relevant") %>%
+  select(pep_id, lig1_end) %>%
+  group_by(pep_id) %>%
+  summarise(across(everything(), first))
+
+test <- left_join(known_peps,
+                  bm_to_join, by = "pep_id")
+
+
+test <- test %>%
+          mutate(lig1_end_clean = case_when(lig1_end %in% c("1C", "2C") ~ "C",
+                                            lig1_end %in% c("1N", "2N") ~ "N",
+                                            TRUE ~ "loop"))
+
+
+strReverse <- function(x) {
+  sapply(lapply(strsplit(x, NULL), rev), paste, collapse="")
+}
+
+test <- test %>%
+  filter(!map_lgl(seq_cleavage, ~stringr::str_detect(., "^----------"))) %>%
+  filter(!map_lgl(seq_cleavage, ~stringr::str_detect(., "----------$"))) %>%
+  mutate(cap_seq = if_else(terminus == "start",
+                           stringr::str_sub(seq_cleavage, 11, 20),
+                           stringr::str_sub(seq_cleavage, 1, 10))) %>%
+  rowwise() %>%
+  mutate(cap_seq = if(terminus == "end") {strReverse(cap_seq)} else {cap_seq}) %>%
+  mutate(bind_rows(map(cap_seq, \(x) {
+    compute_cap_features(x)})))
+
+
+
+
+ggplot2::ggplot(data = test, aes(x = terminus, y = cap_score, color = terminus)) +
+  ggplot2::geom_violin(
+  scale = "width",
+  #position = ggplot2::position_dodge(0.9),
+  trim = T,
+  linewidth = 0.1,
+  width = 0.4,
+  alpha = 0.5,
+  show.legend = F) +
+
+  ggbeeswarm::geom_quasirandom(
+                               size = 0.5,
+                               width = 0.2,
+                               stroke = 0.2,
+                               inherit.aes = TRUE,
+                               show.legend = TRUE) +
+
+  ggplot2::geom_boxplot(width=0.1,
+                        fill = "white",
+                        #position = ggplot2::position_dodge(0.9),
+                        outlier.shape = NA,
+                        coef = 0,inherit.aes = TRUE,
+                        show.legend = FALSE) +
+  ggplot2::facet_grid(cols = vars(lig1_end_clean)) +
+
+  theme_bw()
+
+
+
+
+
+
+
+
+
+
+data.table::fwrite(test, "~/Desktop/cap_scores.csv")
+
+
+
+
 
 
 

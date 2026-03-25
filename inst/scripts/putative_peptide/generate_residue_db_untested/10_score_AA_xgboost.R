@@ -8,11 +8,11 @@ library(xgboost)
 
 
 
-for(x in nn[["neural_net"]]) {
-  for(tag in names(known_genes)) {
+for(x in nn[["neural_net"]][8]) {
+  for(tag in names(known_genes)[2]) {
 
 
-  message("computing ", x)
+  message("computing ", x, " for ", tag)
 
   start <- Sys.time()
 
@@ -84,9 +84,26 @@ secretome_aa[[paste0(tag, "_", sub("^nn", "xgb", x))]] <- bst %>%
 
 
 
-xgb.importance(model = bst) %>% data.table::fwrite(., "~/AF2_analysis/xgboost_pep2.csv")
+xgb.importance(model = bst) %>% data.table::fwrite(., "~/AF2_analysis/xgboost_pep3.csv")
 
 
+
+
+params <- c("blos_wt_mam", "blos_wt_all_n", "relASA", "max_afm", "min_afm", "mean_afm",
+            "NH->O_1_energy", "O->NH_1_energy", "NH->O_2_energy", "O->NH_2_energy",
+            "Phi_cos", "Phi_sin", "Psi_cos", "Psi_sin")
+#smooth scores
+
+
+secretome_aa <- secretome_aa %>%
+  mutate(across(starts_with(c("pep_nn", "pep_xgb", "chem_nn", "chem_xgb")), .fns = ~scales::rescale(., to = c(0,1)), .unpack = TRUE)) %>%
+  group_by(accession) %>%
+  mutate(across(starts_with(c("pep_nn", "pep_xgb", "chem_nn", "chem_xgb")), .fns = ~smoother_func(x = ., append_name = "s"), .unpack = TRUE)) %>%
+  mutate(across(all_of(params), .fns = ~smoother_func(x = ., append_name = "s"), .unpack = TRUE)) %>%
+  ungroup()
+
+
+saveRDS(secretome_aa, paste0(s_localDir, "/processed/secretome_aa.rds"))
 
 
 
