@@ -168,41 +168,8 @@ do_renaming(run_dir = run_dir,
 
 run_dir <- unique(out_dat$out_dir)
 
-to_tar <- out_dat %>%
-            filter(file_name_type == "renamed_dir") %>%
-            pull(afpd_dir_name)
 
-
-tar_dir <- stringr::str_replace(run_dir,
-                                "/scratch/groups/ebutcher/deorphan/models",
-                                "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models")
-
-if(!dir.exists(tar_dir)) {
-  dir.create(tar_dir)
-}
-
-num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK")) %/% 1.5
-
-#num_cores <- 60
-future::plan(strategy = future::multicore(workers = num_cores))
-
-
-furrr::future_walk(to_tar, \(x) {
-
-    f <- fs::path(run_dir, x)
-    f2 <- fs::path(tar_dir, x)
-
-    tar_cmd <- glue::glue("tar --format=posix -cf {f2}.tar -C {f} .")
-
-    tryCatch({
-      system(tar_cmd)
-    }, error = function(e) {
-      message("❌ Failed to tar ", f, ": ", conditionMessage(e))
-    })
-
-})
-
-
+purrr::walk(run_dirs, tar_run_dir)
 
 
 
