@@ -11,6 +11,8 @@ files <- c("~/AF2_analysis/new_peps_scg_tm_focused.csv")
 files <- c("~/AF2_analysis/jan30.csv")
 files <- c("~/AF2_analysis/gdf5.csv")
 
+files <- c("~/AF2_analysis/march27_recent.csv")
+
 
 
 metrics <- c("iptm", "paeL_mean_in", "paeL_mean_all", "paeL_mean_out")
@@ -36,6 +38,17 @@ dat <- dat %>%
 
 
 
+sel_models <- test %>% as_tibble() %>% group_by(afpd_dir_name) %>% mutate(count = n())
+
+sel_mods <- sel_models %>% filter(count >= 4)
+
+sel_mods <- sel_mods %>% ungroup()
+
+top_hits <- sel_mods$afpd_dir_name %>% unique
+
+
+
+
 
 
 
@@ -48,7 +61,7 @@ peps <- c("CXL17_22x119", "CXL17_64x119", "CXL11_22x94", "SG3A2_70x82", "SG1C1_2
           "SG3A1_95x104")
 peps <- c("CXL14_35x102")
 
-peps <- c("GHRL_24x51", "GHRL_76x98" )
+peps <- c("CXL14_95x102", "CXL14_95x104", "CXL14_88x102", "CXL14_88x104")
 
 peps <- tibble(end = c(95:111),
                         uniprot_name = "CXL14",
@@ -57,6 +70,12 @@ peps <- tibble(end = c(95:111),
                   pull(peps)
 
 peps <- dat$pep %>% unique() %>% {.[gtools::mixedorder(.)]}
+
+peps <- dat %>%
+          filter(afpd_dir_name %in% top_hits) %>%
+          pull(pep) %>%
+          unique %>%
+          {.[gtools::mixedorder(.)]}
 
 
 
@@ -76,7 +95,7 @@ residue_data <- res_db %>%
 
 
 
-file_name <- "~/AF2_analysis/gdf5_paeL_mean_all.svg"
+file_name <- "~/AF2_analysis/top_hits_<4goodmodels.svg"
 
 dat2 <- dat %>%
   #filter(p1_name %in% !!common_receptors) %>%
@@ -86,13 +105,16 @@ dat2 <- dat %>%
   mutate(legacy_ind = map2_chr(end, sequence_uni, \(x, y) {
     paste0((as.numeric(x) - 34), stringr::str_sub(y, x, x))
   }), .after = "afpd_dir_name") %>%
-  mutate(pep = paste0(pep, "(", legacy_ind, ")"))
+  mutate(legacy_pep = paste0(pep, "(", legacy_ind, ")"))
 
 
 uni_peps <- dat2$pep %>% unique
 
 dat2 <- dat2 %>%
-  mutate(pep = factor(pep, levels = uni_peps[gtools::mixedorder(uni_peps)]))
+  mutate(pep = factor(pep, levels = uni_peps[gtools::mixedorder(uni_peps)])) %>%
+  mutate(tt = paste(paste("Rec: ", p1_name,
+                           "Lig: ", pep,
+                           "IPTM: ", iptm))
 
 
 
@@ -106,7 +128,7 @@ dat2 <- dat2 %>%
 
 
 
-p <- ggplot(data = dat2, aes(x = id, y = paeL_mean_all, fill = depth2, shape = location)) +
+p <- ggplot(data = dat2, aes(x = id, y = paeL_mean_in_loc, fill = depth2, shape = location)) +
   ggplot2::geom_point(size = 1.5, stroke = 0.1) +
   #ggiraph::geom_point_interactive(aes(tooltip = p1_name), size = 0.6) +
   ggplot2::facet_grid(rows = vars(pep), cols = vars(p1_name), switch = "y") +
@@ -124,7 +146,7 @@ p <- ggplot(data = dat2, aes(x = id, y = paeL_mean_all, fill = depth2, shape = l
                                  name = "insertion\ndepth", na.value = "black") +
   xlab("") +
   ylab("") +
-  ggtitle("paeL_mean_all") +
+  ggtitle("paeL_mean_in") +
   theme(axis.text.x = element_blank(),
         strip.text.y.left = element_text(angle = 0, hjust = 0),
         strip.text.x = element_text(angle = 90, hjust = 0), strip.placement = "outside",

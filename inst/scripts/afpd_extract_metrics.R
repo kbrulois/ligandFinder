@@ -1,13 +1,10 @@
 
 
-
-
-
 .libPaths('/home/groups/ebutcher/programs/pipeline/R_libs4.1')
 library(dplyr)
 library(purrr)
 library(tidyr)
-remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
+remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
 library(ligandFinder)
 
 fs::dir_copy("/home/groups/ebutcher/kevin/ligandFinder/residue_db",
@@ -22,10 +19,9 @@ fs::dir_copy("/home/groups/ebutcher/programs/voronota",
 
 set_db_path("/scratch/groups/ebutcher/deorphan/ligandFinder")
 pq_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/residue_db"
-voronota_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/voronota/bin/voronota-contacts"
+voronota_path <- "/home/groups/ebutcher/programs/voronota/bin/voronota-contacts"
 
 
-res_db <- arrow::open_dataset(source = pq_path)
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 gpcr_sub <- gpcr_list %>%
   filter(grepl("^#", `ecb: Order of runs (priority)`)) %>%
@@ -44,35 +40,27 @@ scratch_models <- "/scratch/groups/ebutcher/deorphan/models"
 
 
 alg <- "AF2v3"
-num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK")) %/% 1.5
+num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK")) %/% 2
 
 #num_cores <- 60
 future::plan(strategy = future::multicore(workers = num_cores))
 
 
-
-run_dirs <- c("CXCL14_jh_w", "CXCL14_jh_wo", "CXCL14_mm_w", "CXCL14_mm_wo")
-run_dirs <- "bm_sep28"
-run_dirs <- "GPCRvCXCL14_oct7"
-run_dirs <- c("top200NC_Nov12", "top200NC_Oct23_cleanup")
-run_dirs <- "brinp"
-run_dirs <- "CXCL14peptides"
-run_dirs <- "new_peps"
-run_dirs <- "jan30"
-run_dirs <- "bm"
-
 run_dirs <- list.files(scratch_models)
 
 run_dirs <- "known_pairs"
 
-run_dirs <- c("cxcl14spep", "uni_pep")
+run_dirs <- c("bm", "add_bm", "bm_more_rec", "top200NC")
+
+
+
 ###extract from OAK
+
+if(FALSE) {
 
 start <- Sys.time()
 
-time <- format(Sys.time(), "%b%e") %>% stringr::str_remove(., " ")
-
-fs::dir_create(fs::path(scratch_models, paste0(run_dirs, "_", time)), mode = "u=rwx,g=rwx")
+fs::dir_create(fs::path(scratch_models, paste0(run_dirs)), mode = "u=rwx,g=rwx")
 
 tar_files <- Map(\(x) fs::dir_ls(fs::path(oak_models, x), glob = "*.tar"), run_dirs)
 
@@ -80,7 +68,7 @@ for(run_dir in run_dirs) {
 
 furrr::future_walk2(tar_files[[run_dir]], run_dir, \(f, rd) {
 
-  outdir <- fs::path(scratch_models, paste0(rd, "_", time), stringr::str_remove(fs::path_file(f), ".tar$"))
+  outdir <- fs::path(scratch_models, rd, stringr::str_remove(fs::path_file(f), ".tar$"))
 
   tryCatch({
     utils::untar(f, exdir = outdir, extra = "--strip-components=1")
@@ -97,38 +85,45 @@ end - start
 
 yo()
 
-
-
-####Check run dirs
-
-if(exists("time")) {
-  run_dirs <- stringr::str_c(run_dirs, "_", time)
 }
 
+####import runs
 
-tmp <- furrr::future_map(run_dirs, ~fs::dir_ls(fs::path(scratch_models, .))) %>% do.call(c, .)
 
-jobs <- tibble(afpd_dir_name = fs::path_file(tmp),
+tmp <- map(run_dirs, ~fs::dir_ls(fs::path(scratch_models, .))) %>% do.call(c, .)
+
+runs <- tibble(afpd_dir_name = fs::path_file(tmp),
                afpd_dir = tmp,
-               run_dir = fs::path_dir(tmp))
+               run_dir = fs::path_dir(tmp)) %>%
+  mutate(run_name = fs::path_file(run_dir))
+
 
 rm(tmp)
 
-jobs <- jobs %>%
+runs <- runs %>%
   mutate(file_name_type = case_when(stringr::str_detect(afpd_dir_name, "\\w+_and_\\w+_\\d+-\\d+") ~ "raw_afpd",
                                     stringr::str_detect(afpd_dir_name, "h\\w+_\\w+x\\d+x\\d+") ~ "renamed_dir",
                                     TRUE ~ "unknown")) %>%
   split(., f = .[["file_name_type"]])
 
-sapply(jobs, nrow)
+sapply(runs, nrow)
 
+
+
+runs <- afpd_check_metrics(runs[["renamed_dir"]])
+
+table(runs[["metrics_good"]])
+
+runs <- afpd_check_contacts(runs)
+
+table(runs[["contacts_good"]])
 
 
 ####rename some....
 
 if(FALSE) {
 
-purrr::walk(unique(jobs[["raw_afpd"]][["run_dir"]]),
+purrr::walk(unique(runs[["raw_afpd"]][["run_dir"]]),
 
 ~do_renaming(run_dir = .,
             run_name = fs::path_file(.),
@@ -150,19 +145,11 @@ purrr::walk(unique(jobs[["raw_afpd"]][["run_dir"]]),
 
 }
 
-jobs <- jobs[["renamed_dir"]]
-
-jobs <- jobs %>%
-  mutate(parse_proteins(afpd_dir_name, delim_proteins = "_", delim_ranges = "x", delim_start_end = "x")) %>%
-  dplyr::rename(p1_name = p1_id, p2_name = p2_id) %>%
-  mutate(file_names = map(afpd_dir, ~fs::dir_ls(.) %>% fs::path_file(.)))
-
-
 ###check file name codes
 if(FALSE) {
 
 
-jobs <- jobs %>%
+runs <- runs %>%
           mutate(codes = map(file_names, ~stringr::str_extract(., "_[A-Z]{4}[a-z0-9]{7}_") %>%
                                             stringr::str_remove(., "^_[A-Z]{4}") %>%
                                             stringr::str_remove(., "_$") %>%
@@ -170,7 +157,7 @@ jobs <- jobs %>%
                                             unique))
 
 
-jobs <- jobs %>%
+runs <- runs %>%
           select(-file_names) %>%
           unnest(codes)
 
@@ -183,7 +170,7 @@ used_ids <- codes %>%
   dplyr::pull(id) %>%
   stringr::str_remove("^[A-Z]{4}")
 
-job_codes <- jobs$codes %>%
+job_codes <- runs$codes %>%
   stringr::str_remove(".{2}$")
 
 sum(used_ids %in% job_codes)
@@ -193,111 +180,44 @@ sum(used_ids %in% job_codes)
 
 }
 
-
 ####tar existing
 
 if(FALSE) {
 
 purrr::walk(run_dirs, tar_run_dir)
 
-
 }
 
-####check curent metrics
+####do metric extraction
 
-jobs <- jobs %>%
-  mutate(furrr::future_map_dfr(file_names, \(x) {
-        tibble(has_json_debug = "ranking_debug.json" %in% x,
-               has_metrics_csv = "metrics_v2.csv" %in% x,
-               has_contact_rds = "metrics_v2c.rds" %in% x,
-               num_models = sum(grepl("_xtr_.*.pdb$", x)))
-    })) %>%
-  mutate(metrics = furrr::future_map(afpd_dir, \(x) {
-    file <- fs::path(x, "metrics_v2.csv")
-    if(file.exists(file)) {
-      return(data.table::fread(file) %>% as_tibble)
-    } else {
-      return(NULL)
-    }
-  }))
-
-metrics_good <- jobs %>%
-  filter(has_metrics_csv) %>%
-  filter(!map_lgl(metrics, is.null)) %>%
-  filter(map_int(metrics, ~nrow(.)) == num_models) %>%
-  filter(map_lgl(metrics, ~"afpd_dir" %in% colnames(.))) %>%
-  pull(afpd_dir_name)
+runs <- runs %>%
+  filter(has_json_debug & !contacts_good) %>%
+  filter(num_xtr == 5)
 
 
-jobs <- jobs %>%
-  mutate(metrics_good = afpd_dir_name %in% !!metrics_good)
-
-table(jobs[["metrics_good"]], jobs[["run_dir"]])
-
-
-
-
-###check contacts
-
-jobs <- jobs %>%
-  mutate(contacts = furrr::future_map(afpd_dir, \(x) {
-    file <- fs::path(x, "metrics_v2c.rds")
-    if(file.exists(file)) {
-      return(tryCatch({readRDS(file)}, error = function(e) NULL))
-    } else {
-      return(NULL)
-    }
-  }))
-
-
-
-contacts_good <- jobs %>%
-  filter(has_contact_rds) %>%
-  filter(!map_lgl(contacts, is.null)) %>%
-  filter(map2_lgl(metrics, contacts, \(x, y) {
-      if(is.null(y)) {test <- rep("irrelevant", nrow(x))} else {
-      test <- map_chr(y, \(z) {
-                if(is.null(z)) {return("irrelevant")} else
-                if(nrow(z) == 0) {return("irrelevant")} else
-                if(!"area" %in% colnames(z)) {return("irrelevant")} else
-                {return("relevant")}
-      })
-      }
-      return(identical(x[["location"]], test))
-    })) %>%
-  pull(afpd_dir_name)
-
-jobs <- jobs %>%
-  mutate(contacts_good = afpd_dir_name %in% !!contacts_good)
-
-table(jobs[["contacts_good"]])
-
-
-
-
-jobs <- jobs %>%
-  filter(has_json_debug & !contacts_good)
-
-
-jobs <- jobs %>%
+runs <- runs %>%
   mutate(group = paste0("job", ntile(n = num_cores)))
 
-jobs <- jobs %>% select(p1_name, p2_name, afpd_dir, group, ru)
+runs <- runs %>%
+  mutate(run_id = fs::path_file(run_dir)) %>%
+  select(p1_name, p2_name, afpd_dir, group, run_dir, run_id)
 
-run_id <- "gdf5"
+runs200 <- runs %>%
+    dplyr::slice(1:20) %>%
+   mutate(group = paste0("job", ntile(n = 2)))
+
 
 gc()
 
-future::plan(strategy = future::multicore(workers = num_cores))
-
+future::plan(strategy = future::multicore(workers = 2))
 
 start <- Sys.time()
 
 options(future.globals.maxSize = 10e9)
 
-furrr::future_map(unique(jobs[["group"]]), \(job) {
+furrr::future_map(unique(runs200[["group"]]), \(job) {
 
-  to_do <- jobs %>%
+  to_do <- runs %>%
     filter(group == job)
 
   dirs2 <- to_do %>% pull(afpd_dir)
@@ -311,7 +231,17 @@ furrr::future_map(unique(jobs[["group"]]), \(job) {
     collect()
 
   tryCatch({
-    lapply(dirs2, \(x) do_metrics(directory = x, job = job, res_dat = residue_data))
+    purrr::pwalk(
+      list(directory = to_do[["afpd_dir"]],
+           job = to_do[["group"]],
+           run_name = to_do[["run_id"]]),
+      \(directory, job, run_name) {
+        do_metrics(directory = directory,
+                   job = job,
+                   res_dat = residue_data,
+                   run_name = run_name)
+      }
+    )
   }, error = function(e) conditionMessage(e))
 
   message("completed ", job)
@@ -323,5 +253,3 @@ end <- Sys.time()
 end - start
 
 yo()
-
-

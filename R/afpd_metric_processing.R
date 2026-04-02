@@ -170,7 +170,7 @@ get_known_pairs <- function() {
 
 
 import_raw_metrics <- function(dir_name,
-                               run_name = run_id,
+                               run_name = fs::path_file(fs::path_dir(dir_name)),
                                algorithm = alg,
                                pdb = "_ark_.*.pdb$",
                                pdb_alt = "_xtr_.*.pdb$",
@@ -587,6 +587,7 @@ extract_contact_data <- function(bw,
 tryCatch({
 
   input_file <- paste(afpd_dir, pdb_files, sep = "/")
+  context <- paste0(fs::path_file(afpd_dir), " :: ", pdb_files)
 
   if(file.exists(input_file)) {
 
@@ -599,8 +600,25 @@ tryCatch({
               group_by(chain) %>%
               summarize(offset = min(resno) - 1)
 
-  residue_dat <- expand.grid(chain = uni_chains, data = c("cons", "af_missense"), stringsAsFactors = FALSE) %>%
+  residue_lookup <- expand.grid(chain = uni_chains, data = c("cons", "af_missense"), stringsAsFactors = FALSE) %>%
           mutate(protein = if_else(chain == "rec", p1_name, p2_name)) %>%
+          mutate(has_residue_data = map2_lgl(protein, data, \(p, d) {
+            vals <- residue_data %>%
+              filter(uni_gene == p) %>%
+              pull(d)
+            length(vals) > 0 && !is.null(vals[[1]])
+          }))
+
+  if(any(!residue_lookup[["has_residue_data"]])) {
+    missing_rows <- residue_lookup %>%
+      filter(!has_residue_data) %>%
+      transmute(label = paste0(protein, ":", data, ":", chain)) %>%
+      pull(label)
+    message("extract_contact_data missing residue_data for ", context, " -> ", paste(missing_rows, collapse = ", "))
+    return(NULL)
+  }
+
+  residue_dat <- residue_lookup %>%
           mutate(data = pmap(list(chain, protein, data),
                              function(c, p, d) {
           map_table(seq2 = paste(pdb.xyz %>% filter(chain == c) %>% pull(AA), collapse = ""),
@@ -656,10 +674,14 @@ tryCatch({
 
   left_join(contacts, bw_align, by = "BW")
   } else {
+    message("extract_contact_data input file missing for ", context, ": ", input_file)
     NULL
   }
 
-}, error = function(e) NULL)
+}, error = function(e) {
+  message("Error in extract_contact_data for ", afpd_dir, "/", pdb_files, ": ", e[["message"]])
+  NULL
+})
 
 
 }
@@ -744,12 +766,12 @@ summarize_contacts <- function(contacts) {
 }
 
 
-do_metrics <- function(directory, job, res_dat) {
+do_metrics <- function(directory, job, res_dat, run_name = fs::path_file(fs::path_dir(directory))) {
 
-tryCatch({
-    metrics <- import_raw_metrics(dir_name = directory,
-                                  run_name = run_id,
-                                  algorithm = alg)
+	tryCatch({
+	    metrics <- import_raw_metrics(dir_name = directory,
+	                                  run_name = run_name,
+	                                  algorithm = alg)
 
     metrics <- left_join(metrics,
                          gpcr_list %>%
@@ -811,15 +833,11 @@ tryCatch({
             file = paste(directory, "metrics_v2c.rds", sep = "/"))
 
 }, error = function(e) {
-  message("Skipping due to error: ", e[["message"]])
+  message("Skipping due to error: ", conditionMessage(e))
   return(NULL)
 })
 
 }
-
-
-
-
 
 
 
