@@ -8,7 +8,7 @@ afpd_check_metrics <- function(runs) {
   tmp <- runs %>%
     mutate(parse_proteins(afpd_dir_name, delim_proteins = "_", delim_ranges = "x", delim_start_end = "x")) %>%
     rename(p1_name = p1_id, p2_name = p2_id) %>%
-    mutate(file_names = map(afpd_dir, ~fs::dir_ls(.) %>% fs::path_file(.)))
+    mutate(file_names = furrr::future_map(afpd_dir, ~fs::dir_ls(.) %>% fs::path_file(.)))
 
 
   tmp2 <- furrr::future_map(tmp[["file_names"]], \(x) {

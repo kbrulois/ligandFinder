@@ -40,10 +40,10 @@ scratch_models <- "/scratch/groups/ebutcher/deorphan/models"
 
 
 alg <- "AF2v3"
-num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK")) %/% 2
+num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK"))
 
 #num_cores <- 60
-future::plan(strategy = future::multicore(workers = num_cores))
+future::plan(strategy = future::multicore(workers = num_cores  %/% 2))
 
 
 run_dirs <- list.files(scratch_models)
@@ -192,7 +192,7 @@ purrr::walk(run_dirs, tar_run_dir)
 
 runs <- runs %>%
   filter(has_json_debug & !contacts_good) %>%
-  filter(num_xtr == 5)
+  filter(num_xtr == 5 | num_ark == 5)
 
 
 runs <- runs %>%
@@ -202,20 +202,15 @@ runs <- runs %>%
   mutate(run_id = fs::path_file(run_dir)) %>%
   select(p1_name, p2_name, afpd_dir, group, run_dir, run_id)
 
-runs200 <- runs %>%
-    dplyr::slice(1:20) %>%
-   mutate(group = paste0("job", ntile(n = 2)))
-
-
 gc()
 
-future::plan(strategy = future::multicore(workers = 2))
+future::plan(strategy = future::multicore(workers = num_cores  %/% 2))
 
 start <- Sys.time()
 
 options(future.globals.maxSize = 10e9)
 
-furrr::future_map(unique(runs200[["group"]]), \(job) {
+furrr::future_map(unique(runs[["group"]]), \(job) {
 
   to_do <- runs %>%
     filter(group == job)
