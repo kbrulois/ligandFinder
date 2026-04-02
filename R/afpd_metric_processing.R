@@ -550,7 +550,20 @@ run_voronota <- function(pdb_file = "/Users/kbrulois/peptide_alg/testing_set/hAG
                  args = c(paste("--input", pdb_file),
                           paste("--contacts-query", params),
                           "--tsv-output"),
-                 stdout = TRUE)
+                 stdout = TRUE,
+                 stderr = TRUE)
+
+  exit_code <- attr(res, "status")
+  if(!is.null(exit_code) && exit_code != 0) {
+    warning("voronota failed (exit ", exit_code, ") for ", pdb_file, ": ",
+            paste(res, collapse = "\n"))
+    return(NULL)
+  }
+
+  if(length(res) < 2) {
+    warning("voronota returned no contacts for ", pdb_file)
+    return(NULL)
+  }
 
   res <- stringr::str_split_fixed(res, "\t", 18)
 
@@ -840,6 +853,56 @@ do_metrics <- function(directory, job, res_dat, run_name = fs::path_file(fs::pat
 }
 
 
+submit_metric_jobs <- function(runs,
+                               group_size = 1000,
+                               job_dir = fs::path("/scratch/groups/ebutcher/deorphan/ligandFinder/metric_jobs", format(Sys.time(), "%Y%m%d_%H%M%S")),
+                               sbatch_script = system.file("scripts/extract_metrics.sh", package = "ligandFinder"),
+                               dry_run = FALSE) {
+
+  if(nrow(runs) == 0) {
+    message("No directories to process.")
+    return(invisible(NULL))
+  }
+
+  runs <- runs %>%
+    mutate(run_id = fs::path_file(run_dir))
+
+  n_groups <- ceiling(nrow(runs) / group_size)
+
+  runs <- runs %>%
+    mutate(group = rep(seq_len(n_groups), each = group_size, length.out = n()))
+
+  fs::dir_create(job_dir)
+
+  runs %>%
+    group_by(group) %>%
+    group_walk(\(dat, key) {
+      group_file <- fs::path(job_dir, paste0("group_", key$group, ".txt"))
+      writeLines(
+        paste(dat$afpd_dir, dat$p1_name, dat$p2_name, dat$run_id, sep = "\t"),
+        group_file
+      )
+    })
+
+  message("Created ", n_groups, " group files in ", job_dir)
+  message("Total directories: ", nrow(runs))
+
+  if(dry_run) {
+    message("Dry run — not submitting. Submit manually with:")
+    message("  sbatch --array=1-", n_groups, " ", sbatch_script, " ", job_dir)
+    return(invisible(job_dir))
+  }
+
+  cmd <- paste("sbatch",
+               paste0("--array=1-", n_groups),
+               sbatch_script,
+               job_dir)
+
+  message("Submitting: ", cmd)
+  system(cmd)
+
+  invisible(job_dir)
+}
 
 
 
