@@ -79,6 +79,7 @@ afpd_check_contacts <- function(runs) {
 
 
 
+
 archive_metrics <- function(runs) {
 
   num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK")) %/% 1.5
