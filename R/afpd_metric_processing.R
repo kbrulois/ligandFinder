@@ -834,7 +834,7 @@ do_metrics <- function(directory, job, res_dat, run_name = fs::path_file(fs::pat
 
 }, error = function(e) {
   message("Skipping due to error: ", conditionMessage(e))
-  return(NULL)
+  return(conditionMessage(e))
 })
 
 }
