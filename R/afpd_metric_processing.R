@@ -692,7 +692,8 @@ tryCatch({
   }
 
 }, error = function(e) {
-  message("Error in extract_contact_data for ", afpd_dir, "/", pdb_files, ": ", e[["message"]])
+  full_msg <- tryCatch(rlang::cnd_message(e), error = function(e2) e[["message"]])
+  message("Error in extract_contact_data for ", afpd_dir, "/", pdb_files, ": ", full_msg)
   NULL
 })
 

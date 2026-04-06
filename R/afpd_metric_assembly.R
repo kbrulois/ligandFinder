@@ -11,11 +11,23 @@ afpd_check_metrics <- function(runs) {
     mutate(file_names = furrr::future_map(afpd_dir, ~fs::dir_ls(.) %>% fs::path_file(.)))
 
 
+  af_types <- c(ark = "_ark_.*\\.pdb$", con = "_con_.*\\.json$",
+                pae = "_pae_.*\\.json$", xtr = "_xtr_.*\\.pdb$")
+
   tmp2 <- furrr::future_map(tmp[["file_names"]], \(x) {
+      counts <- vapply(af_types, \(pat) sum(grepl(pat, x)), integer(1))
       tibble(has_json_debug = "ranking_debug.json" %in% x,
              has_metrics_csv = "metrics_v2.csv" %in% x,
              has_contact_rds = "metrics_v2c.rds" %in% x,
-             num_models = sum(grepl("_xtr_.*.pdb$", x)))
+             num_models = max(counts[["ark"]], counts[["xtr"]]),
+             num_ark = counts[["ark"]],
+             num_con = counts[["con"]],
+             num_pae = counts[["pae"]],
+             num_xtr = counts[["xtr"]],
+             af_complete = has_json_debug &
+                           num_con == num_models &
+                           num_pae == num_models &
+                           num_models > 0)
     }) %>% bind_rows()
 
 
@@ -39,9 +51,7 @@ afpd_check_metrics <- function(runs) {
 
 
   tmp %>%
-    mutate(metrics_good = afpd_dir_name %in% !!metrics_good) %>%
-    mutate(num_xtr = map_int(file_names, ~stringr::str_detect(., "_xtr_") %>% sum)) %>%
-    mutate(num_ark = map_int(file_names, ~stringr::str_detect(., "_ark_") %>% sum))
+    mutate(metrics_good = afpd_dir_name %in% !!metrics_good)
 
 }
 
