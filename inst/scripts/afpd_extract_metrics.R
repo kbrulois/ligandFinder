@@ -43,7 +43,7 @@ alg <- "AF2v3"
 num_cores <- max(1L, as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "4")))
 
 #num_cores <- 60
-future::plan(strategy = future::multicore(workers = num_cores  %/% 2))
+future::plan(strategy = future::multisession(workers = num_cores %/% 8))
 
 
 run_dirs <- list.files(scratch_models)
@@ -118,6 +118,10 @@ runs <- afpd_check_contacts(runs)
 
 table(runs[["contacts_good"]])
 
+yo()
+
+table(runs[["af_complete"]])
+
 
 ####rename some....
 
@@ -191,7 +195,7 @@ purrr::walk(run_dirs, tar_run_dir)
 ####do metric extraction
 
 runs <- runs %>%
-  filter(has_json_debug & !contacts_good) %>%
+  filter(has_json_debug & af_complete & !contacts_good) %>%
   filter(num_xtr == 5 | num_ark == 5)
 
 submit_metric_jobs(runs)
