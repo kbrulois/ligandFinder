@@ -40,7 +40,7 @@ scratch_models <- "/scratch/groups/ebutcher/deorphan/models"
 
 
 alg <- "AF2v3"
-num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK"))
+num_cores <- max(1L, as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "4")))
 
 #num_cores <- 60
 future::plan(strategy = future::multisession(workers = num_cores %/% 8))
@@ -198,6 +198,10 @@ runs <- runs %>%
   filter(has_json_debug & af_complete & !contacts_good) %>%
   filter(num_xtr == 5 | num_ark == 5)
 
+submit_metric_jobs(runs)
+
+####old furrr-based metric extraction
+if(FALSE) {
 
 runs <- runs %>%
   mutate(group = paste0("job", ntile(n = num_cores)))
@@ -251,4 +255,4 @@ end <- Sys.time()
 
 end - start
 
-yo()
+}
