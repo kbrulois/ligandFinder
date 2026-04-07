@@ -4,10 +4,14 @@
 # Usage: set `test_dir` below and source this script in R / RStudio
 
 # --- 1. Load package --------------------------------------------------------
-devtools::load_all(".")
 
+.libPaths('/home/groups/ebutcher/programs/pipeline/R_libs4.1')
 library(dplyr)
 library(purrr)
+library(tidyr)
+remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
+library(ligandFinder)
+
 
 # --- 2. User settings -------------------------------------------------------
 
@@ -19,6 +23,9 @@ test_dir <- ""   # <-- SET THIS (e.g. "/path/to/models/bm/hAGTR2_hANGTx25x31")
 
 # Voronota binary (needed for contact extraction)
 voronota_path <- "/home/groups/ebutcher/programs/voronota/bin/voronota-contacts"
+
+bw_align <- summarize_bw(gpcr_list = system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
+id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 
 # Algorithm label
 alg <- "AF2v3"
