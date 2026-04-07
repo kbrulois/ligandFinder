@@ -738,6 +738,18 @@ summarize_contacts <- function(contacts) {
                   "CP",
                   "tags")
 
+  extr_sum_cols <- c("score",
+                     "area",
+                     "dist",
+                     "doubleSmooth_scaled_rec",
+                     "doubleSmooth_scaled_lig1")
+
+  all_cols <- c(score_cols, extr_sum_cols)
+  missing_cols <- setdiff(all_cols, colnames(contacts))
+  if(length(missing_cols) > 0) {
+    contacts[missing_cols] <- NA_real_
+  }
+
   contacts <- contacts %>%
     filter(dist > 2) %>%
     mutate(ligand_index = as.numeric(stringr::str_remove(ligand_index, "^L"))) %>%
@@ -749,15 +761,10 @@ summarize_contacts <- function(contacts) {
     ungroup() %>%
     arrange(desc(score))
 
-  extr_sum_cols <- c("score",
-                     "area",
-                     "dist",
-                     "doubleSmooth_scaled_rec",
-                     "doubleSmooth_scaled_lig1")
 
 
   all_cons <- contacts %>%
-    summarise(across(all_of(c(score_cols, extr_sum_cols)), ~mean(., na.rm = TRUE), .names = "{.col}_mean_all"))
+    summarise(across(all_of(all_cols), ~mean(., na.rm = TRUE), .names = "{.col}_mean_all"))
 
   top_contacts <- c(5, 10, 20)
 
@@ -782,17 +789,22 @@ summarize_contacts <- function(contacts) {
 
   top_cons <- bind_cols(top_cons)
 
+  if(!"in_pocket" %in% colnames(contacts)) {pocket_cons <- NULL} else {
+
   pocket_cons <- contacts %>%
     mutate(in_pocket = if_else(in_pocket, "in", "out")) %>%
     group_by(in_pocket) %>%
     summarise(across(all_of(c(score_cols, extr_sum_cols)), mean, .names = "{.col}_mean")) %>%
     pivot_wider(names_from = in_pocket, values_from = -in_pocket)
+  }
 
+  if(!"CP" %in% colnames(contacts)) {cp_cons <- NULL} else {
   cp_cons <- contacts %>%
     mutate(CP = if_else(CP != 1 | is.na(CP), "nonCP", "CP")) %>%
     group_by(CP) %>%
-    summarise(across(any_of(c(score_cols, extr_sum_cols)), mean, .names = "{.col}_mean")) %>%
+    summarise(across(any_of(all_cols), mean, .names = "{.col}_mean")) %>%
     pivot_wider(names_from = CP, values_from = -CP)
+  }
 
   bind_cols(pocket_cons, all_cons, cp_cons, top_cons)
 
