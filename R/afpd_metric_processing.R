@@ -597,21 +597,32 @@ extract_contact_data <- function(bw,
                                  p2_name,
                                  residue_data) {
 
-tryCatch({
-
   input_file <- paste(afpd_dir, pdb_files, sep = "/")
   context <- paste0(fs::path_file(afpd_dir), " :: ", pdb_files)
 
-  if(file.exists(input_file)) {
+  if(!file.exists(input_file)) {
+    message("extract_contact_data input file missing for ", context, ": ", input_file)
+    return(NULL)
+  }
 
-  contacts <- run_voronota(pdb_file = input_file)
+  # --- voronota contacts (core data) ---
+  contacts <- tryCatch({
+    run_voronota(pdb_file = input_file)
+  }, error = function(e) {
+    message("Error running voronota for ", context, ": ", e[["message"]])
+    return(NULL)
+  })
+
+  if(is.null(contacts)) return(NULL)
 
   chains <- unname(pdb.xyz[["chain"]])
   uni_chains <- unique(chains)
 
   offset <- pdb.xyz %>%
-              group_by(chain) %>%
-              summarize(offset = min(resno) - 1)
+    group_by(chain) %>%
+    summarize(offset = min(resno) - 1)
+
+  contacts <- tryCatch({
 
   residue_lookup <- expand.grid(chain = uni_chains, data = c("cons", "af_missense"), stringsAsFactors = FALSE) %>%
           mutate(protein = if_else(chain == "rec", p1_name, p2_name)) %>%
@@ -619,7 +630,7 @@ tryCatch({
             vals <- residue_data %>%
               filter(uni_gene == p) %>%
               pull(d)
-            length(vals) > 0 && !is.null(vals[[1]])
+            length(vals) > 0 && !is.null(vals[[1]]) && nrow(vals[[1]]) > 0
           }))
 
   if(any(!residue_lookup[["has_residue_data"]])) {
@@ -628,26 +639,36 @@ tryCatch({
       transmute(label = paste0(protein, ":", data, ":", chain)) %>%
       pull(label)
     message("extract_contact_data missing residue_data for ", context, " -> ", paste(missing_rows, collapse = ", "))
-    return(NULL)
   }
 
   residue_dat <- residue_lookup %>%
           mutate(data = pmap(list(chain, protein, data),
                              function(c, p, d) {
-          map_table(seq2 = paste(pdb.xyz %>% filter(chain == c) %>% pull(AA), collapse = ""),
-                    to_map = residue_data %>%                    #########add check for number of rows, make dummy afm and cons data
-                              filter(uni_gene == p) %>%
-                              pull(d) %>%
-                              `[[`(.,1)) %>%
+
+          to_map_input <- residue_data %>%
+            filter(uni_gene == p) %>%
+            pull(d) %>%
+            `[[`(.,1)
+
+          if(nrow(to_map_input) == 0) {
+              return(NULL)
+          } else {
+
+          to_return <- map_table(seq2 = paste(pdb.xyz %>% filter(chain == c) %>% pull(AA), collapse = ""),
+                    to_map = to_map_input) %>%
           `[[`(., "ms") %>%
           mutate(chain_index = 1:n() + offset %>% filter(chain == c) %>% pull(offset),
                  residue_name = if_else(is.na(AA), NA, paste0(AA, chain_index))) %>%
           filter(!is.na(residue_name)) %>%
           select(!any_of(c("AA", "chain_index", "index"))) %>%
           rename_with(~paste0(., "_", c), .cols = -residue_name)
+
+          return(to_return)
+          }
         }))
 
     for(x in 1:nrow(residue_dat)) {
+      if(is.null(residue_dat[["data"]][[x]])) next
     contacts <- left_join(contacts,
                           residue_dat[["data"]][[x]],
                           by = join_by(!!rlang::sym(paste0(residue_dat[["chain"]][x],"_residue")) == residue_name))
@@ -686,16 +707,14 @@ tryCatch({
       ungroup
 
   left_join(contacts, bw_align, by = "BW")
-  } else {
-    message("extract_contact_data input file missing for ", context, ": ", input_file)
-    NULL
-  }
+
 
 }, error = function(e) {
-  full_msg <- tryCatch(rlang::cnd_message(e), error = function(e2) e[["message"]])
-  message("Error in extract_contact_data for ", afpd_dir, "/", pdb_files, ": ", full_msg)
-  NULL
+  message("Error residue data for ", afpd_dir, "/", pdb_files, ": ", e[["message"]])
+  contacts
 })
+
+  return(contacts)
 
 
 }
