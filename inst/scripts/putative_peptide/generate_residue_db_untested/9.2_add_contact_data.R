@@ -85,7 +85,7 @@ get_last_loc <- function(x, pattern) {
     do.call(rbind, .)
 }
 
-ind <- 76
+ind <- 94
 sequence_uni = con_dat$sequence_uni[ind]
 start = con_dat$p2_start[ind] %>% as.numeric
 end = con_dat$p2_end[ind] %>% as.numeric
@@ -131,13 +131,13 @@ c_prot <- nchar(sequence_uni)
 
 if(target %in% c("C", "loop_C")) {
   db_seq <- stringr::str_sub(sequence_uni, start = end, end = c_dbw)
-  db_ind <- stringr::str_locate(db_seq, "KK|KR|RK|RR")[1, "start"]
+  db_ind <- stringr::str_locate(db_seq, "(?=(KK|KR|RK|RR))")[1, "start"]
   db_ind = end + db_ind
   db_spacer <- db_ind - end
   ws <- window_size[["C"]]
 } else {
   db_seq <- stringr::str_sub(sequence_uni, start = n_dbw, end = start)
-  db_ind <- get_last_loc(db_seq, "KK|KR|RK|RR")[1, 2]
+  db_ind <- get_last_loc(db_seq, "(?=(KK|KR|RK|RR))")[1, 1] + 1 ##start and end switched for this regex
   db_ind = n_dbw +  db_ind - 2
   db_spacer <- start - db_ind
   ws <- window_size[["N"]]
@@ -151,7 +151,7 @@ tmp <- tmp %>%
           mutate(win_type = if_else(!is.na(db_ind) & db_spacer < 6, "db", "pep_end")) %>%
           mutate(window_origin = case_when(win_type == "db" ~ db_ind,
                                            win_type == "pep_end" & target %in% c("C", "loop_C") ~ end + 2,
-                                           win_type == "pep_end" & target %in% c("N", "loop_N") ~ start - 1))
+                                           win_type == "pep_end" & target %in% c("N", "loop_N") ~ start - 2))
 
 
 tmp %>%
@@ -568,8 +568,11 @@ nn_input <- make_training_sets(k_dat = known_dat,
 
 
 
+train <- nn_input$N$train
+val <- nn_input$N$val
 
-
+nn_input$N$train <- val
+nn_input$N$val <- train
 
 
 
