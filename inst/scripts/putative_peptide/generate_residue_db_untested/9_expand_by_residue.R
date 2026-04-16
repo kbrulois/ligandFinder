@@ -4,7 +4,7 @@ library(tidyverse)
 s_localDir <- "~/peptide_alg/build_residue_db"
 uniprot_t <- readRDS(paste0(s_localDir, "/processed/uniprot_6.rds"))
 
-secretome_genes <- data.table::fread("~/Desktop/extracellular_proteins_v2.csv") %>% as_tibble
+secretome_genes <- data.table::fread("~/Desktop/Peptides/extracellular_proteins_v2.csv") %>% as_tibble
 
 
 

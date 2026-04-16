@@ -11,7 +11,7 @@ files <- c("~/AF2_analysis/new_peps_scg_tm_focused.csv")
 files <- c("~/AF2_analysis/jan30.csv")
 files <- c("~/AF2_analysis/gdf5.csv")
 
-files <- c("~/AF2_analysis/march27_recent.csv")
+files <- c("~/AF2_analysis/latest_hits/march27_recent.csv", "~/AF2_analysis/latest_hits/top200NC_Nov17.csv")
 
 
 
@@ -69,7 +69,7 @@ peps <- tibble(end = c(95:111),
                   mutate(peps = paste0(uniprot_name, "_", start, "x", end)) %>%
                   pull(peps)
 
-peps <- dat$pep %>% unique() %>% {.[gtools::mixedorder(.)]}
+peps <- dat$pep %>% unique() %>% {.[gtools::mixedorder(.)]} %>% grep("GDF5", ., value = T)
 
 peps <- dat %>%
           filter(afpd_dir_name %in% top_hits) %>%
@@ -95,7 +95,7 @@ residue_data <- res_db %>%
 
 
 
-file_name <- "~/AF2_analysis/top_hits_<4goodmodels.svg"
+file_name <- "~/AF2_analysis/top_hits_gdf5.svg"
 
 dat2 <- dat %>%
   #filter(p1_name %in% !!common_receptors) %>%
@@ -112,9 +112,9 @@ uni_peps <- dat2$pep %>% unique
 
 dat2 <- dat2 %>%
   mutate(pep = factor(pep, levels = uni_peps[gtools::mixedorder(uni_peps)])) %>%
-  mutate(tt = paste(paste("Rec: ", p1_name,
-                           "Lig: ", pep,
-                           "IPTM: ", iptm))
+  mutate(tt_value = paste(paste("Rec:", p1_name),
+                    paste("Lig:" , pep),
+                    paste("IPTM:", iptm), sep = "\n"))
 
 
 
@@ -129,8 +129,8 @@ dat2 <- dat2 %>%
 
 
 p <- ggplot(data = dat2, aes(x = id, y = paeL_mean_in_loc, fill = depth2, shape = location)) +
-  ggplot2::geom_point(size = 1.5, stroke = 0.1) +
-  #ggiraph::geom_point_interactive(aes(tooltip = p1_name), size = 0.6) +
+  #ggplot2::geom_point(size = 1.5, stroke = 0.1) +
+  ggiraph::geom_point_interactive(aes(tooltip = tt_value), size = 1.5, stroke = 0.1) +
   ggplot2::facet_grid(rows = vars(pep), cols = vars(p1_name), switch = "y") +
   ggplot2::scale_shape_manual(values = c(`C-terminal\ninsertion` = 25,
                                          `N-terminal\ninsertion` = 24,
@@ -168,8 +168,9 @@ dev.off()
 
 
 
-htmlwidgets::saveWidget(ggiraph::girafe(ggobj = p, width_svg = 40, height_svg = 10),
-                        file = "~/Desktop/brinp_pep_rec_spec_iptm_new.html",
+htmlwidgets::saveWidget(ggiraph::girafe(ggobj = p, width_svg = 40, height_svg = length(levels(dat2$pep)), options = list(
+  ggiraph::opts_sizing(rescale = FALSE))),
+                        file = sub(".svg$", ".html", file_name),
                         selfcontained = TRUE)
 
 
@@ -181,7 +182,7 @@ receptors <- c("BKRB1", "BKRB2", "AGTR1", "AGTR2", "GALR3", "RL3R1", "RL3R2", "G
 receptors <- c("GPR15", "GPR25")
 
 
-file_name <- "~/Desktop/secroglob_v_ligands_iptm.svg"
+file_name <- "~/Desktop/select_receptors_v_candidates.svg"
 
 dat2 <- dat %>%
   filter(run_name == "bm" | pep %in% !!peps) %>%
@@ -223,7 +224,7 @@ p <- ggplot(data = dat2, aes(x = id, y = iptm_loc, fill = depth2, shape = locati
         panel.spacing = unit(0, "lines")) +
   coord_cartesian(clip = "off")
 
-svglite::svglite(filename = file_name, width = 30, height = length(receptors) * 2)
+svglite::svglite(filename = file_name, width = 60, height = length(receptors) * 2)
 print(p)
 dev.off()
 

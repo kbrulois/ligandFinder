@@ -45,6 +45,9 @@ num_cores <- max(1L, as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "4")))
 #num_cores <- 60
 future::plan(strategy = future::multisession(workers = num_cores %/% 8))
 
+options(future.globals.maxSize = 32 * 1024^3)           # 2 GiB per worker
+
+
 
 run_dirs <- list.files(scratch_models)
 
