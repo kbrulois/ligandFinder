@@ -4,6 +4,11 @@
 # score the non-inserting end with the cap logic to drop excess residues while
 # keeping dibasic sites (KK|KR|RK|RR) out of the mature peptide.
 #
+# Scanner / native-cap functions are generic over the terminus being capped:
+#   scan_terminal_caps(peptide, terminus = "N" | "C", ...)
+#   compute_native_cap(peptide, terminus = "N" | "C")
+# with back-compat wrappers scan_n_term_caps() / compute_native_ncap().
+#
 # The Jupyter-only helpers in the Python original (read_peptides_from_clipboard,
 # print_alignment_block_from_cterm, analyze_clipboard_peptides) are not ported.
 
@@ -207,21 +212,10 @@ rank_position <- function(rank_keys, new_key) {
 
 # ---- Scanner --------------------------------------------------------------
 
-#' Scan a C-hot peptide for N-terminal blocking caps.
-#'
-#' Iterates over candidate start positions such that the length from the start
-#' to the C-terminus lies in `[dist_min, dist_max]`, scores the first
-#' `cap_len` residues of each resulting sub-peptide, and returns a tibble
-#' sorted best→worst.
-#'
-#' @param peptide Character. Peptide sequence (single string).
-#' @param dist_min,dist_max Integer. Modeled-length bounds.
-#' @return A tibble of ranked caps, or an empty tibble if no valid cap.
-#' @export
-scan_n_term_caps <- function(peptide,
-                             dist_min = DIST_MIN_DEFAULT,
-                             dist_max = DIST_MAX_DEFAULT) {
-  peptide <- clean_peptide(peptide)
+#' Core N-terminal scan. Operates only on the given orientation; callers
+#' reverse first if they want C-terminal scanning.
+#' @keywords internal
+scan_n_caps_core <- function(peptide, dist_min, dist_max) {
   n <- nchar(peptide)
   if (n < MIN_PEPTIDE_LEN) return(tibble::tibble())
 
@@ -256,6 +250,7 @@ scan_n_term_caps <- function(peptide,
       cap_len             = cap_len,
       start_index_0based  = start,
       start_index_1based  = start + 1L,
+      end_index_1based    = n,
       modeled_subpeptide  = subpep,
       modeled_length      = nchar(subpep),
       cap_seq             = feats$cap_seq,
@@ -292,29 +287,109 @@ scan_n_term_caps <- function(peptide,
   df
 }
 
-#' Compute features for the native N-terminal cap of a peptide.
+#' Scan a peptide for terminal blocking caps (N- or C-terminal).
 #'
-#' Uses the same cap_len rule as designed caps; also returns the next 6 AA
-#' as `context`.
+#' For `terminus = "N"`, iterates over candidate start positions such that the
+#' modeled length (start → C-terminus) lies in `[dist_min, dist_max]`, and
+#' scores the first `cap_len` residues as the cap.
+#'
+#' For `terminus = "C"`, iterates over candidate end positions such that the
+#' modeled length (N-terminus → end) lies in `[dist_min, dist_max]`, and scores
+#' the last `cap_len` residues as the cap. Internally this reverses the
+#' peptide, runs the N-terminal scan (scores are orientation-invariant), and
+#' re-orients the output: `modeled_subpeptide` and `cap_seq` are returned in
+#' natural N→C orientation, and `start_index_*` / `end_index_1based` are
+#' reported in the original peptide's coordinates.
+#'
+#' The cap-scoring features (aromatic/aliphatic/polar counts, net charge,
+#' longest hydrophobic run, proline presence) are all symmetric under
+#' reversal, so scores match what a direct C-terminal scan would produce.
+#'
+#' @param peptide Character. Peptide sequence (single string).
+#' @param terminus `"N"` or `"C"`. Which terminus to cap.
+#' @param dist_min,dist_max Integer. Modeled-length bounds.
+#' @return A tibble of ranked caps (best→worst), or an empty tibble if no
+#'   valid cap. Includes a `terminus` column.
+#' @export
+scan_terminal_caps <- function(peptide,
+                               terminus = c("N", "C"),
+                               dist_min = DIST_MIN_DEFAULT,
+                               dist_max = DIST_MAX_DEFAULT) {
+  terminus <- match.arg(terminus)
+  pep <- clean_peptide(peptide)
+  n <- nchar(pep)
+
+  scan_pep <- if (terminus == "C") str_reverse(pep) else pep
+  df <- scan_n_caps_core(scan_pep, dist_min = dist_min, dist_max = dist_max)
+  if (nrow(df) == 0) return(df)
+
+  if (terminus == "C") {
+    # Re-orient: cap/subpep are in reversed order; flip them back.
+    df$modeled_subpeptide <- str_reverse(df$modeled_subpeptide)
+    df$cap_seq            <- str_reverse(df$cap_seq)
+    # For C-term scans the modeled_subpeptide always starts at position 1 of
+    # the original peptide and ends at `end_index_1based`.
+    df$end_index_1based   <- n - df$start_index_0based
+    df$start_index_1based <- 1L
+    df$start_index_0based <- 0L
+    df$peptide            <- pep
+  }
+  df$terminus <- terminus
+  df
+}
+
+#' Scan a C-hot peptide for N-terminal blocking caps.
+#'
+#' Thin back-compat wrapper around [scan_terminal_caps()] with
+#' `terminus = "N"`.
+#' @inheritParams scan_terminal_caps
+#' @return A tibble of ranked N-terminal caps, or an empty tibble.
+#' @export
+scan_n_term_caps <- function(peptide,
+                             dist_min = DIST_MIN_DEFAULT,
+                             dist_max = DIST_MAX_DEFAULT) {
+  scan_terminal_caps(peptide, terminus = "N",
+                     dist_min = dist_min, dist_max = dist_max)
+}
+
+#' Compute features for the native terminal cap of a peptide.
+#'
+#' Uses the same cap_len rule as designed caps. `context` is the 6 AA
+#' immediately inward of the cap (toward the peptide interior), reported in
+#' natural N→C orientation: for an N-terminal cap that is the 6 AA after the
+#' cap; for a C-terminal cap that is the 6 AA before the cap.
+#'
 #' @param peptide Character.
+#' @param terminus `"N"` or `"C"`.
 #' @return One-row tibble, or empty tibble if peptide is empty.
 #' @export
-compute_native_ncap <- function(peptide) {
+compute_native_cap <- function(peptide, terminus = c("N", "C")) {
+  terminus <- match.arg(terminus)
   peptide <- clean_peptide(peptide)
   n <- nchar(peptide)
   if (n == 0) return(tibble::tibble())
 
   cap_len <- choose_cap_len(n)
-  cap_seq <- substr(peptide, 1L, cap_len)
-  context <- if (cap_len + 1L <= n)
-               substr(peptide, cap_len + 1L, min(n, cap_len + 6L))
-             else ""
+
+  if (terminus == "N") {
+    cap_seq <- substr(peptide, 1L, cap_len)
+    context <- if (cap_len + 1L <= n)
+                 substr(peptide, cap_len + 1L, min(n, cap_len + 6L))
+               else ""
+  } else {
+    cap_start <- n - cap_len + 1L
+    cap_seq   <- substr(peptide, cap_start, n)
+    ctx_end   <- cap_start - 1L
+    ctx_start <- max(1L, ctx_end - 5L)
+    context   <- if (ctx_end >= 1L) substr(peptide, ctx_start, ctx_end) else ""
+  }
 
   feats <- compute_cap_features(cap_seq)
   label <- qualitative_from_score(feats$cap_score, feats$cap_seq)
   tier  <- tier_from_label(label)
 
   tibble::tibble(
+    terminus      = terminus,
     cap_seq       = feats$cap_seq,
     context       = context,
     cap_len       = cap_len,
@@ -333,6 +408,17 @@ compute_native_ncap <- function(peptide) {
     qualitative   = label,
     tier          = tier
   )
+}
+
+#' Compute features for the native N-terminal cap of a peptide.
+#'
+#' Thin back-compat wrapper around [compute_native_cap()] with
+#' `terminus = "N"`.
+#' @param peptide Character.
+#' @return One-row tibble, or empty tibble if peptide is empty.
+#' @export
+compute_native_ncap <- function(peptide) {
+  compute_native_cap(peptide, terminus = "N")
 }
 
 
@@ -429,12 +515,10 @@ trim_inserting_end <- function(window_seq, target) {
 
 #' Trim the non-inserting end of a peptide using cap scoring.
 #'
-#' For C-inserting peptides the non-inserting end is the N-terminus, so
-#' `scan_n_term_caps()` is applied directly. For N-inserting peptides the
-#' non-inserting end is the C-terminus, so the sequence is reversed, scored,
-#' and the winning sub-peptide is reversed back. Candidates containing an
-#' internal dibasic site (`KK|KR|RK|RR`) are dropped when
-#' `forbid_internal_dibasic = TRUE`.
+#' Delegates to [scan_terminal_caps()] with `terminus` set to the
+#' non-inserting end: `"C"` when `target` is N-inserting, `"N"` when `target`
+#' is C-inserting. Candidates containing an internal dibasic site
+#' (`KK|KR|RK|RR`) are dropped when `forbid_internal_dibasic = TRUE`.
 #'
 #' @param seq Character. A single peptide sequence (inserting-end already
 #'   removed).
@@ -458,10 +542,10 @@ trim_non_inserting_end <- function(seq, target,
   )
   if (is.na(seq) || is.na(target) || !nzchar(seq)) return(empty)
 
-  n_inserting <- target %in% c("N", "loop_N")
-  scan_seq <- if (n_inserting) str_reverse(seq) else seq
+  non_inserting <- if (target %in% c("N", "loop_N")) "C" else "N"
 
-  scans <- scan_n_term_caps(scan_seq, dist_min = dist_min, dist_max = dist_max)
+  scans <- scan_terminal_caps(seq, terminus = non_inserting,
+                              dist_min = dist_min, dist_max = dist_max)
   if (nrow(scans) == 0) return(empty)
 
   if (forbid_internal_dibasic) {
@@ -470,11 +554,9 @@ trim_non_inserting_end <- function(seq, target,
   }
 
   top <- scans[1L, , drop = FALSE]
-  mature <- if (n_inserting) str_reverse(top$modeled_subpeptide)
-            else             top$modeled_subpeptide
 
   tibble::tibble(
-    mature_peptide = mature,
+    mature_peptide = top$modeled_subpeptide,
     cap_seq        = top$cap_seq,
     cap_score      = top$cap_score,
     qualitative    = top$qualitative,
