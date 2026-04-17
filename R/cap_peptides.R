@@ -442,105 +442,102 @@ parse_peps_window <- function(peps) {
   )
 }
 
-#' Resolve a `sequences` argument into a named character vector of protein
-#' sequences (names = gene).
-#' @keywords internal
-normalize_sequences <- function(sequences) {
-  if (is.character(sequences) && !is.null(names(sequences))) return(sequences)
-  if (inherits(sequences, "data.frame")) {
-    if (!all(c("gene", "sequence_uni") %in% names(sequences))) {
-      stop("`sequences` data.frame must have columns 'gene' and 'sequence_uni'.")
-    }
-    out <- stats::setNames(sequences$sequence_uni, sequences$gene)
-    return(out)
-  }
-  stop("`sequences` must be a named character vector or a data.frame with ",
-       "'gene' and 'sequence_uni' columns.")
-}
-
-#' Extract the residue sequence for a peptide window.
+#' Pull the AA+index pair out of a per-window meta_data data.frame.
 #'
-#' Out-of-bounds coordinates are padded with `-` to match the padding
-#' convention used by `get_pep_data()`.
+#' Takes a 36-row data.frame (one element of `nn_input$N$all$meta_data` or
+#' `nn_input$C$all$meta_data`) and returns parallel character/integer vectors
+#' of length 36, with `NA` at padding rows.
 #'
-#' @param peps Character vector of window names.
-#' @param sequences Named character vector of full protein sequences, or a
-#'   data.frame with `gene` and `sequence_uni` columns.
-#' @return Character vector of window sequences (same length as `peps`).
+#' @param md A data.frame with `AA` and `index` columns.
+#' @return A list with `aa` (character) and `index` (integer).
 #' @export
-extract_window_seq <- function(peps, sequences) {
-  seq_lookup <- normalize_sequences(sequences)
-  parsed <- parse_peps_window(peps)
-
-  vapply(seq_len(nrow(parsed)), function(i) {
-    g <- parsed$gene[i]; wN <- parsed$wN[i]; wC <- parsed$wC[i]
-    if (is.na(g) || !(g %in% names(seq_lookup))) return(NA_character_)
-    full <- seq_lookup[[g]]
-    L <- nchar(full)
-    left_pad  <- if (wN < 1L) strrep("-", 1L - wN) else ""
-    right_pad <- if (wC > L)  strrep("-", wC - L)   else ""
-    core <- substr(full, max(1L, wN), min(L, wC))
-    paste0(left_pad, core, right_pad)
-  }, character(1))
+meta_window_vectors <- function(md) {
+  stopifnot(all(c("AA", "index") %in% names(md)))
+  list(aa    = as.character(md$AA),
+       index = as.integer(md$index))
 }
 
 #' Trim the fixed 7-residue padding/cleavage-context/DB block from the
-#' inserting end of a 36-residue window.
+#' inserting end of a 36-position window, carrying indices along.
 #'
 #' Mirrors the layout assigned by `make_known_idx()` in
 #' `9.2_add_contact_data.R` (positions 1-7 for N-inserting, positions 30-36
-#' for C-inserting; 5 cleavage_context + 2 DB residues).
+#' for C-inserting; 5 cleavage_context + 2 DB residues). Operates on the
+#' raw 36-slot AA / index vectors from `meta_data` so that padding is stripped
+#' correctly even when the window extends past the protein terminus. Remaining
+#' NA residues (from the non-inserting side extending past a protein end) are
+#' then dropped, keeping AA and index aligned.
 #'
-#' @param window_seq Character vector of window sequences.
-#' @param target Character vector of `"N"`, `"C"`, `"loop_N"`, or `"loop_C"`.
-#' @return Character vector with 7 residues removed from the inserting end.
+#' @param aa Character vector of length-36 residue codes (NA = padding).
+#' @param index Integer vector of length-36 uniprot positions (NA = padding).
+#' @param target `"N"`, `"C"`, `"loop_N"`, or `"loop_C"`.
+#' @return A list with `seq` (concatenated AA string, NAs removed) and
+#'   `index` (matching integer vector).
 #' @export
-trim_inserting_end <- function(window_seq, target) {
-  stopifnot(length(window_seq) == length(target))
-  vapply(seq_along(window_seq), function(i) {
-    s <- window_seq[i]
-    t <- target[i]
-    if (is.na(s) || is.na(t)) return(NA_character_)
-    n <- nchar(s)
-    if (n <= 7L) return("")
-    if (t %in% c("N", "loop_N")) {
-      substr(s, 8L, n)
-    } else if (t %in% c("C", "loop_C")) {
-      substr(s, 1L, n - 7L)
-    } else {
-      stop("Unrecognised target: ", t)
-    }
-  }, character(1))
+trim_inserting_end <- function(aa, index, target) {
+  if (length(target) != 1L) {
+    stop("`target` must be scalar; vectorise over windows with purrr/map.")
+  }
+  if (is.na(target)) return(list(seq = NA_character_, index = integer()))
+
+  n <- length(aa)
+  if (length(index) != n) stop("`aa` and `index` must be the same length.")
+  if (n <= 7L) return(list(seq = "", index = integer()))
+
+  keep <- if (target %in% c("N", "loop_N")) {
+    seq.int(8L, n)
+  } else if (target %in% c("C", "loop_C")) {
+    seq.int(1L, n - 7L)
+  } else {
+    stop("Unrecognised target: ", target)
+  }
+
+  aa_k  <- aa[keep]
+  idx_k <- index[keep]
+  # Drop any residual padding rows (NA AA) that were on the non-inserting side.
+  ok <- !is.na(aa_k) & nzchar(aa_k) & aa_k != "-"
+  list(seq   = paste(aa_k[ok], collapse = ""),
+       index = idx_k[ok])
 }
 
-#' Trim the non-inserting end of a peptide using cap scoring.
+#' Trim the non-inserting end of a peptide using cap scoring, carrying
+#' indices along.
 #'
 #' Delegates to [scan_terminal_caps()] with `terminus` set to the
 #' non-inserting end: `"C"` when `target` is N-inserting, `"N"` when `target`
 #' is C-inserting. Candidates containing an internal dibasic site
-#' (`KK|KR|RK|RR`) are dropped when `forbid_internal_dibasic = TRUE`.
+#' (`KK|KR|RK|RR`) are dropped when `forbid_internal_dibasic = TRUE`. The
+#' corresponding `index` vector is sliced with the same cut so that AA and
+#' uniprot positions stay aligned.
 #'
 #' @param seq Character. A single peptide sequence (inserting-end already
 #'   removed).
+#' @param index Integer vector of uniprot positions, same length as `seq`.
 #' @param target Character. `"N"`, `"C"`, `"loop_N"`, or `"loop_C"`.
 #' @param dist_min,dist_max Integer. Modeled-length bounds for scanning.
 #' @param forbid_internal_dibasic Logical. Drop candidates with internal
 #'   dibasic sites.
-#' @return One-row tibble with `mature_peptide, cap_seq, cap_score,
-#'   qualitative, modeled_length` (all NA if no valid candidate).
+#' @return One-row tibble with `mature_peptide, mature_index` (list-column
+#'   of integer vectors), `cap_seq, cap_score, qualitative, modeled_length`
+#'   (all NA / `integer(0)` if no valid candidate).
 #' @export
-trim_non_inserting_end <- function(seq, target,
+trim_non_inserting_end <- function(seq, index, target,
                                    dist_min = DIST_MIN_DEFAULT,
                                    dist_max = DIST_MAX_DEFAULT,
                                    forbid_internal_dibasic = TRUE) {
   empty <- tibble::tibble(
     mature_peptide = NA_character_,
+    mature_index   = list(integer()),
     cap_seq        = NA_character_,
     cap_score      = NA_real_,
     qualitative    = NA_character_,
     modeled_length = NA_integer_
   )
   if (is.na(seq) || is.na(target) || !nzchar(seq)) return(empty)
+  if (length(index) != nchar(seq)) {
+    stop("`index` length (", length(index), ") must match `seq` length (",
+         nchar(seq), ").")
+  }
 
   non_inserting <- if (target %in% c("N", "loop_N")) "C" else "N"
 
@@ -555,8 +552,18 @@ trim_non_inserting_end <- function(seq, target,
 
   top <- scans[1L, , drop = FALSE]
 
+  # Slice the index vector to match the kept sub-peptide:
+  #   N-term cap: keep positions start_index_1based .. peptide_length
+  #   C-term cap: keep positions 1 .. end_index_1based
+  if (non_inserting == "N") {
+    idx_keep <- index[top$start_index_1based:top$peptide_length]
+  } else {
+    idx_keep <- index[1L:top$end_index_1based]
+  }
+
   tibble::tibble(
     mature_peptide = top$modeled_subpeptide,
+    mature_index   = list(idx_keep),
     cap_seq        = top$cap_seq,
     cap_score      = top$cap_score,
     qualitative    = top$qualitative,
@@ -564,45 +571,92 @@ trim_non_inserting_end <- function(seq, target,
   )
 }
 
-#' Convert a peptide-window name (`nn_input$peps`) into a mature peptide.
+#' Convert `nn_input` meta_data windows into mature peptides + uniprot indices.
 #'
-#' Pipeline: [extract_window_seq()] → [trim_inserting_end()] →
-#' [trim_non_inserting_end()]. Vectorised over `peps` and `target`.
+#' Pipeline: [meta_window_vectors()] → [trim_inserting_end()] →
+#' [trim_non_inserting_end()], carrying the uniprot index vector through each
+#' trim so AA positions stay aligned.
 #'
-#' @param peps Character vector, e.g. `"CAMP_w125-160"`.
-#' @param target Character vector (`"N"`, `"C"`, `"loop_N"`, `"loop_C"`).
-#' @param sequences Named character vector of protein sequences (names =
-#'   gene), or a data.frame with `gene`/`sequence_uni` columns (e.g.
-#'   `uniprot_t`).
+#' Vectorised: `meta_data` is a list of per-window data.frames (e.g.
+#' `nn_input$N$all$meta_data`) and `target` is a same-length character vector
+#' (e.g. `nn_input$N$all$target`). A single data.frame + scalar target is
+#' also accepted.
+#'
+#' @param meta_data A list of per-window data.frames with `AA` and `index`
+#'   columns (36 rows each), or a single such data.frame.
+#' @param target Character vector matching `length(meta_data)`.
+#' @param peps Optional character vector of window names for labelling.
+#' @param gene Optional character vector of gene names for labelling.
 #' @param dist_min,dist_max Integer. Modeled-length bounds.
 #' @param forbid_internal_dibasic Logical.
-#' @return A tibble with one row per input: `peps, target, gene, window_seq,
-#'   post_inserting_trim, mature_peptide, cap_seq, cap_score, qualitative,
-#'   modeled_length`.
+#' @return A tibble with one row per input containing `peps, gene, target,
+#'   window_seq` (residues with NA padding dropped), `window_index`
+#'   (list-column), `post_inserting_trim, post_inserting_index` (list-column),
+#'   `mature_peptide, mature_index` (list-column of uniprot positions),
+#'   `cap_seq, cap_score, qualitative, modeled_length`.
+#' @examples
+#' \dontrun{
+#' nn <- readRDS("~/AF2_analysis/nn_input.rds")
+#' dat <- nn$N$all
+#' out <- window_to_mature_peptide(
+#'   meta_data = dat$meta_data,
+#'   target    = dat$target,
+#'   peps      = dat$peps,
+#'   gene      = dat$gene
+#' )
+#' out[, c("peps", "mature_peptide", "mature_index")]
+#' }
 #' @export
-window_to_mature_peptide <- function(peps, target, sequences,
+window_to_mature_peptide <- function(meta_data,
+                                     target,
+                                     peps = NULL,
+                                     gene = NULL,
                                      dist_min = DIST_MIN_DEFAULT,
                                      dist_max = DIST_MAX_DEFAULT,
                                      forbid_internal_dibasic = TRUE) {
-  stopifnot(length(peps) == length(target))
-  parsed <- parse_peps_window(peps)
-  window_seq <- extract_window_seq(peps, sequences)
-  # Strip padding before trimming so "-" doesn't leak into feature counts.
-  clean_window <- gsub("-", "", window_seq, fixed = TRUE)
-  post_trim <- trim_inserting_end(clean_window, target)
+  if (inherits(meta_data, "data.frame")) meta_data <- list(meta_data)
+  N <- length(meta_data)
+  if (length(target) != N) {
+    stop("`target` length (", length(target), ") must match ",
+         "`meta_data` length (", N, ").")
+  }
+  if (!is.null(peps) && length(peps) != N) stop("`peps` length must match meta_data length.")
+  if (!is.null(gene) && length(gene) != N) stop("`gene` length must match meta_data length.")
 
-  trims <- purrr::map2_dfr(post_trim, target,
-                           ~ trim_non_inserting_end(.x, .y,
-                                                    dist_min = dist_min,
-                                                    dist_max = dist_max,
-                                                    forbid_internal_dibasic = forbid_internal_dibasic))
+  pieces <- vector("list", N)
+  for (i in seq_len(N)) {
+    vecs <- meta_window_vectors(meta_data[[i]])
+    trimmed <- trim_inserting_end(vecs$aa, vecs$index, target[i])
 
-  tibble::tibble(
-    peps                = peps,
-    target              = target,
-    gene                = parsed$gene,
-    window_seq          = window_seq,
-    post_inserting_trim = post_trim
-  ) |>
-    dplyr::bind_cols(trims)
+    # Window sequence/index with padding NAs removed (for reporting).
+    ok_w <- !is.na(vecs$aa) & nzchar(vecs$aa) & vecs$aa != "-"
+    window_seq <- paste(vecs$aa[ok_w], collapse = "")
+    window_idx <- vecs$index[ok_w]
+
+    mature <- trim_non_inserting_end(
+      seq                     = trimmed$seq,
+      index                   = trimmed$index,
+      target                  = target[i],
+      dist_min                = dist_min,
+      dist_max                = dist_max,
+      forbid_internal_dibasic = forbid_internal_dibasic
+    )
+
+    pieces[[i]] <- tibble::tibble(
+      peps                  = if (is.null(peps)) NA_character_ else peps[i],
+      gene                  = if (is.null(gene)) NA_character_ else gene[i],
+      target                = target[i],
+      window_seq            = window_seq,
+      window_index          = list(window_idx),
+      post_inserting_trim   = trimmed$seq,
+      post_inserting_index  = list(trimmed$index),
+      mature_peptide        = mature$mature_peptide,
+      mature_index          = mature$mature_index,
+      cap_seq               = mature$cap_seq,
+      cap_score             = mature$cap_score,
+      qualitative           = mature$qualitative,
+      modeled_length        = mature$modeled_length
+    )
+  }
+  dplyr::bind_rows(pieces)
 }
