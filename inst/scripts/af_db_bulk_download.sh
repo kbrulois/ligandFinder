@@ -56,7 +56,12 @@ echo "Target: $OUT"
 
 if [[ ! -f "$TARBALL" ]]; then
   echo "[1/4] Downloading tarball..."
-  wget -q --show-progress -O "$TARBALL" "$URL"
+  # --show-progress is GNU wget >= 1.16; fall back to default verbose output.
+  if wget --help 2>&1 | grep -q -- --show-progress; then
+    wget -q --show-progress -O "$TARBALL" "$URL"
+  else
+    wget -O "$TARBALL" "$URL"
+  fi
 else
   echo "[1/4] Tarball already present, skipping download."
 fi
