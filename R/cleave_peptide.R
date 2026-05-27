@@ -2,12 +2,10 @@
 ## Cleave a peptide range out of an AlphaFold-DB structure.
 ##
 ## AF-DB residue numbering matches UniProt sequence position (1-based), so a
-## (uniprot, start, end) triple maps directly onto atoms in the cached PDB.
-##
-## The cached PDB is expected at:
-##   <cache_dir>/pdb/AF-<UNIPROT>-F1-model_<af_version>.pdb
-## (the layout written by inst/scripts/af_cache_download.R).  If the file is
-## absent and `download_if_missing=TRUE`, it is pulled from EBI on demand.
+## (uniprot, start, end) triple maps directly onto atoms in the cached
+## structure.  The cache is the layout produced by
+## inst/scripts/af_db_bulk_download.sh — see read_af_structure() in
+## af_db_access.R for the lookup order (PDB → CIF → EBI download).
 ##
 ## Designed to produce ligand PDBs consumable by
 ## `position_ligand_initial_guess()`.
@@ -17,9 +15,8 @@
 #'
 #' @param uniprot      UniProt accession of the parent protein.
 #' @param start,end    1-based residue range in the parent's UniProt sequence.
-#' @param cache_dir    Cache root containing
-#'   \code{pdb/AF-<UNIPROT>-F1-model_v4.pdb}.  Created if missing when
-#'   downloading.
+#' @param cache_dir    Cache root containing \code{cif/} and/or \code{pdb/}
+#'   subdirs (layout from \code{af_db_bulk_download.sh}).
 #' @param output_pdb   Path to write the cleaved PDB.  If \code{NULL}, a
 #'   tempfile is used.
 #' @param expected_seq Optional 1-letter amino acid string; if supplied, the
@@ -29,9 +26,9 @@
 #'   renumbered \code{1..N}.  If \code{FALSE}, original UniProt numbering is
 #'   preserved.
 #' @param af_version   EBI AlphaFold DB version tag.  Default \code{"v4"}.
-#' @param download_if_missing  If \code{TRUE} (default), fetch the parent PDB
-#'   from EBI when not present in \code{cache_dir}.  Set \code{FALSE} to
-#'   require pre-cached entries.
+#' @param download_if_missing  If \code{TRUE} (default), fetch the parent
+#'   structure from EBI when not present in \code{cache_dir}.  Set
+#'   \code{FALSE} to require pre-cached entries.
 #'
 #' @details
 #' AF-DB ships single-fragment (\code{F1}) predictions for proteins up to
@@ -62,36 +59,9 @@ cleave_peptide_from_af <- function(uniprot, start, end,
     stop("Invalid residue range: start=", start, " end=", end)
   }
 
-  pdb_dir <- file.path(cache_dir, "pdb")
-  src_pdb <- file.path(
-    pdb_dir,
-    sprintf("AF-%s-F1-model_%s.pdb", uniprot, af_version)
-  )
-
-  if (!file.exists(src_pdb)) {
-    if (!download_if_missing) {
-      stop("Cache miss for ", uniprot, " and download_if_missing=FALSE: ", src_pdb)
-    }
-    dir.create(pdb_dir, recursive = TRUE, showWarnings = FALSE)
-    url <- sprintf("https://alphafold.ebi.ac.uk/files/AF-%s-F1-model_%s.pdb",
-                   uniprot, af_version)
-    message("Cache miss for ", uniprot, " — fetching from EBI")
-    ok <- tryCatch({
-      suppressWarnings(utils::download.file(url, src_pdb, mode = "wb",
-                                            quiet = TRUE, method = "libcurl"))
-      file.exists(src_pdb) && file.info(src_pdb)$size > 0
-    }, error = function(e) {
-      if (file.exists(src_pdb)) file.remove(src_pdb)
-      FALSE
-    })
-    if (!ok) {
-      stop("Failed to download AF prediction for ", uniprot,
-           " — entry may be absent from EBI AF DB, or be a multi-fragment ",
-           "structure (F1 not sufficient).")
-    }
-  }
-
-  pdb <- bio3d::read.pdb(src_pdb, verbose = FALSE)
+  pdb <- read_af_structure(uniprot, cache_dir,
+                           af_version = af_version,
+                           download_if_missing = download_if_missing)
 
   min_resno <- min(pdb$atom$resno, na.rm = TRUE)
   max_resno <- max(pdb$atom$resno, na.rm = TRUE)
