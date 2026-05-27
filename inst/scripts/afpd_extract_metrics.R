@@ -43,7 +43,7 @@ alg <- "AF2v3"
 num_cores <- max(1L, as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "4")))
 
 #num_cores <- 60
-future::plan(strategy = future::multisession(workers = num_cores %/% 8))
+future::plan(strategy = future::multicore(workers = num_cores %/% 2))
 
 options(future.globals.maxSize = 32 * 1024^3)           # 2 GiB per worker
 
@@ -55,7 +55,7 @@ run_dirs <- "known_pairs"
 
 run_dirs <- c("bm", "add_bm", "bm_more_rec", "top200NC")
 
-
+run_dirs <- "top50dbc"
 
 ###extract from OAK
 

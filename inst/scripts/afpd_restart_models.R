@@ -50,6 +50,15 @@ out_dir <- c("/scratch/groups/ebutcher/deorphan/models/jan30")
 job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/uni_pep"
 out_dir <- c("/scratch/groups/ebutcher/deorphan/models/uni_pep")
 
+job_dir <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/top50dbc"
+out_dir <- c("/scratch/groups/ebutcher/deorphan/models/top50dbc")
+
+run_name <- "dTbm"
+
+job_dir <- paste0("/oak/stanford/groups/ebutcher/deorphan-AI-ze/scripts/", run_name)
+out_dir <- paste0("/scratch/groups/ebutcher/deorphan/models/", run_name)
+
+
 gpcr_list <- readRDS(system.file("extdata/gpcr_list.rds", package = "ligandFinder"))
 gpcr_sub <- gpcr_list %>%
   #filter(grepl("^#", `ecb: Order of runs (priority)`)) %>%
@@ -59,6 +68,8 @@ gpcr_sub <- gpcr_list %>%
 
 gpcr_cols <- c("p1_id",
                "model")
+
+gpcr_sub
 
 
 job_dat <- tibble(jobs = list.files(job_dir) %>% stringr::str_subset(., ".txt$"))
