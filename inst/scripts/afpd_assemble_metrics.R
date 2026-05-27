@@ -43,6 +43,8 @@ list.files(scratch_models)
 
 run_dirs <- c("CXCL14peptides", "cxcl14spep", "jan30", "uni_pep", "gdf5", "new_peps")
 
+run_dirs <- c("top50dbc")
+
 
 
 tmp <- map(run_dirs, ~fs::dir_ls(fs::path(scratch_models, .))) %>% do.call(c, .)
@@ -207,7 +209,7 @@ runs_m <- runs_m %>%
 
 out_dir <- "/oak/stanford/groups/ebutcher/kevin"
 local_dir <- "~/AF2_analysis"
-file_name <- "march27_recent"
+file_name <- "top50dbc"
 
 data.table::fwrite(runs_m %>%
                      select(!where(is.list)),

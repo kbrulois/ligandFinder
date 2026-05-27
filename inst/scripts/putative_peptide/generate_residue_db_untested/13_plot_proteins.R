@@ -181,7 +181,7 @@ all_mets <- do.call(`c`, mets) %>% unname
 names(all_mets) <- rep(names(mets), sapply(mets, length))
 
 
-secretome <- readRDS("~/AF2_analysis/secretome_latest.rds.rds")
+secretome <- readRDS("~/AF2_analysis/secretome_latest.rds")
 
 peps_tp <- readRDS("~/AF2_analysis/peps_tp.rds")
 

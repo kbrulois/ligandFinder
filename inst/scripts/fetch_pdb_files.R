@@ -134,7 +134,7 @@ to_download <- unique(to_download[!is.na(to_download)])
 
 #run_dir <- "/scratch/groups/ebutcher/deorphan/models/bm_sep28"
 run_dir <- "/scratch/groups/ebutcher/deorphan/models/top200NC"
-run_dir <- "/scratch/groups/ebutcher/deorphan/models/brinp_Oct28"
+run_dir <- "/scratch/groups/ebutcher/deorphan/models/top50dbc"
 
 local_dir <- " ~/Desktop"
 

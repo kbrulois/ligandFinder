@@ -62,7 +62,7 @@ peps <- c("CXL17_22x119", "CXL17_64x119", "CXL11_22x94", "SG3A2_70x82", "SG1C1_2
 peps <- c("CXL14_35x102")
 
 peps <- c("CXL14_95x102", "CXL14_95x104", "CXL14_88x102", "CXL14_88x104")
-
+peps <- c("CXL17_22x119", "CXL17_64x119", "CXL11_22x94", "SG3A2_70x82")
 peps <- tibble(end = c(95:111),
                         uniprot_name = "CXL14",
                         start = 88) %>%
@@ -75,7 +75,9 @@ peps <- dat %>%
           filter(afpd_dir_name %in% top_hits) %>%
           pull(pep) %>%
           unique %>%
-          {.[gtools::mixedorder(.)]}
+  {.[gtools::mixedorder(.)]}
+
+peps <- c("DB113_25x30", "PCS1N_34x40")
 
 
 
@@ -95,7 +97,7 @@ residue_data <- res_db %>%
 
 
 
-file_name <- "~/AF2_analysis/top_hits_gdf5.svg"
+file_name <- "~/Desktop/gpr25_cxcl17.svg"
 
 dat2 <- dat %>%
   #filter(p1_name %in% !!common_receptors) %>%
@@ -161,7 +163,7 @@ p <- ggplot(data = dat2, aes(x = id, y = paeL_mean_in_loc, fill = depth2, shape 
     coord_cartesian(clip = "off")
 
 
-svglite::svglite(filename = file_name, width = 40, height = length(levels(dat2$pep)))
+svglite::svglite(filename = file_name, width = 40, height = length(levels(dat2$pep)) + 2)
 print(p)
 dev.off()
 
@@ -177,9 +179,9 @@ htmlwidgets::saveWidget(ggiraph::girafe(ggobj = p, width_svg = 40, height_svg = 
 
 ####receptors versus ligands
 
-receptors <- c("BKRB1", "BKRB2", "AGTR1", "AGTR2", "GALR3", "RL3R1", "RL3R2", "GPR15", "GPR25")
+receptors <- c("BKRB1", "BKRB2", "AGTR1", "AGTR2", "GALR3", "MRGX2", "RL3R1", "RL3R2", "GPR15", "GPR25", "NPY2R", "NPY5R")
 
-receptors <- c("GPR15", "GPR25")
+#receptors <- c("GPR15", "GPR25")
 
 
 file_name <- "~/Desktop/select_receptors_v_candidates.svg"
@@ -189,12 +191,18 @@ dat2 <- dat %>%
   filter(p1_name %in% !!receptors) %>%
   group_by(p1_name, pep) %>%
   arrange(rank, .by_group = TRUE) %>%
-  mutate(id = row_number())
+  mutate(id = row_number()) %>%
+  ungroup %>%
+  mutate(tt_value = paste(paste("rec:", p1_name),
+                          paste("lig:", p2_name, "p2_range"),
+                          paste("IPTM:", round(iptm, 2)),
+                          paste("paeL_in", round(paeL_mean_in, 2)),
+                          collapse = "\n"))
 
 
 p <- ggplot(data = dat2, aes(x = id, y = iptm_loc, fill = depth2, shape = location)) +
-  ggplot2::geom_point(size = 1.5, stroke = 0.1) +
-  #ggiraph::geom_point_interactive(aes(tooltip = p1_name), size = 0.6) +
+  #ggplot2::geom_point(size = 1.5, stroke = 0.1) +
+  ggiraph::geom_point_interactive(aes(tooltip = tt_value), size = 1.5, stroke = 0.1) +
   ggplot2::facet_grid(rows = vars(p1_name), cols = vars(pep), switch = "y") +
   ggplot2::scale_shape_manual(values = c(`C-terminal\ninsertion` = 25,
                                          `N-terminal\ninsertion` = 24,
@@ -230,6 +238,11 @@ dev.off()
 
 
 
+
+htmlwidgets::saveWidget(ggiraph::girafe(ggobj = p, width_svg = 60, height_svg = length(receptors) * 2, options = list(
+  ggiraph::opts_sizing(rescale = FALSE))),
+  file = sub(".svg$", ".html", file_name),
+  selfcontained = TRUE)
 
 
 

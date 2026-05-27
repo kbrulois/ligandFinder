@@ -548,7 +548,48 @@ View(nn_input_comb)
 
 
 
+test <- nn_input_comb %>%
+            filter(known == 0 & location %in% c("2t", "3t", "2l", "3l", "4l")) %>%
+            filter(win_type == "db") %>%
+            filter(target %in% c("C", "C_loop")) %>%
+            slice(1:50)
 
+test2 <- nn_input_comb %>%
+  filter(known == 0 & location %in% c("2t", "3t", "2l", "3l", "4l")) %>%
+  filter(win_type == "chym") %>%
+  filter(target %in% c("C", "C_loop")) %>%
+  slice(1:50)
+
+
+saveRDS(nn_input_comb, "~/AF2_analysis/April17_peps.rds")
+
+saveRDS(test, "~/AF2_analysis/db_peps.rds")
+
+saveRDS(test2, "~/AF2_analysis/chym_peps.rds")
+
+test <- readRDS("~/AF2_analysis/chym_peps.rds")
+
+id_map <- readRDS(system.file("/data/id_mapping.rds", package = "ligandFinder"))
+
+test2 <- ligandFinder:::window_to_mature_peptide(meta_data = test$meta_data, target = rep("C", 50), gene = test$gene)
+
+gene_to_uni <- setNames(id_map$`Entry Name`, id_map$`Gene Names (primary)`)
+
+
+
+
+test2 <- test2 %>%
+  mutate(
+    uniprot_name = gene_to_uni[gene],
+    start = ifelse(is.na(mature_peptide),
+                   purrr::map_int(post_inserting_index, ~ if (length(.x)) min(.x) else NA_integer_),
+                   purrr::map_int(mature_index,         ~ if (length(.x)) min(.x) else NA_integer_)),
+    end   = ifelse(is.na(mature_peptide),
+                   purrr::map_int(post_inserting_index, ~ if (length(.x)) max(.x) else NA_integer_),
+                   purrr::map_int(mature_index,         ~ if (length(.x)) max(.x) else NA_integer_))
+  )
+
+test3 <- test2 %>% select(uniprot_name, start, end) %>% filter(!is.na(uniprot_name))
 
 
 

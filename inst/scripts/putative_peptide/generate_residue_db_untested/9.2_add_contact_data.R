@@ -4,8 +4,6 @@ library(ligandFinder)
 library(tidyverse)
 
 
-id_map <- readRDS(system.file("/data/id_mapping.rds", package = "ligandFinder"))
-
 
 con_dat <- readRDS("~/AF2_analysis/knowns.rds")
 
@@ -568,11 +566,15 @@ nn_input <- make_training_sets(k_dat = known_dat,
 
 
 
+
+
+
 train <- nn_input$N$train
 val <- nn_input$N$val
 
 nn_input$N$train <- val
 nn_input$N$val <- train
+
 
 
 
