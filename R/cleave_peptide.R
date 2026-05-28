@@ -25,7 +25,7 @@
 #' @param renumber     If \code{TRUE} (default), output residues are
 #'   renumbered \code{1..N}.  If \code{FALSE}, original UniProt numbering is
 #'   preserved.
-#' @param af_version   EBI AlphaFold DB version tag.  Default \code{"v4"}.
+#' @param af_version   EBI AlphaFold DB version tag.  Default \code{"v6"}.
 #' @param download_if_missing  If \code{TRUE} (default), fetch the parent
 #'   structure from EBI when not present in \code{cache_dir}.  Set
 #'   \code{FALSE} to require pre-cached entries.
@@ -48,7 +48,7 @@ cleave_peptide_from_af <- function(uniprot, start, end,
                                    output_pdb = NULL,
                                    expected_seq = NULL,
                                    renumber = TRUE,
-                                   af_version = "v4",
+                                   af_version = "v6",
                                    download_if_missing = TRUE) {
 
   if (!is.character(uniprot) || length(uniprot) != 1L || !nzchar(uniprot)) {

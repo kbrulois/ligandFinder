@@ -3,8 +3,8 @@
 ## Download AlphaFold-DB structures for every GPCR in ligandFinder's list.
 ##
 ## For each unique uniprot_id in inst/extdata/gpcr_list.rds, pulls:
-##   - <cache>/pdb/AF-<UNIPROT>-F1-model_v4.pdb           (pLDDT in B-factor)
-##   - <cache>/pae/AF-<UNIPROT>-F1-predicted_aligned_error_v4.json
+##   - <cache>/pdb/AF-<UNIPROT>-F1-model_v6.pdb           (pLDDT in B-factor)
+##   - <cache>/pae/AF-<UNIPROT>-F1-predicted_aligned_error_v6.json
 ## from the EBI AlphaFold Protein Structure Database (https://alphafold.ebi.ac.uk).
 ##
 ## Writes <cache>/index.tsv with one row per uniprot_id (status + paths).
@@ -27,7 +27,7 @@ option_list <- list(
               help = "Path to gpcr_list.rds. Defaults to ligandFinder's built-in copy."),
   make_option("--refresh", action = "store_true", default = FALSE,
               help = "Re-download even if files exist locally"),
-  make_option("--afver", type = "character", default = "v4",
+  make_option("--afver", type = "character", default = "v6",
               help = "EBI AlphaFold DB version tag [default: %default]"),
   make_option("--sleep", type = "double", default = 0.1,
               help = "Seconds to sleep between requests, to be polite to EBI [default: %default]")

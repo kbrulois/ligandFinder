@@ -6,19 +6,19 @@
 ## EBI ships per-proteome tarballs containing one CIF + one PAE JSON per
 ## entry, all gzipped.  This script downloads the tarball, extracts it,
 ## decompresses, and sorts files into:
-##   <out>/cif/AF-<UNI>-F1-model_v4.cif
-##   <out>/pae/AF-<UNI>-F1-predicted_aligned_error_v4.json
+##   <out>/cif/AF-<UNI>-F1-model_v6.cif
+##   <out>/pae/AF-<UNI>-F1-predicted_aligned_error_v6.json
 ##
 ## Usage:
 ##   bash inst/scripts/af_db_bulk_download.sh <out_dir> [species] [afver]
 ##
 ##   <out_dir>   Cache root (required).
 ##   species     human (default) | mouse | rat | zebrafish | yeast | ecoli
-##   afver       AlphaFold DB version tag (default: v4)
+##   afver       AlphaFold DB version tag (default: v6)
 ##
 ## Example:
 ##   bash inst/scripts/af_db_bulk_download.sh \
-##        /oak/stanford/groups/ebutcher/deorphan-AI-ze/af_db human v4
+##        /oak/stanford/groups/ebutcher/deorphan-AI-ze/af_db human v6
 ##
 ## Wall time on Sherlock: ~10 min download + ~5 min extract for human
 ## (~5 GB tarball, ~20k entries).  Final on-disk size ~25 GB (uncompressed).
@@ -28,10 +28,10 @@ set -euo pipefail
 
 OUT="${1:-}"
 SPECIES="${2:-human}"
-AFVER="${3:-v4}"
+AFVER="${3:-v6}"
 
 if [[ -z "$OUT" ]]; then
-  echo "Usage: $0 <out_dir> [species=human] [afver=v4]" >&2
+  echo "Usage: $0 <out_dir> [species=human] [afver=v6]" >&2
   exit 1
 fi
 
