@@ -59,9 +59,16 @@ cleave_peptide_from_af <- function(uniprot, start, end,
     stop("Invalid residue range: start=", start, " end=", end)
   }
 
-  pdb <- read_af_structure(uniprot, cache_dir,
-                           af_version = af_version,
-                           download_if_missing = download_if_missing)
+  # Always go through the PDB pathway: bio3d::read.cif is beta and returns
+  # atom records with inconsistent `elety` values, which breaks downstream
+  # CA-based logic.  af_structure_to_pdb() converts CIF -> PDB once and
+  # caches; subsequent calls are free.
+  pdb_path <- af_structure_to_pdb(
+    uniprot, cache_dir,
+    af_version = af_version,
+    download_if_missing = download_if_missing
+  )
+  pdb <- bio3d::read.pdb(pdb_path, verbose = FALSE)
 
   min_resno <- min(pdb$atom$resno, na.rm = TRUE)
   max_resno <- max(pdb$atom$resno, na.rm = TRUE)
