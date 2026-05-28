@@ -2,9 +2,9 @@
 ## Read structures out of an AlphaFold-DB cache.
 ##
 ## The cache is the layout produced by inst/scripts/af_db_bulk_download.sh:
-##   <cache_dir>/cif/AF-<UNI>-F1-model_v4.cif    (always present after bulk download)
-##   <cache_dir>/pdb/AF-<UNI>-F1-model_v4.pdb    (optional; written on demand here)
-##   <cache_dir>/pae/AF-<UNI>-F1-predicted_aligned_error_v4.json
+##   <cache_dir>/cif/AF-<UNI>-F1-model_v6.cif    (always present after bulk download)
+##   <cache_dir>/pdb/AF-<UNI>-F1-model_v6.pdb    (optional; written on demand here)
+##   <cache_dir>/pae/AF-<UNI>-F1-predicted_aligned_error_v6.json
 ##
 ## EBI's per-proteome tarballs ship CIF only.  Some downstream tools want PDB
 ## (e.g. position_ligand_initial_guess()).  af_structure_to_pdb() converts CIF
@@ -17,15 +17,15 @@
 #'
 #' @param uniprot   UniProt accession.
 #' @param cache_dir Cache root (the dir passed to af_db_bulk_download.sh).
-#' @param af_version  AlphaFold DB version tag.  Default \code{"v4"}.
+#' @param af_version  AlphaFold DB version tag.  Default \code{"v6"}.
 #' @param download_if_missing  If \code{TRUE} (default), fetch from EBI if
 #'   neither CIF nor PDB is in the cache.
 #'
 #' @details
 #' Lookup order:
 #' \enumerate{
-#'   \item \code{<cache>/pdb/AF-<UNI>-F1-model_v4.pdb} — return as is.
-#'   \item \code{<cache>/cif/AF-<UNI>-F1-model_v4.cif} — convert to PDB,
+#'   \item \code{<cache>/pdb/AF-<UNI>-F1-model_v6.pdb} — return as is.
+#'   \item \code{<cache>/cif/AF-<UNI>-F1-model_v6.cif} — convert to PDB,
 #'         cache under \code{pdb/}, return.
 #'   \item Download PDB from EBI to \code{<cache>/pdb/}, return.
 #' }
@@ -35,7 +35,7 @@
 #' @return Path to a PDB file (invisible).
 #' @export
 af_structure_to_pdb <- function(uniprot, cache_dir,
-                                af_version = "v4",
+                                af_version = "v6",
                                 download_if_missing = TRUE) {
 
   if (!is.character(uniprot) || length(uniprot) != 1L || !nzchar(uniprot)) {
@@ -89,7 +89,7 @@ af_structure_to_pdb <- function(uniprot, cache_dir,
 #' @return A bio3d \code{"pdb"} object.
 #' @export
 read_af_structure <- function(uniprot, cache_dir,
-                              af_version = "v4",
+                              af_version = "v6",
                               download_if_missing = TRUE) {
 
   pdb_path <- file.path(cache_dir, "pdb",

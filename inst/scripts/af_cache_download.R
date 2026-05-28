@@ -4,8 +4,8 @@
 ##
 ## Given an RDS, TSV, CSV, or newline-delimited text file listing UniProt
 ## accessions, downloads per receptor:
-##   <out>/pdb/AF-<UNI>-F1-model_v4.pdb           (pLDDT in B-factor)
-##   <out>/pae/AF-<UNI>-F1-predicted_aligned_error_v4.json
+##   <out>/pdb/AF-<UNI>-F1-model_v6.pdb           (pLDDT in B-factor)
+##   <out>/pae/AF-<UNI>-F1-predicted_aligned_error_v6.json
 ## from the EBI AlphaFold Protein Structure Database (https://alphafold.ebi.ac.uk).
 ##
 ## Writes <out>/index.tsv with status + paths.  Idempotent — re-runs skip
@@ -43,7 +43,7 @@ option_list <- list(
               help = "Output cache directory. REQUIRED."),
   make_option("--refresh", action = "store_true", default = FALSE,
               help = "Re-download even if files exist locally."),
-  make_option("--afver", type = "character", default = "v4",
+  make_option("--afver", type = "character", default = "v6",
               help = "EBI AlphaFold DB version tag [default: %default]"),
   make_option("--sleep", type = "double", default = 0.1,
               help = "Seconds to sleep between requests, to be polite to EBI [default: %default]")
