@@ -199,15 +199,42 @@ mask_matrix[, which(names(classes) %in% c("padding"))] <- all_mask
 # same real classes, so `none`/`padding` never take softmax mass there either.
 real_cols        <- which(!names(classes) %in% c("none", "padding"))   # 1-based real-class columns
 K_real           <- length(real_cols)
+
+## The per-index head is a single-label SOFTMAX over the real classes PLUS an
+## explicit "none" (background) class; padding is still excluded (masked in loss).
+none_col <- which(names(classes) == "none")
+cat_cols <- c(real_cols, none_col)                                     # 6 real + none (none last)
+K_cat    <- length(cat_cols)
+
+## per-class weights for the (softmax categorical) per-index loss. Up-weight the
+## classes that matter (DB, pep_pocket, pep_other), down-weight positionally-trivial
+## contexts and background `gap`, and down-weight the abundant `none` so it doesn't
+## dominate the softmax. Reordered to the output-column order names(classes)[cat_cols].
+class_w <- c(CT_cleavage_context = 1, DB = 5, gap = 0.3, NT_cleavage_context = 1,
+             pep_other = 2, pep_pocket = 5, none = 0.3)[names(classes)[cat_cols]]
+stopifnot(!anyNA(class_w))   # every class (incl none) must have a weight
+class_w <- class_w / mean(class_w)   # mean 1: relative emphasis, no magnitude inflation
 mask_matrix_real <- mask_matrix[, real_cols, drop = FALSE]             # (seq_len, K_real) position mask
+mask_matrix_cat  <- cbind(mask_matrix_real, none = 1)                  # (seq_len, K_cat): none allowed at all positions
 padding_col      <- which(names(classes) == "padding")                # 1-based padding column (target flag)
 pad_channel_id   <- if (exists("all_params3")) which(all_params3 == "padding") else n_channels
 stopifnot(length(pad_channel_id) == 1L)                               # padding must be a single input channel
 channel_onehot   <- as.numeric(seq_len(n_channels) == pad_channel_id) # (C,) selects the pad input channel
 
+## continuous channels that receive train-time noise augmentation. The one-hot /
+## flag channels (AA_*, SS_*, padding, end_type_ch) are deliberately left intact
+## so augmented inputs stay on the manifold.
+cont_channels <- if (exists("all_params3"))
+  which(all_params3 %in% c("cons_rs", "cons_rs_n", "min_afm", "mean_afm", "relASA")) else integer(0)
+
+## noise-augmentation strength (fraction of each continuous channel's sd). Set to
+## 0 to fall back to plain exact-repeat oversampling for an A/B comparison.
+aug_noise_frac <- 0.1
+
 library(tfdatasets)
 
-make_oversampled_dataset <- function(nn_in, n_negatives_per_positive = 3, batch_size = 32) {
+make_oversampled_dataset <- function(nn_in, n_negatives_per_positive = 3, batch_size = 32,
+                                     noise_frac = 0.1) {
 
   y <- nn_in[["train"]][["y_global"]][, 1]
   pos_idx <- which(y == 1)
@@ -224,15 +251,33 @@ make_oversampled_dataset <- function(nn_in, n_negatives_per_positive = 3, batch_
   sampled_neg <- sample(neg_idx, n_neg_target, replace = length(neg_idx) < n_neg_target)
   idx <- sample(c(rep(pos_idx, 1), sampled_neg))  # shuffle
 
-  x_t <- tensorflow::as_tensor(x_train[idx,,], dtype = "float32")
-  yg_t <- tensorflow::as_tensor(y_global[idx,, drop = FALSE], dtype = "float32")
-  yc_t <- tensorflow::as_tensor(y_cat[idx,,], dtype = "float32")
+  ## --- input-noise augmentation ---------------------------------------------
+  ## Jitter the continuous channels at REAL (non-padding) positions so the tiny,
+  ## repeated positive set can't be memorized. One-hot/flag channels are left
+  ## untouched, padding positions stay 0, and val is never touched (train only).
+  ## Noise is per-channel (scaled to that channel's sd) and regenerated every
+  ## epoch (resample_callback rebuilds the dataset). Set noise_frac = 0 to disable.
+  x_sel <- x_train[idx, , , drop = FALSE]                       # (n, seq, n_channels)
+  if (noise_frac > 0 && length(cont_channels) > 0) {
+    real_mask <- x_sel[, , pad_channel_id] == 0                 # (n, seq): TRUE at real positions
+    for (ch in cont_channels) {
+      sl    <- x_sel[, , ch]                                    # (n, seq)
+      sd_ch <- stats::sd(sl[real_mask], na.rm = TRUE)
+      if (is.finite(sd_ch) && sd_ch > 0) {
+        noise <- matrix(rnorm(length(sl), 0, noise_frac * sd_ch), nrow = nrow(sl))
+        x_sel[, , ch] <- sl + noise * real_mask                # add only at real positions
+      }
+    }
+  }
 
-  tensor_slices_dataset(list(x_t, yg_t, yc_t)) |>
+  x_t <- tensorflow::as_tensor(x_sel, dtype = "float32")
+  yg_t <- tensorflow::as_tensor(y_global[idx,, drop = FALSE], dtype = "float32")
+
+  tensor_slices_dataset(list(x_t, yg_t)) |>       # single-output model: global target only
     dataset_shuffle(buffer_size = length(idx)) |>
     dataset_batch(batch_size) |>
-    dataset_map(function(x, yg, yc) {
-      list(x, list(global = yg, per_index_cat = yc))
+    dataset_map(function(x, yg) {
+      list(x, list(global = yg))
     }) |>
     dataset_repeat()  # repeat so keras can run multiple epochs
 }
@@ -267,13 +312,12 @@ for(term in names(nn_input)) {
                       dim = c(seq_len, n_samples, K)) %>%
         aperm(., c(2, 1, 3))                                    # (n, seq, K) one-hot over all classes
 
-      # Multi-label target: real-class columns become an independent-label
-      # multi-hot; the last column carries a padding flag so the loss can mask
-      # padding positions. `none` positions become an all-zero real-class row
-      # (the negative supervision that keeps background sigmoids low).
-      y_per_index_cat <- array(0, dim = c(n_samples, seq_len, K_real + 1L))
-      y_per_index_cat[, , 1:K_real]    <- onehot[, , real_cols]
-      y_per_index_cat[, , K_real + 1L] <- onehot[, , padding_col]
+      # Single-label target: one-hot over the K_cat classes (6 real + explicit
+      # none); the last column carries a padding flag so the loss/metric can mask
+      # padding positions.
+      y_per_index_cat <- array(0, dim = c(n_samples, seq_len, K_cat + 1L))
+      y_per_index_cat[, , 1:K_cat]    <- onehot[, , cat_cols]
+      y_per_index_cat[, , K_cat + 1L] <- onehot[, , padding_col]
 
 
       list(x = x,
@@ -291,48 +335,51 @@ for(term in names(nn_input)) {
 
   regularizer <- regularizer_l2(1e-3)
 
-  shared <- inputs |>
-    layer_conv_1d(32, kernel_size = 16, activation = "gelu",
+  # Positional encoding: the windows are anchored/aligned (fixed cleavage/DB
+  # layout), so absolute position is meaningful, but conv is translation-
+  # equivariant and the attention/pooling are order-agnostic. Append a normalized
+  # position ramp [0,1] as an extra input channel so the trunk (and everything
+  # above it) can learn where along the window it is. Built in-graph so the raw
+  # `inputs` (and its padding-channel logic below) stays untouched.
+  pos_channel <- inputs |>
+    layer_lambda(function(x) {
+      ones <- op_sum(x, axis = -1L, keepdims = TRUE) * 0 + 1  # (batch, seq, 1) ones
+      idx  <- op_cumsum(ones, axis = 2L) - 1                  # (batch, seq, 1): 0..seq-1
+      idx / (seq_len - 1)                                     # normalized ramp [0,1]
+    }, output_shape = c(seq_len, 1L))
+
+  conv_in <- layer_concatenate(list(inputs, pos_channel))               # (batch, seq, n_channels + 1)
+
+  # Slim stack for the tiny (<100 example) training sets: two small conv layers
+  # instead of the old four wide ones. The old k=16 / k=8, 32-filter layers held
+  # ~26k of the ~33k params; this brings the conv trunk to ~4k, far more
+  # defensible given the 4-way split leaves few positives per model.
+  shared <- conv_in |>
+    layer_conv_1d(16, kernel_size = 3, activation = "gelu",
                   kernel_regularizer = regularizer, padding = "same") |>
-    layer_conv_1d(32, kernel_size = 8, activation = "gelu",
-                  kernel_regularizer = regularizer, padding = "same") |>
-    layer_conv_1d(16, kernel_size = 4, padding = "same",
-                  activation = "gelu", dilation_rate = 1, kernel_regularizer = regularizer) |>
-    #layer_batch_normalization() |>
     layer_dropout(0.2) |>
-    layer_conv_1d(16, kernel_size = 2, padding = "same",
-                  activation = "gelu", dilation_rate = 1, kernel_regularizer = regularizer) |>
-    #layer_batch_normalization() |>
-    layer_dropout(0.4)
+    layer_conv_1d(8, kernel_size = 3, activation = "gelu",
+                  kernel_regularizer = regularizer, padding = "same") |>
+    layer_dropout(0.3)
 
   per_index_logits <- shared |>
-    layer_conv_1d(filters = K_real, kernel_size = 1,
+    layer_conv_1d(filters = K_cat, kernel_size = 1,
                   kernel_regularizer = regularizer)
 
-  # Per-index head: independent sigmoid per real class (multi-label).
-  # `none` = all sigmoids low; padding positions are zeroed using the known
-  # input padding channel (p == 1 at pad positions) so padding never shows a
-  # spurious real-class call.
-  per_index_cat <- layer_lambda(
-    list(per_index_logits, inputs),
-    function(inp) {
-      logits <- inp[[1]]                                          # (batch, seq, K_real)
-      x      <- inp[[2]]                                          # (batch, seq, n_channels)
-      sel    <- op_reshape(op_convert_to_tensor(channel_onehot, dtype = "float32"),
-                           c(1L, 1L, as.integer(n_channels)))     # (1, 1, C)
-      p      <- op_sum(x * sel, axis = -1L, keepdims = TRUE)      # (batch, seq, 1): 1=pad, 0=real
-      op_sigmoid(logits) * (1 - p)                               # zero at padding positions
-    },
-    output_shape = c(seq_len, K_real),
-    name = "per_index_cat"
-  )
+  # Per-index output kept as an UNSUPERVISED head: softmax over the K_cat classes
+  # (6 real + none), emitted for visualization only. It has NO loss in compile, so
+  # it doesn't compete with / shape training -- per_index_logits is shaped solely
+  # by the global head via masked_sum below.
+  per_index_cat <- per_index_logits |>
+    layer_activation("softmax", name = "per_index_cat")
 
-  # Global head: softmax over the same real classes, position-masked.
+  # Global head input: masked softmax over ALL K_cat classes (6 real + none), so
+  # the ranking head's class-structure view includes the background/none level.
   masked_sum <- per_index_logits |>
     layer_lambda(function(x) {
-      mask <- op_convert_to_tensor(mask_matrix_real, dtype = "float32")
+      mask <- op_convert_to_tensor(mask_matrix_cat, dtype = "float32")
       x * mask
-    }, output_shape = c(seq_len, K_real)) |>
+    }, output_shape = c(seq_len, K_cat)) |>
     layer_activation("softmax")
 
   if(FALSE) {
@@ -342,14 +389,15 @@ for(term in names(nn_input)) {
       layer_dense(1, activation = "sigmoid", name = "global")
   }
 
-  # The penultimate dense is named "embed": it is the 32-d representation the
-  # global classifier sits on, trained by the existing global loss. We reuse it
-  # (no new loss) as the window embedding for nearest-known-peptide retrieval.
-  global_output <- layer_multi_head_attention(num_heads = 4, key_dim = 32)(masked_sum, masked_sum) |>
-    layer_dropout(0.4) |>
+  # Global head: a SMALL multi-head attention (2 heads, key_dim 8, ~0.5k params)
+  # over the masked class softmax, then pool. A plain GAP of the softmax washed
+  # out all positional signal and tanked global AUC; the attention restores it at
+  # ~1/6 the cost of the old 4-head/key_dim-32 version. The dense named "embed"
+  # is the 16-d representation reused (no new loss) for nearest-known retrieval.
+  global_output <- layer_multi_head_attention(num_heads = 2, key_dim = 8)(masked_sum, masked_sum) |>
     layer_layer_normalization() |>
     layer_global_average_pooling_1d() |>
-    layer_dense(32, activation = "gelu", name = "embed") |>
+    layer_dense(16, activation = "gelu", name = "embed") |>
     layer_dropout(0.3) |>
     layer_dense(1, activation = "sigmoid", name = "global")
 
@@ -358,8 +406,8 @@ for(term in names(nn_input)) {
   lr_reduce <- callback_reduce_lr_on_plateau(monitor = "val_loss", factor = 0.5, patience = 20, min_lr = 1e-6)
 
   early_stopping <- callback_early_stopping(
-    monitor = "val_global_auc",
-    patience = 50,
+    monitor = "val_global_pr_auc",
+    patience = 200,
     mode = 'max',
     start_from_epoch = 30,
     restore_best_weights = TRUE
@@ -369,35 +417,36 @@ for(term in names(nn_input)) {
   model <- keras_model(
     inputs = inputs,
     outputs = list(global = global_output,
-                   per_index_cat = per_index_cat)
+                   per_index_cat = per_index_cat)   # per_index_cat is UNSUPERVISED (no loss in compile)
   )
 
+  message(sprintf("[%s] trainable params: %s", term,
+                  format(model$count_params(), big.mark = ",")))
 
 
-  # Multi-label focal binary cross-entropy over the real classes.
-  # y_true is packed: columns 1:K_real are the real-class multi-hot, and the last
-  # column is a padding flag (1 = padding) used to mask those positions.
-  per_index_ml_loss <- function(y_true, y_pred, pos_weight = 10, gamma = 2.0,
-                                smoothness_weight = 0.1) {
+
+  # Categorical focal cross-entropy over the K_cat classes (6 real + none).
+  # y_true is packed: columns 1:K_cat are the one-hot class (incl none), and the
+  # last column is a padding flag (1 = padding) used to mask those positions.
+  per_index_cat_loss <- function(y_true, y_pred, gamma = 2, smoothness_weight = 0.01) {
 
     eps      <- 1e-7
-    labels   <- y_true[, , 1:K_real]        # (batch, seq, K_real) multi-hot real classes
-    pad_flag <- y_true[, , K_real + 1L]     # (batch, seq): 1 at padding
+    labels   <- y_true[, , 1:K_cat]         # (batch, seq, K_cat) one-hot incl none
+    pad_flag <- y_true[, , K_cat + 1L]      # (batch, seq): 1 at padding
     keep     <- 1 - pad_flag                # (batch, seq): 0 at padding, 1 elsewhere
 
-    p <- op_clip(y_pred, eps, 1 - eps)
+    p  <- op_clip(y_pred, eps, 1 - eps)     # softmax probs (batch, seq, K_cat)
+    cw <- op_reshape(op_convert_to_tensor(as.numeric(class_w), dtype = "float32"),
+                     c(1L, 1L, K_cat))      # (1, 1, K_cat) per-class weights
 
-    # focal BCE per (position, class); positives up-weighted by pos_weight
-    ce_pos <- -labels * op_log(p) * op_power(1 - p, gamma)
-    ce_neg <- -(1 - labels) * op_log(1 - p) * op_power(p, gamma)
-    bce    <- op_sum(pos_weight * ce_pos + ce_neg, axis = -1L)   # (batch, seq)
+    # focal categorical CE per position: -sum_c w_c * y_c * (1-p_c)^gamma * log(p_c)
+    ce   <- -op_sum(cw * labels * op_power(1 - p, gamma) * op_log(p), axis = -1L)  # (batch, seq)
+    main <- op_sum(ce * keep, axis = 2L) / (op_sum(keep, axis = 2L) + eps)          # (batch,)
 
-    main   <- op_sum(bce * keep, axis = 2L) / (op_sum(keep, axis = 2L) + eps)  # (batch,)
-
-    # smoothness - penalize large changes between adjacent positions, skipping
-    # any adjacency touching a padding position.
-    pred_curr <- y_pred[, 2:seq_len,]     # positions 2:36
-    pred_prev <- y_pred[, 1:(seq_len-1),]   # positions 1:35
+    # smoothness - penalize large changes between adjacent positions (softmax probs),
+    # skipping any adjacency touching a padding position.
+    pred_curr <- y_pred[, 2:seq_len,]       # positions 2:36
+    pred_prev <- y_pred[, 1:(seq_len-1),]     # positions 1:35
     sm_mask   <- keep[, 2:seq_len] * keep[, 1:(seq_len-1)]              # (batch, seq-1)
     sq_pos    <- op_mean(op_square(pred_curr - pred_prev), axis = 3L)  # (batch, seq-1)
     smoothness <- op_sum(sq_pos * sm_mask, axis = 2L) /
@@ -407,13 +456,13 @@ for(term in names(nn_input)) {
   }
 
 
-  masked_ml_accuracy <- custom_metric("masked_ml_accuracy", function(y_true, y_pred) {
-    labels   <- y_true[, , 1:K_real]                        # (batch, seq, K_real)
-    pad_flag <- y_true[, , K_real + 1L]                     # (batch, seq)
-    keep3    <- op_expand_dims(1 - pad_flag, axis = -1L)    # (batch, seq, 1)
-    pred_bin <- op_cast(op_greater(y_pred, 0.5), "float32")
-    correct  <- op_cast(op_equal(pred_bin, labels), "float32") * keep3
-    op_sum(correct) / (op_sum(keep3) * K_real + 1e-7)       # per-cell binary accuracy, non-pad only
+  masked_cat_accuracy <- custom_metric("masked_cat_accuracy", function(y_true, y_pred) {
+    labels   <- y_true[, , 1:K_cat]                        # (batch, seq, K_cat) one-hot incl none
+    pad_flag <- y_true[, , K_cat + 1L]                     # (batch, seq)
+    keep     <- 1 - pad_flag                               # (batch, seq)
+    correct  <- op_cast(op_equal(op_argmax(y_pred,  axis = -1L),
+                                 op_argmax(labels, axis = -1L)), "float32") * keep
+    op_sum(correct) / (op_sum(keep) + 1e-7)                # single-label accuracy, non-pad only
   })
 
   class_counts <- nn_in$train$y_global %>% table
@@ -423,9 +472,13 @@ for(term in names(nn_input)) {
     "1" = class_counts[2] / class_counts[2]   # Weight for minority class
   )
 
+  # The oversampler (make_oversampled_dataset, n_neg = 3) already rebalances each
+  # batch to ~1:3, so ALSO upweighting positives here double-corrects the
+  # imbalance and overfits the knowns. Keep the global class weights ~1:1.
+  # was: list("0" = 1, "1" = class_counts["0"] / class_counts["1"])  # ~20x on positives
   class_weights <- list(
     "0" = 1,
-    "1" = class_counts["0"] / class_counts["1"]  # upweight minority
+    "1" = 1
   )
 
 
@@ -433,25 +486,19 @@ for(term in names(nn_input)) {
 
   model |> compile(
     optimizer = optimizer_adam(
-      learning_rate = learning_rate_schedule_cosine_decay(
-        initial_learning_rate = 4e-4,
-        decay_steps = 10000
-      ),
+      # was: learning_rate_schedule_cosine_decay(4e-4, decay_steps = 10000).
+      # With only ~600-1200 total training steps here vs decay_steps = 10000, the
+      # cosine barely moved (LR stayed ~0.98x initial), so it was effectively a
+      # constant LR anyway. Use a plain, slightly lower constant for the slim model.
+      learning_rate = 3e-4,
       clipnorm = 1.0),
     loss = list(
-      global = weighted_binary_crossentropy(weight_1 = class_weights[["1"]], weight_0 = class_weights[["0"]]),
-      per_index_cat = per_index_ml_loss
+      global = weighted_binary_crossentropy(weight_1 = class_weights[["1"]], weight_0 = class_weights[["0"]])
     ),
-    loss_weights = list(
-      global = 0.2,
-      per_index_cat = 1),
     metrics = list(
       global = list(
         metric_auc(name = "auc"),
         metric_auc(name = "pr_auc", curve = "PR")
-      ),
-      per_index_cat = list(
-        masked_ml_accuracy
       )
     )
   )
@@ -460,11 +507,11 @@ for(term in names(nn_input)) {
   resample_callback <- callback_lambda(
     on_epoch_begin = function(epoch, logs) {
       # rebuild dataset with fresh negative sample each epoch
-      train_ds <<- make_oversampled_dataset(nn_in, n_negatives_per_positive = 3)
+      train_ds <<- make_oversampled_dataset(nn_in, n_negatives_per_positive = 3, noise_frac = aug_noise_frac)
     }
   )
 
-  train_ds <- make_oversampled_dataset(nn_in, n_negatives_per_positive = 3)
+  train_ds <- make_oversampled_dataset(nn_in, n_negatives_per_positive = 3, noise_frac = aug_noise_frac)
 
   n_pos <- sum(nn_in[["train"]][["y_global"]])
   steps_per_epoch <- ceiling(n_pos * (1 + 3) / 32)
@@ -473,23 +520,16 @@ for(term in names(nn_input)) {
     train_ds,
     validation_data = list(
       nn_in[["val"]][["x"]],
-      list(
-        global = nn_in[["val"]][["y_global"]],
-        per_index_cat = nn_in[["val"]][["y_per_index_cat"]]
-      )
+      list(global = nn_in[["val"]][["y_global"]])
     ),
     steps_per_epoch = steps_per_epoch,
-    epochs = 300,
+    epochs = 1000,
     callbacks = list(early_stopping, resample_callback),
     batch_size = NULL
   )
 
   models[[term]] <- model
 
-  val_pred[[term]] <- models[[term]] %>%
-    predict(nn_in[["all"]][["x"]]) %>%
-    `[[`("global")
-
 }
 
 
@@ -499,39 +539,48 @@ for(term in names(nn_input)) {
 
 
 
-calibrate_model <- function(model, nn_in) {
-  # Get raw predictions on validation set
-  val_preds <- model |> predict(nn_in[["val"]][["x"]])
-  val_scores <- val_preds[["global"]][, 1]  # positive class score
-  val_labels <- nn_in[["val"]][["y_global"]][, 1]  # positive class label
-
-  # Fit logistic regression to map raw scores -> calibrated probabilities
-  cal_data <- data.frame(score = val_scores, label = val_labels)
-  cal_model <- glm(label ~ score, data = cal_data, family = binomial)
-  cal_model
-}
-
-apply_calibration <- function(raw_scores, cal_model) {
-  predict(cal_model, newdata = data.frame(score = raw_scores), type = "response")
-}
-
-# Per-model inputs, calibration and scores for every dataset in nn_input
-# (N_end, C_end, N_cleavage, C_cleavage). Everything below concatenates in the
-# order of names(nn_input) so it stays aligned with bind_rows() of the $all sets.
+# Per-model Keras inputs, built once and reused for scoring (all), calibration
+# (val) and the retrieval embeddings below. `all` is predicted ONCE per model.
+# All concatenation is in names(nn_input) order so it stays aligned with
+# bind_rows() of the $all sets.
 nn_in_all   <- lapply(nn_input, generate_keras_input)
-cal_models  <- Map(function(m, nn_in) calibrate_model(m, nn_in), models[names(nn_input)], nn_in_all)
-scores_list <- Map(function(m, nn_in) predict(m, nn_in[["all"]][["x"]]),
-                   models[names(nn_input)], nn_in_all)
 
-calibrated <- Map(function(s, cal) apply_calibration(s[["global"]][, 1], cal),
-                  scores_list, cal_models)
+# predict the all-set ONCE per model -> global score + the unsupervised per_index_cat (for plots)
+all_preds <- setNames(
+  lapply(names(nn_input), function(term)
+    predict(models[[term]], nn_in_all[[term]][["all"]][["x"]], verbose = 0)),
+  names(nn_input))
 
+# robust global-score extractor (predict returns list(global, per_index_cat))
+.global_pred <- function(m, x) {
+  p <- predict(m, x, verbose = 0)
+  as.numeric((if (is.list(p)) p[["global"]] else p)[, 1])
+}
 
+# Raw (uncalibrated) global scores, kept alongside the calibrated ones.
+raw_pred_comb <- do.call(c, lapply(all_preds, function(p) as.numeric(p[["global"]][, 1]))) %>% unname
 
-#val_pred_comb <- map(val_pred, ~.[,1]) %>% do.call(`c`, .) %>% unname
-val_pred_comb <- do.call(c, calibrated) %>% unname
+# --- single POOLED Platt calibrator --------------------------------------
+# Per-model calibration is unstable here (~few val positives -> near-perfect
+# separation), and the models feed one shared global ranking, so fit ONE
+# logistic calibrator on the val scores + labels POOLED across all models.
+# This maps every model's raw score onto a common probability scale. Because the
+# mapping is monotone it leaves each model's ROC/PR-AUC unchanged; it only makes
+# the score scales comparable for the pooled ranking.
+val_scores_pooled <- do.call(c, lapply(names(nn_input), function(term)
+  .global_pred(models[[term]], nn_in_all[[term]][["val"]][["x"]])))
+val_labels_pooled <- do.call(c, lapply(nn_in_all, function(nn) nn[["val"]][["y_global"]][, 1]))
 
-val_pred_comb <- do.call(c, lapply(scores_list, function(s) s[["global"]][, 1])) %>% unname
+cal_model <- glm(label ~ score,
+                 data   = data.frame(score = val_scores_pooled, label = val_labels_pooled),
+                 family = binomial)
+
+cal_pred_comb <- unname(predict(cal_model,
+                                newdata = data.frame(score = raw_pred_comb),
+                                type = "response"))
+
+# Rank on the calibrated (comparable) scores; raw kept for comparison (below).
+val_pred_comb <- cal_pred_comb
 
 metrics <- metric_set(
   roc_auc,
@@ -570,10 +619,14 @@ extract_per_index <- function(arr, class_names) {
 
 nn_input_comb <- bind_rows(lapply(nn_input, function(x) x$all))
 
-nn_input_comb$pred <- val_pred_comb
+nn_input_comb$pred     <- val_pred_comb   # calibrated (pooled Platt, common scale)
+nn_input_comb$pred_raw <- raw_pred_comb   # uncalibrated global score, for comparison
 
-nn_input_comb$per_index <- do.call(c, lapply(scores_list, function(s) {
-  extract_per_index(s[["per_index_cat"]], names(classes)[real_cols])
+# per_index_cat is an UNSUPERVISED output (no loss) kept only for visualization.
+# NOTE: it is NOT trained against known_idx, so per-index *accuracy* is meaningless
+# now -- it reflects whatever the global-ranking objective shaped, not the labels.
+nn_input_comb$per_index <- do.call(c, lapply(all_preds, function(p) {
+  extract_per_index(p[["per_index_cat"]], names(classes)[cat_cols])
 }))
 
 # --- nearest known-peptide retrieval (reuse the trained "embed" layer) ------
@@ -600,9 +653,15 @@ nn_input_comb$nn_closest_peptide <- ref_names[best]
 nn_input_comb$nn_closest_sim     <- sim_mat[cbind(seq_along(best), best)]
 
 nn_input_comb <- nn_input_comb %>%
+  # per-model (terminus) category, and its combination with win_type
+  mutate(model    = stringr::str_remove(as.character(target), "^loop_"),  # "N" or "C"
+         category = paste0(model, "_", win_type)) %>%                     # e.g. "N_db", "C_chym", "C_pep_end"
   arrange(desc(pred)) %>%
   #filter(win_type == "db") %>%
-  mutate(rank = row_number(), .by = known)
+  mutate(rank = row_number(), .by = known) %>%                            # existing global rank (within known/unknown)
+  # rank the score WITHIN each combined (model x win_type) category, kept
+  # separate for known vs candidate. Drop `known` from .by to rank the two together.
+  mutate(rank_cat = row_number(), .by = c(category, known))
 
 uniprot_peps <- data.table::fread("~/Desktop/Peptides/uniprot_peptides.csv") %>% as_tibble()
 
@@ -611,27 +670,91 @@ nn_input_comb <- nn_input_comb %>%
   {left_join(., secretome %>% distinct(gene, .keep_all = T) %>% select(gene, location), by = "gene")} %>%
   mutate(uni_pep = if_else(gene %in% uniprot_peps$gene, 1, 0))
 
+## peptide length from the pep_id "<start>x<end>" range. Vectorized (one str_match
+## over the whole column) instead of a per-row map_int -- the latter ran the regex
+## ~40K times and returned NA for every non-known window. NA where no range (controls).
 nn_input_comb <- nn_input_comb %>%
-  mutate(length = map_int(pep_id, \(x) {
+  mutate(length = {
+    rng <- stringr::str_match(pep_id, "(\\d+)x(\\d+)")
+    as.integer(rng[, 3]) - as.integer(rng[, 2])
+  })
 
-    inds <- stringr::str_extract(x, "\\d+x\\d+") %>% stringr::str_split(., "x", simplify = TRUE) %>% `c` %>% as.numeric
-    if(!is.na(inds[1])) {
-      inds[2] - inds[1]
-    } else {
-      NA
-    }}))
+## --- annotate windows that ANCHOR a uniprot-peptide terminus -----------------
+## Windows are built as anchor + [-5,30] (N) / [-30,5] (C), so the putative peptide
+## boundary sits at a fixed anchor residue: wN+5 for N windows, wC-5 for C windows.
+## A window "hits" a uniprot peptide only if that peptide's matching terminus --
+## start (N-terminus) for an N window, end (C-terminus) for a C window -- lands at
+## the window's anchor residue (+/- anchor_tol), i.e. at the correct position, not
+## merely somewhere inside the window span.
+anchor_tol <- 2L
+
+## per-model terminus (N/C); derive here so this block is self-contained even if
+## the ranking mutate above hasn't been run on this nn_input_comb
+if (!"model" %in% names(nn_input_comb))
+  nn_input_comb$model <- stringr::str_remove(as.character(nn_input_comb$target), "^loop_")
+
+wm <- stringr::str_match(nn_input_comb$peps, "_w(\\d+)-(\\d+)$")
+nn_input_comb$wN         <- as.integer(wm[, 2])
+nn_input_comb$wC         <- as.integer(wm[, 3])
+nn_input_comb$anchor_res <- ifelse(nn_input_comb$model == "N",
+                                   nn_input_comb$wN + 5L,     # expected peptide N-terminus
+                                   nn_input_comb$wC - 5L)     # expected peptide C-terminus
+
+starts_by_gene <- split(as.integer(uniprot_peps$start), uniprot_peps$gene)  # peptide N-ends
+ends_by_gene   <- split(as.integer(uniprot_peps$end),   uniprot_peps$gene)  # peptide C-ends
+
+anchor_hits <- function(gene, model, anchor, tol) {
+  ter <- if (model == "N") starts_by_gene[[gene]] else ends_by_gene[[gene]]
+  if (is.null(ter) || is.na(anchor)) return(FALSE)
+  any(abs(ter - anchor) <= tol)
+}
+
+nn_input_comb$pep_terminus_hit <- FALSE
+idx <- which(nn_input_comb$gene %in% names(starts_by_gene))   # only genes with uniprot peptides
+if (length(idx) > 0) {
+  nn_input_comb$pep_terminus_hit[idx] <- mapply(
+    anchor_hits,
+    nn_input_comb$gene[idx], nn_input_comb$model[idx], nn_input_comb$anchor_res[idx],
+    MoreArgs = list(tol = anchor_tol))
+}
+
+message(sprintf("uniprot-terminus hits: %d windows (N: %d, C: %d)",
+                sum(nn_input_comb$pep_terminus_hit),
+                sum(nn_input_comb$pep_terminus_hit & nn_input_comb$model == "N"),
+                sum(nn_input_comb$pep_terminus_hit & nn_input_comb$model == "C")))
+
+## --- violin: score of hits vs non-hits, segregated by window terminus (N/C) ---
+## swap `y = pred` for `y = rank_cat` (or `rank`) to plot rank instead of score.
+pep_hit_violin <- nn_input_comb %>%
+  mutate(hit = factor(if_else(pep_terminus_hit, "anchors uniprot pep terminus", "no"),
+                      levels = c("no", "anchors uniprot pep terminus"))) %>%
+  ggplot(aes(x = hit, y = pred, fill = hit)) +
+  geom_violin(scale = "width", alpha = 0.5, draw_quantiles = c(0.25, 0.5, 0.75)) +
+  geom_jitter(data = ~ dplyr::filter(.x, pep_terminus_hit),
+              width = 0.15, size = 0.9, alpha = 0.7) +
+  facet_grid(rows = vars(win_type), cols = vars(model)) +
+  labs(x = NULL, y = "score (pred)",
+       title = "Windows anchoring a uniprot-peptide terminus vs not, by model x win_type") +
+  theme_bw() +
+  theme(legend.position = "none")
+
+ggsave("~/AF2_analysis/uniprot_terminus_score_violin.svg", pep_hit_violin, width = 9, height = 5)
 
 nn_input_comb %>% filter(known == 0 & win_type == "db") %>%
   filter(peps %in% c("ANO8_w12-47", "ANO8_w36-71", "ANO8_w14-49")) %>%
   View()
 
+nn_input_comb %>% filter(known == 0) %>%
+  filter(gene == "ANO8") %>%
+  View()
+
 
 nn_input_comb %>% filter(known == 0 & win_type == "db") %>%
-  filter(grepl("FGF", gene)) %>%
+  filter(grepl("GDF", gene)) %>%
   View()
 
 nn_input_comb %>% filter(known == 0) %>%
-  filter(grepl("ANO8", gene)) %>%
+  filter(grepl("ASIP", gene)) %>%
   View()
 
 
@@ -668,12 +791,17 @@ secretome[["aa_scores"]] <- purrr::map2(
 )
 
 
+data.table::fwrite(nn_input_comb %>% select(!where(is.list)), "~/Desktop/scores3.csv")
 
 
 
 
-
-genes <- c("ANO8", "CXCL14", "SERPINA9")
+genes <- c("CPXM1", "MDK", "FGF5", "ARSI", "LACRT", "PDGFB", "PCSK1N",
+           "KRTDAP", "NDFIP1", "RTBDN", "HMCN2", "IL21", "GNPTG", "ANGPTL8",
+           "MANF", "GRP", "CCDC3", "DMKN", "CASP4", "SERPINA9", "CXCL3",
+           "CXCL17", "DHRS4L2", "IBSP", "PROS1", "GAS6", "CCDC126", "GNPTG",
+           "NMB", "SEMG2", "LPO", "PCSK1N", "FGF6", "BRINP3", "ENAM", "INSL5",
+           "SOSTDC1")
 
 
 plot_dir <- "~/AF2_analysis/new_meth_plot2"
@@ -724,21 +852,6 @@ pred_to_plot <- nn_input_comb
 
 species_dat <- readRDS(system.file("extdata/species_dat.rds", package = "ligandFinder"))
 
-
-
-withCallingHandlers(
-  make_protein_plot_win(the_input[[1]], pred_to_plot, plot_dir, pep_input[[1]]),
-  message = function(m) cat("MSG:", conditionMessage(m), "\n")
-)
-
-trace(make_protein_plot_win, edit = FALSE,
-      tracer = quote(options(error = function() { traceback(3); recover() })))
-make_protein_plot_win(the_input[[1]], pred_to_plot, plot_dir, pep_input[[1]])
-
-
-make_protein_plot_win(the_input[[1]], pred_to_plot, plot_dir, pep_input[[1]])
-
-browseURL(file.path(plot_dir, paste0(gene, ".html")))
 
 devtools::load_all("/Users/kbrulois/R_projects/ligandFinder")
 

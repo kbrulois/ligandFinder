@@ -34,7 +34,7 @@ for(y in seq_along(met_it)) {
   p_final <- list()
 
 
-  for(x in seq_along(targs)) {
+  for(x in seq_along(targs)[2]) {
 
     targ <- targs[[x]]
 
@@ -136,10 +136,12 @@ for(y in seq_along(met_it)) {
           size = 10
         )  )
 
-    nn_input_comb[nn_input_comb$peps == "ANO8_w12-47", "pep_id"] <- "ANO8"
+    nn_input_comb[nn_input_comb$peps == "NUCB1_w45-80", "pep_id"] <- "NUCB1"
+    nn_input_comb[nn_input_comb$peps == "NUCB2_w48-83", "pep_id"] <- "NUCB2"
+
 
     seq_dat <- nn_input_comb %>%
-      filter((target %in% targ & known == 1) | peps == "ANO8_w12-47") %>%
+      filter((target %in% targ & known == 1) | peps %in% c("NUCB1_w45-80", "NUCB2_w48-83")) %>%
       mutate(meta_data = map2(meta_data, pep_id, \(x,y) x %>%
                                 mutate(metric = y) %>%
                                 mutate(index_og = index) %>%
@@ -149,6 +151,7 @@ for(y in seq_along(met_it)) {
 
 
     aa_mat <- seq_dat %>%
+      filter(index > 7) %>%
       select(AA, metric) %>%
       group_by(metric) %>%
       mutate(pos = row_number()) %>%
@@ -202,7 +205,7 @@ for(y in seq_along(met_it)) {
 
     p_final[[targ[1]]] <- list(p3, p2, p)
 
-    ggsave(filename = paste0("~/AF2_analysis/shap_1ddcnnddfccdddd_", names(met_it)[y], targs[[x]][1], ".svg"), p3, width = 16, height = 12)
+    ggsave(filename = paste0("~/AF2_analysis/NUCB_peps_", names(met_it)[y], targs[[x]][1], ".svg"), p3, width = 16, height = 12)
 
 
   }
@@ -213,7 +216,7 @@ for(y in seq_along(met_it)) {
                                                              guides = "collect") &
     theme(legend.position = "top", legend.title = element_blank())
 
-  ggsave(filename = paste0("~/AF2_analysis/shap_1dcnndddfccdddd_", names(met_it)[y], ".svg"), p_final2, width = 16, height = 16)
+  ggsave(filename = paste0("~/AF2_analysis/NUCB_peps_", names(met_it)[y], ".svg"), p_final2, width = 16, height = 16)
 
 
 }
