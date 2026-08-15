@@ -4,11 +4,11 @@
 library(dplyr)
 library(purrr)
 library(tidyr)
-remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
+remotes::install_github("kbrulois/ligandFinder")
 library(ligandFinder)
 
 fs::dir_copy("/home/groups/ebutcher/kevin/ligandFinder/residue_db",
-             "/scratch/groups/ebutcher/deorphan/ligandFinder",
+             "/scratch/groups/ebutcher/deorphan/ligandFinder/residue_db",
              overwrite = TRUE)
 
 fs::dir_copy("/home/groups/ebutcher/programs/voronota",
@@ -55,7 +55,10 @@ run_dirs <- "known_pairs"
 
 run_dirs <- c("bm", "add_bm", "bm_more_rec", "top200NC")
 
-run_dirs <- "top50dbc"
+run_dirs <- "top50cymc"
+
+run_dirs <- "dbxJuly"
+
 
 ###extract from OAK
 

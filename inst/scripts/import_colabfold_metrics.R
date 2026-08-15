@@ -9,7 +9,7 @@
 library(dplyr)
 library(purrr)
 library(tidyr)
-remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
+remotes::install_github("kbrulois/ligandFinder")
 library(ligandFinder)
 
 set_db_path("/home/groups/ebutcher/kevin/ligandFinder")
