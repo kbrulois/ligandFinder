@@ -78,7 +78,10 @@ option_list <- list(
   make_option("--overwrite", action = "store_true", default = FALSE,
               help = "Rebuild seeds that already exist in --out."),
   make_option("--seed", type = "integer", default = 42,
-              help = "RNG seed, used only when --conformer random [default: %default]")
+              help = "RNG seed, used only when --conformer random [default: %default]"),
+  make_option("--id_mapping", type = "character", default = NULL,
+              help = paste("Path to id_mapping.rds. Defaults to the copy installed with",
+                           "ligandFinder; set this when running from a source checkout."))
 )
 opt <- parse_args(OptionParser(option_list = option_list))
 
@@ -179,7 +182,27 @@ desc_component <- function(acc, start, end) {
 
 ## ---- lookups ---------------------------------------------------------------
 
-data(id_mapping, package = "ligandFinder", envir = environment())
+## id_mapping ships as data/id_mapping.rds.  data() cannot read .rds (it only
+## handles .R, .rda/.RData and the text formats) and LazyData does not expose
+## .rds either, so it has to be read from its installed path.
+load_id_mapping <- function(explicit = NULL) {
+  if (!is.null(explicit) && nzchar(explicit)) {
+    if (!file.exists(explicit)) stop("--id_mapping not found: ", explicit)
+    return(readRDS(explicit))
+  }
+  for (sub in c("data", "extdata")) {
+    p <- system.file(sub, "id_mapping.rds", package = "ligandFinder")
+    if (nzchar(p) && file.exists(p)) return(readRDS(p))
+  }
+  # Running from a source checkout rather than an installed package.
+  for (p in c("data/id_mapping.rds", "inst/extdata/id_mapping.rds")) {
+    if (file.exists(p)) return(readRDS(p))
+  }
+  stop("could not locate id_mapping.rds; pass --id_mapping /path/to/id_mapping.rds")
+}
+
+id_mapping <- load_id_mapping(opt$id_mapping)
+stopifnot(all(c("Entry", "Entry Name") %in% names(id_mapping)))
 entry2acc <- setNames(id_mapping[["Entry"]], id_mapping[["Entry Name"]])
 
 resolve_acc <- function(nm) {
