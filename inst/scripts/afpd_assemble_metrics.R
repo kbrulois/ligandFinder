@@ -9,7 +9,7 @@
 library(dplyr)
 library(purrr)
 library(tidyr)
-remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
+remotes::install_github("kbrulois/ligandFinder")
 library(ligandFinder)
 
 
@@ -39,12 +39,13 @@ alg <- "AF2v3"
 num_cores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK"))
 
 
-list.files(scratch_models)
+run_dirs <- list.files(scratch_models)
 
 run_dirs <- c("CXCL14peptides", "cxcl14spep", "jan30", "uni_pep", "gdf5", "new_peps")
 
-run_dirs <- c("top50dbc")
+run_dirs <- c("top50cymc")
 
+run_dirs <- "dbxJuly"
 
 
 tmp <- map(run_dirs, ~fs::dir_ls(fs::path(scratch_models, .))) %>% do.call(c, .)
@@ -203,16 +204,21 @@ runs_m <- runs_m %>%
 
 
 
-
 ####save analysis
 
 
 out_dir <- "/oak/stanford/groups/ebutcher/kevin"
 local_dir <- "~/AF2_analysis"
-file_name <- "top50dbc"
+file_name <- "Aug7_all"
 
-data.table::fwrite(runs_m %>%
-                     select(!where(is.list)),
+test <- data.table::fread(paste0(out_dir, "/", "July20_all", ".csv"))
+
+new_dat <- runs_m %>%
+  select(!where(is.list))
+
+new_dat <- bind_rows(new_dat, test)
+
+data.table::fwrite(new_dat,
                    paste0(out_dir, "/", file_name, ".csv"))
 
 message("scp kbrulois@dtn.sherlock.stanford.edu:", out_dir, "/", file_name, ".csv", " ", local_dir, "/", file_name, ".csv")

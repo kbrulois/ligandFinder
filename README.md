@@ -15,7 +15,7 @@ install.packages("bio3d", dependencies=TRUE)
 install.packages("httr", dependencies=TRUE)
 
 if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
-remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
+remotes::install_github("kbrulois/ligandFinder")
 ```
 
 ## Tutorial

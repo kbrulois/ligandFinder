@@ -6,7 +6,7 @@
 library(dplyr)
 library(purrr)
 library(tidyr)
-remotes::install_github("kbrulois/ligandFinder", auth_token = "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")
+remotes::install_github("kbrulois/ligandFinder")
 library(ligandFinder)
 
 genes <- c("BRS3", "FSHR", "G37L1", "GPR37", "GRPR", "LGR4",
