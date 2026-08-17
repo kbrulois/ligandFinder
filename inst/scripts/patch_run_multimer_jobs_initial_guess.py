@@ -47,20 +47,19 @@ if 'initial_guess_map' not in flags.FLAGS:
 
 '''
 
-APPEND_TMPL = '''{i}# Forward initial-guess flags to run_structure_prediction (added by patcher).
-{i}if flags.FLAGS.initial_guess_dir:
-{i}    {cmd} += ['--initial_guess_dir', flags.FLAGS.initial_guess_dir]
-{i}if flags.FLAGS.initial_guess_map:
-{i}    {cmd} += ['--initial_guess_map', flags.FLAGS.initial_guess_map]
+# Injected as the first entries of `constant_args`.  That dict is the single
+# source for `command_args`, which every subprocess path consumes -- the
+# wrapper has at least two (a batched one when --desired_num_res and
+# --desired_num_msa are both set, and a per-fold loop otherwise), and patching
+# the call sites individually silently misses whichever one is not taken.
+# Entries whose value is None are dropped when command_args is built, so an
+# unset flag adds nothing to the command.
+ARGS_TMPL = '''{i}# Added by patcher: forwarded to run_structure_prediction via command_args.
+{i}"--initial_guess_dir": FLAGS.initial_guess_dir,
+{i}"--initial_guess_map": FLAGS.initial_guess_map,
 '''
 
-# `subprocess.run(" ".join(command), ...)` -- capture indent and the list name.
-SUBPROC_RE = re.compile(
-    r'^(?P<indent>[ \t]*)subprocess\.run\(\s*["\'] ["\']\.join\(\s*(?P<cmd>\w+)\s*\)',
-)
-SUBPROC_RE_LOOSE = re.compile(
-    r'^(?P<indent>[ \t]*)subprocess\.run\(.*?\.join\(\s*(?P<cmd>\w+)\s*\)',
-)
+CONST_ARGS_RE = re.compile(r'^(?P<indent>[ \t]*)constant_args\s*=\s*\{\s*$')
 
 
 def patch_one(path):
@@ -78,36 +77,26 @@ def patch_one(path):
 
     lines = src.splitlines(keepends=True)
 
-    # --- anchor 1: the subprocess call that launches run_structure_prediction
+    # --- anchor 1: the constant_args dict that feeds every subprocess path
     hit = None
     for idx, line in enumerate(lines):
-        m = SUBPROC_RE.match(line) or SUBPROC_RE_LOOSE.match(line)
+        m = CONST_ARGS_RE.match(line)
         if m:
-            hit = (idx, m.group('indent'), m.group('cmd'))
+            hit = (idx, m.group('indent'))
             break
     if hit is None:
-        print("  [ERROR] no `subprocess.run(\" \".join(<list>)...)` line found.")
-        print("          Lines mentioning subprocess:")
+        print("  [ERROR] no `constant_args = {` line found.")
+        print("          Lines mentioning constant_args or subprocess:")
         for idx, line in enumerate(lines):
-            if 'subprocess' in line:
+            if 'constant_args' in line or 'subprocess' in line:
                 print(f"            {idx + 1}: {line.rstrip()}")
         print("          Not modified. Send those lines and the patcher can be adjusted.")
         return False
-    sub_idx, indent, cmd_var = hit
-    print(f"  command list  : '{cmd_var}' (line {sub_idx + 1}, indent {len(indent)})")
-
-    # The wrapper logs the command just before running it.  Insert above that
-    # line, not merely above subprocess.run -- otherwise the flags are passed
-    # but absent from the logged command, and the log is the first thing
-    # anyone reads to confirm a run was seeded.
-    insert_idx = sub_idx
-    for back in range(sub_idx - 1, max(sub_idx - 6, -1), -1):
-        if 'logging' in lines[back] and cmd_var in lines[back]:
-            insert_idx = back
-            print(f"  logs command  : line {back + 1} (inserting above it)")
-            break
-    else:
-        print("  logs command  : not found near the call; inserting above subprocess.run")
+    const_idx, indent = hit
+    entry_indent = indent + '    '
+    n_calls = sum(1 for l in lines if 'subprocess.run' in l)
+    print(f"  constant_args : line {const_idx + 1}  (covers {n_calls} subprocess call site(s))")
+    insert_idx = const_idx + 1
 
     # --- anchor 2: module-level insertion point for the flag definitions.
     # Before `def main(` keeps them at column 0 and after every existing
@@ -120,8 +109,8 @@ def patch_one(path):
     if main_idx is None:
         print("  [ERROR] no module-level `def main(` found. Not modified.")
         return False
-    if main_idx > insert_idx:
-        print("  [ERROR] `def main(` appears after the subprocess call; unexpected layout.")
+    if main_idx > const_idx:
+        print("  [ERROR] `def main(` appears after constant_args; unexpected layout.")
         return False
     print(f"  flags inserted: before `def main(` (line {main_idx + 1})")
 
@@ -130,7 +119,7 @@ def patch_one(path):
         return False
 
     # Apply bottom-up so the earlier index stays valid.
-    lines.insert(insert_idx, APPEND_TMPL.format(i=indent, cmd=cmd_var))
+    lines.insert(insert_idx, ARGS_TMPL.format(i=entry_indent))
     lines.insert(main_idx, FLAG_BLOCK)
 
     backup = path + '.pre_initial_guess'
