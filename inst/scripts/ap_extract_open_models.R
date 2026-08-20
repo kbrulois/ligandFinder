@@ -28,9 +28,11 @@ models_root  <- "/oak/stanford/groups/ebutcher/deorphan-AI-ze/models"
 manifest_csv <- path.expand("/oak/stanford/groups/ebutcher/deorphan-AI-ze/open_models/open_receptors_manifest.csv")
 out_dir      <- path.expand("/oak/stanford/groups/ebutcher/deorphan-AI-ze/open_models")
 also_pae     <- FALSE   # TRUE = also pull the matching _pae_*.json alongside each pdb
-search_lost  <- TRUE    # if an archive isn't at the expected path, do ONE directory
-                        # walk to find it by name (run_name can differ between the
-                        # scratch paths in the metrics and the layout on Oak)
+search_lost  <- TRUE    # if an archive isn't at the expected path, probe the other
+                        # run directories for it by name (run_name can differ
+                        # between the scratch paths in the metrics and the layout
+                        # on Oak). Cheap -- see the note at the probe below.
+                        # FALSE skips it; those rows are logged archive_not_found.
 
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 man <- readr::read_csv(manifest_csv, show_col_types = FALSE)
@@ -54,14 +56,29 @@ message(sprintf("%d file(s) wanted from %d archive(s); %d archive(s) at the expe
 ## ---- 2. rescue archives that aren't where we expected them -----------------
 ## One walk for ALL of them, not one search per miss.
 if (search_lost && any(!want$tar_exists)) {
-  message("searching ", models_root, " for the missing archives (one walk) ...")
-  all_tars <- list.files(models_root, pattern = "\\.tar$", recursive = TRUE, full.names = TRUE)
-  by_name  <- setNames(all_tars, tools::file_path_sans_ext(basename(all_tars)))
-  lost     <- !want$tar_exists
-  found    <- unname(by_name[want$afpd_dir_name[lost]])   # NA where still not found
-  want$tar_path[lost] <- ifelse(is.na(found), want$tar_path[lost], found)
+  ## Every archive is <models_root>/<run>/<name>.tar, so the only thing in
+  ## doubt is which run directory. Probe those directly: n_missing * n_runs
+  ## stat calls, typically well under a second. Listing models_root
+  ## recursively instead means enumerating ~300k archives to locate a handful,
+  ## which dominates the runtime of the whole script.
+  run_dirs <- list.dirs(models_root, recursive = FALSE, full.names = TRUE)
+  lost_names <- unique(want$afpd_dir_name[!want$tar_exists])
+  message(sprintf("probing %d run director%s for %d missing archive name(s) ...",
+                  length(run_dirs), if (length(run_dirs) == 1) "y" else "ies",
+                  length(lost_names)))
+
+  found_map <- vapply(lost_names, function(nm) {
+    cand <- file.path(run_dirs, paste0(nm, ".tar"))
+    hit  <- cand[file.exists(cand)]
+    if (length(hit)) hit[1] else NA_character_
+  }, character(1))
+
+  lost <- !want$tar_exists
+  repl <- unname(found_map[want$afpd_dir_name[lost]])   # NA where still not found
+  want$tar_path[lost] <- ifelse(is.na(repl), want$tar_path[lost], repl)
   want$tar_exists     <- file.exists(want$tar_path)
-  message(sprintf("  recovered %d archive(s)", sum(!is.na(found))))
+  message(sprintf("  recovered %d archive(s); %d still missing",
+                  sum(!is.na(repl)), sum(!want$tar_exists)))
 }
 
 ## ---- 3. extract, one archive at a time -------------------------------------
