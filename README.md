@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://d2v3leolhhovg9.cloudfront.net/PENK.html"><b>Browse the results →</b></a>
+  <a href="https://d2v3leolhhovg9.cloudfront.net/ligandFinder_v3.html"><b>Browse the secretome viewer →</b></a>
 </p>
 
 <!-- Pipeline overview. Regenerate or replace at man/figures/pipeline.png -->
@@ -82,13 +82,9 @@ Results are published as **interactive per-gene pages**: hover any window for it
 score and per-residue profile, jump into the sequence alignment, or open the
 structure in ChimeraX.
 
-> **[Browse the secretome viewer →](https://d2v3leolhhovg9.cloudfront.net/PENK.html)**
+> **[Browse the secretome viewer →](https://d2v3leolhhovg9.cloudfront.net/ligandFinder_v3.html)**
 >
-> One page per gene, at `https://d2v3leolhhovg9.cloudfront.net/<GENE>.html` —
-> try [PENK](https://d2v3leolhhovg9.cloudfront.net/PENK.html) (proenkephalin,
-> seven peptides from one precursor),
-> [NPY](https://d2v3leolhhovg9.cloudfront.net/NPY.html), or
-> [ANO8](https://d2v3leolhhovg9.cloudfront.net/ANO8.html).
+> Every scored window in one map, linked through to its per-gene page.
 
 ## Installation
 
