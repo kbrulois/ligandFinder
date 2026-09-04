@@ -21,3 +21,7 @@ terraform/*.tfvars
 *.orig
 *.bak
 *.bak-*
+
+# Python bytecode from inst/python/lf_dcnn
+__pycache__/
+*.py[cod]

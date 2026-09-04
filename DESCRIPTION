@@ -25,5 +25,7 @@ Depends:
   R (>= 4.1.0)
 Suggests:
   arrow,
-  Biostrings
+  Biostrings,
+  reticulate,
+  yardstick
 RoxygenNote: 7.3.1

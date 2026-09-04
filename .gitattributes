@@ -1,0 +1,3 @@
+# The pre-rewrite script archive. Kept for provenance, but it is dead code and
+# should not dominate the repository's language statistics.
+inst/scripts/putative_peptide/old/** linguist-vendored

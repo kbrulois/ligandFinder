@@ -1,5 +1,5 @@
 # Forked variant of make_protein_plot that overlays NN-derived peptide windows
-# from a `new_nn_input` tibble (e.g. `nn_input_comb` produced by 10_1dcnn_new5.R).
+# from a `new_nn_input` tibble (e.g. `nn_input_comb` produced by 10_1dcnn_new6.R).
 #
 # Each window renders as a stacked horizontal segment (one segment per overlap
 # layer, capped at 3); hover shows the overall score; click opens a per-window
