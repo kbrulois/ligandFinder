@@ -217,13 +217,34 @@ class_w <- class_w / mean(class_w)   # mean 1: relative emphasis, no magnitude i
 mask_matrix_real <- mask_matrix[, real_cols, drop = FALSE]             # (seq_len, K_real) position mask
 mask_matrix_cat  <- cbind(mask_matrix_real, none = 1)                  # (seq_len, K_cat): none allowed at all positions
 padding_col      <- which(names(classes) == "padding")                # 1-based padding column (target flag)
+
+## Make `padding` an explicit per-index class. y_per_index_cat's 8 columns are
+## already a valid 8-class one-hot: cols 1:K_cat = [6 real, none] one-hot, col
+## K_cat+1 = the padding indicator -> that's the padding class. Its label is
+## trivially leaked by the input padding channel, so the head learns it for free.
+pi_cols  <- c(cat_cols, padding_col)   # softmax column order: [6 real, none, padding]
+K_pi     <- length(pi_cols)            # 8
+pi_names <- names(classes)[pi_cols]
+## PER-MODEL per-index class weights (hand-set prior, not learned). Emphasize the
+## anchor-side cleavage context -- CT for the C model, NT for the N model -- plus a
+## moderate DB boost. Built per term inside the training loop below. mean-1 keeps
+## the per_index loss magnitude stable. (class_w above is now unused.)
+pi_w_for <- function(term) {
+  w <- setNames(rep(1, K_pi), pi_names)
+  w["DB"] <- 2
+  w[if (term == "C") "CT_cleavage_context" else "NT_cleavage_context"] <- 3
+  w / mean(w)
+}
+pi_w <- pi_w_for(names(nn_input)[1])   # default; overridden per term in the loop
 pad_channel_id   <- if (exists("all_params3")) which(all_params3 == "padding") else n_channels
 stopifnot(length(pad_channel_id) == 1L)                               # padding must be a single input channel
 channel_onehot   <- as.numeric(seq_len(n_channels) == pad_channel_id) # (C,) selects the pad input channel
 
 ## continuous channels that receive train-time noise augmentation. The one-hot /
-## flag channels (AA_*, SS_*, padding, end_type_ch) are deliberately left intact
-## so augmented inputs stay on the manifold.
+## flag channels (SS_*, padding) are deliberately left intact so augmented inputs
+## stay on the manifold. The AA_* property channels (hydro/charge/mw/pI) are
+## continuous but are ALSO excluded: they are a deterministic lookup on the
+## residue letter, so perturbing them yields amino acids that do not exist.
 cont_channels <- if (exists("all_params3"))
   which(all_params3 %in% c("cons_rs", "cons_rs_n", "min_afm", "mean_afm", "relASA")) else integer(0)
 
@@ -272,12 +293,13 @@ make_oversampled_dataset <- function(nn_in, n_negatives_per_positive = 3, batch_
 
   x_t <- tensorflow::as_tensor(x_sel, dtype = "float32")
   yg_t <- tensorflow::as_tensor(y_global[idx,, drop = FALSE], dtype = "float32")
+  yc_t <- tensorflow::as_tensor(y_cat[idx,,], dtype = "float32")   # per-index target (multiclass incl none)
 
-  tensor_slices_dataset(list(x_t, yg_t)) |>       # single-output model: global target only
+  tensor_slices_dataset(list(x_t, yg_t, yc_t)) |>
     dataset_shuffle(buffer_size = length(idx)) |>
     dataset_batch(batch_size) |>
-    dataset_map(function(x, yg) {
-      list(x, list(global = yg))
+    dataset_map(function(x, yg, yc) {
+      list(x, list(global = yg, per_index_cat = yc))
     }) |>
     dataset_repeat()  # repeat so keras can run multiple epochs
 }
@@ -363,19 +385,20 @@ for(term in names(nn_input)) {
     layer_dropout(0.3)
 
   per_index_logits <- shared |>
-    layer_conv_1d(filters = K_cat, kernel_size = 1,
+    layer_conv_1d(filters = K_pi, kernel_size = 1,
                   kernel_regularizer = regularizer)
 
-  # Per-index output kept as an UNSUPERVISED head: softmax over the K_cat classes
-  # (6 real + none), emitted for visualization only. It has NO loss in compile, so
-  # it doesn't compete with / shape training -- per_index_logits is shaped solely
-  # by the global head via masked_sum below.
+  # Per-index head: supervised softmax over K_pi classes = [6 real, none, padding].
+  # padding is an explicit class (label leaked via the input padding channel).
   per_index_cat <- per_index_logits |>
     layer_activation("softmax", name = "per_index_cat")
 
-  # Global head input: masked softmax over ALL K_cat classes (6 real + none), so
-  # the ranking head's class-structure view includes the background/none level.
+  # Global head input: masked softmax over the [6 real + none] logits (drop the
+  # trailing padding column of per_index_logits), so the ranking head's class view
+  # includes background/none but not padding.
   masked_sum <- per_index_logits |>
+    layer_lambda(function(x) op_take(x, indices = as.integer(0:(K_cat - 1L)), axis = -1L),
+                 output_shape = c(seq_len, K_cat)) |>                 # drop trailing padding logit
     layer_lambda(function(x) {
       mask <- op_convert_to_tensor(mask_matrix_cat, dtype = "float32")
       x * mask
@@ -407,9 +430,9 @@ for(term in names(nn_input)) {
 
   early_stopping <- callback_early_stopping(
     monitor = "val_global_pr_auc",
-    patience = 200,
+    patience = 300,
     mode = 'max',
-    start_from_epoch = 30,
+    start_from_epoch = 300,
     restore_best_weights = TRUE
   )
 
@@ -417,7 +440,7 @@ for(term in names(nn_input)) {
   model <- keras_model(
     inputs = inputs,
     outputs = list(global = global_output,
-                   per_index_cat = per_index_cat)   # per_index_cat is UNSUPERVISED (no loss in compile)
+                   per_index_cat = per_index_cat)   # supervised (none-masked multiclass, see compile)
   )
 
   message(sprintf("[%s] trainable params: %s", term,
@@ -425,19 +448,22 @@ for(term in names(nn_input)) {
 
 
 
-  # Categorical focal cross-entropy over the K_cat classes (6 real + none).
-  # y_true is packed: columns 1:K_cat are the one-hot class (incl none), and the
-  # last column is a padding flag (1 = padding) used to mask those positions.
+  # Categorical focal cross-entropy over the K_pi classes = [6 real, none, padding].
+  # `padding` IS a trained class (label leaked via the input padding channel), but
+  # `none` positions are still MASKED OUT of the loss. y_true's 8 columns are the
+  # 8-class one-hot: cols 1:K_cat = [6 real, none], col K_cat+1 (= K_pi) = padding.
+  pi_w <- pi_w_for(term)   # per-model class weights (CT-up for C, NT-up for N, DB boost)
+
   per_index_cat_loss <- function(y_true, y_pred, gamma = 2, smoothness_weight = 0.01) {
 
-    eps      <- 1e-7
-    labels   <- y_true[, , 1:K_cat]         # (batch, seq, K_cat) one-hot incl none
-    pad_flag <- y_true[, , K_cat + 1L]      # (batch, seq): 1 at padding
-    keep     <- 1 - pad_flag                # (batch, seq): 0 at padding, 1 elsewhere
+    eps       <- 1e-7
+    labels    <- y_true[, , 1:K_pi]          # (batch, seq, K_pi) 8-class one-hot (incl padding)
+    none_flag <- y_true[, , K_cat]           # (batch, seq): 1 at none/background positions
+    keep      <- 1 - none_flag               # train real + padding; mask none only
 
-    p  <- op_clip(y_pred, eps, 1 - eps)     # softmax probs (batch, seq, K_cat)
-    cw <- op_reshape(op_convert_to_tensor(as.numeric(class_w), dtype = "float32"),
-                     c(1L, 1L, K_cat))      # (1, 1, K_cat) per-class weights
+    p  <- op_clip(y_pred, eps, 1 - eps)     # softmax probs (batch, seq, K_pi)
+    cw <- op_reshape(op_convert_to_tensor(as.numeric(pi_w), dtype = "float32"),
+                     c(1L, 1L, K_pi))        # (1, 1, K_pi) per-class weights
 
     # focal categorical CE per position: -sum_c w_c * y_c * (1-p_c)^gamma * log(p_c)
     ce   <- -op_sum(cw * labels * op_power(1 - p, gamma) * op_log(p), axis = -1L)  # (batch, seq)
@@ -457,12 +483,13 @@ for(term in names(nn_input)) {
 
 
   masked_cat_accuracy <- custom_metric("masked_cat_accuracy", function(y_true, y_pred) {
-    labels   <- y_true[, , 1:K_cat]                        # (batch, seq, K_cat) one-hot incl none
-    pad_flag <- y_true[, , K_cat + 1L]                     # (batch, seq)
-    keep     <- 1 - pad_flag                               # (batch, seq)
-    correct  <- op_cast(op_equal(op_argmax(y_pred,  axis = -1L),
-                                 op_argmax(labels, axis = -1L)), "float32") * keep
-    op_sum(correct) / (op_sum(keep) + 1e-7)                # single-label accuracy, non-pad only
+    labels    <- y_true[, , 1:K_pi]                        # (batch, seq, K_pi) 8-class one-hot
+    pad_flag  <- y_true[, , K_pi]                          # (batch, seq): padding is now class K_pi
+    none_flag <- y_true[, , K_cat]                         # (batch, seq)
+    keep      <- (1 - pad_flag) * (1 - none_flag)          # real-class positions only (exclude trivial padding)
+    correct   <- op_cast(op_equal(op_argmax(y_pred,  axis = -1L),
+                                  op_argmax(labels, axis = -1L)), "float32") * keep
+    op_sum(correct) / (op_sum(keep) + 1e-7)                # real-class accuracy (padding is trivial, none masked)
   })
 
   class_counts <- nn_in$train$y_global %>% table
@@ -493,12 +520,19 @@ for(term in names(nn_input)) {
       learning_rate = 3e-4,
       clipnorm = 1.0),
     loss = list(
-      global = weighted_binary_crossentropy(weight_1 = class_weights[["1"]], weight_0 = class_weights[["0"]])
+      global = weighted_binary_crossentropy(weight_1 = class_weights[["1"]], weight_0 = class_weights[["0"]]),
+      per_index_cat = per_index_cat_loss          # supervised, none-masked multiclass
     ),
+    loss_weights = list(
+      global = 0.05,
+      per_index_cat = 1),                          # tune how much the aux task shapes the trunk
     metrics = list(
       global = list(
         metric_auc(name = "auc"),
         metric_auc(name = "pr_auc", curve = "PR")
+      ),
+      per_index_cat = list(
+        masked_cat_accuracy
       )
     )
   )
@@ -520,10 +554,11 @@ for(term in names(nn_input)) {
     train_ds,
     validation_data = list(
       nn_in[["val"]][["x"]],
-      list(global = nn_in[["val"]][["y_global"]])
+      list(global        = nn_in[["val"]][["y_global"]],
+           per_index_cat = nn_in[["val"]][["y_per_index_cat"]])
     ),
     steps_per_epoch = steps_per_epoch,
-    epochs = 1000,
+    epochs = 2000,
     callbacks = list(early_stopping, resample_callback),
     batch_size = NULL
   )
@@ -626,7 +661,7 @@ nn_input_comb$pred_raw <- raw_pred_comb   # uncalibrated global score, for compa
 # NOTE: it is NOT trained against known_idx, so per-index *accuracy* is meaningless
 # now -- it reflects whatever the global-ranking objective shaped, not the labels.
 nn_input_comb$per_index <- do.call(c, lapply(all_preds, function(p) {
-  extract_per_index(p[["per_index_cat"]], names(classes)[cat_cols])
+  extract_per_index(p[["per_index_cat"]], pi_names)   # 8 cols: [6 real, none, padding]
 }))
 
 # --- nearest known-peptide retrieval (reuse the trained "embed" layer) ------
@@ -662,6 +697,83 @@ nn_input_comb <- nn_input_comb %>%
   # rank the score WITHIN each combined (model x win_type) category, kept
   # separate for known vs candidate. Drop `known` from .by to rank the two together.
   mutate(rank_cat = row_number(), .by = c(category, known))
+
+## ---- amidation-motif windows -----------------------------------------------
+## An amidated peptide is cut at a dibasic site with a glycine immediately 5' of
+## it: ...X-G | K/R-K/R. The G is the amide donor, so a db window carrying one is
+## a candidate amidation site.
+##
+## The anchor sits at a FIXED position in every db window, which is what makes
+## this a lookup rather than a search: 9.2 sets window_origin = db_ind and then
+## wN = db_ind + win_size[[t]]$start, so db_ind always lands at local position
+## 1 - start (31 for C windows, 6 for N). Clamped windows are padded back out to
+## seq_len at the front, so the offset holds there too. Two asymmetries matter:
+##   * db_ind is the SECOND basic residue for C-target windows (the C branch of
+##     9.2 adds a full lookahead offset) but the FIRST for N-target ones.
+##   * BOTH termini are eligible. The motif is a property of the dibasic SITE,
+##     not of the peptide you approach it from: in a polyprotein precursor one
+##     dibasic pair is simultaneously the C-terminal cut of the peptide before it
+##     and the start of the peptide after it, so a G sitting 5' of that pair is a
+##     real amide donor regardless of which direction the window was anchored
+##     from. An N-anchored window therefore reads its G at local position 5, a
+##     C-anchored one at 29.
+amid_targets <- c("N", "loop_N", "C", "loop_C")
+
+## (braced: at top level R parses `if (...) x` and a following `else` as two
+## statements, so the else must not start its own line)
+.ws_start <- if (exists("win_size")) {
+  c(N = win_size$N$start, C = win_size$C$start)
+} else {
+  c(N = -5L, C = -30L)                                             # 9.2 defaults
+}
+
+## local positions of the glycine and the two basic residues, per target
+.motif_pos <- function(tg) {
+  if (tg %in% c("C", "loop_C")) {
+    a <- 1L - .ws_start[["C"]]                  # db_ind = 2nd basic
+    c(g = a - 2L, b1 = a - 1L, b2 = a)
+  } else {
+    a <- 1L - .ws_start[["N"]]                  # db_ind = 1st basic
+    c(g = a - 1L, b1 = a, b2 = a + 1L)
+  }
+}
+
+.aa_at <- function(md, i) {
+  aa <- as.character(md[["AA"]])
+  if (i < 1L || i > length(aa)) NA_character_ else aa[[i]]
+}
+
+## Sanity check FIRST: if the anchor offset were wrong, every window would
+## quietly come back FALSE and look like "no amidation motifs found". Confirm the
+## two anchor positions really are basic residues before trusting the G test.
+.db_i <- which(nn_input_comb$win_type == "db")
+.chk  <- vapply(.db_i, function(i) {
+  p <- .motif_pos(as.character(nn_input_comb$target[[i]]))
+  md <- nn_input_comb$meta_data[[i]]
+  isTRUE(.aa_at(md, p[["b1"]]) %in% c("K", "R") &&
+         .aa_at(md, p[["b2"]]) %in% c("K", "R"))
+}, logical(1))
+message(sprintf("amidation: dibasic anchor confirmed at the expected offset in %d/%d db windows (%.1f%%)",
+                sum(.chk), length(.chk), 100 * mean(.chk)))
+if (mean(.chk) < 0.9)
+  warning("amidation: the dibasic anchor is often NOT at the expected local position -- ",
+          "check win_size against 9.2 before using the `amidation` column", immediate. = TRUE)
+
+nn_input_comb$amidation <- vapply(seq_len(nrow(nn_input_comb)), function(i) {
+  tg <- as.character(nn_input_comb$target[[i]])
+  if (!identical(as.character(nn_input_comb$win_type[[i]]), "db")) return(FALSE)
+  if (!tg %in% amid_targets) return(FALSE)
+  p  <- .motif_pos(tg)
+  md <- nn_input_comb$meta_data[[i]]
+  isTRUE(identical(.aa_at(md, p[["g"]]), "G") &&
+         .aa_at(md, p[["b1"]]) %in% c("K", "R") &&
+         .aa_at(md, p[["b2"]]) %in% c("K", "R"))
+}, logical(1))
+
+message(sprintf("amidation: %d windows carry the G|dibasic motif (%d of them known peptides)",
+                sum(nn_input_comb$amidation),
+                sum(nn_input_comb$amidation & nn_input_comb$known == 1)))
+rm(.ws_start, .motif_pos, .aa_at, .db_i, .chk)
 
 uniprot_peps <- data.table::fread("~/Desktop/Peptides/uniprot_peptides.csv") %>% as_tibble()
 
@@ -774,12 +886,26 @@ nn_input_comb %>% filter(known == 0 & win_type == "db") %>%
 
 
 
-secretome <- dplyr::left_join(
-  secretome,
-  secretome_aa %>% dplyr::select(!matches("_lead|_lag")) %>%
-    dplyr::group_by(accession) %>% tidyr::nest(.key = "aa_scores"),
-  by = "accession"
-)
+## Idempotent AND atomic. Re-running this block used to left_join a second
+## `aa_scores` onto a secretome that already had one, so dplyr disambiguated to
+## aa_scores.x / aa_scores.y and secretome[["aa_scores"]] became NULL --
+## surfacing one line down as "Can't recycle `.x` (size 0)". So drop any existing
+## copy (plus the .x/.y wreckage from a previous failed run) first.
+##
+## Drop + join must be ONE pipeline: as two assignments, a failure in the join
+## (e.g. secretome_aa not in the session) leaves secretome with the column
+## already removed, and the next block dies with "object 'aa_scores' not found".
+## Written this way, secretome is only reassigned once the join has succeeded.
+stopifnot(exists("secretome_aa"))
+
+secretome <- secretome %>%
+  dplyr::select(-dplyr::any_of(c("aa_scores", "aa_scores.x", "aa_scores.y"))) %>%
+  dplyr::left_join(
+    secretome_aa %>% dplyr::select(!matches("_lead|_lag")) %>%
+      dplyr::group_by(accession) %>% tidyr::nest(.key = "aa_scores"),
+    by = "accession"
+  )
+stopifnot("aa_scores" %in% names(secretome))
 
 secretome[["aa_scores"]] <- purrr::map2(
   secretome[["aa_scores"]], secretome[["sequence_uni"]],
@@ -796,29 +922,38 @@ data.table::fwrite(nn_input_comb %>% select(!where(is.list)), "~/Desktop/scores3
 
 
 
-genes <- c("CPXM1", "MDK", "FGF5", "ARSI", "LACRT", "PDGFB", "PCSK1N",
-           "KRTDAP", "NDFIP1", "RTBDN", "HMCN2", "IL21", "GNPTG", "ANGPTL8",
-           "MANF", "GRP", "CCDC3", "DMKN", "CASP4", "SERPINA9", "CXCL3",
-           "CXCL17", "DHRS4L2", "IBSP", "PROS1", "GAS6", "CCDC126", "GNPTG",
-           "NMB", "SEMG2", "LPO", "PCSK1N", "FGF6", "BRINP3", "ENAM", "INSL5",
-           "SOSTDC1")
+genes <- c("NPY", "ANO8", "TAC1", "CXCL14")
+
+genes <- nn_input_comb %>%
+  dplyr::filter(!is.na(pred_raw)) %>%
+  dplyr::summarise(best = max(pred_raw), .by = gene) %>%
+  dplyr::slice_max(best, n = 100, with_ties = FALSE) %>%
+  dplyr::pull(gene)
+
+genes <- unique(nn_input_comb$gene)
 
 
-plot_dir <- "~/AF2_analysis/new_meth_plot2"
+plot_dir <- "~/AF2_analysis/new_meth_plot3"
 
 
 #secretome <- readRDS("~/AF2_analysis/secretome_latest.rds")
 
-#peps_tp <- readRDS("~/AF2_analysis/peps_tp.rds")
+## per-gene peptide tracks for the window plots (gene + nested `data`).
+## Not produced anywhere in this script -- it comes from 13_plot_proteins.R /
+## 12_extract_peptides.R -- so load it here unless it's already in the session.
+if (!exists("peps_tp")) peps_tp <- readRDS("~/AF2_analysis/peps_tp.rds")
 
 
-mets <- list(cons = c("blos_wt_all_n", "cons_rs", "blos_wt_mam", "blos_wt_all", "gran_wt_all"),
+mets <- list(cons = c("blos_wt_mam", "blos_wt_all"),
              af_missense = c("mean_afm", "min_afm"),
              dssp = c("relASA"),
-             aa_scores = c("pep_xgb4c", "chem_xgb3c", "pep_nn4c", "chem_nn4c")
+             ## Smoothed peptide scores only: the chem_* tracks and the raw
+             ## (unsmoothed) variants are deliberately excluded. These are already
+             ## the _s6 columns, so nothing is appended -- the old
+             ## `mets$aa_scores <- c(mets$aa_scores, paste0(mets$aa_scores, "_s6"))`
+             ## would have asked for pep_nn4c_s6_s6.
+             aa_scores = c("pep_nn4c_s6", "pep_xgb4c_s6")
 )
-
-mets$aa_scores <- c(mets$aa_scores, paste0(mets$aa_scores, "_s6"))
 
 all_mets <- do.call(`c`, mets) %>% unname
 
@@ -831,21 +966,73 @@ names(all_mets) <- rep(names(mets), sapply(mets, length))
 dir.create(plot_dir)
 unlink(plot_dir)
 
+## One protein per gene. group_split(gene) yields a MULTI-ROW group wherever a
+## symbol maps to several accessions, and make_protein_plot_win assumes a single
+## protein: it would expand several sequences onto one residue axis, emit several
+## AlphaFold URLs, and write them all to the same <gene>.html. Longest sequence
+## as a canonical proxy; with_ties = FALSE so the choice is deterministic.
 the_input <- secretome %>%
   filter(!accession %in% c("A0AAG2TCD0", "A0AAG2UXZ5")) %>%
   filter(gene %in% !!genes) %>%
+  slice_max(nchar(sequence_uni), n = 1, by = gene, with_ties = FALSE) %>%
   mutate(aa_scores = map(aa_scores, \(x) x[, colnames(x) %in% mets[["aa_scores"]]])) %>%
   group_split(gene)
 
+## x[, colnames(x) %in% ...] is a set intersection with no fallback: when the
+## score names drift -- 10_score_AA_xgboost.R derives the model suffix from
+## nn[["neural_net"]][8], so it moves with the model list -- this silently yields
+## a zero-column tibble and the score tracks disappear from the plots with no
+## error at all. Fail loudly instead.
+local({
+  scored <- function(v) grep("^(pep|chem)_(nn|xgb)", v, value = TRUE)
+  in_aa   <- if (exists("secretome_aa")) scored(names(secretome_aa)) else "<no secretome_aa>"
+  nested  <- Filter(Negate(is.null), secretome[["aa_scores"]])
+  in_sec  <- if (length(nested)) scored(names(nested[[1]])) else character(0)
+  have    <- names(the_input[[1]][["aa_scores"]][[1]])
+  want    <- mets[["aa_scores"]]
+
+  message("score cols in secretome_aa      : ", paste(in_aa,  collapse = ", "))
+  message("score cols in secretome$aa_scores: ", paste(in_sec, collapse = ", "))
+  message("kept in the_input$aa_scores      : ", paste(have,   collapse = ", "))
+
+  if (!length(have)) {
+    hint <- if (!length(in_aa) || identical(in_aa, "<no secretome_aa>"))
+      "secretome_aa has no score columns -- reload it: secretome_aa <- readRDS('~/peptide_alg/build_residue_db/processed/secretome_aa_1.rds')"
+    else if (!length(in_sec))
+      "secretome_aa has scores but secretome$aa_scores does not -- re-run the left_join block above (the one starting `secretome <- secretome %>% select(-any_of(...))`)"
+    else
+      paste0("names differ. secretome has: ", paste(in_sec, collapse = ", "),
+             " -- update mets$aa_scores to match")
+    stop("aa_scores came out empty. ", hint)
+  }
+  gone <- setdiff(want, have)
+  if (length(gone))
+    warning("score cols requested but not present: ", paste(gone, collapse = ", "))
+})
+
+## Drop genes that have no peptide track. walk2 pairs the two lists POSITIONALLY,
+## so a gene present in one but not the other shifts every later pair -- which
+## would silently plot one gene's windows onto another gene's residues, for the
+## whole rest of the run.
+.tin_genes <- map_chr(the_input, \(x) as.character(x$gene)[1])
+.pep_genes <- peps_tp %>% filter(gene %in% .tin_genes) %>% pull(gene) %>% unique()
+if (any(!.tin_genes %in% .pep_genes))
+  message("dropping ", sum(!.tin_genes %in% .pep_genes),
+          " gene(s) with no peptide track: ",
+          paste(utils::head(.tin_genes[!.tin_genes %in% .pep_genes], 10), collapse = ", "))
+the_input <- the_input[.tin_genes %in% .pep_genes]
+
 pep_input <- peps_tp %>%
-  filter(gene %in% genes) %>%
+  filter(gene %in% map_chr(the_input, \(x) as.character(x$gene)[1])) %>%
   group_split(gene)
 
-input_gene <- map_chr(the_input, \(x) x$gene)
+input_gene     <- map_chr(the_input, \(x) as.character(x$gene)[1])
+pep_input_gene <- map_chr(pep_input, \(x) as.character(x$gene)[1])
 
-pep_input_gene <- map_chr(pep_input, \(x) x$gene)
-
-identical(input_gene, pep_input_gene)
+## hard stop, not a printed TRUE/FALSE -- a misalignment here is invisible in the
+## output and would corrupt every plot after the first mismatch
+stopifnot(identical(input_gene, pep_input_gene))
+message("plotting ", length(the_input), " genes")
 
 pred_to_plot <- nn_input_comb
 
@@ -859,11 +1046,16 @@ devtools::load_all("/Users/kbrulois/R_projects/ligandFinder")
 #make_protein_plot(the_input[[1]], pep_input[[1]])
 # new variant
 
+
+start <- Sys.time()
+
 for(i in seq_along(the_input)) {
+  message(i, " of 5180 genes")
 make_protein_plot_win(the_input[[i]], pred_to_plot, plot_dir, pep_input[[i]])
 }
 
-
+end <- Sys.time()
+end - start
 
 
 

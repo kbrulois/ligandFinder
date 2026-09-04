@@ -3,10 +3,12 @@
 library(ligandFinder)
 library(tidyverse)
 
+id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
+#options(lf.rebuild_nn_dat = TRUE)
 ## ---- fast-iteration cache --------------------------------------------------
 ## known_dat + c_dat are the expensive part of this script: get_pep_data runs
 ## over ~40K windows, filtering the 2.8 GB secretome_aa per protein (~1 hr). But
-## everything BELOW the cache (end_type channel + make_training_sets) is cheap.
+## everything BELOW the cache (win_type filter + make_training_sets) is cheap.
 ## So cache known_dat/c_dat once; re-runs that only tweak the split / channel /
 ## val_frac reload in seconds and don't need secretome_aa in the session at all.
 ## Force a full rebuild by deleting the file or: options(lf.rebuild_nn_dat = TRUE)
@@ -20,8 +22,22 @@ if (file.exists(nn_dat_cache) && !isTRUE(getOption("lf.rebuild_nn_dat"))) {
   known_dat   <- .cc$known_dat
   c_dat       <- .cc$c_dat
   all_params3 <- .cc$all_params3
+  chan_range  <- .cc$chan_range
 
 } else {
+
+## Only the rebuild path needs these (~4.8 GB combined); a cached run doesn't.
+## Skipped if they're already in the session from an earlier pipeline step.
+s_localDir <- "~/peptide_alg/build_residue_db"
+
+if (!exists("secretome")) {
+  message("9.2: loading secretome ...")
+  secretome <- readRDS("~/AF2_analysis/secretome_latest.rds")
+}
+if (!exists("secretome_aa")) {
+  message("9.2: loading secretome_aa (~3 GB) ...")
+  secretome_aa <- readRDS(file.path(s_localDir, "processed/secretome_aa.rds"))
+}
 
 con_dat <- readRDS("~/AF2_analysis/knowns.rds")
 
@@ -48,15 +64,38 @@ con_dat <- con_dat %>%
 
 con_dat <- con_dat %>%
               mutate(tibble(p2_start = stringr::str_extract(p2_range, "^\\d+"),
-                            p2_end = stringr::str_extract(p2_range, "\\d+$"))) %>%
+                            p2_end = stringr::str_extract(p2_range, "\\d+$")))
+
+## Collapse duplicate docking entries for the SAME peptide, keeping the best
+## iptm. The key is the full range.
+##
+## It used to be two passes, one keyed on p2_end alone and one on p2_start
+## alone, which also collapsed peptides that merely SHARE an end -- and for this
+## class of ligand that is the normal case, not an edge case: a long and a short
+## form sharing an amidated C-terminus (apelin-13/-17/-36, GRP/neuromedin C,
+## kisspeptin-10/-54, NPY, PYY, TAC1) or sharing an N-terminus (PACAP-27/-38,
+## POMC products, PTHLH, VIP). 27 real peptides were being dropped that way,
+## with no message -- ADCYAP1 kept PACAP-27 and silently lost PACAP-38.
+##
+## Keying on start AND end keeps genuinely distinct peptides and still removes
+## true duplicates. Set dedup_shared_termini = TRUE to restore the old
+## behaviour for comparison.
+dedup_shared_termini <- FALSE
+
+if (isTRUE(dedup_shared_termini)) {
+  con_dat <- con_dat %>%
               group_by(lig1_end_t, lig1_end_ind, p2_name, p2_end) %>%
-              arrange(desc(iptm)) %>%
-              slice(1) %>%
-              ungroup() %>%
+              arrange(desc(iptm)) %>% slice(1) %>% ungroup() %>%
               group_by(lig1_end_t, lig1_end_ind, p2_name, p2_start) %>%
-              arrange(desc(iptm)) %>%
-              slice(1) %>%
-              ungroup()
+              arrange(desc(iptm)) %>% slice(1) %>% ungroup()
+} else {
+  .before <- nrow(con_dat)
+  con_dat <- con_dat %>%
+              group_by(lig1_end_t, lig1_end_ind, p2_name, p2_start, p2_end) %>%
+              arrange(desc(iptm)) %>% slice(1) %>% ungroup()
+  message(sprintf("9.2: range dedup %d -> %d peptides (old shared-terminus rule kept 118)",
+                  .before, nrow(con_dat)))
+}
 
 
 
@@ -187,9 +226,6 @@ is_terminus <- if (target %in% c("C", "loop_C")) {
 }
 
 tmp <- tmp %>%
-          ## end_type is the new split axis: "end" (boundary is the protein
-          ## terminus) vs "cleavage" (db- or chym-anchored internal cut).
-          mutate(end_type = if_else(is_terminus, "end", "cleavage")) %>%
           mutate(win_type = case_when(is_terminus                   ~ "pep_end",
                                       !is.na(db_ind) & db_spacer < 6 ~ "db",
                                       TRUE                           ~ "chym")) %>%
@@ -261,21 +297,147 @@ dput(c(all_params[c(1,15,30,31,32)],
        all_params[stringr::str_detect(all_params, "^AA_")]))
 }
 
-all_params3 <- c("cons_rs", "cons_rs_n", "min_afm", "mean_afm", "relASA", "SS_P",
+## ---- amino-acid encoding: physicochemical properties, not one-hot ----------
+## The 21 one-hot AA_* channels are replaced by 4 continuous property channels,
+## looked up from the residue letter (secretome_aa$AA). This drops the input
+## from 36 to 19 channels and lets the model generalise across chemically
+## similar residues (D~E, K~R, I~L~V) instead of treating all 20 as unrelated.
+##
+## hydro  Kyte-Doolittle hydropathy index (J Mol Biol 157:105, 1982)
+## charge net charge of the side chain at pH 7 (His = +0.1, partial protonation)
+## mw     residue (in-chain) molecular weight, Da = free AA minus water
+## pI     isoelectric point of the free amino acid
+## Sec (U) is included; any other letter (X/B/Z) falls through to NA -> 0.
+aa_props_raw <- tibble::tribble(
+  ~AA, ~hydro, ~charge,   ~mw,   ~pI,
+  "A",    1.8,     0.0,  71.08,  6.00,
+  "R",   -4.5,     1.0, 156.19, 10.76,
+  "N",   -3.5,     0.0, 114.10,  5.41,
+  "D",   -3.5,    -1.0, 115.09,  2.77,
+  "C",    2.5,     0.0, 103.14,  5.07,
+  "Q",   -3.5,     0.0, 128.13,  5.65,
+  "E",   -3.5,    -1.0, 129.12,  3.22,
+  "G",   -0.4,     0.0,  57.05,  5.97,
+  "H",   -3.2,     0.1, 137.14,  7.59,
+  "I",    4.5,     0.0, 113.16,  6.02,
+  "L",    3.8,     0.0, 113.16,  5.98,
+  "K",   -3.9,     1.0, 128.17,  9.74,
+  "M",    1.9,     0.0, 131.19,  5.74,
+  "F",    2.8,     0.0, 147.18,  5.48,
+  "P",   -1.6,     0.0,  97.12,  6.30,
+  "S",   -0.8,     0.0,  87.08,  5.68,
+  "T",   -0.7,     0.0, 101.10,  5.60,
+  "W",   -0.9,     0.0, 186.21,  5.89,
+  "Y",   -1.3,     0.0, 163.18,  5.66,
+  "V",    4.2,     0.0,  99.13,  5.96,
+  "U",    2.5,    -1.0, 150.04,  5.47)
+
+## Min-max scale each property to [0,1] across the residues above, so the four
+## channels share the dynamic range of relASA and the SS one-hots rather than
+## letting mw (57-186) dominate. Padding positions carry 0 in all four, exactly
+## as the old all-zero one-hot vector did, and the `padding` channel flags them.
+aa_props <- aa_props_raw %>%
+  mutate(across(-AA, ~ (.x - min(.x)) / (max(.x) - min(.x)))) %>%
+  rename(AA_hydro = hydro, AA_charge = charge, AA_mw = mw, AA_pI = pI)
+
+aa_prop_cols <- c("AA_hydro", "AA_charge", "AA_mw", "AA_pI")
+
+## Backbone geometry + DSSP H-bond energetics, straight from secretome_aa
+## (same names 9_expand_by_residue.R builds them under, where they are the
+## `angles`/`energy` blocks of the nn2 feature set).
+## Phi/Psi are supplied sin/cos-encoded so the model sees the angle as a point
+## on the unit circle rather than a value with a wrap-around discontinuity.
+angles <- c("Phi_cos", "Psi_cos", "Phi_sin", "Psi_sin")
+energy <- c("NH->O_1_energy", "O->NH_1_energy", "NH->O_2_energy", "O->NH_2_energy")
+
+## NOTE: "cons_rs" is deliberately excluded from the input channels; the
+## normalised variant "cons_rs_n" is retained.
+all_params3 <- c("cons_rs_n", "min_afm", "mean_afm", "relASA", "SS_P",
                  "SS_S", "SS_E", "SS_-", "SS_T", "SS_G", "SS_B", "SS_H", "SS_I",
-                 "AA_Q", "AA_P", "AA_V", "AA_L", "AA_T", "AA_S", "AA_A", "AA_G",
-                 "AA_R", "AA_F", "AA_C", "AA_I", "AA_N", "AA_Y", "AA_W", "AA_K",
-                 "AA_D", "AA_E", "AA_M", "AA_H", "AA_U", "padding")
+                 angles, energy, aa_prop_cols, "padding")
 
 
-get_pep_data <- function(window, p_id, gene, nn_params = all_params3, meta_dat = NULL) {
+## ---- global [0,1] scaling ---------------------------------------------------
+## Every channel is min-max scaled onto [0,1] so none dominates by magnitude
+## (raw ranges differ wildly: relASA ~[0,1], Phi/Psi sin-cos [-1,1], DSSP H-bond
+## energies ~[-3,0]). Ranges are computed ONCE over all of secretome_aa -- they
+## must be global, not per-protein, or the same residue would scale differently
+## in different proteins -- and are cached so later data gets the same transform.
+##
+## The AA_* property channels are already min-max scaled in aa_props, and
+## `padding` is a 0/1 flag, so both are excluded here.
+##
+## NOTE this changes what a padded position means for the signed channels. Raw 0
+## used to be both "no H-bond" and "padding"; after scaling a real no-H-bond
+## residue sits at the top of the energy range while padding stays 0, so the two
+## are no longer conflated. Padding is still flagged by the `padding` channel.
+scale_cols <- setdiff(all_params3, c(aa_prop_cols, "padding"))
 
-  dat <- secretome_aa %>%
-    filter(accession == p_id) %>%
+if (!exists("chan_range")) {
+  message("9.2: computing global [0,1] scaling ranges over secretome_aa ...")
+  chan_range <- vapply(scale_cols, function(cn) {
+    v <- secretome_aa[[cn]]
+    r <- range(v, na.rm = TRUE)
+    if (!is.finite(r[1]) || !is.finite(r[2]) || r[2] <= r[1]) c(0, 1) else r  # constant/empty -> identity
+  }, numeric(2))
+  colnames(chan_range) <- scale_cols
+  print(t(chan_range))
+}
+
+scale_01 <- function(d, cols = scale_cols, rng = chan_range) {
+  for (cn in cols) {
+    lo <- rng[1, cn]; hi <- rng[2, cn]
+    d[[cn]] <- pmin(pmax((d[[cn]] - lo) / (hi - lo), 0), 1)   # clamp out-of-range to [0,1]
+  }
+  d
+}
+
+get_pep_data <- function(window, p_id, gene, nn_params = all_params3, meta_dat = NULL,
+                         seq_uni = NULL) {
+
+  ## fail loudly (and once) if a requested channel isn't in secretome_aa,
+  ## instead of surfacing as an opaque select() error deep in the rowwise loop
+  .want <- setdiff(nn_params, c(aa_prop_cols, "padding"))
+  .miss <- setdiff(.want, colnames(secretome_aa))
+  if (length(.miss))
+    stop("secretome_aa is missing requested channel(s): ", paste(.miss, collapse = ", "))
+
+  ## ---- residue scaffold ------------------------------------------------
+  ## secretome_aa is SPARSE for most proteins: 2914/4907 accessions either start
+  ## past residue 1 or have interior gaps (ANO8 = 719 rows spanning 2..1232, 512
+  ## missing). The old `mutate(index = row_number())` overwrote secretome_aa's
+  ## authoritative `index` with a positional count, which is only correct for the
+  ## 40% of proteins whose table is contiguous from 1. For the rest every residue
+  ## was renumbered, and since slice_in_data() selects on `dat$index %in% N:C`
+  ## with N/C in true sequence_uni coordinates, each window then picked up the
+  ## WRONG residues -- wrong feature channels, not just wrong letters on a plot.
+  ##
+  ## Instead build one row per precursor residue and left-join the sparse table
+  ## onto it (the same scaffold pattern 10_1dcnn_new6.R uses for aa_scores).
+  ## Joining on index AND AA means a sequence-version mismatch surfaces as NA
+  ## rather than as silently misaligned data. Residues with no secretome_aa row
+  ## keep their true coordinate and fall through to 0 like any other missing
+  ## value; AA and the AA_* property channels are always correct because they
+  ## come from the scaffold.
+  sa <- secretome_aa %>% filter(accession == p_id)
+
+  scaffold <- if (!is.null(seq_uni) && !is.na(seq_uni) && nchar(seq_uni) > 0) {
+    tibble(index = seq_len(nchar(seq_uni)),
+           AA    = stringr::str_split(seq_uni, "", simplify = TRUE) %>% c())
+  } else {
+    ## no sequence supplied: fall back to the table's own span (still keeps the
+    ## authoritative index, just cannot fill residues absent from both).
+    sa %>% select(index, AA) %>% filter(!is.na(index)) %>% arrange(index)
+  }
+
+  dat <- scaffold %>%
+    left_join(sa, by = intersect(c("index", "AA"), colnames(sa))) %>%
     mutate(padding = 0) %>%
+    ## property channels from the residue letter (unmatched letters -> NA -> 0)
+    left_join(aa_props, by = "AA") %>%
     select(all_of(c(nn_params, "AA", "index", "topo2", "known"))) %>%
-    mutate(across(everything(), ~ replace_na(.x, 0))) %>%
-    mutate(index = row_number())
+    scale_01() %>%
+    mutate(across(where(is.numeric), ~ replace_na(.x, 0)))
 
   pad <- dat %>% mutate(across(everything(), ~ .x[NA_integer_]))
 
@@ -313,16 +475,16 @@ get_pep_data <- function(window, p_id, gene, nn_params = all_params3, meta_dat =
   }
 
   if(is.null(window)){
-    tmp <- tibble(peps = character(), dat = list(), win_type = character(), end_type = character(), target = character())
+    tmp <- tibble(peps = character(), dat = list(), win_type = character(), target = character())
   } else {
   if(nrow(window) == 0) {
-    tmp <- tibble(peps = character(), dat = list(), win_type = character(), end_type = character(), target = character())
+    tmp <- tibble(peps = character(), dat = list(), win_type = character(), target = character())
   } else {
     tmp <- window %>%
       ungroup() %>%
       mutate(peps = paste0(gene, "_w", wN, "-", wC)) %>%
       mutate(dat = pmap(list(wN, wC, wN_pad, wC_pad), slice_in_data)) %>%
-      select(any_of(c("peps", "dat", "win_type", "end_type", "target")))
+      select(any_of(c("peps", "dat", "win_type", "target")))
 
 
   }
@@ -372,18 +534,24 @@ make_candidate_windows <- function(sequence_uni, sp_ind, window_size = win_size)
 
   tmp <- tmp %>%
     filter(!start < n_prot) %>%
-    filter(!end < n_prot) %>%
-    mutate(end_type = if_else(win_type == "pep_end", "end", "cleavage"))
+    filter(!end < n_prot)
 
   if(nrow(tmp) > 0) {
     return(
       tmp %>%
         rowwise() %>%
+        ## C windows anchor on the site's last residue, N windows on its first.
+        ## This matches the db_ind convention in get_adj_db_sites(), which puts
+        ## the two-residue site at window positions 30-31 (C) and 6-7 (N) --
+        ## the same slots make_known_idx() hard-codes as "DB".  Anchoring N on
+        ## `end` shifts every candidate N window one residue relative to the
+        ## knowns.  Single-residue pep_end rows have start == end, so they are
+        ## unaffected either way.
         mutate(if_else(target == "C",
                        list(tibble(wN = end + ws[["C"]][[1]],
                                    wC = end + ws[["C"]][[2]])),
-                       list(tibble(wN = end + ws[["N"]][[1]],
-                                   wC = end + ws[["N"]][[2]]))) %>% bind_rows) %>%
+                       list(tibble(wN = start + ws[["N"]][[1]],
+                                   wC = start + ws[["N"]][[2]]))) %>% bind_rows) %>%
         mutate(across(all_of(c("wN")), ~n_prot - ., .names = "{.col}_pad")) %>%
         mutate(across(all_of(c("wC")), ~. - c_prot, .names = "{.col}_pad")) %>%
         mutate(across(all_of(c("wN")), ~max(., n_prot, na.rm = TRUE))) %>%
@@ -405,14 +573,16 @@ yo()
 
 ctrl_dbw <- ctrl_dbw %>%
     rowwise() %>%
-    reframe(get_pep_data(window = windows, p_id = accession, gene = gene),
+    reframe(get_pep_data(window = windows, p_id = accession, gene = gene,
+                         seq_uni = sequence_uni),
             gene = gene)
 
 
 
 known_dat <- con_dat %>%
                 rowwise() %>%
-                reframe(get_pep_data(window = windows, p_id = accession, gene = p2_gene, meta_dat = clean_cons),
+                reframe(get_pep_data(window = windows, p_id = accession, gene = p2_gene, meta_dat = clean_cons,
+                                     seq_uni = sequence_uni),
                         gene = p2_gene,
                         target = target,
                         pep_id = pep_id)
@@ -438,28 +608,23 @@ known_dat <- known_dat %>%
           select(-dat) %>%
           unnest_wider(split)
 
-make_known_idx <- function(meta_data, target, pep_id, end_type = "cleavage") {
+make_known_idx <- function(meta_data, target, pep_id) {
 
   pep_backbone <- rep("gap", 36)
 
   pep_inds <- stringr::str_extract(pep_id, "\\d+x\\d+") %>% stringr::str_split(., "x", simplify = TRUE) %>% `c` %>% as.integer
   w_inds <- which(meta_data[["index"]] %in% pep_inds)
 
-  ## For "end" peptides the relevant boundary is the protein terminus, so the
-  ## window region on that side lies outside the protein: label it "padding"
-  ## rather than the db-/cleavage-context motifs used for internal cuts.
-  is_end <- end_type == "end"
-
   if(target %in% c("C", "loop_C")) {
     if(length(w_inds) == 1) {w_inds <- c(1, w_inds)}
-    pep_backbone[30:36] <- if (is_end) "padding" else c(rep("DB", 2), rep("CT_cleavage_context", 5))
+    pep_backbone[30:36] <- c(rep("DB", 2), rep("CT_cleavage_context", 5))
     pep_backbone[w_inds[1]:w_inds[2]] <- "pep_other"
     if(w_inds[1] != 1) {
     pep_backbone[1:(w_inds[1] - 1)] <- "NT_cleavage_context"
     }
   } else {
     if(length(w_inds) == 1) {w_inds <- c(w_inds, 36)}
-    pep_backbone[1:7] <- if (is_end) "padding" else c(rep("NT_cleavage_context", 5), rep("DB", 2))
+    pep_backbone[1:7] <- c(rep("NT_cleavage_context", 5), rep("DB", 2))
     pep_backbone[w_inds[1]:w_inds[2]] <- "pep_other"
     if(w_inds[2] != 36) {
       pep_backbone[(w_inds[2] + 1):36] <- "CT_cleavage_context"
@@ -484,7 +649,7 @@ make_known_idx <- function(meta_data, target, pep_id, end_type = "cleavage") {
 
 
 known_dat <- known_dat %>%
-                mutate(meta_data = pmap(list(meta_data, target, pep_id, end_type), make_known_idx)) %>%
+                mutate(meta_data = pmap(list(meta_data, target, pep_id), make_known_idx)) %>%
                 mutate(known_idx = map(meta_data, \(x) x[["known_idx"]])) %>%
                 mutate(known_idx_detailed = known_idx) %>%
                 mutate(known_idx2 = map(known_idx_detailed, ~case_when(. == "pep_pocket" ~ "pep_pocket",
@@ -532,7 +697,8 @@ c_dat <- c_dat %>%
 c_dat <- c_dat %>%
           mutate(data = map(data, \(x) { x %>% mutate(across(everything(), ~replace_na(., 0)))}))
 
-saveRDS(list(known_dat = known_dat, c_dat = c_dat, all_params3 = all_params3),
+saveRDS(list(known_dat = known_dat, c_dat = c_dat, all_params3 = all_params3,
+             chan_range = chan_range),
         nn_dat_cache)
 message("9.2: cached known_dat/c_dat to ", nn_dat_cache)
 
@@ -555,7 +721,28 @@ uni_pep <- uni_pep %>%
   mutate(uniprot_name = setNames(id_map$`Entry Name`, id_map$Entry)[Accession]) %>%
   mutate(model = paste0(uniprot_name, ",", Start, "-", End), .before = everything())
 
-banned <- c(gpcr_ligs$gene, uni_pep$Gene) %>% unique
+## `banned` removes known-ligand genes from the CONTROL pool in
+## make_training_sets(). It is matched against c_dat$gene / known_dat$gene, which
+## are HGNC symbols (p2_gene comes from id_map "Gene Names (primary)").
+##
+## But gpcr_ligs$gene is stripped out of the CP-style `lig` id ("hGALAx33x62"),
+## so it is a UniProt ENTRY NAME, not a symbol -- 538/548 of its values resolve
+## as Entry Names, only 331 as symbols. Where the two differ the gene was never
+## filtered: CCK/CCKN, CRH/CRF, GAL/GALA, GHRH/SLIB, TAC3/TKNK, PPY/PAHO,
+## PTH2/TIP39, QRFP/OX26, PRLH/PRRP, APELA/ELA, MT-RNR2/HUNIN all leaked into the
+## negatives while the same window was also a labelled positive.
+##
+## Resolve BOTH directions and union, so an id given either way is caught.
+.entry2sym <- setNames(id_map[["Gene Names (primary)"]], id_map[["Entry Name"]])
+.sym2entry <- setNames(id_map[["Entry Name"]], id_map[["Gene Names (primary)"]])
+
+banned <- c(gpcr_ligs$gene, uni_pep$Gene)
+banned <- c(banned,
+            unname(.entry2sym[banned]),    # entry name -> symbol
+            unname(.sym2entry[banned])) %>% # symbol -> entry name
+  na.omit() %>% unique()
+
+message(sprintf("9.2: banned = %d genes (both namespaces resolved)", length(banned)))
 
 
 
@@ -610,30 +797,14 @@ split_knowns <- function(k_sub, val_frac = 0.34, sim_h = 0.30) {
 }
 
 
-## Two models: N and C, each POOLING end + cleavage windows. The 4-way split
-## (N/C x end/cleavage) starved C_end (too few known C-terminus peptides), so we
-## pool per terminus for statistical strength and instead hand the model the
-## regime as an input channel (end_type_ch, injected below) so it can still
-## specialize. end_type stays a per-window column for the outputs/plots.
-## Sample `n_ctrl` control windows whose pep_end-vs-cleavage (end_type) mix matches
-## the positive set `pos`, so positives and negatives share the same end_type
-## proportions and the model can't separate them on end_type composition alone.
-## Falls back to a plain random sample when `pos` is empty.
+## Two models: N and C. Training is restricted to win_type == "db" windows
+## (see the filter below), so every window is a dibasic-anchored internal cut
+## and the old end/cleavage (end_type) split axis no longer applies: it was
+## constant across the training set and has been removed throughout.
+## Controls are a plain random sample of the db windows for that terminus.
 balanced_ctrl_sample <- function(pos, ctrl, n_ctrl) {
   n_take <- min(n_ctrl, nrow(ctrl))
-  if (nrow(pos) == 0 || n_take == 0) return(dplyr::slice_sample(ctrl, n = n_take))
-
-  ets  <- c("end", "cleavage")
-  prop <- prop.table(table(factor(pos$end_type, levels = ets)))
-  n_by <- round(n_take * as.numeric(prop)); names(n_by) <- ets
-  d    <- n_take - sum(n_by)                       # fix rounding so counts sum to n_take
-  if (d != 0) n_by[which.max(n_by)] <- n_by[which.max(n_by)] + d
-
-  purrr::imap(n_by, function(n_i, et) {
-    pool <- dplyr::filter(ctrl, end_type == et)
-    if (n_i <= 0 || nrow(pool) == 0) return(pool[0, ])
-    dplyr::slice_sample(pool, n = n_i, replace = nrow(pool) < n_i)  # replace only if pool too small
-  }) %>% dplyr::bind_rows()
+  dplyr::slice_sample(ctrl, n = n_take)
 }
 
 make_training_sets <- function(k_dat, ctr_dat,
@@ -659,14 +830,23 @@ make_training_sets <- function(k_dat, ctr_dat,
     k_train <- dplyr::slice(k_sub, samp_train)
     k_val   <- dplyr::slice(k_sub, samp_val)
 
-    ## controls sampled to MATCH each positive set's pep_end/cleavage mix
+    ## controls: random sample of same-terminus db windows
     train_dat <- bind_rows(k_train, balanced_ctrl_sample(k_train, c_sub, n_ctrl))
     val_dat   <- bind_rows(k_val,   balanced_ctrl_sample(k_val,   c_sub, n_ctrl))
 
+    ## `all` = every window for this terminus, scored downstream as nn_input_comb.
+    ## De-duplicated on `peps`: the knowns path (get_adj_db_sites) and the
+    ## candidate scanner (make_candidate_windows) independently emit the SAME
+    ## coordinates for a known peptide's cut site, so e.g. CCK_w76-111 arrived
+    ## twice -- once known = 1, once known = 0. Keep the known copy: k_sub is
+    ## bound first and distinct() keeps the first occurrence. The candidate
+    ## scanner also re-emits a window under more than one win_type/target, which
+    ## this collapses too.
     all_dat <- bind_rows(
       k_sub,
       ctr_dat %>% filter(target %in% targ)
-    )
+    ) %>%
+      dplyr::distinct(peps, .keep_all = TRUE)
 
     list(train = train_dat,
          val   = val_dat,
@@ -674,23 +854,23 @@ make_training_sets <- function(k_dat, ctr_dat,
   }, targets)
 }
 
-## Add end_type as a per-window input channel (1 = "end"/protein terminus,
-## 0 = "cleavage"), constant across the 36 positions. Appended as the LAST data
-## column so the padding channel keeps its index (which(all_params3=="padding"));
-## the model script's n_channels then auto-updates 36 -> 37 with no edits. This
-## lets the pooled N/C models condition on the end-vs-cleavage regime.
-inject_end_type_ch <- function(d, et) {
-  d %>% dplyr::mutate(end_type_ch = if_else(et == "end", 1, 0))
-}
-known_dat <- known_dat %>% mutate(data = map2(data, end_type, inject_end_type_ch))
-c_dat     <- c_dat     %>% mutate(data = map2(data, end_type, inject_end_type_ch))
+## ---- db-only training set --------------------------------------------------
+## Restrict positives AND controls to dibasic-anchored windows. Applied here,
+## below the cache, so changing it is a seconds-long re-run rather than a full
+## ~1 hr rebuild. Data channels are unchanged (no end_type_ch), so the model
+## script's n_channels stays at length(all_params3).
+message(sprintf("9.2: win_type filter -> db. knowns %d -> %d, controls %d -> %d",
+                nrow(known_dat), sum(known_dat$win_type == "db"),
+                nrow(c_dat),     sum(c_dat$win_type == "db")))
+
+known_dat <- known_dat %>% filter(win_type == "db")
+c_dat     <- c_dat     %>% filter(win_type == "db")
 
 nn_input <- make_training_sets(k_dat = known_dat,
                                ctr_dat = c_dat)
 
-## nn_input now holds two datasets: N and C, each list(train, val, all) pooling
-## end + cleavage windows. Each window carries its regime in the `end_type_ch`
-## input channel (and the `end_type` metadata column for outputs/plots).
+## nn_input holds two datasets: N and C, each list(train, val, all), built only
+## from db (dibasic-anchored) windows.
 
 
 
