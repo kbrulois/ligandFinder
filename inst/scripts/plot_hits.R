@@ -13,6 +13,10 @@ files <- c("~/AF2_analysis/gdf5.csv")
 
 files <- c("~/AF2_analysis/latest_hits/march27_recent.csv", "~/AF2_analysis/latest_hits/top200NC_Nov17.csv")
 
+files <- c("~/AF2_analysis/Aug7_all.csv")
+
+files <- c("~/AF2_analysis/igtest.csv")
+
 
 
 metrics <- c("iptm", "paeL_mean_in", "paeL_mean_all", "paeL_mean_out")
@@ -63,6 +67,9 @@ peps <- c("CXL14_35x102")
 
 peps <- c("CXL14_95x102", "CXL14_95x104", "CXL14_88x102", "CXL14_88x104")
 peps <- c("CXL17_22x119", "CXL17_64x119", "CXL11_22x94", "SG3A2_70x82")
+peps <- c("SDF1_22x89", "SDF1_22x32", "SDF1_73x88")
+
+
 peps <- tibble(end = c(95:111),
                         uniprot_name = "CXL14",
                         start = 88) %>%
@@ -78,6 +85,9 @@ peps <- dat %>%
   {.[gtools::mixedorder(.)]}
 
 peps <- c("DB113_25x30", "PCS1N_34x40")
+
+peps <- c("CXL14_88x102", "BRNP2_386x397", "PYY_31x64")
+file_name <- "~/Desktop/testbbl_aug20.svg"
 
 
 
@@ -97,7 +107,6 @@ residue_data <- res_db %>%
 
 
 
-file_name <- "~/Desktop/gpr25_cxcl17.svg"
 
 dat2 <- dat %>%
   #filter(p1_name %in% !!common_receptors) %>%
@@ -163,14 +172,9 @@ p <- ggplot(data = dat2, aes(x = id, y = paeL_mean_in_loc, fill = depth2, shape 
     coord_cartesian(clip = "off")
 
 
-svglite::svglite(filename = file_name, width = 40, height = length(levels(dat2$pep)) + 2)
-print(p)
-dev.off()
 
 
-
-
-htmlwidgets::saveWidget(ggiraph::girafe(ggobj = p, width_svg = 40, height_svg = length(levels(dat2$pep)), options = list(
+htmlwidgets::saveWidget(ggiraph::girafe(ggobj = p, width_svg = 40, height_svg = length(levels(dat2$pep)) + 2, options = list(
   ggiraph::opts_sizing(rescale = FALSE))),
                         file = sub(".svg$", ".html", file_name),
                         selfcontained = TRUE)
@@ -179,7 +183,7 @@ htmlwidgets::saveWidget(ggiraph::girafe(ggobj = p, width_svg = 40, height_svg = 
 
 ####receptors versus ligands
 
-receptors <- c("BKRB1", "BKRB2", "AGTR1", "AGTR2", "GALR3", "MRGX2", "RL3R1", "RL3R2", "GPR15", "GPR25", "NPY2R", "NPY5R")
+receptors <- c("BKRB1", "BKRB2", "AGTR1", "AGTR2", "GPR25", "NTR1", "NTR2")
 
 #receptors <- c("GPR15", "GPR25")
 
@@ -200,7 +204,7 @@ dat2 <- dat %>%
                           collapse = "\n"))
 
 
-p <- ggplot(data = dat2, aes(x = id, y = iptm_loc, fill = depth2, shape = location)) +
+p <- ggplot(data = dat2, aes(x = id, y = paeL_mean_in_loc, fill = depth2, shape = location)) +
   #ggplot2::geom_point(size = 1.5, stroke = 0.1) +
   ggiraph::geom_point_interactive(aes(tooltip = tt_value), size = 1.5, stroke = 0.1) +
   ggplot2::facet_grid(rows = vars(p1_name), cols = vars(pep), switch = "y") +
@@ -218,7 +222,7 @@ p <- ggplot(data = dat2, aes(x = id, y = iptm_loc, fill = depth2, shape = locati
                                 name = "insertion\ndepth", na.value = "black") +
   xlab("") +
   ylab("") +
-  ggtitle("IPTM") +
+  ggtitle("paeL_mean_in") +
   theme(axis.text.x = element_blank(),
         strip.text.y.left = element_text(angle = 0, hjust = 0),
         strip.text.x = element_text(angle = 90, hjust = 0), strip.placement = "outside",
@@ -232,7 +236,7 @@ p <- ggplot(data = dat2, aes(x = id, y = iptm_loc, fill = depth2, shape = locati
         panel.spacing = unit(0, "lines")) +
   coord_cartesian(clip = "off")
 
-svglite::svglite(filename = file_name, width = 60, height = length(receptors) * 2)
+svglite::svglite(filename = file_name, width = 40, height = length(receptors) * 2)
 print(p)
 dev.off()
 

@@ -207,24 +207,58 @@ generate_cm_script <- function(uni_id,
                                cont_mets = do.call(c, mets) %>% unname,
                                cont_colors = viridis::turbo(n = 20) %>% paste(., collapse = ":"),
                                defattr_path = "~/defattr",
-                               defattr_type = "local") {
+                               defattr_type = "local",
+                               ## "open"    -- current behaviour: emit `open <file>.defattr`
+                               ##              lines. Those files must be LOCAL to whichever
+                               ##              machine runs ChimeraX.
+                               ## "setattr" -- inline the per-residue values as setattr
+                               ##              commands, so the script is self-contained and
+                               ##              works on a machine that has never run this
+                               ##              pipeline. Needs res_dat.
+                               attr_mode = c("open", "setattr"),
+                               res_dat = NULL) {
+
+  attr_mode <- match.arg(attr_mode)
+  if (attr_mode == "setattr" && is.null(res_dat))
+    stop("attr_mode = 'setattr' needs res_dat (the expand_by_residue tibble)")
+
+  ## ChimeraX attribute names must be alphanumeric/underscore. generate_defattr_files.R
+  ## already did sub('->', '_') when writing the files, but the aliases here were built
+  ## from the RAW metric name -- so `NH->O_1_energy` produced an alias that could never
+  ## match its own attribute. Sanitising both from one place fixes that.
+  attr_name <- function(m) gsub("[^A-Za-z0-9_]", "_", m)
 
 
   url <- paste0("https://alphafold.ebi.ac.uk/files/AF-", uni_id, "-F1-model_v6.pdb")
   cm_sct <- list(paste0("open ", url))
 
-  def_files <- tibble(mets = cont_mets,
-                      files = paste0(defattr_path, "/", uni_id, "/", cont_mets, ".defattr")) %>%
-    mutate(exists = if(defattr_type == "url") {map_lgl(files, url_exists)} else {map_lgl(files, file.exists)}) %>%
-    filter(exists) %>%
-    mutate(good = if(defattr_type == "url") {TRUE} else {map_lgl(files, \(x) {
-      tryCatch({tmp <- data.table::fread(x)
-      !anyNA(tmp$V3)}, error = function(e) FALSE)
-    })}) %>%
-    filter(good)
+  def_files <- if (attr_mode == "setattr") {
+    ## No files involved -- keep every metric that actually carries values in
+    ## res_dat. Deliberately LOOSER than the "open" path below, which drops a
+    ## metric outright if it has any NA at all: here a partially populated metric
+    ## is kept and its NA residues are simply skipped. So the two modes will not
+    ## always select the same metric set.
+    tibble(mets = cont_mets, files = NA_character_) %>%
+      filter(map_lgl(mets, \(m) {
+        v <- res_dat[[m]]
+        !is.null(v) && is.atomic(v) && any(!is.na(v))
+      }))
+  } else {
+    tibble(mets = cont_mets,
+           files = paste0(defattr_path, "/", uni_id, "/", cont_mets, ".defattr")) %>%
+      mutate(exists = if(defattr_type == "url") {map_lgl(files, url_exists)} else {map_lgl(files, file.exists)}) %>%
+      filter(exists) %>%
+      mutate(good = if(defattr_type == "url") {TRUE} else {map_lgl(files, \(x) {
+        tryCatch({tmp <- data.table::fread(x)
+        !anyNA(tmp$V3)}, error = function(e) FALSE)
+      })}) %>%
+      filter(good)
+  }
 
   cm_sct <- c(cm_sct,
-              map(def_files[["mets"]], ~paste("alias", ., "color byattribute", ., "palette", cont_colors))
+              map(def_files[["mets"]],
+                  ~paste("alias", attr_name(.), "color byattribute", attr_name(.),
+                         "palette", cont_colors))
   )
 
   db_sel <- disc_mets %>%
@@ -284,7 +318,26 @@ generate_cm_script <- function(uni_id,
 
   cm_sct <- c(do.call(`c`, cm_sct), "db", "dsb", "view")
 
-  c(cm_sct, map_chr(def_files[["files"]], ~paste("open", .)), "dsb_dist")
+  attr_cmds <- if (attr_mode == "open") {
+    map_chr(def_files[["files"]], ~paste("open", .))
+  } else {
+    ## One setattr per residue per metric, NAs dropped. Residue numbers come from
+    ## the index column when present -- the defattr writer used row position,
+    ## which is only correct if rows are already in residue order.
+    idx <- if (!is.null(res_dat[["index"]])) res_dat[["index"]] else seq_len(nrow(res_dat))
+    unlist(lapply(def_files[["mets"]], function(m) {
+      v <- res_dat[[m]]
+      if (is.null(v) || !is.atomic(v)) return(character(0))
+      keep <- !is.na(v) & !is.na(idx)
+      if (!any(keep)) return(character(0))
+      ## `create true` is required: setattr defaults to create false and refuses
+      ## to define an attribute that does not already exist ("Not creating
+      ## attribute 'x'; use 'create true' to override"). Harmless when it does.
+      paste0("setattr :", idx[keep], " r ", attr_name(m), " ", v[keep], " create true")
+    }), use.names = FALSE)
+  }
+
+  c(cm_sct, attr_cmds, "dsb_dist")
 
 
 }
@@ -299,7 +352,13 @@ generate_cm_script <- function(uni_id,
 
 #pep_tp <- pep_input[[1]]
 
-do_chimera_scripts <- function(input, pep_tp) {
+## Returns the ChimeraX script as a character vector instead of writing it, so
+## callers that want the text -- e.g. the plot pipeline embedding it into the
+## HTML -- do not have to round-trip through a file on disk.
+make_cm_script_text <- function(input, pep_tp,
+                                attr_mode = c("open", "setattr")) {
+
+  attr_mode <- match.arg(attr_mode)
 
 
   features <- input %>% pull(features) %>% `[[`(1)
@@ -325,17 +384,24 @@ do_chimera_scripts <- function(input, pep_tp) {
                   tidyr::drop_na()
 
 
-  cxc_file_path <- paste0("~/chimerax_scripts/", gene_name, ".cxc")
+  ## only computed when needed -- expand_by_residue is not cheap
+  res_dat <- if (attr_mode == "setattr") expand_by_residue(input) else NULL
 
-  cm_script <- generate_cm_script(uni_id = input %>% pull(accession),
-                                  gene = gene_name,
-                                  disc_mets = disc_mets)
+  generate_cm_script(uni_id = input %>% pull(accession),
+                     gene = gene_name,
+                     disc_mets = disc_mets,
+                     attr_mode = attr_mode,
+                     res_dat = res_dat)
 
+}
 
+## Thin wrapper preserving the original behaviour: build the text, write the file.
+do_chimera_scripts <- function(input, pep_tp,
+                               attr_mode = c("open", "setattr")) {
+  cm_script <- make_cm_script_text(input, pep_tp, attr_mode = match.arg(attr_mode))
   writeLines(cm_script,
-             con = cxc_file_path)
-
-
+             con = paste0("~/chimerax_scripts/", input %>% pull(gene), ".cxc"))
+  invisible(cm_script)
 }
 
 

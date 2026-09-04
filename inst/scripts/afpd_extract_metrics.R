@@ -57,7 +57,7 @@ run_dirs <- c("bm", "add_bm", "bm_more_rec", "top200NC")
 
 run_dirs <- "top50cymc"
 
-run_dirs <- "dbxJuly"
+run_dirs <- "igtest"
 
 
 ###extract from OAK
@@ -204,7 +204,7 @@ runs <- runs %>%
   filter(has_json_debug & af_complete & !contacts_good) %>%
   filter(num_xtr == 5 | num_ark == 5)
 
-submit_metric_jobs(runs)
+submit_metric_jobs(runs, group_size = 100)
 
 ####old furrr-based metric extraction
 if(FALSE) {

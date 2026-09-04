@@ -8,6 +8,14 @@ nn_input_comb %>%
 
 
 
+## --- output paths -----------------------------------------------------------
+## Stamp every written file with the date+time so successive runs don't overwrite
+## each other. Timestamp is taken when the file is written (not once at source
+## time), so this still works when the script is run block-by-block interactively.
+stamped <- function(..., ext = ".svg", dir = "~/AF2_analysis") {
+  file.path(dir, paste0(paste0(...), "_", format(Sys.time(), "%Y%m%d_%H%M%S"), ext))
+}
+
 ## --- format helpers ---------------------------------------------------------
 ## per_index_cat now outputs K_real independent sigmoids (columns =
 ## real_class_names), not an 8-class softmax; the input has n_channels incl. the
@@ -20,23 +28,23 @@ build_x <- function(dataset) {
 ## Needs the trained `models` in the session; skipped when you're plotting from a
 ## saved nn_input_comb only.
 if (exists("models")) {
-real_class_names <- names(classes)[real_cols]                                   # 6 real classes (for the breakdown)
-cat_class_names  <- names(classes)[c(real_cols, which(names(classes) == "none"))]  # K_cat = 6 real + none (output cols)
+real_class_names <- names(classes)[real_cols]   # 6 real classes (for the breakdown)
+pi_names <- names(classes)[c(real_cols, which(names(classes) == "none"),
+                            which(names(classes) == "padding"))]   # 8 output cols: [6 real, none, padding]
 for (term in names(nn_input)) {
-  vp    <- predict(models[[term]], build_x(nn_input[[term]]$val), verbose = 0)[["per_index_cat"]]  # (n, seq, K_cat)
+  vp    <- predict(models[[term]], build_x(nn_input[[term]]$val), verbose = 0)[["per_index_cat"]]  # (n, seq, K_pi)
   truth <- do.call(rbind, nn_input[[term]]$val$known_idx)                                          # (n, seq) labels
   if (anyNA(vp))
     message(sprintf("[%s] %d/%d per-index predictions are NaN (per-index head may have diverged)",
                     term, sum(is.na(vp)), length(vp)))
-  # NaN-safe argmax that always returns a matrix (apply()+which.max() returns a
-  # LIST when a cell is all-NaN -> the 'non-numeric matrix extent' error).
-  # softmax over K_cat incl none -> argmax is the predicted label directly.
+  # softmax over K_pi (incl none + padding) -> argmax is the predicted label directly.
+  # (NaN-safe matrix argmax; apply()+which.max() returns a LIST on all-NaN cells.)
   d    <- dim(vp)
-  flat <- matrix(vp, nrow = d[1] * d[2], ncol = d[3])   # (n*seq) x K_cat
+  flat <- matrix(vp, nrow = d[1] * d[2], ncol = d[3])   # (n*seq) x K_pi
   flat[is.na(flat)] <- -Inf
   ti   <- max.col(flat, ties.method = "first")
   top_i <- matrix(ti, nrow = d[1])                      # (n, seq)
-  pred_lab <- matrix(cat_class_names[top_i], nrow = d[1])
+  pred_lab <- matrix(pi_names[top_i], nrow = d[1])
   keep <- !truth %in% c("none", "padding")
   cat(sprintf("[%s] masked per-index accuracy (exc none/padding): %.3f  (n=%d)\n",
               term, mean(pred_lab[keep] == truth[keep]), sum(keep)))
@@ -51,6 +59,12 @@ for (term in names(nn_input)) {
   imp <- cls_acc[intersect(imp_classes, names(cls_acc))]
   cat(sprintf("    >> MACRO acc over important classes (%s): %.3f\n",
               paste(names(imp), collapse = ", "), mean(imp, na.rm = TRUE)))
+
+  # confusion at val real positions (rows = true real class, cols = predicted).
+  # a single lit-up predicted column = the model collapsing to the majority class.
+  cat(sprintf("    -- [%s] val confusion (rows=truth, cols=pred) --\n", term))
+  print(table(truth = factor(truth[keep],    levels = real_class_names),
+              pred  = factor(pred_lab[keep], levels = pi_names)))
 }
 }  # end if (exists("models"))
 
@@ -136,7 +150,7 @@ p <- ggplot(data = df2 %>% filter(name != "seq"), aes(x = index, y = value, colo
 
 
 
-ggsave(paste0("~/AF2_analysis/per_index_preds_knowns_", term, ".svg"), plot = p, width = 18, height = 18)
+ggsave(stamped("per_index_preds_knowns_", term), plot = p, width = 18, height = 18)
 
 }
 
@@ -174,7 +188,7 @@ df2 <- map(pep_names_tp[-c(15:17)],
             pep_title <- paste0(x, nn_input[[term]]$val$target[ind])
               df <- pred[ind,,] %>%
                     as_tibble
-              colnames(df) <- cat_class_names    # per_index_cat = K_cat softmax cols (6 real + none)
+              colnames(df) <- pi_names           # per_index_cat = K_pi softmax cols [6 real, none, padding]
               df <- df %>%
                 #select(-none) %>%
                 mutate(index = row_number()) %>%
@@ -195,7 +209,7 @@ p <- ggplot(df2, aes(x = index, y = value, color = name)) +
   theme(legend.title = element_blank())
 
 
-ggsave(paste0("~/AF2_analysis/per_index_preds_",start, "-", end, ".svg"), plot = p, width = 18, height = 9)
+ggsave(stamped("per_index_preds_", start, "-", end), plot = p, width = 18, height = 9)
 
 }
 }  # end if (FALSE) -- candidate loop

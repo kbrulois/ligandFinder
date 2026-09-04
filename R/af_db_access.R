@@ -52,8 +52,7 @@ af_structure_to_pdb <- function(uniprot, cache_dir,
   dir.create(pdb_dir, recursive = TRUE, showWarnings = FALSE)
 
   if (file.exists(cif_path)) {
-    pdb <- bio3d::read.cif(cif_path, verbose = FALSE)
-    bio3d::write.pdb(pdb, file = pdb_path)
+    cif_to_pdb(cif_path, pdb_path)
     return(invisible(pdb_path))
   }
 
@@ -82,8 +81,9 @@ af_structure_to_pdb <- function(uniprot, cache_dir,
 
 #' Read an AlphaFold-DB structure into a bio3d object.
 #'
-#' Prefers PDB when present (faster parser); otherwise reads CIF.  Falls back
-#' to downloading PDB from EBI if neither is in the cache.
+#' Prefers PDB when present (faster parser); otherwise converts the cached CIF
+#' via \code{cif_to_pdb()} and reads that.  Falls back to downloading PDB from
+#' EBI if neither is in the cache.
 #'
 #' @inheritParams af_structure_to_pdb
 #' @return A bio3d \code{"pdb"} object.
@@ -101,7 +101,8 @@ read_af_structure <- function(uniprot, cache_dir,
     return(bio3d::read.pdb(pdb_path, verbose = FALSE))
   }
   if (file.exists(cif_path)) {
-    return(bio3d::read.cif(cif_path, verbose = FALSE))
+    # convert (and cache) rather than read.cif directly -- see cif_to_pdb()
+    return(bio3d::read.pdb(cif_to_pdb(cif_path, pdb_path), verbose = FALSE))
   }
   if (!download_if_missing) {
     stop("No cached structure for ", uniprot, " and download_if_missing=FALSE")
@@ -110,4 +111,69 @@ read_af_structure <- function(uniprot, cache_dir,
                                   af_version = af_version,
                                   download_if_missing = TRUE)
   bio3d::read.pdb(pdb_path, verbose = FALSE)
+}
+
+
+#' Convert an AlphaFold mmCIF to PDB.
+#'
+#' Parses the \code{_atom_site} loop directly instead of going through
+#' \code{bio3d::read.cif()}.  That reader is beta and populates \code{elety}
+#' from the element symbol rather than the atom name, so every CA-based
+#' selection downstream silently matches nothing -- \code{cleave_peptide_from_af()}
+#' reports an empty extracted sequence, \code{position_ligand_initial_guess()}
+#' has no backbone to work with, and the pLDDT B-factor column is unreliable.
+#' Writing that object out to PDB bakes the damage into the cache, so the
+#' conversion has to avoid read.cif entirely.
+#'
+#' Atom names come from \code{label_atom_id}, residue numbering from
+#' \code{auth_seq_id} (which is UniProt position for AF-DB entries), and
+#' pLDDT from \code{B_iso_or_equiv}.
+#'
+#' Assumes whitespace-delimited values with no quoted fields containing spaces,
+#' which holds for AF-DB mmCIF but not for mmCIF in general.
+#'
+#' @param cif_path Path to the mmCIF file.
+#' @param pdb_path Path to write the PDB to.
+#' @return \code{pdb_path}, invisibly.
+#' @export
+cif_to_pdb <- function(cif_path, pdb_path) {
+
+  ln  <- readLines(cif_path, warn = FALSE)
+  hdr <- grep("^_atom_site\\.", ln)
+  if (!length(hdr)) stop("no _atom_site loop in ", cif_path)
+  field <- sub("^_atom_site\\.", "", ln[hdr])
+
+  body <- ln[(max(hdr) + 1L):length(ln)]
+  body <- body[grepl("^(ATOM|HETATM)", body)]
+  if (!length(body)) stop("no atom records in ", cif_path)
+
+  f <- do.call(rbind, strsplit(trimws(body), "\\s+"))
+  if (ncol(f) != length(field))
+    stop("_atom_site has ", length(field), " fields but rows have ", ncol(f),
+         " values: ", cif_path)
+  colnames(f) <- field
+
+  g <- function(nm, alt = NULL) {
+    if (nm %in% field) return(f[, nm])
+    if (!is.null(alt) && alt %in% field) return(f[, alt])
+    stop("missing CIF field: ", nm)
+  }
+
+  nm   <- g("label_atom_id", "auth_atom_id")
+  # PDB convention: atom names shorter than 4 characters start in column 14
+  nm_f <- ifelse(nchar(nm) >= 4, nm, sprintf(" %-3s", nm))
+
+  rec <- sprintf(
+    "%-6s%5s %-4s%1s%3s %1s%4s%1s   %8.3f%8.3f%8.3f%6.2f%6.2f          %2s",
+    g("group_PDB"), g("id"), nm_f, " ",
+    g("label_comp_id", "auth_comp_id"),
+    g("auth_asym_id", "label_asym_id"),
+    g("auth_seq_id", "label_seq_id"), " ",
+    as.numeric(g("Cartn_x")), as.numeric(g("Cartn_y")), as.numeric(g("Cartn_z")),
+    as.numeric(g("occupancy")), as.numeric(g("B_iso_or_equiv")),
+    g("type_symbol"))
+
+  dir.create(dirname(pdb_path), recursive = TRUE, showWarnings = FALSE)
+  writeLines(c(rec, "END"), pdb_path)
+  invisible(pdb_path)
 }

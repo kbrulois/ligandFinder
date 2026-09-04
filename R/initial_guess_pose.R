@@ -83,7 +83,9 @@
 #'   face (typically EC ends of TM helices).
 #' @param ic_residues   Integer vector of receptor residue numbers at the IC
 #'   face (typically IC ends of TM helices).
-#' @param terminus      "N" or "C" — which ligand end sits near the receptor.
+#' @param terminus      "N" or "C" — which ligand end is pointed at the
+#'   pocket — or "neutral" to lay the ligand flat across the pocket mouth with
+#'   neither terminus inserted, leaving AlphaFold to choose what descends.
 #' @param receptor_chain Output chain ID for the receptor (default "A").
 #' @param ligand_chain   Output chain ID for the ligand   (default "B").
 #' @param clearance     Initial clearance above the EC centroid, in Angstroms.
@@ -103,7 +105,7 @@ position_ligand_initial_guess <- function(
     ligand_pdb,
     ec_residues,
     ic_residues,
-    terminus       = c("N", "C"),
+    terminus       = c("N", "C", "neutral"),
     receptor_chain = "A",
     ligand_chain   = "B",
     clearance      = 5,
@@ -133,15 +135,34 @@ position_ligand_initial_guess <- function(
   ca_lig <- lig$atom[lig$atom$elety == "CA", ]
   if (nrow(ca_lig) < 2) stop("ligand has fewer than 2 CA atoms")
   ca_lig <- ca_lig[order(ca_lig$resno), ]
-  term_xyz <- as.numeric(ca_lig[if (terminus == "N") 1L else nrow(ca_lig),
-                                c("x", "y", "z")])
-  lig_com  <- colMeans(as.matrix(ca_lig[, c("x", "y", "z")]))
+  ca_mat   <- as.matrix(ca_lig[, c("x", "y", "z")])
+  lig_com  <- colMeans(ca_mat)
 
-  ## --- alignment: rotate ligand so (terminus -> COM) aligns with outward ---
   lig_xyz <- matrix(lig$xyz, ncol = 3, byrow = TRUE)
-  cur_dir <- .unit(lig_com - term_xyz)
-  R0      <- .rot_a_to_b(cur_dir, outward)
-  centred <- sweep(lig_xyz, 2, term_xyz, "-")   # terminus at origin
+
+  if (terminus == "neutral") {
+    ## Lay the ligand flat across the pocket mouth: centre of mass on the
+    ## pocket axis, principal axis perpendicular to the membrane normal, so
+    ## both termini sit at a similar height and neither is inserted.  The
+    ## axial spin below rotates about `outward` and so preserves that
+    ## perpendicularity.
+    pc   <- svd(sweep(ca_mat, 2, lig_com, "-"))$v[, 1]
+    perp <- pc - sum(pc * outward) * outward
+    if (sqrt(sum(perp * perp)) < 1e-6) {
+      # Principal axis already parallel to the normal; any perpendicular does.
+      alt  <- if (abs(outward[1]) < 0.9) c(1, 0, 0) else c(0, 1, 0)
+      perp <- alt - sum(alt * outward) * outward
+    }
+    R0      <- .rot_a_to_b(pc, .unit(perp))
+    centred <- sweep(lig_xyz, 2, lig_com, "-")   # centre of mass at origin
+  } else {
+    ## Point the chosen terminus at the receptor, bulk extending outward.
+    term_xyz <- as.numeric(ca_lig[if (terminus == "N") 1L else nrow(ca_lig),
+                                  c("x", "y", "z")])
+    cur_dir  <- .unit(lig_com - term_xyz)
+    R0       <- .rot_a_to_b(cur_dir, outward)
+    centred  <- sweep(lig_xyz, 2, term_xyz, "-")  # terminus at origin
+  }
   base_rotated <- centred %*% t(R0)
 
   rec_heavy <- as.matrix(rec$atom[rec$atom$elety != "H" &
@@ -175,6 +196,15 @@ position_ligand_initial_guess <- function(
     if (!is.na(best$n_clashes) && best$n_clashes == 0) break
     cls <- cls + step_size
   }
+
+  ## --- where did each end actually land? ---
+  ca_rows <- which(lig$atom$elety == "CA")
+  ca_ord  <- ca_rows[order(lig$atom$resno[ca_rows])]
+  d_from_ec <- c(
+    n        = sqrt(sum((best$xyz[ca_ord[1], ]               - ec_mid)^2)),
+    c        = sqrt(sum((best$xyz[ca_ord[length(ca_ord)], ]  - ec_mid)^2)),
+    centroid = sqrt(sum((colMeans(best$xyz[ca_ord, , drop = FALSE]) - ec_mid)^2))
+  )
 
   ## --- assemble combined PDB ---
   # best$xyz rows are in atom-record order, same order as lig$atom.
@@ -212,7 +242,14 @@ position_ligand_initial_guess <- function(
       clearance   = best$clearance,
       spin_rad    = best$spin,
       min_dist    = best$min_dist,
-      n_clashes   = best$n_clashes
+      n_clashes   = best$n_clashes,
+      # Distances from the EC-face centroid. Under terminus="neutral" the two
+      # terminal values should be close to each other -- that is the check
+      # that the placement really is unbiased.
+      d_nterm     = d_from_ec[["n"]],
+      d_cterm     = d_from_ec[["c"]],
+      d_centroid  = d_from_ec[["centroid"]],
+      term_bias   = abs(d_from_ec[["n"]] - d_from_ec[["c"]])
     )
   )
 }

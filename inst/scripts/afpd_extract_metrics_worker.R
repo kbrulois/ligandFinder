@@ -21,7 +21,25 @@ tasks <- data.table::fread(group_file, header = FALSE, sep = "\t",
 
 set_db_path("/scratch/groups/ebutcher/deorphan/ligandFinder")
 pq_path <- "/scratch/groups/ebutcher/deorphan/ligandFinder/residue_db"
+pq_path_src <- "/home/groups/ebutcher/kevin/ligandFinder/residue_db"
 voronota_path <- "/home/groups/ebutcher/programs/voronota/bin/voronota-contacts"
+
+resolve_pq_path <- function(p) {
+  if(!dir.exists(p)) return(NA_character_)
+  if(dir.exists(file.path(p, "residue_db"))) p <- file.path(p, "residue_db")
+  schema_cols <- tryCatch(names(arrow::open_dataset(p)$schema), error = function(e) character(0))
+  if("uni_gene" %in% schema_cols) p else NA_character_
+}
+
+pq_path_use <- resolve_pq_path(pq_path)
+if(is.na(pq_path_use)) {
+  message("residue_db at ", pq_path, " missing/empty/wrong-schema; falling back to ", pq_path_src)
+  pq_path_use <- resolve_pq_path(pq_path_src)
+}
+if(is.na(pq_path_use)) {
+  stop("No usable residue_db found at ", pq_path, " or ", pq_path_src)
+}
+message("Using residue_db at ", pq_path_use)
 
 alg <- "AF2v3"
 
@@ -30,7 +48,7 @@ bw_align <- summarize_bw(gpcr_list = system.file("extdata/gpcr_list.rds", packag
 
 proteins <- unique(c(tasks$p1_name, tasks$p2_name))
 
-res_db <- arrow::open_dataset(source = pq_path)
+res_db <- arrow::open_dataset(source = pq_path_use)
 residue_data <- res_db %>%
   filter(uni_gene %in% proteins) %>%
   collect()

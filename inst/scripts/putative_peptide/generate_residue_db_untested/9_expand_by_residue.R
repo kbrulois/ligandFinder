@@ -8,6 +8,8 @@ secretome_genes <- data.table::fread("~/Desktop/Peptides/extracellular_proteins_
 
 
 
+
+
 secretome <- uniprot_t %>%
   mutate(location = case_when(gene == "BRINP1" ~ "4l",
                               hpa_sloc == 2 & uniprot_loc_min == 2 ~ "4l",
@@ -19,6 +21,7 @@ secretome <- uniprot_t %>%
                               uniprot_topo_max == 2 & uniprot_loc_max == 0 ~ "2t",
                               uniprot_topo_max == 1 ~ "1t",
                               gene %in% secretome_genes[["gene"]] ~ "sec",
+                              accession %in% c("P68871", "P04156", "Q9NRV9") ~ "sec",
                               TRUE ~ "IC"))
 
 table(secretome$location)
@@ -35,34 +38,10 @@ gc()
 
 
 
-expand_by_residue <- function(x, dat_to_expand = c("topo", "features_expanded", "dssp", "af_missense", "cons", "alignment_AA")) {
-
-x <- secretome %>%
-  mutate(features_expanded = map2(features, sequence_uni, expand_features))
-
-x <- x %>%
-  mutate(topo = map2(sequence_uni, topo, \(x, y) tibble(AA = str_split(x, "", simplify = TRUE) %>% c,
-                                                        topo = str_split(y, "", simplify = TRUE) %>% c)))
-
-x <- x %>%
-  mutate(to_expand = pmap(pick(any_of(dat_to_expand)),
-                          bind_cols, .name_repair = "minimal")) %>%
-  mutate(to_expand = map(to_expand, \(x) x[, !duplicated(colnames(x))])) %>%
-  mutate(to_expand = map(to_expand, \(x) x[, colnames(x) != ""]))
-
-to_return <- x %>%
-  select(-where(is.list), to_expand) %>%
-  unnest(to_expand)
-
-to_return <- to_return %>%
-  mutate(topo2 = if_else(has_topo & ("e" %in% topo), topo, "e"))
-
-return(to_return)
-
-}
-
-
-secretome_aa <- expand_by_residue(secretome)
+secretome_aa <- expand_by_residue(
+  secretome,
+  dat_to_expand = c("topo", "features_expanded", "dssp", "af_missense", "cons", "alignment_AA")
+)
 
 
 #secretome_aa <- secretome_aa %>%
@@ -184,6 +163,9 @@ secretome_aa <- secretome_aa %>%
   mutate(across(all_of(cons_metrics), ~ .x * species_limit, .names = "{.col}_n"))
 
 
+saveRDS(secretome, paste0(s_localDir, "/processed/secretome_1.rds"))
+
+saveRDS(secretome_aa, paste0(s_localDir, "/processed/secretome_aa_1.rds"))
 
 
 
@@ -200,6 +182,8 @@ secretome_aa <- secretome_aa %>%
 
 
 
+
+if(FALSE) {
 
 offlimits_features <- c("signal peptide", "E")
 
@@ -311,4 +295,4 @@ secretome_aa <- secretome_aa %>%
   mutate(known = rowSums(across(starts_with("known_gpcr_pep"))) > 0) %>%
   mutate(across(all_of(cons_metrics), ~ .x * species_limit, .names = "{.col}_n"))
 
-
+}
