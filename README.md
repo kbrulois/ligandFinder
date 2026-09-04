@@ -148,7 +148,3 @@ python -m lf_dcnn train --input-dir arrays/ --output-dir results/
 cd inst/python && PYTHONPATH=. python -m lf_dcnn selftest   # 12 checks
 Rscript inst/python/tests/roundtrip.R                       # 33 checks, R ↔ Python
 ```
-
-## Documentation
-
-Full package documentation: <https://kbrulois.github.io/ligandFinder>
