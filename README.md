@@ -78,13 +78,13 @@ with no R at all.
 Every window gets a calibrated score, a per-residue class profile, and a 16-d
 embedding used to retrieve its nearest known peptide.
 
-Results are published as **interactive per-gene pages**: hover any window for its
-score and per-residue profile, jump into the sequence alignment, or open the
-structure in ChimeraX.
+All 59,184 scored windows are published as one **interactive map** — a UMAP of the
+input features, coloured by the model's score and split on the amidation motif,
+with known peptides ringed. Hover a point for its score and peptide name, search
+a gene symbol to surface its best-scoring windows, or click through to that
+protein's per-residue page and on into ChimeraX on the AlphaFold structure.
 
 > **[Browse the secretome viewer →](https://d2v3leolhhovg9.cloudfront.net/ligandFinder_v3.html)**
->
-> Every scored window in one map, linked through to its per-gene page.
 
 ## Installation
 
