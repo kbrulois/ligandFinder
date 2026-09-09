@@ -318,12 +318,64 @@ def check_roundtrip_npz(reference=None):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def check_unet_trunk():
+    """The pooling trunk must still deliver per-residue output at seq_len."""
+    cfg = Config(trunk="unet")
+    model = build_model(cfg)
+    by_name = {l.name: l for l in model.layers}
+
+    # down the encoder, then back up: 36 -> 18 -> 9 -> 18 -> 36
+    assert by_name["enc1"].output.shape[1] == 36
+    assert by_name["pool1"].output.shape[1] == 18
+    assert by_name["enc2"].output.shape[1] == 18
+    assert by_name["pool2"].output.shape[1] == 9
+    assert by_name["bottleneck"].output.shape[1] == 9
+    assert by_name["bottleneck"].output.shape[2] == cfg.unet_filters[-1]
+    assert by_name["up2"].output.shape[1] == 18
+    assert by_name["up1"].output.shape[1] == 36
+    # skips concatenate decoder + encoder channels
+    assert by_name["skip2"].output.shape[2] == cfg.unet_filters[2] + cfg.unet_filters[1]
+    assert by_name["skip1"].output.shape[2] == cfg.unet_filters[1] + cfg.unet_filters[0]
+
+    x = np.zeros((3, cfg.seq_len, cfg.n_channels), dtype="float32")
+    out = model.predict(x, verbose=0)
+    assert out["per_index_cat"].shape == (3, cfg.seq_len, cfg.K_pi), out["per_index_cat"].shape
+    assert out["global"].shape == (3, 1)
+    assert np.allclose(out["per_index_cat"].sum(-1), 1.0, atol=1e-5)
+    assert model.get_layer("embed").output.shape[-1] == cfg.embed_units
+
+    # the flat trunk must be untouched by any of this
+    assert build_model(Config(trunk="flat")).count_params() == EXPECTED_PARAMS
+
+    # a depth that does not divide the window is rejected up front, not at build
+    try:
+        Config(trunk="unet", unet_filters=(8, 16, 32, 64), unet_dropout=(0.2,) * 4)
+    except ValueError as e:
+        assert "divisible" in str(e), e
+    else:
+        raise AssertionError("accepted a U-Net depth that does not divide seq_len")
+
+
+def check_unet_trains():
+    """A short end-to-end run on the pooling trunk."""
+    from .pipeline import run
+
+    cfg = _tiny_cfg().evolve(trunk="unet")
+    res = run(make_data(cfg, seed=17), cfg, verbose=0)
+    n = sum(res.n_by_term[t] for t in res.term_order)
+    assert res.per_index.shape == (n, cfg.seq_len, cfg.K_pi)
+    assert res.emb.shape == (n, cfg.embed_units)
+    assert np.all(np.isfinite(res.pred)) and np.all(np.isfinite(res.pred_raw))
+
+
 CHECKS = [
     check_class_indices,
     check_position_masks,
     check_pi_weights,
     check_losses,
     check_model_shapes,
+    check_unet_trunk,
+    check_unet_trains,
     check_position_ramp,
     check_oversampler,
     check_noise_only_on_continuous_channels,

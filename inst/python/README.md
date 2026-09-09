@@ -104,6 +104,68 @@ Neither is an error the R would report; both change what the model sees.
 | `synthetic.py` | contract-shaped fake windows for the tests |
 | `selftest.py` | the checks, runnable without pytest |
 
+## Trunk architectures
+
+`Config.trunk` selects what sits between the input and the per-residue logits.
+Everything above the trunk is identical either way, so the two are directly
+comparable.
+
+| | `"flat"` (default) | `"unet"` |
+|---|---|---|
+| resolution | 36 positions throughout | 36 → 18 → 9 → 18 → 36 |
+| pooling | none | `MaxPooling1D` down, `UpSampling1D` + skip concat back up |
+| channels | 16 → 8 | 16 → 32 → 64 → 32 → 16 |
+| parameters | 2,438 | 21,454 |
+| receptive field | 5 positions | most of the window |
+
+```python
+Config(trunk="unet", unet_filters=(16, 32, 64), unet_dropout=(0.2, 0.2, 0.3))
+```
+
+`unet_filters` is one entry per level with the **last entry the bottleneck**, so
+`(16, 32, 64)` means two pooling steps. Every step must divide the window
+exactly — at `seq_len=36`, `pool_size=2` allows at most two levels
+(36 → 18 → 9); a third would need 9/2 and `Config` rejects it up front rather
+than failing at build time.
+
+The decoder concatenates the matching encoder output at each level. Without
+those skips the per-residue head only sees upsampled 9-position features and
+returns blocky class boundaries — the fine positional detail that locates a
+cleavage site to the residue is exactly what the pooling discards.
+
+**The parameter count is the thing to watch.** The flat trunk is deliberately
+tiny because the labelled set is tiny — 11 and 16 training positives for the N
+and C models. The U-Net is ~9x larger against the same handful of positives, so
+compare it on held-out PR-AUC across several seeds before believing it, and
+consider `unet_filters=(8, 16, 32)` (~5.5k params) as a middle ground.
+
+## Testing
+
+Three levels, cheapest first:
+
+```bash
+# 1. contract + numerics, synthetic data, ~1 min
+cd inst/python && PYTHONPATH=. python -m lf_dcnn selftest
+
+# 2. the R <-> Python boundary: axis order, one-hot layout, row order,
+#    and that the standalone .npz path reproduces the in-process one
+Rscript inst/python/tests/roundtrip.R
+
+# 3. does it give the same ANSWERS as the R model, on real windows?
+Rscript inst/python/tests/compare_r_python.R --seeds 1,2,3
+```
+
+Level 3 trains the frozen R reference model and the port on identical arrays
+with the same seed and prints validation PR-AUC and ROC-AUC side by side; add
+`--arms r,flat,unet` to include the pooling trunk. Budget ~10 min per
+arm/terminus/seed at the default 2000 epochs.
+
+Read the spread, not a single number: with 6–7 validation positives per
+terminus, PR-AUC moves ~0.4 across seeds *within* either implementation, so a
+one-seed difference is noise. Compare the between-arm gap against the
+within-arm spread the summary table prints. ROC-AUC is far stabler at these
+positive counts.
+
 scikit-learn is deliberately not used — it is not installed in the target venv,
 which is why calibration is a hand-rolled IRLS rather than
 `LogisticRegression`.

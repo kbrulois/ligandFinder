@@ -65,11 +65,93 @@ class ClassPositionMask(layers.Layer):
         return {**super().get_config(), "mask_matrix": self.mask_matrix.tolist()}
 
 
+def _flat_trunk(x, cfg: Config, reg):
+    """Full-resolution trunk: every layer stays at ``seq_len`` positions.
+
+    Slim by design for the tiny (<100 example) training sets: two small conv
+    layers rather than four wide ones, which held ~26k of the old ~33k params.
+    No pooling, so the per-residue head keeps all 36 positions end to end.
+    """
+    for i, (filters, drop) in enumerate(zip(cfg.conv_filters, cfg.conv_dropout)):
+        x = layers.Conv1D(
+            filters,
+            kernel_size=cfg.conv_kernel,
+            activation="gelu",
+            padding="same",
+            kernel_regularizer=reg,
+            name=f"conv{i + 1}",
+        )(x)
+        x = layers.Dropout(drop, name=f"drop{i + 1}")(x)
+    return x
+
+
+def _unet_trunk(x, cfg: Config, reg):
+    """Encoder-decoder trunk: pool down while widening, then upsample back.
+
+    Widening the channel count as the sequence shortens buys a larger receptive
+    field per parameter than stacking full-resolution convs -- at 36 positions
+    with ``pool_size=2`` and ``unet_filters=(16, 32, 64)`` the bottleneck sees
+    9 positions with a 3-tap kernel, i.e. most of the window.
+
+    The decoder concatenates the matching encoder output at each level
+    (standard U-Net skips), because the per-residue head needs the fine
+    positional detail that pooling throws away -- upsampling alone would return
+    blurred, blocky class boundaries.  Output is back at ``seq_len`` positions.
+    """
+    n_levels = len(cfg.unet_filters) - 1
+    skips = []
+
+    # --- encoder: conv at full detail, keep a skip, then pool ---
+    for lvl in range(n_levels):
+        x = layers.Conv1D(
+            cfg.unet_filters[lvl],
+            kernel_size=cfg.conv_kernel,
+            activation="gelu",
+            padding="same",
+            kernel_regularizer=reg,
+            name=f"enc{lvl + 1}",
+        )(x)
+        x = layers.Dropout(cfg.unet_dropout[lvl], name=f"enc{lvl + 1}_drop")(x)
+        skips.append(x)
+        x = layers.MaxPooling1D(cfg.pool_size, name=f"pool{lvl + 1}")(x)
+
+    # --- bottleneck ---
+    x = layers.Conv1D(
+        cfg.unet_filters[-1],
+        kernel_size=cfg.conv_kernel,
+        activation="gelu",
+        padding="same",
+        kernel_regularizer=reg,
+        name="bottleneck",
+    )(x)
+    x = layers.Dropout(cfg.unet_dropout[-1], name="bottleneck_drop")(x)
+
+    # --- decoder: upsample, rejoin the skip, convolve back down in width ---
+    for lvl in reversed(range(n_levels)):
+        x = layers.UpSampling1D(cfg.pool_size, name=f"up{lvl + 1}")(x)
+        x = layers.Concatenate(name=f"skip{lvl + 1}")([x, skips[lvl]])
+        x = layers.Conv1D(
+            cfg.unet_filters[lvl],
+            kernel_size=cfg.conv_kernel,
+            activation="gelu",
+            padding="same",
+            kernel_regularizer=reg,
+            name=f"dec{lvl + 1}",
+        )(x)
+        x = layers.Dropout(cfg.unet_dropout[lvl], name=f"dec{lvl + 1}_drop")(x)
+    return x
+
+
 def build_model(cfg: Config | None = None, clear_session: bool = True) -> keras.Model:
     """Build the functional model.
 
     Outputs are a dict: ``global`` (scalar sigmoid ranking score) and
     ``per_index_cat`` (per-position softmax over ``K_pi`` classes).
+
+    The trunk is selected by ``cfg.trunk``: ``"flat"`` (default) holds all 36
+    positions throughout, ``"unet"`` pools down and upsamples back with skip
+    connections.  Everything above the trunk is identical either way, so the
+    two are directly comparable.
 
     ``clear_session`` mirrors ``keras3::clear_session()`` in the R loop; without
     it the two per-terminus models share graph state and auto-generated layer
@@ -85,20 +167,7 @@ def build_model(cfg: Config | None = None, clear_session: bool = True) -> keras.
     pos_channel = PositionRamp(cfg.seq_len, name="pos_ramp")(inputs)
     conv_in = layers.Concatenate(name="conv_in")([inputs, pos_channel])
 
-    # Slim trunk for the tiny (<100 example) training sets: two small conv
-    # layers rather than four wide ones, which held ~26k of the old ~33k params.
-    x = conv_in
-    for i, (filters, drop) in enumerate(zip(cfg.conv_filters, cfg.conv_dropout)):
-        x = layers.Conv1D(
-            filters,
-            kernel_size=cfg.conv_kernel,
-            activation="gelu",
-            padding="same",
-            kernel_regularizer=reg,
-            name=f"conv{i + 1}",
-        )(x)
-        x = layers.Dropout(drop, name=f"drop{i + 1}")(x)
-    shared = x
+    shared = (_unet_trunk if cfg.trunk == "unet" else _flat_trunk)(conv_in, cfg, reg)
 
     per_index_logits = layers.Conv1D(
         filters=cfg.K_pi, kernel_size=1, kernel_regularizer=reg, name="per_index_logits"

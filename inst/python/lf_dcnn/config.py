@@ -72,9 +72,18 @@ class Config:
 
     # --- architecture ---
     l2: float = 1e-3
+    #: ``"flat"`` keeps full 36-position resolution through the whole trunk;
+    #: ``"unet"`` pools down and upsamples back, widening the channel count on
+    #: the way down.  See :func:`lf_dcnn.model.build_model`.
+    trunk: str = "flat"
     conv_filters: tuple[int, ...] = (16, 8)
     conv_kernel: int = 3
     conv_dropout: tuple[float, ...] = (0.2, 0.3)
+    #: U-Net only: channels per level, last entry is the bottleneck.
+    #: ``(16, 32, 64)`` means 36->18->9 with 16, 32 then 64 filters.
+    unet_filters: tuple[int, ...] = (16, 32, 64)
+    unet_dropout: tuple[float, ...] = (0.2, 0.2, 0.3)
+    pool_size: int = 2
     attention_heads: int = 2
     attention_key_dim: int = 8
     embed_units: int = 16
@@ -130,7 +139,7 @@ class Config:
     _INT_FIELDS = (
         "seq_len", "n_channels", "conv_kernel", "attention_heads",
         "attention_key_dim", "embed_units", "epochs", "batch_size",
-        "n_negatives_per_positive", "patience", "start_from_epoch",
+        "n_negatives_per_positive", "patience", "start_from_epoch", "pool_size",
     )
 
     def __post_init__(self) -> None:
@@ -139,9 +148,10 @@ class Config:
             object.__setattr__(self, f, int(getattr(self, f)))
         if self.seed is not None:
             object.__setattr__(self, "seed", int(self.seed))
-        for f in ("conv_dropout", "nt_span", "ct_span", "mid_span"):
+        for f in ("conv_dropout", "unet_dropout", "nt_span", "ct_span", "mid_span"):
             object.__setattr__(self, f, tuple(getattr(self, f)))
-        object.__setattr__(self, "conv_filters", tuple(int(v) for v in self.conv_filters))
+        for f in ("conv_filters", "unet_filters"):
+            object.__setattr__(self, f, tuple(int(v) for v in getattr(self, f)))
         object.__setattr__(self, "channel_names", tuple(self.channel_names))
         object.__setattr__(self, "class_names", tuple(self.class_names))
         object.__setattr__(self, "term_order", tuple(self.term_order))
@@ -153,6 +163,25 @@ class Config:
         for name in ("padding", "none"):
             if name not in self.class_names:
                 raise ValueError(f"class_names must contain {name!r}")
+        if self.trunk not in ("flat", "unet"):
+            raise ValueError(f"trunk must be 'flat' or 'unet', got {self.trunk!r}")
+        if self.trunk == "unet":
+            # every pooling step must divide the sequence exactly, or the
+            # upsampled decoder will not line back up with its skip connection
+            n_levels = len(self.unet_filters) - 1
+            if n_levels < 1:
+                raise ValueError("unet_filters needs at least 2 entries")
+            if len(self.unet_dropout) != len(self.unet_filters):
+                raise ValueError("unet_dropout must match unet_filters in length")
+            step = self.seq_len
+            for lvl in range(n_levels):
+                if step % self.pool_size:
+                    raise ValueError(
+                        f"seq_len={self.seq_len} is not divisible by pool_size="
+                        f"{self.pool_size} at level {lvl + 1} (length {step}); "
+                        "reduce the number of unet_filters levels or pad the window"
+                    )
+                step //= self.pool_size
 
     @classmethod
     def r_exact(cls, **kwargs) -> "Config":
