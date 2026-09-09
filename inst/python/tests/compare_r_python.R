@@ -1,9 +1,9 @@
 #!/usr/bin/env Rscript
 ## Does the Python port reproduce the R model?
 ##
-##   Rscript inst/python/tests/compare_r_python.R                     # 1 seed, full run
-##   Rscript inst/python/tests/compare_r_python.R --seeds 1,2,3
-##   Rscript inst/python/tests/compare_r_python.R --seeds 42 --epochs 300 --arms r,flat
+##   Rscript inst/python/tests/compare_r_python.R                     # 2 seeds, flat vs unet
+##   Rscript inst/python/tests/compare_r_python.R --terms C --arms flat@39-19,unet_bneck
+##   Rscript inst/python/tests/compare_r_python.R --arms r,flat        # re-check R parity
 ##
 ## Trains the reference R model and the Python port on the SAME arrays with the
 ## same seed, and reports validation PR-AUC / ROC-AUC side by side.
@@ -13,7 +13,7 @@
 ## single-seed difference means nothing. Run >=3 seeds and compare the columns.
 ##
 ## Arms:
-##   r      the frozen R reference model below (keras3 via reticulate)
+##   r      the frozen R reference model below (keras3 via reticulate); opt-in
 ##   flat   the port, cfg$trunk = "flat"   -- should match `r` within noise
 ##   unet   the port, cfg$trunk = "unet"   -- the pooling encoder/decoder trunk
 ##
@@ -32,9 +32,9 @@ suppressMessages({library(keras3); library(tensorflow); library(tfdatasets); lib
 .opt <- function(flag, default) {
   i <- match(flag, .args); if (is.na(i) || i == length(.args)) default else .args[[i + 1L]]
 }
-SEEDS  <- as.integer(strsplit(.opt("--seeds", "42"), ",")[[1]])
+SEEDS  <- as.integer(strsplit(.opt("--seeds", "1,2"), ",")[[1]])
 EPOCHS <- as.integer(.opt("--epochs", "2000"))
-ARMS   <- strsplit(.opt("--arms", "r,flat,unet"), ",")[[1]]
+ARMS   <- strsplit(.opt("--arms", "flat,unet"), ",")[[1]]
 TERMS  <- strsplit(.opt("--terms", "N,C"), ",")[[1]]
 TBDIR  <- .opt("--tensorboard", "")
 CACHE  <- .opt("--cache", "~/AF2_analysis/lf_dcnn_compare_nn_input.rds")

@@ -151,14 +151,22 @@ cd inst/python && PYTHONPATH=. python -m lf_dcnn selftest
 #    and that the standalone .npz path reproduces the in-process one
 Rscript inst/python/tests/roundtrip.R
 
-# 3. does it give the same ANSWERS as the R model, on real windows?
-Rscript inst/python/tests/compare_r_python.R --seeds 1,2,3
+# 3. compare trunk/head variants on real windows (2 seeds, python-only)
+Rscript inst/python/tests/compare_r_python.R --terms C --arms flat@39-19,unet_bneck
 ```
 
-Level 3 trains the frozen R reference model and the port on identical arrays
-with the same seed and prints validation PR-AUC and ROC-AUC side by side; add
-`--arms r,flat,unet` to include the pooling trunk. Budget ~10 min per
-arm/terminus/seed at the default 2000 epochs.
+Level 3 trains variants on identical arrays with the same seed and prints
+validation PR-AUC, ROC-AUC and pooled per-residue accuracy side by side.
+Roughly a minute per arm/terminus/seed.
+
+The frozen R reference is opt-in (`--arms r,flat`), not a default: parity is
+established -- identical 2,438 parameters, per-residue accuracy within seed
+noise -- so re-running it every sweep buys nothing. Bring it back if you change
+the losses, the sampler or the array contract.
+
+Run a sweep as one process per (arm, seed) with `--out`. A long run followed by
+another model in the same process can die inside a retraced `tf.function`
+summing an empty regularization-loss list; process isolation avoids it.
 
 ### Live training curves
 
