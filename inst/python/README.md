@@ -160,6 +160,38 @@ with the same seed and prints validation PR-AUC and ROC-AUC side by side; add
 `--arms r,flat,unet` to include the pooling trunk. Budget ~10 min per
 arm/terminus/seed at the default 2000 epochs.
 
+### Live training curves
+
+R's keras3 viewer only draws when R drives `fit()`, which it no longer does.
+The Python stand-in is TensorBoard — set `Config.tensorboard_dir` (or pass
+`--tensorboard <dir>` to the comparison harness, which also logs the R
+reference arm, so all arms land in one place):
+
+```bash
+Rscript inst/python/tests/compare_r_python.R --terms C --tensorboard ~/AF2_analysis/lf_dcnn_tb/run1
+tensorboard --logdir ~/AF2_analysis/lf_dcnn_tb/run1 --reload_interval 15
+```
+
+Then open <http://localhost:6006> and filter tags. Start TensorBoard *after*
+the first epochs have been written — pointed at an empty directory it caches
+"No scalar data was found" and will not pick the run up later.
+
+### Per-residue accuracy
+
+`masked_cat_accuracy` is argmax accuracy over positions that are neither
+`padding` nor `none`. **Do not read it off `model.evaluate()` or off the
+`val_*` curve in TensorBoard.** It is a stateless metric, so Keras averages it
+per batch — and validation batches mostly hold no known peptide at all, so
+every position is `none`, the mask zeroes the batch, and it scores
+`0/(0+eps) = 0`. Averaging those in scales the number down by the fraction of
+empty batches, which is most of them. Training batches are oversampled to ~25%
+positives, so they do not have this problem, and the train/val gap you see in
+TensorBoard is therefore mostly an artifact.
+
+The comparison harness reports the pooled figure instead — numerator and
+denominator summed over the whole split — alongside the residue count it was
+computed over (`n_res_train` / `n_res_val`).
+
 Read the spread, not a single number: with 6–7 validation positives per
 terminus, PR-AUC moves ~0.4 across seeds *within* either implementation, so a
 one-seed difference is noise. Compare the between-arm gap against the

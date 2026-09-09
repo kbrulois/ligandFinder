@@ -110,6 +110,10 @@ class Config:
     batch_size: int = 32
     n_negatives_per_positive: int = 3
     noise_frac: float = 0.1
+    #: when set, each term writes TensorBoard logs under ``<dir>/<term>`` so
+    #: training curves can be watched live (the Python stand-in for keras3's
+    #: RStudio viewer, which only engages when R drives fit()).
+    tensorboard_dir: str | None = None
     monitor: str = "val_global_pr_auc"
     patience: int = 300
     start_from_epoch: int = 300

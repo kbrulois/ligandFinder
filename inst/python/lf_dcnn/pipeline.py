@@ -59,6 +59,17 @@ def train(
             restore_best_weights=True,
         )
     ]
+    if cfg.tensorboard_dir:
+        import os
+
+        log_dir = os.path.join(os.path.expanduser(cfg.tensorboard_dir), term)
+        callbacks.append(
+            keras.callbacks.TensorBoard(
+                log_dir=log_dir, update_freq="epoch", histogram_freq=0, profile_batch=0
+            )
+        )
+        if verbose:
+            print(f"[{term}] tensorboard logs -> {log_dir}")
     if extra_callbacks:
         callbacks.extend(extra_callbacks)
 

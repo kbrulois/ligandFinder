@@ -27,10 +27,13 @@ suppressMessages({library(keras3); library(tensorflow); library(tfdatasets); lib
 SEEDS  <- as.integer(strsplit(.opt("--seeds", "42"), ",")[[1]])
 EPOCHS <- as.integer(.opt("--epochs", "2000"))
 ARMS   <- strsplit(.opt("--arms", "r,flat,unet"), ",")[[1]]
+TERMS  <- strsplit(.opt("--terms", "N,C"), ",")[[1]]
+TBDIR  <- .opt("--tensorboard", "")
 CACHE  <- .opt("--cache", "~/AF2_analysis/lf_dcnn_compare_nn_input.rds")
 ROOT   <- normalizePath(file.path(dirname(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[1])), "..", "..", ".."))
 
-message(sprintf("seeds=%s epochs=%d arms=%s", paste(SEEDS, collapse=","), EPOCHS, paste(ARMS, collapse=",")))
+message(sprintf("seeds=%s epochs=%d arms=%s terms=%s", paste(SEEDS, collapse=","), EPOCHS,
+                paste(ARMS, collapse=","), paste(TERMS, collapse=",")))
 
 ## ---- 1. the window data ----------------------------------------------------
 ## Cached because 9.2 takes minutes even off its own cache.
@@ -55,10 +58,28 @@ mod  <- lf_dcnn_python(path = file.path(ROOT, "inst/python"))
 cfg0 <- lf_dcnn_config(all_params3, r_exact = TRUE, seed = SEEDS[[1]], mod = mod)
 arrays <- lf_dcnn_arrays(nn_input, cfg0, splits = c("train", "val"))
 
+
+## ---- per-residue accuracy, pooled over the whole split ----------------------
+## NOT model$evaluate(): masked_cat_accuracy is a stateless metric, so Keras
+## averages it PER BATCH. Validation batches mostly contain no known peptide at
+## all -- every position is `none`, the mask zeroes them, and the batch scores
+## 0/(0+eps) = 0. Averaging those in drags the number down by the fraction of
+## empty batches, which is most of them. Pool the numerator and denominator over
+## the whole split instead, so the answer is "of all real-class residues in this
+## split, what fraction did we call right".
+pooled_per_residue_acc <- function(pred_cat, y_cat, K_cat, K_pi) {
+  keep    <- (1 - y_cat[, , K_pi]) * (1 - y_cat[, , K_cat])   # drop padding and none
+  pred_i  <- apply(pred_cat, c(1, 2), which.max)
+  true_i  <- apply(y_cat,    c(1, 2), which.max)
+  support <- sum(keep)
+  list(acc = if (support > 0) sum((pred_i == true_i) * keep) / support else NA_real_,
+       support = support)
+}
+
 ## ---- 3. the frozen R reference model ---------------------------------------
 ## Lifted verbatim from 10_1dcnn_new6.R before the port. Do not "improve" it --
 ## its only job is to be the thing the port is compared against.
-r_reference_fit <- function(nn_in, term, all_params3, seed, epochs) {
+r_reference_fit <- function(nn_in, term, all_params3, seed, epochs, tb_dir = NULL) {
   keras3::clear_session(); keras3::set_random_seed(seed); set.seed(seed)
 
   classes <- setNames(0:7, c("CT_cleavage_context","DB","gap","NT_cleavage_context",
@@ -168,42 +189,72 @@ r_reference_fit <- function(nn_in, term, all_params3, seed, epochs) {
     validation_data = list(nn_in$val$x, list(global = nn_in$val$y_global,
                                              per_index_cat = nn_in$val$y_per_index_cat)),
     steps_per_epoch = ceiling(n_pos * 4 / 32), epochs = epochs,
-    callbacks = list(callback_early_stopping(monitor = "val_global_pr_auc", patience = 300,
-                                             mode = "max", start_from_epoch = 300,
-                                             restore_best_weights = TRUE),
-                     callback_lambda(on_epoch_begin = function(epoch, logs) {
-                       train_ds <<- make_ds() })),
+    callbacks = c(list(callback_early_stopping(monitor = "val_global_pr_auc", patience = 300,
+                                               mode = "max", start_from_epoch = 300,
+                                               restore_best_weights = TRUE),
+                       callback_lambda(on_epoch_begin = function(epoch, logs) {
+                         train_ds <<- make_ds() })),
+                  if (!is.null(tb_dir)) list(callback_tensorboard(log_dir = tb_dir)) else NULL),
     batch_size = NULL, verbose = 0)
+  ## Per-residue accuracy on the clean splits. The accuracy Keras logs during
+  ## fit is measured on oversampled, noise-augmented batches while the weights
+  ## are still moving, so it is not comparable to validation. Re-evaluate both
+  ## splits with the restored best weights instead.
+  ev <- function(sp) {
+    pr <- predict(model, sp$x, verbose = 0)[["per_index_cat"]]
+    pooled_per_residue_acc(pr, sp$y_per_index_cat, K_cat, K_pi)
+  }
+  a_tr <- ev(nn_in$train); a_va <- ev(nn_in$val)
   list(pr = max(h$metrics$val_global_pr_auc), auc = max(h$metrics$val_global_auc),
+       acc_train = a_tr$acc, acc_val = a_va$acc,
+       n_res_train = a_tr$support, n_res_val = a_va$support,
        epochs = length(h$metrics$val_global_pr_auc), params = model$count_params())
 }
 
 ## ---- 4. the python arms -----------------------------------------------------
 py_fit <- function(term, seed, trunk, epochs) {
   cfg <- lf_dcnn_config(all_params3, r_exact = TRUE, seed = seed,
-                        epochs = epochs, trunk = trunk, mod = mod)
+                        epochs = epochs, trunk = trunk, mod = mod,
+                        tensorboard_dir = if (nzchar(TBDIR))
+                          file.path(TBDIR, sprintf("%s_seed%d", trunk, seed)) else NULL)
   cfg <- lf_dcnn_align_terms(cfg, names(nn_input))
   td  <- mod$data$as_term_data(arrays, cfg)
   mod$pipeline$set_seed(cfg$seed)
   res <- mod$train(term, td[[term]], cfg, verbose = 0L,
                    rng = reticulate::import("numpy")$random$default_rng(seed))
-  h <- res[[2]]
+  model <- res[[1]]; h <- res[[2]]
+  ev <- function(split) {
+    sp <- arrays[[term]][[split]]
+    pr <- model$predict(sp$x, verbose = 0L)[["per_index_cat"]]
+    pooled_per_residue_acc(pr, sp$y_per_index_cat,
+                           as.integer(cfg$K_cat), as.integer(cfg$K_pi))
+  }
+  a_tr <- ev("train"); a_va <- ev("val")
   list(pr = max(unlist(h$val_global_pr_auc)), auc = max(unlist(h$val_global_auc)),
-       epochs = length(unlist(h$val_global_pr_auc)), params = res[[1]]$count_params())
+       acc_train = a_tr$acc, acc_val = a_va$acc,
+       n_res_train = a_tr$support, n_res_val = a_va$support,
+       epochs = length(unlist(h$val_global_pr_auc)), params = model$count_params())
 }
 
 ## ---- 5. run every arm on identical arrays -----------------------------------
 rows <- list()
-for (seed in SEEDS) for (term in names(nn_input)) for (arm in ARMS) {
+for (seed in SEEDS) for (term in TERMS) for (arm in ARMS) {
   t0 <- Sys.time()
-  r <- if (arm == "r") r_reference_fit(arrays[[term]], term, all_params3, seed, EPOCHS)
+  r <- if (arm == "r")
+         r_reference_fit(arrays[[term]], term, all_params3, seed, EPOCHS,
+                         tb_dir = if (nzchar(TBDIR))
+                           path.expand(file.path(TBDIR, sprintf("r_seed%d", seed), term)) else NULL)
        else py_fit(term, seed, arm, EPOCHS)
   rows[[length(rows) + 1L]] <- data.frame(
     term = term, seed = seed, arm = arm, pr_auc = r$pr, roc_auc = r$auc,
+    acc_train = r$acc_train, acc_val = r$acc_val,
+    n_res_train = r$n_res_train, n_res_val = r$n_res_val,
     epochs = r$epochs, params = r$params,
     mins = round(as.numeric(difftime(Sys.time(), t0, units = "mins")), 1))
-  message(sprintf("  [%s] %-4s seed=%-3d pr_auc=%.4f roc_auc=%.4f (%d epochs, %.1f min)",
-                  term, arm, seed, r$pr, r$auc, r$epochs, tail(rows,1)[[1]]$mins))
+  message(sprintf("  [%s] %-4s seed=%-3d pr_auc=%.4f roc_auc=%.4f  per-residue acc train=%.3f val=%.3f (n=%d/%d residues)  (%d epochs, %.1f min)",
+                  term, arm, seed, r$pr, r$auc, r$acc_train, r$acc_val,
+                  r$n_res_train, r$n_res_val, r$epochs,
+                  tail(rows,1)[[1]]$mins))
 }
 res <- dplyr::bind_rows(rows)
 
@@ -213,7 +264,10 @@ print(res %>% group_by(term, arm) %>%
         summarise(n = n(), params = first(params),
                   pr_mean = round(mean(pr_auc), 3), pr_sd = round(sd(pr_auc), 3),
                   pr_range = round(diff(range(pr_auc)), 3),
-                  roc_mean = round(mean(roc_auc), 4), .groups = "drop") %>%
+                  roc_mean = round(mean(roc_auc), 4),
+                  acc_train = round(mean(acc_train), 3),
+                  acc_val = round(mean(acc_val), 3),
+                  acc_gap = round(mean(acc_train) - mean(acc_val), 3), .groups = "drop") %>%
         as.data.frame(), row.names = FALSE)
 cat("\nInterpretation: compare pr_mean BETWEEN arms against pr_sd/pr_range WITHIN\n",
     "an arm. If the between-arm gap is smaller than the within-arm spread, the\n",
