@@ -68,6 +68,8 @@ class ClassPositionMask(layers.Layer):
 def _flat_trunk(x, cfg: Config, reg):
     """Full-resolution trunk: every layer stays at ``seq_len`` positions.
 
+    Returns ``(features, None)`` -- there is no bottleneck to tap.
+
     Slim by design for the tiny (<100 example) training sets: two small conv
     layers rather than four wide ones, which held ~26k of the old ~33k params.
     No pooling, so the per-residue head keeps all 36 positions end to end.
@@ -82,7 +84,7 @@ def _flat_trunk(x, cfg: Config, reg):
             name=f"conv{i + 1}",
         )(x)
         x = layers.Dropout(drop, name=f"drop{i + 1}")(x)
-    return x
+    return x, None
 
 
 def _unet_trunk(x, cfg: Config, reg):
@@ -96,7 +98,11 @@ def _unet_trunk(x, cfg: Config, reg):
     The decoder concatenates the matching encoder output at each level
     (standard U-Net skips), because the per-residue head needs the fine
     positional detail that pooling throws away -- upsampling alone would return
-    blurred, blocky class boundaries.  Output is back at ``seq_len`` positions.
+    blurred, blocky class boundaries.
+
+    Returns ``(features at seq_len, bottleneck)``; the bottleneck is the one
+    place the network holds a whole-window view, and ``cfg.global_head`` decides
+    whether the window score gets to see it.
     """
     n_levels = len(cfg.unet_filters) - 1
     skips = []
@@ -125,6 +131,7 @@ def _unet_trunk(x, cfg: Config, reg):
         name="bottleneck",
     )(x)
     x = layers.Dropout(cfg.unet_dropout[-1], name="bottleneck_drop")(x)
+    bottleneck = x
 
     # --- decoder: upsample, rejoin the skip, convolve back down in width ---
     for lvl in reversed(range(n_levels)):
@@ -139,7 +146,7 @@ def _unet_trunk(x, cfg: Config, reg):
             name=f"dec{lvl + 1}",
         )(x)
         x = layers.Dropout(cfg.unet_dropout[lvl], name=f"dec{lvl + 1}_drop")(x)
-    return x
+    return x, bottleneck
 
 
 def build_model(cfg: Config | None = None, clear_session: bool = True) -> keras.Model:
@@ -167,7 +174,9 @@ def build_model(cfg: Config | None = None, clear_session: bool = True) -> keras.
     pos_channel = PositionRamp(cfg.seq_len, name="pos_ramp")(inputs)
     conv_in = layers.Concatenate(name="conv_in")([inputs, pos_channel])
 
-    shared = (_unet_trunk if cfg.trunk == "unet" else _flat_trunk)(conv_in, cfg, reg)
+    shared, bottleneck = (_unet_trunk if cfg.trunk == "unet" else _flat_trunk)(
+        conv_in, cfg, reg
+    )
 
     per_index_logits = layers.Conv1D(
         filters=cfg.K_pi, kernel_size=1, kernel_regularizer=reg, name="per_index_logits"
@@ -176,23 +185,33 @@ def build_model(cfg: Config | None = None, clear_session: bool = True) -> keras.
     # Per-index head: supervised softmax over [6 real, none, padding].
     per_index_cat = layers.Activation("softmax", name="per_index_cat")(per_index_logits)
 
-    # Global head input: masked softmax over the [6 real + none] logits, so the
-    # ranking head's class view includes background/none but not padding.
-    masked_sum = ClassPositionMask(cfg.mask_matrix_cat, name="class_position_mask")(
-        per_index_logits
-    )
-    masked_sum = layers.Activation("softmax", name="masked_sum")(masked_sum)
+    pooled = []
+    if cfg.global_head in ("attn", "both"):
+        # Masked softmax over the [6 real + none] logits, so the ranking head's
+        # class view includes background/none but not padding.
+        masked_sum = ClassPositionMask(cfg.mask_matrix_cat, name="class_position_mask")(
+            per_index_logits
+        )
+        masked_sum = layers.Activation("softmax", name="masked_sum")(masked_sum)
 
-    # A SMALL multi-head attention over the masked class softmax, then pool. A
-    # plain GAP of the softmax washed out all positional signal and tanked
-    # global AUC; the attention restores it at ~1/6 the cost of the old
-    # 4-head/key_dim-32 version. The dense named "embed" is the representation
-    # reused (no new loss) for nearest-known retrieval.
-    attn = layers.MultiHeadAttention(
-        num_heads=cfg.attention_heads, key_dim=cfg.attention_key_dim, name="attn"
-    )(masked_sum, masked_sum)
-    g = layers.LayerNormalization(name="attn_norm")(attn)
-    g = layers.GlobalAveragePooling1D(name="gap")(g)
+        # A SMALL multi-head attention over the masked class softmax, then pool.
+        # A plain GAP of the softmax washed out all positional signal and tanked
+        # global AUC; the attention restores it at ~1/6 the cost of the old
+        # 4-head/key_dim-32 version.
+        attn = layers.MultiHeadAttention(
+            num_heads=cfg.attention_heads, key_dim=cfg.attention_key_dim, name="attn"
+        )(masked_sum, masked_sum)
+        a = layers.LayerNormalization(name="attn_norm")(attn)
+        pooled.append(layers.GlobalAveragePooling1D(name="gap")(a))
+
+    if cfg.global_head in ("bottleneck", "both"):
+        # Straight off the U-Net bottleneck: the score sees the pooled
+        # whole-window representation rather than only the class softmax.
+        pooled.append(layers.GlobalAveragePooling1D(name="gap_bneck")(bottleneck))
+
+    g = pooled[0] if len(pooled) == 1 else layers.Concatenate(name="global_feats")(pooled)
+    # The dense named "embed" is the representation reused (no new loss) for
+    # nearest-known retrieval, whichever pooling fed it.
     g = layers.Dense(cfg.embed_units, activation="gelu", name="embed")(g)
     g = layers.Dropout(cfg.embed_dropout, name="embed_drop")(g)
     global_output = layers.Dense(1, activation="sigmoid", name="global")(g)

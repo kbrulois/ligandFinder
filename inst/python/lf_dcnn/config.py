@@ -76,6 +76,14 @@ class Config:
     #: ``"unet"`` pools down and upsamples back, widening the channel count on
     #: the way down.  See :func:`lf_dcnn.model.build_model`.
     trunk: str = "flat"
+    #: where the global (window-score) head reads from.
+    #: ``"attn"``       the masked class softmax -> attention -> pool (default,
+    #:                  and the only option for the flat trunk)
+    #: ``"bottleneck"`` the U-Net bottleneck -> pool. Gives the score direct
+    #:                  access to the pooled whole-window representation instead
+    #:                  of forcing it through the 7-channel class softmax.
+    #: ``"both"``       concatenate the two pooled vectors.
+    global_head: str = "attn"
     conv_filters: tuple[int, ...] = (16, 8)
     conv_kernel: int = 3
     conv_dropout: tuple[float, ...] = (0.2, 0.3)
@@ -169,6 +177,13 @@ class Config:
                 raise ValueError(f"class_names must contain {name!r}")
         if self.trunk not in ("flat", "unet"):
             raise ValueError(f"trunk must be 'flat' or 'unet', got {self.trunk!r}")
+        if self.global_head not in ("attn", "bottleneck", "both"):
+            raise ValueError(
+                f"global_head must be 'attn', 'bottleneck' or 'both', got {self.global_head!r}")
+        if self.global_head != "attn" and self.trunk != "unet":
+            raise ValueError(
+                f"global_head={self.global_head!r} needs a bottleneck; it is only "
+                "available with trunk='unet'")
         if self.trunk == "unet":
             # every pooling step must divide the sequence exactly, or the
             # upsampled decoder will not line back up with its skip connection

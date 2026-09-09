@@ -16,6 +16,14 @@
 ##   r      the frozen R reference model below (keras3 via reticulate)
 ##   flat   the port, cfg$trunk = "flat"   -- should match `r` within noise
 ##   unet   the port, cfg$trunk = "unet"   -- the pooling encoder/decoder trunk
+##
+## Widths can be set per arm with "@", filters separated by "-":
+##   flat@41-132   unet@8-16-32
+## Use this to separate ARCHITECTURE from CAPACITY. unet(16,32,64) has 21,454
+## parameters against flat(16,8)'s 2,438, so a straight flat-vs-unet comparison
+## confounds the two. Matched pairs (analytic, verified against build_model):
+##   6,262 params : flat@39-19    vs unet@8-16-32
+##  ~21,455       : flat@41-132   vs unet@16-32-64
 
 suppressMessages({library(keras3); library(tensorflow); library(tfdatasets); library(dplyr)})
 
@@ -30,6 +38,7 @@ ARMS   <- strsplit(.opt("--arms", "r,flat,unet"), ",")[[1]]
 TERMS  <- strsplit(.opt("--terms", "N,C"), ",")[[1]]
 TBDIR  <- .opt("--tensorboard", "")
 CACHE  <- .opt("--cache", "~/AF2_analysis/lf_dcnn_compare_nn_input.rds")
+OUT    <- .opt("--out", "")
 ROOT   <- normalizePath(file.path(dirname(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[1])), "..", "..", ".."))
 
 message(sprintf("seeds=%s epochs=%d arms=%s terms=%s", paste(SEEDS, collapse=","), EPOCHS,
@@ -212,11 +221,35 @@ r_reference_fit <- function(nn_in, term, all_params3, seed, epochs, tb_dir = NUL
 }
 
 ## ---- 4. the python arms -----------------------------------------------------
-py_fit <- function(term, seed, trunk, epochs) {
-  cfg <- lf_dcnn_config(all_params3, r_exact = TRUE, seed = seed,
-                        epochs = epochs, trunk = trunk, mod = mod,
+## "flat", "unet", "unet_bneck", "unet_both", optionally with widths:
+## "flat@41-132", "unet_bneck@8-16-32"
+parse_arm <- function(arm) {
+  parts <- strsplit(arm, "@", fixed = TRUE)[[1]]
+  filt  <- if (length(parts) > 1)
+    as.integer(strsplit(parts[[2]], "-", fixed = TRUE)[[1]]) else NULL
+  name  <- parts[[1]]
+  head  <- switch(name, unet_bneck = "bottleneck", unet_both = "both", "attn")
+  trunk <- if (startsWith(name, "unet")) "unet" else "flat"
+  list(trunk = trunk, global_head = head, filters = filt)
+}
+
+py_fit <- function(term, seed, arm, epochs) {
+  a <- parse_arm(arm); trunk <- a$trunk
+  extra <- list(global_head = a$global_head)
+  if (!is.null(a$filters)) {
+    if (trunk == "flat") {
+      extra$conv_filters <- as.integer(a$filters)
+      extra$conv_dropout <- rep(0.2, length(a$filters))
+    } else {
+      extra$unet_filters <- as.integer(a$filters)
+      extra$unet_dropout <- rep(0.2, length(a$filters))
+    }
+  }
+  cfg <- do.call(lf_dcnn_config, c(list(all_params3, r_exact = TRUE, seed = seed,
+                        epochs = epochs, trunk = trunk, mod = mod), extra,
+                        list(
                         tensorboard_dir = if (nzchar(TBDIR))
-                          file.path(TBDIR, sprintf("%s_seed%d", trunk, seed)) else NULL)
+                          file.path(TBDIR, sprintf("%s_seed%d", gsub("[@-]", "_", arm), seed)) else NULL)))
   cfg <- lf_dcnn_align_terms(cfg, names(nn_input))
   td  <- mod$data$as_term_data(arrays, cfg)
   mod$pipeline$set_seed(cfg$seed)
@@ -273,5 +306,6 @@ cat("\nInterpretation: compare pr_mean BETWEEN arms against pr_sd/pr_range WITHI
     "an arm. If the between-arm gap is smaller than the within-arm spread, the\n",
     "implementations agree. roc_auc is the stabler metric at these positive counts.\n")
 
-out <- file.path(path.expand("~/AF2_analysis"), sprintf("lf_dcnn_compare_%s.csv", format(Sys.Date(), "%Y%m%d")))
+out <- if (nzchar(OUT)) path.expand(OUT) else
+  file.path(path.expand("~/AF2_analysis"), sprintf("lf_dcnn_compare_%s.csv", format(Sys.Date(), "%Y%m%d")))
 write.csv(res, out, row.names = FALSE); cat("\nwrote", out, "\n")

@@ -356,6 +356,40 @@ def check_unet_trunk():
         raise AssertionError("accepted a U-Net depth that does not divide seq_len")
 
 
+def check_global_head_variants():
+    """The window score can read the class softmax, the bottleneck, or both."""
+    flat = build_model(Config(trunk="flat"))
+    assert flat.count_params() == EXPECTED_PARAMS      # default is untouched
+    assert "gap_bneck" not in {l.name for l in flat.layers}
+
+    seen = {}
+    for head, has_attn, embed_in in [
+        ("attn", True, 7),          # masked class softmax -> attention -> pool
+        ("bottleneck", False, 64),  # straight off the U-Net bottleneck
+        ("both", True, 71),         # concatenation of the two
+    ]:
+        cfg = Config(trunk="unet", global_head=head)
+        m = build_model(cfg)
+        names = {l.name for l in m.layers}
+        assert ("attn" in names) is has_attn, (head, names & {"attn"})
+        assert ("gap_bneck" in names) is (head != "attn"), head
+        assert m.get_layer("embed").input.shape[-1] == embed_in, (head, m.get_layer("embed").input.shape)
+        # the per-residue head is unaffected by where the score reads from
+        out = m.predict(np.zeros((2, cfg.seq_len, cfg.n_channels), "float32"), verbose=0)
+        assert out["per_index_cat"].shape == (2, cfg.seq_len, cfg.K_pi)
+        assert out["global"].shape == (2, 1)
+        seen[head] = m.count_params()
+    assert seen["both"] > seen["bottleneck"] > seen["attn"], seen
+
+    # a bottleneck head needs a trunk that has one
+    try:
+        Config(trunk="flat", global_head="bottleneck")
+    except ValueError as e:
+        assert "trunk='unet'" in str(e), e
+    else:
+        raise AssertionError("accepted a bottleneck head on the flat trunk")
+
+
 def check_unet_trains():
     """A short end-to-end run on the pooling trunk."""
     from .pipeline import run
@@ -375,6 +409,7 @@ CHECKS = [
     check_losses,
     check_model_shapes,
     check_unet_trunk,
+    check_global_head_variants,
     check_unet_trains,
     check_position_ramp,
     check_oversampler,
