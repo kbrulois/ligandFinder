@@ -17,9 +17,10 @@ stamped <- function(..., ext = ".svg", dir = "~/AF2_analysis") {
 }
 
 ## --- format helpers ---------------------------------------------------------
-## per_index_cat now outputs K_real independent sigmoids (columns =
-## real_class_names), not an 8-class softmax; the input has n_channels incl. the
-## end_type/position channels. build_x replaces the removed per-model nn_in objects.
+## per_index_cat is an 8-class SOFTMAX over pi_names = [6 real, none, padding]
+## (the comment here used to say independent sigmoids over the real classes --
+## that predates the current head; the argmax code below has always assumed the
+## softmax). build_x replaces the removed per-model nn_in objects.
 build_x <- function(dataset) {
   n <- length(dataset[["data"]])
   aperm(array(unlist(dataset[["data"]]), dim = c(seq_len, n_channels, n)), c(3, 1, 2))
