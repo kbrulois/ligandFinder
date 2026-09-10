@@ -178,18 +178,46 @@ rm(.o)
 ## missing features in 5,000 html files. Sourcing unconditionally means the
 ## plots always match the source tree, installed package or not.
 local({
-  .cand <- c("R/plot_proteins_win_new.R",
-             file.path(getwd(), "R", "plot_proteins_win_new.R"),
-             "~/R_projects/ligandFinder/R/plot_proteins_win_new.R")
-  .hit <- .cand[file.exists(path.expand(.cand))]
+  .roots <- c(".", getwd(), "~/R_projects/ligandFinder")
+  .get <- function(rel, what) {
+    .cand <- file.path(.roots, rel)
+    .hit  <- .cand[file.exists(path.expand(.cand))]
+    if (!length(.hit))
+      stop(rel, " not found -- run from the package root, or ",
+           "devtools::load_all() the package before sourcing this script.",
+           call. = FALSE)
+    source(path.expand(.hit[[1]]), local = FALSE)
+    message("sourced ", .hit[[1]], "  (", what, ")")
+  }
+  .get("R/plot_proteins_win_new.R", "make_protein_plot_win")
+  ## make_cm_script_text() embeds the per-gene ChimeraX script -- thousands of
+  ## setattr lines -- into each page. make_protein_plot_win looks for it on the
+  ## search path and, if it is absent, falls back to `close` + `open <AF url>`
+  ## and NOTHING ELSE, without failing. The old workflow got this file from the
+  ## ambient session; the check below turns that silent fallback into an error.
+  ##
+  ## Only the DEFINITIONS: generate_cm_sct.R ends in a one-off driver that walks
+  ## the_input over hardcoded indices (`the_input[c(1:5435, 5441:5614)]`), which
+  ## errors on any other gene set and would regenerate thousands of .cxc files
+  ## as a side effect. Cut at the driver, by content rather than line number.
+  .cand <- file.path(.roots, "inst/scripts/generate_cm_sct.R")
+  .hit  <- .cand[file.exists(path.expand(.cand))]
   if (!length(.hit))
-    stop("R/plot_proteins_win_new.R not found -- run from the package root, or ",
-         "devtools::load_all() the package before sourcing this script.",
-         call. = FALSE)
-  source(path.expand(.hit[[1]]), local = FALSE)
-  message("make_protein_plot_win sourced from ", .hit[[1]])
+    stop("inst/scripts/generate_cm_sct.R not found -- the ChimeraX script ",
+         "would be omitted from every page.", call. = FALSE)
+  .src  <- readLines(path.expand(.hit[[1]]))
+  .stop <- grep("^start <- Sys.time\\(\\)", .src)[1]
+  if (is.na(.stop)) .stop <- length(.src) + 1L
+  eval(parse(text = paste(.src[seq_len(.stop - 1L)], collapse = "\n")),
+       envir = globalenv())
+  message("sourced ", .hit[[1]], "  (make_cm_script_text; defs only, ",
+          .stop - 1L, "/", length(.src), " lines)")
 })
 stopifnot(is.function(make_protein_plot_win))
+if (!exists("make_cm_script_text", mode = "function", inherits = TRUE))
+  stop("make_cm_script_text not found after sourcing generate_cm_sct.R -- every ",
+       "page would embed only `close` + `open <AF url>` with no colouring.",
+       call. = FALSE)
 
 ## Guard against the failure above ever recurring silently: if the ensemble
 ## columns are present, the plot function must be one that can draw them.
