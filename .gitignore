@@ -25,3 +25,7 @@ terraform/*.tfvars
 # Python bytecode from inst/python/lf_dcnn
 __pycache__/
 *.py[cod]
+
+# stray R graphics device output (created by Rscript when a plot is drawn
+# with no explicit device open)
+Rplots.pdf
