@@ -778,10 +778,29 @@ make_protein_plot_win <- function(old_nn_input,
           mutate(metric_type = if(nrow(cons_dat) > 0) {"blosum62\n-------------\ngrantham"} else {"discrete"}) %>%
           mutate(metric_type = factor(metric_type, levels = c("", "discrete", "blosum62\n-------------\ngrantham"))),
         mapping = aes(x = start - 0.5, xend = end + 0.5, y = -Inf, yend = -Inf, color = feature),
-        curvature = 1, lineend = "round")
+        curvature = 1, lineend = "round") +
 
+      ## Legend 1 of 3 -- the vertical rectangles (Dibasic, Cysteine).
+      ##
+      ## Each of the three annotation groups (v_rec / h_rec / arch) gets its OWN
+      ## colour scale, via ggnewscale::new_scale_color() below. They used to share
+      ## a single scale_color_manual(), which is why one legend titled "disulfide
+      ## bond source:" listed Dibasic, Cysteine and the peptide tracks as well.
+      ##
+      ## Do NOT collapse these back into one scale and reach for `breaks =` to
+      ## trim it: `breaks` applies to the shared scale, so trimming it to the
+      ## disulfide features silently deletes the Dibasic / Cysteine / gpcrdb_gtp /
+      ## sven / top200NC / uniprot_peptide keys too. Each scale here is handed the
+      ## FULL colour vector and draws keys only for the features its own layers
+      ## contain -- which is also what makes the disulfide legend appear only
+      ## when the protein actually has disulfides.
+      scale_color_manual(values = setNames(anno_feats$color, anno_feats$feature),
+                         name = "motif: ",
+                         guide = ggplot2::guide_legend(order = 1))
+
+    ## `new_pep` and `phs` tracks are not drawn, so they never reach legend 2.
     h_rec_dat <- anno_feat_dat %>%
-      filter(ggp == "h_rec") %>%
+      filter(ggp == "h_rec", !feature %in% c("new_pep", "phs")) %>%
       mutate(metric = "AA_seq") %>%
       mutate(metric_type = "") %>%
       mutate(metric_type = factor(metric_type, levels = c("", "discrete", "blosum62\n-------------\ngrantham"))) %>%
@@ -799,7 +818,10 @@ make_protein_plot_win <- function(old_nn_input,
 
     top_y <- df %>% filter(metric_type == "") %>% mutate(metric = droplevels(metric)) %>% pull(metric) %>% levels %>% length
 
-    main_p <- main_p + ggiraph::geom_segment_interactive(
+    main_p <- main_p +
+      ggnewscale::new_scale_color() +
+
+      ggiraph::geom_segment_interactive(
       data = h_rec_dat,
       aes(x = start - 0.3, xend = end + 0.3,
           y = top_y + nudge, yend = top_y + nudge,
@@ -808,6 +830,13 @@ make_protein_plot_win <- function(old_nn_input,
       inherit.aes = FALSE,
       linewidth = 1.2,
       lineend = "round") +
+
+      ## Legend 2 of 3 -- the horizontal peptide-track lines.
+      scale_color_manual(values = setNames(anno_feats$color, anno_feats$feature),
+                         name = "peptide source: ",
+                         guide = ggplot2::guide_legend(order = 2)) +
+
+      ggnewscale::new_scale_color() +
 
       ggplot2::geom_curve(data = anno_feat_dat %>%
                             filter(ggp == "arch") %>%
@@ -818,7 +847,17 @@ make_protein_plot_win <- function(old_nn_input,
                           lineend = "round",
                           inherit.aes = FALSE) +
 
-      scale_color_manual(values = setNames(anno_feats$color, anno_feats$feature), name = "disulfide bond source: ") +
+      ## Legend 3 of 3 -- the disulfide arches. The raw feature values are
+      ## afdsb / unidsb / both, so relabel them to the sources they stand for.
+      ## With no arch rows there are no keys and ggplot drops the legend, which
+      ## is the "if present" behaviour.
+      scale_color_manual(values = setNames(anno_feats$color, anno_feats$feature),
+                         name = "disulfide bond source: ",
+                         labels = function(x) {
+                           m <- c(afdsb = "AlphaFold DB", unidsb = "UniProt", both = "both")
+                           unname(ifelse(is.na(m[x]), x, m[x]))
+                         },
+                         guide = ggplot2::guide_legend(order = 3)) +
 
       coord_cartesian(clip = "off") +
 
