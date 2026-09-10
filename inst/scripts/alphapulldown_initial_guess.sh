@@ -79,6 +79,27 @@ echo "protein_list : $protein_list  ($N_FOLDS folds)"
 echo "output_path  : $output_path"
 echo "seed_dir     : ${seed_dir:-<none - running UNGUIDED>}"
 
+# Feature directories.  Defaults to the curated human set; AP_FEATURES_DIRS
+# overrides it with a colon-separated list when a run also needs sequences
+# built by afpd_create_features.sh (designed peptides, non-human orthologs).
+#
+# Passed as one comma-separated value because --features_directory is an absl
+# DEFINE_list: repeating the flag replaces the previous value rather than
+# adding to it, which would silently drop the curated set.  Confirm with
+#     python $RSP --helpfull 2>&1 | grep -A2 features_directory
+# -- "a comma separated list" means this is right.
+FEATURES_DIRS="${AP_FEATURES_DIRS:-/oak/stanford/groups/ebutcher/deorphan-AI-ze/alphapulldown/input_features/Homo_sapiens}"
+
+IFS=':' read -r -a FEATURE_DIR_LIST <<< "$FEATURES_DIRS"
+for d in "${FEATURE_DIR_LIST[@]}"; do
+    if [[ ! -d "$d" ]]; then
+        echo "ERROR: features directory '$d' does not exist." >&2
+        exit 1
+    fi
+done
+FEATURES_CSV=$(IFS=','; echo "${FEATURE_DIR_LIST[*]}")
+echo "features     : $FEATURES_CSV"
+
 # Flags below mirror exactly what run_multimer_jobs.py emits, so results stay
 # comparable to previous unguided screens.
 ARGS=(
@@ -87,7 +108,7 @@ ARGS=(
     --num_cycle 3
     --num_predictions_per_model 1
     --data_directory /oak/stanford/groups/ebutcher/catherine/alphafold_db
-    --features_directory /oak/stanford/groups/ebutcher/deorphan-AI-ze/alphapulldown/input_features/Homo_sapiens
+    --features_directory "$FEATURES_CSV"
     --pair_msa
     --nomsa_depth_scan
     --nomultimeric_template
