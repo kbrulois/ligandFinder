@@ -111,8 +111,11 @@ class Result:
 
     term_order: tuple[str, ...]
     pred: np.ndarray           # (n,)  pooled-Platt calibrated global score
-    pred_raw: np.ndarray       # (n,)  uncalibrated global score
-    per_index: np.ndarray      # (n, seq_len, K_pi)
+    pred_raw: np.ndarray       # (n,)  uncalibrated global score, ensemble MEAN
+    pred_sd: np.ndarray        # (n,)  sd of the raw score across ensemble members
+    per_index: np.ndarray      # (n, seq_len, K_pi)  ensemble MEAN
+    per_index_sd: np.ndarray   # (n, seq_len, K_pi)  sd across ensemble members
+    n_seeds: int
     emb: np.ndarray            # (n, embed_units), L2-normalised
     val_scores: np.ndarray     # (m,)  pooled validation raw scores
     val_labels: np.ndarray     # (m,)  pooled validation labels
@@ -128,7 +131,10 @@ class Result:
             "term_order": list(self.term_order),
             "pred": self.pred,
             "pred_raw": self.pred_raw,
+            "pred_sd": self.pred_sd,
             "per_index": self.per_index,
+            "per_index_sd": self.per_index_sd,
+            "n_seeds": self.n_seeds,
             "emb": self.emb,
             "val_scores": self.val_scores,
             "val_labels": self.val_labels,
@@ -155,11 +161,21 @@ def _order_terms(data: Mapping, cfg: Config) -> tuple[str, ...]:
     return tuple(known + extra)
 
 
+def _mean_sd(total, total_sq, n):
+    """Mean and sample sd from running sums -- avoids holding every member."""
+    mean = total / n
+    if n < 2:
+        return mean, np.zeros_like(mean)
+    var = (total_sq - n * mean**2) / (n - 1)
+    return mean, np.sqrt(np.maximum(var, 0.0))
+
+
 def run(
     data: Mapping[str, Mapping[str, Mapping[str, np.ndarray]]],
     cfg: Config | None = None,
     verbose: int = 1,
     calibration_method: str = "irls",
+    n_seeds: int = 1,
 ) -> Result:
     """Train every terminus model, score the ``all`` split, calibrate, embed.
 
@@ -167,6 +183,17 @@ def run(
     in :mod:`lf_dcnn.data`.  Rows of every returned array are the ``all`` splits
     concatenated in ``cfg.term_order``, which is the order R's
     ``bind_rows(lapply(nn_input, function(x) x$all))`` produces.
+
+    With ``n_seeds > 1`` each terminus trains that many members (seeds
+    ``cfg.seed`` .. ``cfg.seed + n_seeds - 1``) and the global score and the
+    per-residue softmax are reduced to their mean and sd across members. The sd
+    is the useful half: a single model's softmax cannot distinguish "confidently
+    0.5" from "the members disagree violently", and those mean opposite things
+    when reading a per-residue profile.
+
+    The embedding is taken from the FIRST member only. Averaging embeddings
+    across independently initialised models is meaningless -- each learns its
+    own basis -- so nearest-known retrieval uses one member's space.
     """
     cfg = cfg or Config()
     set_seed(cfg.seed)
@@ -177,7 +204,8 @@ def run(
 
     models: dict[str, keras.Model] = {}
     histories: dict[str, dict] = {}
-    raw_parts, per_index_parts, emb_parts = [], [], []
+    raw_parts, raw_sd_parts, emb_parts = [], [], []
+    per_index_parts, per_index_sd_parts = [], []
     val_score_parts, val_label_parts = [], []
     n_by_term: dict[str, int] = {}
 
@@ -188,27 +216,56 @@ def run(
                 raise KeyError(f"term {term!r} is missing the {needed!r} split")
 
         if verbose:
-            print(f"[{term}] training ({len(splits['train'])} train, "
+            print(f"[{term}] training {n_seeds} member(s) "
+                  f"({len(splits['train'])} train, "
                   f"{int(splits['train'].y_global.sum())} positive)")
-        # a per-term generator keeps the two models' sampling independent of
-        # each other's epoch counts
-        rng = np.random.default_rng(None if cfg.seed is None else cfg.seed + terms.index(term))
-        model, history = train(term, splits, cfg, verbose=verbose, rng=rng)
-        if verbose:
-            print(f"[{term}] trainable params: {model.count_params():,}")
-        models[term] = model
-        histories[term] = history
 
-        preds = predict_all(model, splits["all"].x)
-        raw_parts.append(preds["global"])
-        per_index_parts.append(preds["per_index_cat"])
-        emb_parts.append(embed(model, splits["all"].x))
+        g_sum = g_sq = pi_sum = pi_sq = v_sum = None
+        base = 0 if cfg.seed is None else cfg.seed
+        for k in range(n_seeds):
+            cfg_k = cfg if n_seeds == 1 else cfg.evolve(seed=base + k)
+            # Re-seed per member so the ensemble members differ. With a single
+            # member, leave the stream alone: run() already seeded once, and
+            # re-seeding here would reset it per TERM, changing the second
+            # term's model relative to the pre-ensemble behaviour.
+            if n_seeds > 1:
+                set_seed(cfg_k.seed)
+            # a per-term generator keeps the termini's sampling independent
+            rng = np.random.default_rng(None if cfg_k.seed is None
+                                        else cfg_k.seed + terms.index(term))
+            model, history = train(term, splits, cfg_k, verbose=verbose, rng=rng)
+            if verbose:
+                print(f"[{term}] member {k + 1}/{n_seeds} (seed {cfg_k.seed}), "
+                      f"{model.count_params():,} params")
+
+            p = predict_all(model, splits["all"].x)
+            v = predict_all(model, splits["val"].x)["global"]
+            g, pi = p["global"], p["per_index_cat"].astype("float64")
+            if g_sum is None:
+                g_sum, g_sq = g.copy(), g**2
+                pi_sum, pi_sq = pi.copy(), pi**2
+                v_sum = v.copy()
+                models[term] = model              # first member is the kept one
+                histories[term] = history
+                emb_parts.append(embed(model, splits["all"].x))
+            else:
+                g_sum += g; g_sq += g**2
+                pi_sum += pi; pi_sq += pi**2
+                v_sum += v
+
+        g_mean, g_sd = _mean_sd(g_sum, g_sq, n_seeds)
+        pi_mean, pi_sd = _mean_sd(pi_sum, pi_sq, n_seeds)
+        raw_parts.append(g_mean)
+        raw_sd_parts.append(g_sd)
+        per_index_parts.append(pi_mean.astype("float32"))
+        per_index_sd_parts.append(pi_sd.astype("float32"))
         n_by_term[term] = len(splits["all"])
 
-        val_score_parts.append(predict_all(model, splits["val"].x)["global"])
+        val_score_parts.append(v_sum / n_seeds)
         val_label_parts.append(splits["val"].y_global[:, 0].astype("float64"))
 
     pred_raw = np.concatenate(raw_parts)
+    pred_sd = np.concatenate(raw_sd_parts)
     val_scores = np.concatenate(val_score_parts)
     val_labels = np.concatenate(val_label_parts)
 
@@ -220,7 +277,10 @@ def run(
         term_order=terms,
         pred=pred,
         pred_raw=pred_raw,
+        pred_sd=pred_sd,
         per_index=np.concatenate(per_index_parts, axis=0),
+        per_index_sd=np.concatenate(per_index_sd_parts, axis=0),
+        n_seeds=int(n_seeds),
         emb=np.concatenate(emb_parts, axis=0),
         val_scores=val_scores,
         val_labels=val_labels,

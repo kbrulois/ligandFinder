@@ -162,26 +162,70 @@ lf_dcnn_arrays <- function(nn_input, cfg, splits = c("train", "val", "all")) {
 #' @param channel_names the input channel order, i.e. `all_params3`.
 #' @param r_exact reproduce 10_1dcnn_new6.R exactly (see the package README).
 #' @param verbose passed to keras `fit()`; 0 silences the per-epoch output.
+#' @param n_seeds ensemble members per terminus. Each is a full retrain, and the
+#'   global score and per-residue softmax come back as the mean across members
+#'   with `pred_sd` / `per_index_sd` giving the spread. 1 reproduces the old
+#'   single-model behaviour (sd all zero).
+#' @param cache path to an .rds. If it exists and its fingerprint matches
+#'   (config, n_seeds, term sizes), the whole run is loaded instead of retrained
+#'   -- model weights included, so `models` still works downstream. Otherwise the
+#'   run is trained and written there.
+#' @param refresh TRUE to retrain and overwrite an existing cache.
 #' @param keep_arrays return the built contract arrays as `$arrays`, which
 #'   10_1dcnn_new6.R re-exposes as `nn_in_all` for the plotting scripts. Set
 #'   FALSE to drop them once scoring is done (they are the bulk of the memory).
 #' @param ... further Config fields (`epochs`, `seed`, ...).
-#' @return list with `pred`, `pred_raw`, `per_index`, `per_index_tbl`, `emb`,
+#' @return list with `pred`, `pred_raw`, `pred_sd`, `per_index`, `per_index_sd`,
+#'   `per_index_tbl`, `per_index_sd_tbl`, `emb`,
 #'   `val_scores`, `val_labels`, `calibrator`, `histories`, `term_order`,
 #'   `models`, `config` and (unless `keep_arrays = FALSE`) `arrays`.
 #' @export
 lf_dcnn_run <- function(nn_input, channel_names, r_exact = FALSE,
-                        verbose = 1L, keep_arrays = TRUE, ...,
+                        verbose = 1L, keep_arrays = TRUE, n_seeds = 5L,
+                        cache = NULL, refresh = FALSE, ...,
                         venv = "r-tensorflow", path = NULL) {
   mod <- lf_dcnn_python(venv = venv, path = path)
   cfg <- lf_dcnn_config(channel_names, r_exact = r_exact, ..., mod = mod)
   cfg <- lf_dcnn_align_terms(cfg, names(nn_input))
 
+  ## Cache fingerprint: anything that would change the answer. A cache whose
+  ## fingerprint differs is ignored rather than silently reused.
+  .fp <- list(cfg = cfg$to_dict(), n_seeds = as.integer(n_seeds),
+              terms = names(nn_input),
+              n = vapply(nn_input, \(x) nrow(x$all), integer(1)),
+              npos = vapply(nn_input, \(x) sum(x$train$known), numeric(1)))
+  .cp <- if (!is.null(cache)) path.expand(cache) else NULL
+
+  if (!is.null(.cp) && file.exists(.cp) && !isTRUE(refresh)) {
+    .cc <- readRDS(.cp)
+    if (identical(.cc$fingerprint, .fp)) {
+      message("lf_dcnn_run: reusing cache ", cache, " (no training)")
+      out <- .cc$out
+      ## rebuild the keras models from saved weights -- downstream scripts
+      ## (10_2_per_ind_profiles.R, 10_3d_embed_umap.R) expect `models`
+      wd <- paste0(tools::file_path_sans_ext(.cp), "_weights")
+      if (dir.exists(wd)) {
+        out$models <- stats::setNames(lapply(names(nn_input), function(tm) {
+          m <- mod$build_model(cfg); m$load_weights(file.path(wd, paste0(tm, ".weights.h5"))); m
+        }), names(nn_input))
+      }
+      if (isTRUE(keep_arrays) && is.null(out$arrays))
+        out$arrays <- lf_dcnn_arrays(nn_input, cfg)
+      return(out)
+    }
+    message("lf_dcnn_run: cache fingerprint differs -- retraining")
+  }
+
   data <- lf_dcnn_arrays(nn_input, cfg)
-  res  <- mod$run(data, cfg, verbose = as.integer(verbose))
+  res  <- mod$run(data, cfg, verbose = as.integer(verbose),
+                  n_seeds = as.integer(n_seeds))
   out  <- res$to_dict()
 
   out$per_index_tbl <- lf_dcnn_per_index_tibbles(out$per_index, out$pi_names)
+  ## sd across ensemble members, same shape and column names as the mean, so the
+  ## two line up position-for-position in the plots
+  out$per_index_sd_tbl <- lf_dcnn_per_index_tibbles(out$per_index_sd, out$pi_names)
+  out$pred_sd <- as.numeric(out$pred_sd)
   out$pred     <- as.numeric(out$pred)
   out$pred_raw <- as.numeric(out$pred_raw)
   ## The models come back as python keras objects. R no longer drives keras, but
@@ -196,6 +240,20 @@ lf_dcnn_run <- function(nn_input, channel_names, r_exact = FALSE,
   ## the downstream plotting scripts expect the built arrays as `nn_in_all`;
   ## hand back the ones we already built rather than paying for them twice.
   if (isTRUE(keep_arrays)) out$arrays <- data
+
+  if (!is.null(.cp)) {
+    dir.create(dirname(.cp), showWarnings = FALSE, recursive = TRUE)
+    wd <- paste0(tools::file_path_sans_ext(.cp), "_weights")
+    dir.create(wd, showWarnings = FALSE, recursive = TRUE)
+    for (tm in names(out$models))
+      out$models[[tm]]$save_weights(file.path(normalizePath(wd), paste0(tm, ".weights.h5")))
+    ## `models` are python objects and cannot be serialised; the weights above
+    ## restore them. `arrays` are rebuilt on load, so they are not stored either.
+    saveRDS(list(fingerprint = .fp,
+                 out = out[setdiff(names(out), c("models", "arrays"))]),
+            .cp)
+    message("lf_dcnn_run: cached to ", cache, "  (weights in ", basename(wd), ")")
+  }
   out
 }
 

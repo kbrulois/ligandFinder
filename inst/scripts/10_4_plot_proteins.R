@@ -154,8 +154,40 @@ stopifnot(identical(map_chr(the_input,  \(x) as.character(x$gene)[1]),
                     map_chr(pep_input, \(x) as.character(x$gene)[1])))
 
 pred_to_plot <- nn_input_comb
+
+## make_protein_plot_win reads these from the calling environment rather than
+## taking them as arguments -- they used to arrive incidentally from 9.2 and the
+## training script. It catches its own errors per gene, so a missing one shows
+## up as "no html written" rather than a stop(); load them explicitly.
 if (!exists("species_dat"))
   species_dat <- readRDS(system.file("extdata/species_dat.rds", package = "ligandFinder"))
+if (!exists("id_map"))
+  id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
+if (!exists("classes"))
+  classes <- setNames(seq_along(CLASS_NAMES) - 1L, CLASS_NAMES <- c(
+    "CT_cleavage_context","DB","gap","NT_cleavage_context",
+    "pep_other","pep_pocket","padding","none"))
+for (.o in c("species_dat", "id_map", "all_mets", "classes"))
+  if (!exists(.o)) stop("make_protein_plot_win needs `", .o, "` in the session", call. = FALSE)
+rm(.o)
+
+## make_protein_plot_win lives in R/plot_proteins_win_new.R and is not exported
+## by the installed package, so library(ligandFinder) is not enough -- the
+## original block relied on a devtools::load_all() sitting just above it.
+if (!exists("make_protein_plot_win")) {
+  .cand <- c("R/plot_proteins_win_new.R",
+             file.path(getwd(), "R", "plot_proteins_win_new.R"),
+             "~/R_projects/ligandFinder/R/plot_proteins_win_new.R")
+  .hit <- .cand[file.exists(path.expand(.cand))]
+  if (!length(.hit))
+    stop("make_protein_plot_win not found and R/plot_proteins_win_new.R is not ",
+         "on any known path. Run devtools::load_all() on the package first.",
+         call. = FALSE)
+  source(path.expand(.hit[[1]]))
+  message("sourced ", .hit[[1]], " for make_protein_plot_win()")
+  rm(.cand, .hit)
+}
+stopifnot(is.function(make_protein_plot_win))
 
 ## ---- render -----------------------------------------------------------------
 message("plotting ", length(the_input), " genes -> ", plot_dir)

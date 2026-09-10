@@ -12,7 +12,9 @@ stopifnot(exists("the_input"), exists("pep_input"), exists("nn_input_comb"))
 
 keep <- c("peps", "gene", "target", "win_type", "pred", "pred_raw", "rank_cat",
           "end_type", "nn_closest_peptide", "nn_closest_sim",
-          "per_index", "meta_data", "known")
+          "per_index", "meta_data", "known",
+          ## ensemble spread, when nn_input_comb was built with n_seeds > 1
+          "pred_sd", "per_index_sd")
 
 saveRDS(
   list(the_input   = the_input,

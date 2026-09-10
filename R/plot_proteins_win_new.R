@@ -175,7 +175,8 @@ assign_overlap_layers <- function(start, end, gap = 0) {
 make_detail_panel <- function(per_index, meta_data, title = NULL,
                               x_range = NULL, seq_offset = -0.45,
                               win_start = NULL, win_end = NULL,
-                              left_in = NULL, right_in = NULL) {
+                              left_in = NULL, right_in = NULL,
+                              per_index_sd = NULL) {
   stopifnot(nrow(per_index) == nrow(meta_data))
 
   joined <- per_index %>%
@@ -186,6 +187,20 @@ make_detail_panel <- function(per_index, meta_data, title = NULL,
     tidyr::pivot_longer(cols = -c(index_og, AA),
                         names_to = "class", values_to = "value") %>%
     dplyr::mutate(class = factor(class, levels = names(nn_class_cols)))
+
+  ## Ensemble spread, when the caller has it. `value` is then the mean across
+  ## members and the ribbon is +/- 1 sd -- real disagreement between independently
+  ## trained models, which a single softmax cannot express: it renders
+  ## "confidently 0.5" and "the members split" identically.
+  has_sd <- !is.null(per_index_sd) && nrow(per_index_sd) == nrow(per_index)
+  if (has_sd) {
+    sd_long <- per_index_sd %>%
+      dplyr::select(-dplyr::any_of("index")) %>%
+      dplyr::bind_cols(meta_data %>% dplyr::select(index_og = index)) %>%
+      tidyr::pivot_longer(cols = -index_og, names_to = "class", values_to = "sd") %>%
+      dplyr::mutate(class = factor(class, levels = names(nn_class_cols)))
+    joined <- dplyr::left_join(joined, sd_long, by = c("index_og", "class"))
+  }
 
   if (is.null(x_range)) x_range <- range(joined$index_og, na.rm = TRUE)
 
@@ -201,12 +216,28 @@ make_detail_panel <- function(per_index, meta_data, title = NULL,
   }
   if (!isTRUE(getOption("lf.nn_center_title", TRUE))) title_hjust <- 0
 
-  p <- ggplot2::ggplot(joined, ggplot2::aes(x = index_og, y = value, color = class)) +
-    ggplot2::geom_smooth(method = "loess", span = 0.6, se = FALSE,
-                         linewidth = 0.6, na.rm = TRUE) +
+  p <- ggplot2::ggplot(joined, ggplot2::aes(x = index_og, y = value, color = class))
+  if (has_sd) {
+    ## ribbon INSTEAD of the loess: the band is now the ensemble spread rather
+    ## than smoothing error, and the mean is drawn as-is with no smoothing.
+    p <- p +
+      ggplot2::geom_ribbon(
+        ggplot2::aes(ymin = pmax(value - sd, 0), ymax = pmin(value + sd, 1),
+                     fill = class), alpha = 0.20, colour = NA, na.rm = TRUE) +
+      ggplot2::scale_fill_manual(values = nn_class_cols, guide = "none") +
+      ggplot2::geom_line(linewidth = 0.6, na.rm = TRUE)
+  } else {
+    p <- p + ggplot2::geom_smooth(method = "loess", span = 0.6, se = FALSE,
+                                  linewidth = 0.6, na.rm = TRUE)
+  }
+  p <- p +
     ggiraph::geom_point_interactive(
-      ggplot2::aes(tooltip = sprintf("res %d (%s)\n%s: %.3f",
-                                     index_og, AA, class, value),
+      ggplot2::aes(tooltip = if (has_sd)
+                       sprintf("res %d (%s)\n%s: %.3f +/- %.3f",
+                               index_og, AA, class, value, sd)
+                     else
+                       sprintf("res %d (%s)\n%s: %.3f",
+                               index_og, AA, class, value),
                    data_id = as.character(index_og)),
       pch = 21, stroke = 0.6, size = 1.6
     ) +
@@ -312,6 +343,9 @@ make_protein_plot_win <- function(old_nn_input,
                     " -- colouring windows by `pred` instead")
             nn_w$pred_raw <- nn_w$pred
           }
+          ## ensemble spread present? checked once, outside the pipeline --
+          ## `.` is not bound inside dplyr::mutate()
+          .has_sd <- "pred_sd" %in% names(nn_w) && !all(is.na(nn_w$pred_sd))
           nn_w <- nn_w %>%
             dplyr::mutate(
               target_short = stringr::str_replace(as.character(target), "^loop_", ""),
@@ -321,11 +355,15 @@ make_protein_plot_win <- function(old_nn_input,
               # single-line label above each bar: window range (no gene / no "w"
               # prefix), category rank, raw score. win_type and the nearest known
               # peptide stay in the tooltip.
-              label_txt    = sprintf("%d-%d  rank: %s  score: %.2f",
+              label_txt    = if (.has_sd) sprintf(
+                                     "%d-%d  rank: %s  score: %.2f \u00b1 %.2f",
+                                     start, end, as.character(rank_cat), pred_raw, pred_sd)
+                             else sprintf("%d-%d  rank: %s  score: %.2f",
                                      start, end, as.character(rank_cat), pred_raw),
-              tooltip      = sprintf(paste0("%s\nrank_cat: %s\npred: %.3f  (raw %.3f)\n",
+              tooltip      = sprintf(paste0("%s\nrank_cat: %s\npred: %.3f  (raw %.3f%s)\n",
                                             "nn: %s  (sim %.2f)\ntype: %s  end_type: %s  terminus: %s"),
                                      peps, as.character(rank_cat), pred, pred_raw,
+                                     if (.has_sd) sprintf(" \u00b1 %.3f", pred_sd) else "",
                                      dplyr::coalesce(as.character(nn_closest_peptide), "NA"),
                                      nn_closest_sim, win_type,
                                      dplyr::coalesce(as.character(end_type), "NA"),
@@ -1352,6 +1390,7 @@ make_protein_plot_win <- function(old_nn_input,
       if (is.finite(main_left_in)) {
         probe_det <- make_detail_panel(
           per_index = nn_anno$per_index[[1]], meta_data = nn_anno$meta_data[[1]],
+          per_index_sd = if ("per_index_sd" %in% names(nn_anno)) nn_anno$per_index_sd[[1]],
           title = "probe", x_range = c(0, max_index + 1), seq_offset = seq_offset,
           win_start = nn_anno$start[1], win_end = nn_anno$end[1],
           left_in = 0, right_in = 0)
@@ -1523,14 +1562,22 @@ make_protein_plot_win <- function(old_nn_input,
         if (i %% 10 == 1) .step(sprintf("  detail panel %d/%d", i, nrow(nn_anno)))
         detail_p <- make_detail_panel(
           per_index = nn_anno$per_index[[i]],
+          per_index_sd = if ("per_index_sd" %in% names(nn_anno)) nn_anno$per_index_sd[[i]],
           meta_data = nn_anno$meta_data[[i]],
           # raw (uncalibrated) score, matching the strip label and the rect fill
           ## Non-breaking spaces, not plain ones: svglite emits no xml:space
           ## attribute, so SVG's default whitespace handling collapses a run of
           ## spaces to a single one (measured: "A     B" renders exactly as wide
           ## as "A B"). U+00A0 is not collapsed.
-          title = sprintf("peptide window ID: %s\u00a0\u00a0\u00a0\u00a0\u00a0window-level 1D-CNN prediction: %.3f",
-                          nn_anno$peps[i], nn_anno$pred_raw[i]),
+          title = local({
+            ## ensemble mean +/- sd across members when nn_input_comb was built
+            ## with n_seeds > 1; bare mean otherwise
+            .sd <- if ("pred_sd" %in% names(nn_anno)) nn_anno$pred_sd[i] else NA_real_
+            sprintf("peptide window ID: %s\u00a0\u00a0\u00a0\u00a0\u00a0window-level 1D-CNN prediction: %s",
+                    nn_anno$peps[i],
+                    if (is.na(.sd)) sprintf("%.3f", nn_anno$pred_raw[i])
+                    else sprintf("%.3f \u00b1 %.3f", nn_anno$pred_raw[i], .sd))
+          }),
           x_range = c(0, max_index + 1),
           seq_offset = seq_offset,
           win_start = nn_anno$start[i],

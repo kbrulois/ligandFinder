@@ -26,7 +26,14 @@ class_cols <- setNames(c("#FED439FF", "#370335FF", "#8A9197FF", "#D2AF81FF",
 ## mask (so DB was allowed only at the C terminus), and the per-epoch resample
 ## callback rebound a variable `fit` no longer read (so the negative sample and
 ## the augmentation noise were drawn once). See inst/python/README.md.
-dcnn <- lf_dcnn_run(nn_input, all_params3, seed = 42L, verbose = 1L)
+## n_seeds = 5: five members per terminus. pred_raw / per_index come back as the
+## ensemble MEAN, with pred_sd / per_index_sd giving the spread across members --
+## a single softmax cannot tell "confidently 0.5" from "the members disagree",
+## and those mean opposite things when reading a per-residue profile.
+## cache = : the 10 members are trained ONCE and reloaded (weights included) on
+## every later run. Delete the file, or pass refresh = TRUE, to retrain.
+dcnn <- lf_dcnn_run(nn_input, all_params3, seed = 42L, verbose = 1L, n_seeds = 5L,
+                    cache = "~/AF2_analysis/lf_dcnn_run_cache.rds")
 
 ## Session contract for the downstream scripts (10_2_per_ind_profiles.R,
 ## 10_2_model_importance.R, 10_3d_embed_umap.R): they expect these names in the
@@ -42,7 +49,7 @@ classes     <- setNames(seq_along(dcnn_cfg$class_names) - 1L,
 real_cols   <- as.integer(dcnn_cfg$real_cols) + 1L            # python is 0-based
 pi_names    <- as.character(dcnn_cfg$pi_names)                 # [6 real, none, padding]
 
-raw_pred_comb <- dcnn$pred_raw  # uncalibrated global score
+raw_pred_comb <- dcnn$pred_raw  # uncalibrated global score (ensemble mean)
 val_pred_comb <- dcnn$pred      # pooled-Platt calibrated, comparable across models
 
 message(sprintf("lf_dcnn: %d windows scored; pooled calibrator fit on %d val windows (%d positive)",
@@ -78,6 +85,14 @@ nn_input_comb$pred_raw <- raw_pred_comb   # uncalibrated global score, for compa
 # This head IS supervised (see the port README) -- padding is a trained class and
 # `none` is masked out of the loss.
 nn_input_comb$per_index <- dcnn$per_index_tbl
+
+## Ensemble spread, carried alongside rather than folded into pred/per_index so
+## nothing downstream re-ranks. per_index_sd matches per_index column for column.
+nn_input_comb$pred_sd       <- dcnn$pred_sd
+nn_input_comb$per_index_sd  <- dcnn$per_index_sd_tbl
+message(sprintf("ensemble: %d members/terminus; median score sd %.4f, mean per-residue sd %.4f",
+                dcnn$n_seeds, median(dcnn$pred_sd),
+                mean(vapply(dcnn$per_index_sd_tbl, \(d) mean(as.matrix(d[-1])), numeric(1)))))
 
 # --- nearest known-peptide retrieval (reuse the trained "embed" layer) ------
 # The 16-d penultimate representation, L2-normalised on the Python side: for each
