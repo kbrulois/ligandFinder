@@ -171,23 +171,42 @@ for (.o in c("species_dat", "id_map", "all_mets", "classes"))
   if (!exists(.o)) stop("make_protein_plot_win needs `", .o, "` in the session", call. = FALSE)
 rm(.o)
 
-## make_protein_plot_win lives in R/plot_proteins_win_new.R and is not exported
-## by the installed package, so library(ligandFinder) is not enough -- the
-## original block relied on a devtools::load_all() sitting just above it.
-if (!exists("make_protein_plot_win")) {
+## ALWAYS source the repo copy of make_protein_plot_win -- never fall back to
+## whatever is already attached. library(ligandFinder) exports an INSTALLED copy
+## of this function, so an `if (!exists(...))` guard silently renders with stale
+## code: it is the same name, it runs without error, and the only symptom is
+## missing features in 5,000 html files. Sourcing unconditionally means the
+## plots always match the source tree, installed package or not.
+local({
   .cand <- c("R/plot_proteins_win_new.R",
              file.path(getwd(), "R", "plot_proteins_win_new.R"),
              "~/R_projects/ligandFinder/R/plot_proteins_win_new.R")
   .hit <- .cand[file.exists(path.expand(.cand))]
   if (!length(.hit))
-    stop("make_protein_plot_win not found and R/plot_proteins_win_new.R is not ",
-         "on any known path. Run devtools::load_all() on the package first.",
+    stop("R/plot_proteins_win_new.R not found -- run from the package root, or ",
+         "devtools::load_all() the package before sourcing this script.",
          call. = FALSE)
-  source(path.expand(.hit[[1]]))
-  message("sourced ", .hit[[1]], " for make_protein_plot_win()")
-  rm(.cand, .hit)
-}
+  source(path.expand(.hit[[1]]), local = FALSE)
+  message("make_protein_plot_win sourced from ", .hit[[1]])
+})
 stopifnot(is.function(make_protein_plot_win))
+
+## Guard against the failure above ever recurring silently: if the ensemble
+## columns are present, the plot function must be one that can draw them.
+if ("per_index_sd" %in% names(nn_input_comb)) {
+  ## the ribbon lives in make_detail_panel; the +/- sd in make_protein_plot_win
+  .bad <- c(
+    if (!grepl("geom_ribbon", paste(deparse(body(make_detail_panel)), collapse = "\n")))
+      "make_detail_panel (no geom_ribbon)",
+    if (!grepl("has_sd", paste(deparse(body(make_protein_plot_win)), collapse = "\n")))
+      "make_protein_plot_win (no +/- sd)")
+  if (length(.bad))
+    stop("nn_input_comb carries per_index_sd but a stale copy is loaded -- ",
+         paste(.bad, collapse = "; "), ". Probably the installed package ",
+         "shadowing R/plot_proteins_win_new.R. The plots would silently omit ",
+         "the ensemble spread.", call. = FALSE)
+  rm(.bad)
+}
 
 ## ---- render -----------------------------------------------------------------
 message("plotting ", length(the_input), " genes -> ", plot_dir)
