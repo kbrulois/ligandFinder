@@ -642,8 +642,18 @@ extract_contact_data <- function(bw,
   }
 
   residue_dat <- residue_lookup %>%
-          mutate(data = pmap(list(chain, protein, data),
-                             function(c, p, d) {
+          mutate(data = pmap(list(chain, protein, data, has_residue_data),
+                             function(c, p, d, ok) {
+
+          # has_residue_data is the same predicate computed above.  Honour it
+          # here: when the protein is absent from residue_data, pull(d) is a
+          # zero-length list and `[[`(1) raises "subscript out of bounds"
+          # before the nrow() == 0 branch below can be reached.  Designed
+          # peptides are never in the residue database, so this is the normal
+          # path for a ligand chain, not an error.
+          if(!ok) {
+              return(NULL)
+          }
 
           to_map_input <- residue_data %>%
             filter(uni_gene == p) %>%
@@ -710,8 +720,14 @@ extract_contact_data <- function(bw,
 
 
 }, error = function(e) {
+  # Returning `contacts` here hands back the pre-join voronota table, which
+  # is missing every column the joins above would have added (ligand_index,
+  # pLDDT_lig1, pdb_index_rec, BW ...).  That looks like a valid result and
+  # fails later inside summarize_contacts, one function away from the cause.
+  # NULL is already the contract for "no contact data": summarize_contacts
+  # returns NULL for it.
   message("Error residue data for ", afpd_dir, "/", pdb_files, ": ", e[["message"]])
-  contacts
+  NULL
 })
 
   return(contacts)
@@ -748,6 +764,12 @@ summarize_contacts <- function(contacts) {
   missing_cols <- setdiff(all_cols, colnames(contacts))
   if(length(missing_cols) > 0) {
     contacts[missing_cols] <- NA_real_
+  }
+
+  # ligand_index is consumed just below but is not one of the score/summary
+  # columns backfilled above, so an absent one errors instead of going NA.
+  if(!"ligand_index" %in% colnames(contacts)) {
+    contacts[["ligand_index"]] <- NA_character_
   }
 
   contacts <- contacts %>%
