@@ -209,6 +209,11 @@ known_end_gap <- 5                  # anchor-to-boundary distance to accept; mat
 ## assigned per WINDOW, against the terminus that window sits at. NULL skips
 ## it and the score panel keeps a single "GPCR peptide" column.
 docked_ref    <- path.expand("~/AF2_analysis/knowns.rds")
+## Where each gene peaks in the HPA v23 single-cell consensus (top_celltype,
+## its nTPM), written by inst/scripts/hpa_top_celltype.R -- the same table the
+## eec_* columns of the predictions CSV come from. Read out on hover and in the
+## gene-search summary. NULL skips it.
+celltype_ref  <- path.expand("~/AF2_analysis/hpa_top_celltype.csv")
 docked_tol    <- 2                  # residues by which the docked peptide's end may
                                     # differ from the reference boundary and still
                                     # count as the same terminus
@@ -708,6 +713,24 @@ if (file.exists(known_end_ref)) {
   message("no ", known_end_ref, " -- skipping the known-peptide-end annotation")
 }
 
+## ---- top cell type per gene (HPA v23 single-cell) --------------------------
+## Joined on the gene symbol as-is; the ~2% of symbols HPA knows under another
+## name are left blank here (the predictions CSV rescues them via synonyms).
+if (!is.null(celltype_ref) && file.exists(celltype_ref)) {
+  .ct <- readr::read_csv(celltype_ref, show_col_types = FALSE, progress = FALSE) %>%
+    dplyr::distinct(gene, .keep_all = TRUE) %>%
+    dplyr::transmute(gene, top_celltype,
+                     top_celltype_ntpm = as.numeric(top_celltype_ntpm))
+  params <- dplyr::left_join(params, .ct, by = "gene")
+  message(sprintf("top cell type: %d of %d genes annotated (%d peak in enteroendocrine cells)",
+                  dplyr::n_distinct(params$gene[!is.na(params$top_celltype)]),
+                  dplyr::n_distinct(params$gene),
+                  dplyr::n_distinct(params$gene[params$top_celltype %in% "Enteroendocrine cells"])))
+  rm(.ct)
+} else if (!is.null(celltype_ref)) {
+  message("no ", celltype_ref, " -- run inst/scripts/hpa_top_celltype.R for the top-cell-type hover line")
+}
+
 ## ---- final column order + write --------------------------------------------
 ## labels, then scores, then reduced-dim coords, then summaries, positions last.
 params <- params %>%
@@ -782,9 +805,11 @@ gene_intro_html <- '
 
     <p><b>Interaction.</b> Windows scoring above 0.1, and every known peptide
     end whatever it scores, are live, in both panels:
-    hover one for its window id, score, peptide name if known, and amidation
+    hover one for its window id, score, peptide name if known, amidation
     status (a glycine immediately 5&prime; of the dibasic pair, &hellip;X-G |
-    K/R-K/R, the signal for a C-terminally amidated peptide); the UMAP and the
+    K/R-K/R, the signal for a C-terminally amidated peptide), and the cell type
+    in which the gene peaks in the Human Protein Atlas single-cell consensus
+    (v23, the last release with a standalone enteroendocrine cluster); the UMAP and the
     score panel are linked, so hovering a window in one highlights it in the
     other; click to open that protein&rsquo;s per-residue page at the window.
     Unknown windows at or below 0.1 &mdash; the great majority &mdash; are drawn
@@ -799,7 +824,8 @@ gene_intro_html <- '
 ## ---- gene search widget template -------------------------------------------
 ## sprintf slots, in order: 1 datalist <option>s, 2 lookup JSON, 3 link base,
 ## 4 score label (as shown on the axes), 5 top-N, 6 highlight colour, 7 interactive threshold
-## (text only -- it labels the static entries in the result list).
+## (text only -- it labels the static entries in the result list), 8 gene ->
+## top-cell-type text JSON, shown once on the summary line ({} when absent).
 ##
 ## Highlighting draws an OVERLAY circle into the same parent <g> as the matched
 ## point rather than restyling the point itself. Same parent means the same
@@ -822,7 +848,7 @@ gene_search_template <- '
 </div>
 <script>
 (function(){
-  var LUT = %s, BASE = "%s", SCORE = "%s", TOPN = %d, HIT = "%s", MIN = "%s";
+  var LUT = %s, BASE = "%s", SCORE = "%s", TOPN = %d, HIT = "%s", MIN = "%s", CT = %s;
   var IDX = null;
 
   // Built lazily, not at parse time: this script runs before girafe has
@@ -925,10 +951,12 @@ gene_search_template <- '
       }
       out.appendChild(li);
     });
+    var ct = CT[g] || CT[g.toUpperCase()];
     msg.textContent = "top " + rows.length + " of " + g +
                       " by " + SCORE + " - " + lit + " highlighted" +
                       (gated ? ", " + gated + " outside the gate" : "") +
-                      (stat  ? ", " + stat  + " static (score <= " + MIN + ")" : "");
+                      (stat  ? ", " + stat  + " static (score <= " + MIN + ")" : "") +
+                      (ct ? "  |  top cell type: " + ct : "");
   }
 
   inp.addEventListener("input", run);
@@ -944,6 +972,13 @@ if (make_plot) {
   ## readable name for whichever column won
   .sc_lab <- function(x) if (!is.na(x) && x %in% names(score_label))
                            unname(score_label[[x]]) else x
+  ## hover line for the gene's peak cell type; blank where HPA has no record
+  .ct_line <- function(d) ifelse(
+    is.na(d$top_celltype), "",
+    ifelse(d$top_celltype == "not_detected",
+           "\ntop cell type: not detected in any (HPA single-cell)",
+           paste0("\ntop cell type: ", d$top_celltype,
+                  " (nTPM ", round(d$top_celltype_ntpm), ")")))
   ## which rows of a window table get the interactive layer (see interactive_min)
   .is_live <- function(d) {
     if (is.na(sc) || is.null(interactive_min)) return(rep(TRUE, nrow(d)))
@@ -1161,6 +1196,8 @@ if (make_plot) {
       if ("amidation" %in% names(pdat))
         pdat$.tip <- paste0(pdat$.tip,
                             ifelse(pdat$amidation, "\namidation motif (G | dibasic)", ""))
+      if ("top_celltype" %in% names(pdat))
+        pdat$.tip <- paste0(pdat$.tip, .ct_line(pdat))
 
       ## Plain double quotes, NOT &quot;. ggiraph HTML-escapes the attribute
       ## value itself, so a pre-escaped &quot; comes out as &amp;quot; and the
@@ -1244,7 +1281,8 @@ if (make_plot) {
           "\namidation motif: ",
           if ("amidation" %in% names(sdat)) ifelse(sdat$amidation, "yes", "no") else "unknown",
           "\nset: ", as.character(sdat$.set),
-          "\nstratum: ", sub("\n", ", ", as.character(sdat$.strat), fixed = TRUE))
+          "\nstratum: ", sub("\n", ", ", as.character(sdat$.strat), fixed = TRUE),
+          if ("top_celltype" %in% names(sdat)) .ct_line(sdat) else "")
 
         ## Same deep link as the UMAP points: <link_base>/<gene>.html#<peps>,
         ## which the per-gene page matches against its panels' data-peps and
@@ -1366,6 +1404,15 @@ if (make_plot) {
         genes_sorted <- sort(unique(top$gene))
         message(sprintf("  [%s] gene search: %d genes indexed, %d windows",
                         mt, length(lut), nrow(top)))
+        ## one line per gene for the summary: "Leydig cells (nTPM 1159)"
+        ct_json <- if ("top_celltype" %in% names(params)) {
+          .g <- params[!is.na(params$top_celltype) & params$gene %in% genes_sorted, , drop = FALSE]
+          .g <- .g[!duplicated(.g$gene), , drop = FALSE]
+          as.character(jsonlite::toJSON(as.list(setNames(
+            ifelse(.g$top_celltype == "not_detected", "not detected in any",
+                   paste0(.g$top_celltype, " (nTPM ", round(.g$top_celltype_ntpm), ")")),
+            .g$gene)), auto_unbox = TRUE))
+        } else "{}"
 
         search_ui <- htmltools::HTML(sprintf(
           gene_search_template,
@@ -1374,7 +1421,8 @@ if (make_plot) {
                  collapse = ""),
           as.character(jsonlite::toJSON(lut, dataframe = "rows", auto_unbox = TRUE)),
           sub("/+$", "", link_base), .sc_lab(sc), gene_search_n, gene_hit_col,
-          if (is.null(interactive_min)) "" else format(interactive_min)))
+          if (is.null(interactive_min)) "" else format(interactive_min),
+          ct_json))
       }
 
       html_path <- if (!is.null(html_name) && length(plot_layouts) == 1) {
