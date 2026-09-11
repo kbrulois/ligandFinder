@@ -67,6 +67,13 @@ set_cols      <- c(train = "#1b7837", val = "#2166ac", none = "grey75")
 ## read against 85k neighbours -- a thicker stroke alone disappears in the bulk.
 hover_css     <- "stroke:#FF6600;stroke-width:3.5;fill:#FF6600;fill-opacity:1;opacity:1;cursor:pointer;"
 hover_inv_css <- "opacity:0.3;"
+## Only windows scoring ABOVE this are interactive -- hover text, click-through
+## to the per-gene page, and the gene-search highlight. Everything at or below
+## it is still drawn, in the UMAP and in the score panel alike, but as plain
+## static marks: 58k of the 59k windows sit at ~0, and giving each of them a
+## tooltip, an id and an onclick made the page heavy and put the whole cloud
+## under the hover dimming. NULL = every window interactive.
+interactive_min <- 0.1
 panel_unk_split <- 0.1                   # the unknown column splits at this score:
                                          # nearly all 59k unknowns sit at ~0 and
                                          # would otherwise bury the few that score
@@ -698,12 +705,14 @@ gene_intro_html <- '
     windows, so the chemokine family, ADM, AVP, APLN and other peptides lacking
     dibasic sites are absent. Colour there marks the training/validation set.</p>
 
-    <p><b>Interaction.</b> Hover any point for its window id, score, peptide name
-    if known, and amidation status (a glycine immediately 5&prime; of the dibasic
-    pair, &hellip;X-G | K/R-K/R, the signal for a C-terminally amidated peptide).
-    The UMAP and the score panel are linked: hovering a window in one highlights
-    it in the other. Click to open that protein&rsquo;s per-residue
-    page at the window. The search box takes a gene symbol and highlights its 5
+    <p><b>Interaction.</b> Windows scoring above 0.1 are live, in both panels:
+    hover one for its window id, score, peptide name if known, and amidation
+    status (a glycine immediately 5&prime; of the dibasic pair, &hellip;X-G |
+    K/R-K/R, the signal for a C-terminally amidated peptide); the UMAP and the
+    score panel are linked, so hovering a window in one highlights it in the
+    other; click to open that protein&rsquo;s per-residue page at the window.
+    Windows at or below 0.1 &mdash; the great majority &mdash; are drawn but
+    static. The search box takes a gene symbol and highlights its 5
     best-scoring windows in cyan, listing them below; windows that rank in the top
     5 but fall outside the gate are listed greyed rather than dropped. Once in the
     per-window page, click &ldquo;Visualize in ChimeraX&rdquo; to view predictions
@@ -713,7 +722,8 @@ gene_intro_html <- '
 
 ## ---- gene search widget template -------------------------------------------
 ## sprintf slots, in order: 1 datalist <option>s, 2 lookup JSON, 3 link base,
-## 4 score column name, 5 top-N, 6 highlight colour.
+## 4 score column name, 5 top-N, 6 highlight colour, 7 interactive threshold
+## (text only -- it labels the static entries in the result list).
 ##
 ## Highlighting draws an OVERLAY circle into the same parent <g> as the matched
 ## point rather than restyling the point itself. Same parent means the same
@@ -736,7 +746,7 @@ gene_search_template <- '
 </div>
 <script>
 (function(){
-  var LUT = %s, BASE = "%s", SCORE = "%s", TOPN = %d, HIT = "%s";
+  var LUT = %s, BASE = "%s", SCORE = "%s", TOPN = %d, HIT = "%s", MIN = "%s";
   var IDX = null;
 
   // Built lazily, not at parse time: this script runs before girafe has
@@ -794,9 +804,9 @@ gene_search_template <- '
     if (!rows){ msg.textContent = "no windows for " + g; return; }
     if (!Array.isArray(rows)) rows = [rows];
 
-    var lit = 0, hidden = 0;
+    var lit = 0, gated = 0, stat = 0;
     rows.forEach(function(r){
-      if (r.o) { hidden++; } else { lit += light(r.p); }
+      if (r.o === 1) { gated++; } else if (r.o === 2) { stat++; } else { lit += light(r.p); }
       var li = document.createElement("li");
       var a  = document.createElement("a");
       // gene taken from the window id, not from what was typed: a lowercase or
@@ -811,13 +821,16 @@ gene_search_template <- '
       li.appendChild(document.createTextNode(tail));
       if (r.o){
         li.style.color = "#999";
-        li.appendChild(document.createTextNode("  (outside gate - not drawn)"));
+        li.appendChild(document.createTextNode(
+          r.o === 2 ? "  (score <= " + MIN + " - drawn static, not highlightable)"
+                    : "  (outside gate - not drawn)"));
       }
       out.appendChild(li);
     });
     msg.textContent = "top " + rows.length + " of " + g +
                       " by " + SCORE + " - " + lit + " highlighted" +
-                      (hidden ? ", " + hidden + " outside the gate" : "");
+                      (gated ? ", " + gated + " outside the gate" : "") +
+                      (stat  ? ", " + stat  + " static (score <= " + MIN + ")" : "");
   }
 
   inp.addEventListener("input", run);
@@ -1055,16 +1068,41 @@ if (make_plot) {
       pdat$.click <- ifelse(linkable,
                             sprintf('window.open("%s","_blank")', pdat$.url), "")
 
+      ## Two point layers: the static bulk at or below interactive_min, then the
+      ## interactive windows above it. Both map the same colour and shape, so
+      ## they share one scale and look identical; the static layer goes first
+      ## so the interactive (higher-scoring) marks land on top of it, which is
+      ## the order the ascending sort already gave the single layer.
+      is_int <- if (is.na(sc) || is.null(interactive_min)) rep(TRUE, nrow(pdat))
+                else !is.na(pdat[[sc]]) & pdat[[sc]] > interactive_min
+      pdat_int <- pdat[is_int, , drop = FALSE]
+      pdat_stc <- pdat[!is_int, , drop = FALSE]
+      if (!is.na(sc))
+        message(sprintf("  [%s] interactive: %d of %d plotted windows (%s > %s); %d static",
+                        mt, nrow(pdat_int), nrow(pdat), sc, format(interactive_min),
+                        nrow(pdat_stc)))
+
       pt_int <- if (is.na(sc))
                   ggiraph::geom_point_interactive(
+                    data = pdat_int,
                     aes(color = win_type, shape = terminus, tooltip = .data[[".tip"]],
                         data_id = .data[[".did"]], onclick = .data[[".click"]]),
                     size = point_size, alpha = 0.55)
                 else
                   ggiraph::geom_point_interactive(
+                    data = pdat_int,
                     aes(color = .data[[sc]], shape = terminus, tooltip = .data[[".tip"]],
                         data_id = .data[[".did"]], onclick = .data[[".click"]]),
                     size = point_size, alpha = 0.75)
+      if (nrow(pdat_stc)) {
+        pt_stc <- if (is.na(sc))
+                    geom_point(data = pdat_stc, aes(color = win_type, shape = terminus),
+                               size = point_size, alpha = 0.55)
+                  else
+                    geom_point(data = pdat_stc, aes(color = .data[[sc]], shape = terminus),
+                               size = point_size, alpha = 0.75)
+        pt_int <- list(pt_stc, pt_int)
+      }
 
       ## ---- panel 1: score by stratum ---------------------------------------
       ## data_id is the window id, identical to the UMAP layer's, and both go into
@@ -1121,12 +1159,23 @@ if (make_plot) {
         ## Points only -- no violin outline. data_id is the window id, shared with
         ## the UMAP layer, so ggiraph highlights the same window in both panels on
         ## hover; that only works because both go into ONE girafe.
+        ## Same static/interactive split as the UMAP, at the same threshold. The
+        ## two layers are swarmed separately, which matters only where a column
+        ## holds both (peptide, GPCR peptide) and only right at the boundary.
+        s_int <- if (is.null(interactive_min)) rep(TRUE, nrow(sdat))
+                 else !is.na(sdat[[sc]]) & sdat[[sc]] > interactive_min
         p_panels$score <- ggplot(sdat, aes(x = .strat, y = .data[[sc]])) +
+          geom_point(data = sdat[!s_int, , drop = FALSE], aes(colour = .set),
+                     position = swarm, size = panel_pt_size, alpha = 0.7) +
           ggiraph::geom_point_interactive(
+            data = sdat[s_int, , drop = FALSE],
             aes(colour = .set, tooltip = .tip, data_id = .did, onclick = .click),
             position = swarm, size = panel_pt_size, alpha = 0.7) +
           scale_colour_manual(values = set_cols, name = "set", drop = FALSE) +
-          scale_x_discrete(labels = function(x)
+          ## limits pinned: with two layers the scale is trained on each layer's
+          ## USED levels in turn, and a level present only in the second layer
+          ## (unknown >= split, all interactive) would drop to the end
+          scale_x_discrete(limits = .lv, labels = function(x)
             paste0(x, "\n(n=", tabulate(sdat$.strat, nlevels(sdat$.strat))[match(x, levels(sdat$.strat))], ")")) +
           labs(x = NULL, y = .sc_lab(sc)) +
           theme_bw() +
@@ -1180,7 +1229,12 @@ if (make_plot) {
                        !is.na(params[[sc]]), , drop = FALSE]
         pool <- pool[!duplicated(pool$peps), , drop = FALSE]   # peps repeat across targets
         pool <- pool[order(-pool[[sc]]), , drop = FALSE]
-        pool$.out <- as.integer(!pool$peps %in% pdat$peps)     # not drawn (gated out)
+        ## why a listed window cannot be lit: 0 = drawn and interactive,
+        ## 1 = outside the gate (not drawn), 2 = drawn but static (no data-id
+        ## to find, so nothing to overlay the highlight on)
+        pool$.out <- dplyr::case_when(!pool$peps %in% pdat$peps     ~ 1L,
+                                      !pool$peps %in% pdat_int$peps ~ 2L,
+                                      TRUE                          ~ 0L)
         pool$.pan <- if (faceted && "amidation" %in% names(pool))
                        ifelse(pool$amidation, "motif", "no motif") else ""
 
@@ -1201,7 +1255,8 @@ if (make_plot) {
                          htmltools::htmlEscape(genes_sorted, attribute = TRUE)),
                  collapse = ""),
           as.character(jsonlite::toJSON(lut, dataframe = "rows", auto_unbox = TRUE)),
-          sub("/+$", "", link_base), sc, gene_search_n, gene_hit_col))
+          sub("/+$", "", link_base), sc, gene_search_n, gene_hit_col,
+          if (is.null(interactive_min)) "" else format(interactive_min)))
       }
 
       html_path <- if (!is.null(html_name) && length(plot_layouts) == 1) {
@@ -1215,8 +1270,8 @@ if (make_plot) {
       ## same inlining the per-gene pages use, so the file stands alone
       if (exists("nn_inline_deps", mode = "function"))
         nn_inline_deps(html_path, file.path(dirname(html_path), "dependency_files"))
-      message("wrote ", html_path, "  (", nrow(pdat), " interactive windows, ",
-              sum(linkable), " clickable)")
+      message("wrote ", html_path, "  (", nrow(pdat), " windows drawn, ",
+              nrow(pdat_int), " interactive, ", sum(linkable & is_int), " clickable)")
     }
   }
 }
