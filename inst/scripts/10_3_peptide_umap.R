@@ -67,12 +67,14 @@ set_cols      <- c(train = "#1b7837", val = "#2166ac", none = "grey75")
 ## read against 85k neighbours -- a thicker stroke alone disappears in the bulk.
 hover_css     <- "stroke:#FF6600;stroke-width:3.5;fill:#FF6600;fill-opacity:1;opacity:1;cursor:pointer;"
 hover_inv_css <- "opacity:0.3;"
-## Only windows scoring ABOVE this are interactive -- hover text, click-through
-## to the per-gene page, and the gene-search highlight. Everything at or below
-## it is still drawn, in the UMAP and in the score panel alike, but as plain
-## static marks: 58k of the 59k windows sit at ~0, and giving each of them a
-## tooltip, an id and an onclick made the page heavy and put the whole cloud
-## under the hover dimming. NULL = every window interactive.
+## Windows scoring ABOVE this are interactive -- hover text, click-through to
+## the per-gene page, and the gene-search highlight -- and so is every known
+## peptide end whatever it scores: the knowns are few and are exactly the points
+## one wants to read, so a low-scoring one must still be hoverable. Only the
+## UNKNOWN windows at or below the threshold are drawn static, in the UMAP and
+## in the score panel alike: 54k of the 59k windows sit there, and giving each
+## of them a tooltip, an id and an onclick made the page heavy and put the whole
+## cloud under the hover dimming. NULL = every window interactive.
 interactive_min <- 0.1
 panel_unk_split <- 0.1                   # the unknown column splits at this score:
                                          # nearly all 59k unknowns sit at ~0 and
@@ -778,14 +780,15 @@ gene_intro_html <- '
     APLN and other peptides lacking dibasic sites are absent. Colour there marks
     the training/validation set.</p>
 
-    <p><b>Interaction.</b> Windows scoring above 0.1 are live, in both panels:
+    <p><b>Interaction.</b> Windows scoring above 0.1, and every known peptide
+    end whatever it scores, are live, in both panels:
     hover one for its window id, score, peptide name if known, and amidation
     status (a glycine immediately 5&prime; of the dibasic pair, &hellip;X-G |
     K/R-K/R, the signal for a C-terminally amidated peptide); the UMAP and the
     score panel are linked, so hovering a window in one highlights it in the
     other; click to open that protein&rsquo;s per-residue page at the window.
-    Windows at or below 0.1 &mdash; the great majority &mdash; are drawn but
-    static. The search box takes a gene symbol and highlights its 5
+    Unknown windows at or below 0.1 &mdash; the great majority &mdash; are drawn
+    but static. The search box takes a gene symbol and highlights its 5
     best-scoring windows in cyan, listing them below; windows that rank in the top
     5 but fall outside the gate are listed greyed rather than dropped. Once in the
     per-window page, click &ldquo;Visualize in ChimeraX&rdquo; to view predictions
@@ -919,6 +922,12 @@ if (make_plot) {
   ## readable name for whichever column won
   .sc_lab <- function(x) if (!is.na(x) && x %in% names(score_label))
                            unname(score_label[[x]]) else x
+  ## which rows of a window table get the interactive layer (see interactive_min)
+  .is_live <- function(d) {
+    if (is.na(sc) || is.null(interactive_min)) return(rep(TRUE, nrow(d)))
+    hi <- !is.na(d[[sc]]) & d[[sc]] > interactive_min
+    if ("stratum" %in% names(d)) hi | (!is.na(d$stratum) & d$stratum != "unknown") else hi
+  }
 
   if (is.na(sc) || all(is.na(params[[sc]]))) {
     message("no usable score column (", score_col, ") -- colouring by win_type instead")
@@ -1141,17 +1150,16 @@ if (make_plot) {
       pdat$.click <- ifelse(linkable,
                             sprintf('window.open("%s","_blank")', pdat$.url), "")
 
-      ## Two point layers: the static bulk at or below interactive_min, then the
-      ## interactive windows above it. Both map the same colour and shape, so
+      ## Two point layers: the static bulk (unknown windows at or below
+      ## interactive_min), then the interactive windows. Both map the same colour and shape, so
       ## they share one scale and look identical; the static layer goes first
       ## so the interactive (higher-scoring) marks land on top of it, which is
       ## the order the ascending sort already gave the single layer.
-      is_int <- if (is.na(sc) || is.null(interactive_min)) rep(TRUE, nrow(pdat))
-                else !is.na(pdat[[sc]]) & pdat[[sc]] > interactive_min
+      is_int <- .is_live(pdat)
       pdat_int <- pdat[is_int, , drop = FALSE]
       pdat_stc <- pdat[!is_int, , drop = FALSE]
       if (!is.na(sc))
-        message(sprintf("  [%s] interactive: %d of %d plotted windows (%s > %s); %d static",
+        message(sprintf("  [%s] interactive: %d of %d plotted windows (%s > %s, or a known peptide end); %d static",
                         mt, nrow(pdat_int), nrow(pdat), sc, format(interactive_min),
                         nrow(pdat_stc)))
 
@@ -1240,8 +1248,7 @@ if (make_plot) {
         ## Same static/interactive split as the UMAP, at the same threshold. The
         ## two layers are swarmed separately, which matters only where a column
         ## holds both (peptide, GPCR peptide) and only right at the boundary.
-        s_int <- if (is.null(interactive_min)) rep(TRUE, nrow(sdat))
-                 else !is.na(sdat[[sc]]) & sdat[[sc]] > interactive_min
+        s_int <- .is_live(sdat)
         p_panels$score <- ggplot(sdat, aes(x = .strat, y = .data[[sc]])) +
           geom_point(data = sdat[!s_int, , drop = FALSE], aes(colour = .set),
                      position = swarm, size = panel_pt_size, alpha = 0.7) +
