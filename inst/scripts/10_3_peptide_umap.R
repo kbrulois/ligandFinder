@@ -44,7 +44,7 @@ out_csv       <- path.expand("~/AF2_analysis/peptide_umap_full.csv")     # the o
 comb_rds      <- path.expand("~/AF2_analysis/nn_input_comb_ensemble.rds")
 load_csv      <- path.expand("~/AF2_analysis/peptide_pca_loadings.csv")  # PCA loadings (feature x PC)
 svg_stem      <- path.expand("~/AF2_analysis/peptide_umap")              # <stem>_<metric>.svg
-html_name     <- "ligandFinder_v4.html"  # fixed filename for the interactive page, written
+html_name     <- "ligandFinder_v5.html"  # fixed filename for the interactive page, written
                                          # beside svg_stem. Only used when a single layout is
                                          # plotted -- with more than one it would collide, so
                                          # the <stem>_<layout>.html form takes over. NULL = always
