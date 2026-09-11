@@ -61,6 +61,15 @@ panel_all     <- TRUE                    # panels cover EVERY window, not only t
                                          # distribution is the point of panel 1, and
                                          # the gate removes 56% of the windows.
 set_cols      <- c(train = "#1b7837", val = "#2166ac", none = "grey75")
+## Hover styling, shared by every interactive layer in the girafe. The hovered
+## window (in BOTH panels, since they share data_id) gets the first rule; every
+## other interactive mark gets the second, which is what makes the highlight
+## read against 85k neighbours -- a thicker stroke alone disappears in the bulk.
+hover_css     <- "stroke:#FF6600;stroke-width:3.5;fill:#FF6600;fill-opacity:1;opacity:1;cursor:pointer;"
+hover_inv_css <- "opacity:0.3;"
+panel_unk_split <- 0.1                   # the unknown column splits at this score:
+                                         # nearly all 59k unknowns sit at ~0 and
+                                         # would otherwise bury the few that score
 panel_pt_size <- 2.2                     # panel marks are the whole panel now (no
                                          # violin behind them), so they carry the
                                          # distribution and need to be readable
@@ -128,6 +137,10 @@ contour_dpi   <- 300                # resolution the contour layer is rasterised
 raster_points <- TRUE               # rasterise the point layer of the static svg (needs ggrastr);
                                     # the html is all-vector by necessity -- see note below
 known_col     <- "red"              # known uniprot peptides: ring colour
+known_rings   <- FALSE              # draw those rings at all. Off: the known ends
+                                    # are now a column of their own in the score
+                                    # panel, and the rings were punching holes in
+                                    # the densest part of the cloud
                                     # Amidation is NOT a mark -- it reads out in the hover
                                     # text instead, so it can coexist with the known ring on
                                     # the same window without one obscuring the other.
@@ -136,7 +149,7 @@ known_col     <- "red"              # known uniprot peptides: ring colour
 ## motif windows sit, which a free scale would destroy. Note the contours become
 ## a density per panel rather than of everything, which is the point: it shows
 ## whether motif windows concentrate somewhere or track the bulk.
-facet_amidation <- TRUE
+facet_amidation <- FALSE            # one panel; the motif still reads out on hover
 ## No printed labels: which peptide a known ring belongs to reads out in the
 ## hover text instead. Labels could only ever name the top few dozen without
 ## colliding, and they punched opaque holes in the densest part of the cloud --
@@ -949,13 +962,14 @@ if (make_plot) {
         g
       }
 
+      if (isTRUE(known_rings)) p <- p + ring_layer(knowns, known_col, 2.4)
       p <- p +
-        ring_layer(knowns, known_col, 2.4) +
         theme_bw() +
         labs(title = paste0("Peptide-window UMAP -- ", space_lab),
              subtitle = paste0(if (is.na(sc)) "coloured by win_type" else paste0("coloured by ", .sc_lab(sc)),
-                               "; contours = 2-D density of the plotted windows; ",
-                               known_col, " rings = known peptide ends (named on hover)",
+                               "; contours = 2-D density of the plotted windows",
+                               if (isTRUE(known_rings))
+                                 paste0("; ", known_col, " rings = known peptide ends (named on hover)") else "",
                                "; points = C-terminal, triangles = N-terminal",
                                if ("amidation" %in% names(pdat))
                                  "; amidation motif shown on hover" else "",
@@ -1063,6 +1077,16 @@ if (make_plot) {
                             paste0("row", seq_len(nrow(sdat))), sdat$peps)
         sdat$.set <- factor(ifelse(is.na(sdat$set), "none", as.character(sdat$set)),
                             levels = c("train", "val", "none"))
+        ## panel-local strata: the unknowns split at panel_unk_split so the handful
+        ## that score are not lost in the 59k that do not. `stratum` itself stays
+        ## the three-level biological label.
+        .lv <- c(paste0("unknown <", panel_unk_split), paste0("unknown >=", panel_unk_split),
+                 "peptide", "GPCR peptide")
+        sdat$.strat <- factor(dplyr::case_when(
+          sdat$stratum == "unknown" & sdat[[sc]] <  panel_unk_split ~ .lv[1],
+          sdat$stratum == "unknown"                                  ~ .lv[2],
+          TRUE                                                       ~ as.character(sdat$stratum)),
+          levels = .lv)
         sdat$.tip <- paste0(
           ifelse(is.na(sdat$peps), "(unlabelled window)", sdat$peps),
           "\n", .sc_lab(sc), ": ", round(sdat[[sc]], 3),
@@ -1094,21 +1118,21 @@ if (make_plot) {
         ## Points only -- no violin outline. data_id is the window id, shared with
         ## the UMAP layer, so ggiraph highlights the same window in both panels on
         ## hover; that only works because both go into ONE girafe.
-        p_panels$score <- ggplot(sdat, aes(x = stratum, y = .data[[sc]])) +
+        p_panels$score <- ggplot(sdat, aes(x = .strat, y = .data[[sc]])) +
           ggiraph::geom_point_interactive(
             aes(colour = .set, tooltip = .tip, data_id = .did, onclick = .click),
             position = swarm, size = panel_pt_size, alpha = 0.7) +
           scale_colour_manual(values = set_cols, name = "set", drop = FALSE) +
           scale_x_discrete(labels = function(x)
-            paste0(x, "\n(n=", tabulate(sdat$stratum, nlevels(sdat$stratum))[match(x, levels(sdat$stratum))], ")")) +
+            paste0(x, "\n(n=", tabulate(sdat$.strat, nlevels(sdat$.strat))[match(x, levels(sdat$.strat))], ")")) +
           labs(x = NULL, y = .sc_lab(sc)) +
           theme_bw() +
           theme(legend.position = "bottom",
                 panel.grid.minor = element_blank()) +
           guides(colour = guide_legend(override.aes = list(size = 2.5, alpha = 1)))
         message(sprintf("  [%s] score panel: %d windows  (%s)", mt, nrow(sdat),
-                        paste(sprintf("%s=%d", levels(sdat$stratum),
-                                      tabulate(sdat$stratum, nlevels(sdat$stratum))),
+                        paste(sprintf("%s=%d", levels(sdat$.strat),
+                                      tabulate(sdat$.strat, nlevels(sdat$.strat))),
                               collapse = "  ")))
       }
 
@@ -1126,7 +1150,8 @@ if (make_plot) {
         options = list(
           ggiraph::opts_sizing(rescale = TRUE),
           ggiraph::opts_selection(type = "none"),
-          ggiraph::opts_hover(css = "stroke:#FF6600;stroke-width:2;cursor:pointer;")
+          ggiraph::opts_hover(css = hover_css),
+          ggiraph::opts_hover_inv(css = hover_inv_css)
         ))
 
       ## ---- gene search UI --------------------------------------------------
