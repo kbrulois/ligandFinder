@@ -61,6 +61,11 @@ panel_all     <- TRUE                    # panels cover EVERY window, not only t
                                          # distribution is the point of panel 1, and
                                          # the gate removes 56% of the windows.
 set_cols      <- c(train = "#1b7837", val = "#2166ac", none = "grey75")
+panel_pt_size <- 2.2                     # panel marks are the whole panel now (no
+                                         # violin behind them), so they carry the
+                                         # distribution and need to be readable
+panel_swarm_w <- 0.42                    # swarm half-width; wider than it could be
+                                         # with a violin outline to respect
 
 point_size    <- 1.2                     # data-mark size, shared by the static and the
                                          # interactive layer so the two cannot drift apart
@@ -948,7 +953,7 @@ if (make_plot) {
         ring_layer(knowns, known_col, 2.4) +
         theme_bw() +
         labs(title = paste0("Peptide-window UMAP -- ", space_lab),
-             subtitle = paste0(if (is.na(sc)) "coloured by win_type" else paste0("coloured by ", sc),
+             subtitle = paste0(if (is.na(sc)) "coloured by win_type" else paste0("coloured by ", .sc_lab(sc)),
                                "; contours = 2-D density of the plotted windows; ",
                                known_col, " rings = known peptide ends (named on hover)",
                                "; points = C-terminal, triangles = N-terminal",
@@ -1002,7 +1007,7 @@ if (make_plot) {
       pdat$.did <- ifelse(is.na(pdat$peps),
                           paste0("row", seq_len(nrow(pdat))), pdat$peps)
       pdat$.tip <- if (is.na(sc)) pdat$.lab else
-        paste0(pdat$.lab, "\n", sc, ": ", round(pdat[[sc]], 3))
+        paste0(pdat$.lab, "\n", .sc_lab(sc), ": ", round(pdat[[sc]], 3))
       if ("terminus" %in% names(pdat))
         pdat$.tip <- paste0(pdat$.tip, "\nterminus: ", pdat$terminus)
       ## Both of these are called out only where they apply. A "no" on each of
@@ -1068,19 +1073,31 @@ if (make_plot) {
           "\nset: ", as.character(sdat$.set),
           "\nstratum: ", as.character(sdat$stratum))
 
+        ## Same deep link as the UMAP points: <link_base>/<gene>.html#<peps>,
+        ## which the per-gene page matches against its panels' data-peps and
+        ## centres. Plain double quotes, NOT &quot; -- ggiraph escapes the
+        ## attribute itself, so a pre-escaped entity reaches JavaScript as
+        ## literal text and the click dies with a syntax error.
+        .plink <- !is.na(sdat$peps) & !is.na(sdat$gene)
+        sdat$.click <- ifelse(
+          .plink,
+          sprintf('window.open("%s/%s.html#%s","_blank")',
+                  sub("/+$", "", link_base), sdat$gene, sdat$peps),
+          "")
+
         ## quasirandom gives the beeswarm its width-proportional spread; without
         ## ggbeeswarm fall back to jitter rather than dropping the panel.
         swarm <- if (requireNamespace("ggbeeswarm", quietly = TRUE))
-                   ggbeeswarm::position_quasirandom(width = 0.34)
-                 else position_jitter(width = 0.28, height = 0)
+                   ggbeeswarm::position_quasirandom(width = panel_swarm_w)
+                 else position_jitter(width = panel_swarm_w * 0.8, height = 0)
 
+        ## Points only -- no violin outline. data_id is the window id, shared with
+        ## the UMAP layer, so ggiraph highlights the same window in both panels on
+        ## hover; that only works because both go into ONE girafe.
         p_panels$score <- ggplot(sdat, aes(x = stratum, y = .data[[sc]])) +
-          geom_violin(fill = "grey93", colour = "grey55", linewidth = 0.3,
-                      scale = "width", trim = TRUE) +
           ggiraph::geom_point_interactive(
-            aes(colour = .set, tooltip = .tip, data_id = .did),
-            position = swarm, size = point_size * 0.75, alpha = 0.65,
-            stroke = 0) +
+            aes(colour = .set, tooltip = .tip, data_id = .did, onclick = .click),
+            position = swarm, size = panel_pt_size, alpha = 0.7) +
           scale_colour_manual(values = set_cols, name = "set", drop = FALSE) +
           scale_x_discrete(labels = function(x)
             paste0(x, "\n(n=", tabulate(sdat$stratum, nlevels(sdat$stratum))[match(x, levels(sdat$stratum))], ")")) +
