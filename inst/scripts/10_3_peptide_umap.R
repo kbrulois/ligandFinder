@@ -1258,32 +1258,41 @@ if (make_plot) {
                   sub("/+$", "", link_base), sdat$gene, sdat$peps),
           "")
 
-        ## quasirandom gives the beeswarm its width-proportional spread; without
-        ## ggbeeswarm fall back to jitter rather than dropping the panel.
-        swarm <- if (requireNamespace("ggbeeswarm", quietly = TRUE))
-                   ggbeeswarm::position_quasirandom(width = panel_swarm_w)
-                 else position_jitter(width = panel_swarm_w * 0.8, height = 0)
+        ## The swarm offsets are computed ONCE here, per column over every window
+        ## in it, and the points are then drawn at fixed x. Going through
+        ## position_quasirandom() instead would hand the column to ggplot2's
+        ## collide(), which re-sorts it by group and so put the 1.5k train/val
+        ## marks under the 57k grey ones however the rows were ordered above.
+        ## With the x fixed, paint order is data order: none first, train/val
+        ## last, on top. vipor::offsetX is the function ggbeeswarm itself calls
+        ## (adjust = its bandwidth default); without it, a plain jitter.
+        sdat$.xc <- as.integer(sdat$.strat)
+        sdat$.xs <- sdat$.xc +
+          if (requireNamespace("vipor", quietly = TRUE))
+            vipor::offsetX(sdat[[sc]], x = sdat$.xc, width = panel_swarm_w, adjust = 0.5)
+          else stats::runif(nrow(sdat), -panel_swarm_w * 0.8, panel_swarm_w * 0.8)
+        .n_col <- tabulate(sdat$.strat, nlevels(sdat$.strat))
 
         ## Points only -- no violin outline. data_id is the window id, shared with
         ## the UMAP layer, so ggiraph highlights the same window in both panels on
         ## hover; that only works because both go into ONE girafe.
-        ## Same static/interactive split as the UMAP, at the same threshold. The
-        ## two layers are swarmed separately, which matters only where a column
-        ## holds both (peptide, GPCR peptide) and only right at the boundary.
+        ## Same static/interactive split as the UMAP (see .is_live); the row
+        ## order set above survives the split, so train/val end each layer.
         s_int <- .is_live(sdat)
-        p_panels$score <- ggplot(sdat, aes(x = .strat, y = .data[[sc]])) +
+        p_panels$score <- ggplot(sdat, aes(x = .xs, y = .data[[sc]])) +
           geom_point(data = sdat[!s_int, , drop = FALSE], aes(colour = .set),
-                     position = swarm, size = panel_pt_size, alpha = 0.7) +
+                     size = panel_pt_size, alpha = 0.7) +
           ggiraph::geom_point_interactive(
             data = sdat[s_int, , drop = FALSE],
             aes(colour = .set, tooltip = .tip, data_id = .did, onclick = .click),
-            position = swarm, size = panel_pt_size, alpha = 0.7) +
+            size = panel_pt_size, alpha = 0.7) +
           scale_colour_manual(values = set_cols, name = "set", drop = FALSE) +
-          ## limits pinned: with two layers the scale is trained on each layer's
-          ## USED levels in turn, and a level present only in the second layer
-          ## (unknown >= split, all interactive) would drop to the end
-          scale_x_discrete(limits = .lv, labels = function(x)
-            paste0(x, "\n(n=", tabulate(sdat$.strat, nlevels(sdat$.strat))[match(x, levels(sdat$.strat))], ")")) +
+          ## a continuous axis dressed as the discrete one: one tick per column,
+          ## the same 0.6 of padding a discrete scale adds at each end, and no
+          ## dependence on which levels a layer happens to use
+          scale_x_continuous(breaks = seq_along(.lv),
+                             labels = function(b) paste0(.lv[b], "\n(n=", .n_col[b], ")"),
+                             limits = c(0.4, length(.lv) + 0.6), expand = expansion(0)) +
           labs(x = NULL, y = .sc_lab(sc)) +
           theme_bw() +
           theme(legend.position = "bottom",
