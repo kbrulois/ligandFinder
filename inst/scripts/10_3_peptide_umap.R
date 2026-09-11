@@ -847,8 +847,30 @@ gene_search_template <- '
     document.querySelectorAll("circle.gene-hit").forEach(function(e){ e.remove(); });
   }
 
+  // Bring a window to the front. SVG paints in document order, so a point that
+  // sits under its neighbours stays under them however it is styled; moving
+  // the node to the end of its parent <g> puts it on top of that layer, and
+  // the parent is unchanged so its transform still applies. Raises the window
+  // in EVERY panel that draws it (they share the data-id). Listeners travel
+  // with the node, so ggiraph hover/click keep working on it afterwards.
+  function raise(peps){
+    (index().get(peps) || []).forEach(function(c){
+      if (c.parentNode && c.parentNode.lastChild !== c) c.parentNode.appendChild(c);
+    });
+  }
+  // ...on hover: bubbling phase, so ggiraph has already applied its hover
+  // class by the time the node moves. A moved node stays the one under the
+  // cursor, so this does not re-fire mouseover on itself.
+  document.addEventListener("mouseover", function(ev){
+    var t = ev.target;
+    if (!t || !(t.tagName === "circle" || t.tagName === "polygon")) return;
+    var k = t.getAttribute("data-id");
+    if (k) raise(k);
+  });
+
   function light(peps){
     var els = index().get(peps) || [], n = 0;
+    raise(peps);                     // the hit itself on top, then its ring above it
     els.forEach(function(c){
       var o = document.createElementNS("http://www.w3.org/2000/svg","circle");
       o.setAttribute("class","gene-hit");
