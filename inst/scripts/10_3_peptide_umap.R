@@ -686,20 +686,23 @@ gene_intro_html <- '
     profiles are alike.</p>
 
     <p><b>Colour</b> is the model&rsquo;s window-level prediction score &mdash; the
-    1D-CNN&rsquo;s global ranking output. Dark = high.</p>
+    1D-CNN ensemble&rsquo;s global ranking output, averaged over 5 seeds. Dark =
+    high. Circles are C-terminal windows, triangles N-terminal.</p>
 
-    <p><b>Panels</b> split on the amidation motif: a glycine immediately 5&prime;
-    of the dibasic pair (&hellip;X-G | K/R-K/R), the signal for a C-terminally
-    amidated peptide.</p>
-
-    <p><b>Red rings</b> mark known peptides annotated in UniProt, GPCRdb or Guide
-    to Pharmacology. Read this as a floor, not a census: the scored set is
-    restricted to dibasic-anchored windows, so the chemokine family, ADM, AVP,
-    APLN and other peptides lacking dibasic sites are not highlighted in this
-    figure.</p>
+    <p><b>Score panel</b> (right) shows the same score for <i>every</i> scored
+    window, including those outside the gated UMAP, split by what is known about
+    the window: unknown (divided at 0.1 so the few that score are not buried
+    under the 58k that do not), a known peptide end, or a known GPCR-peptide end.
+    Known ends come from UniProt, GPCRdb and Guide to Pharmacology; read them as
+    a floor, not a census &mdash; the scored set is restricted to dibasic-anchored
+    windows, so the chemokine family, ADM, AVP, APLN and other peptides lacking
+    dibasic sites are absent. Colour there marks the training/validation set.</p>
 
     <p><b>Interaction.</b> Hover any point for its window id, score, peptide name
-    if known, and amidation status. Click to open that protein&rsquo;s per-residue
+    if known, and amidation status (a glycine immediately 5&prime; of the dibasic
+    pair, &hellip;X-G | K/R-K/R, the signal for a C-terminally amidated peptide).
+    The UMAP and the score panel are linked: hovering a window in one highlights
+    it in the other. Click to open that protein&rsquo;s per-residue
     page at the window. The search box takes a gene symbol and highlights its 5
     best-scoring windows in cyan, listing them below; windows that rank in the top
     5 but fall outside the gate are listed greyed rather than dropped. Once in the
@@ -1140,6 +1143,13 @@ if (make_plot) {
       ## so adding a panel makes the UMAP smaller rather than squeezing everything.
       gob <- decorate(pt_int)
       if (length(p_panels)) {
+        ## `ggplot + ggplot` only composes once patchwork's namespace is loaded
+        ## (it registers the ggplot_add method). The `::` on plot_layout() below
+        ## does load it -- but R evaluates the Reduce() on its left first, so in
+        ## a session where nothing else has loaded patchwork yet the Reduce()
+        ## fails with "Can't add `x[[i]]` to a <ggplot> object".
+        if (!requireNamespace("patchwork", quietly = TRUE))
+          stop("install.packages('patchwork') to draw the side panels")
         gob <- Reduce(`+`, p_panels, init = gob) +
                patchwork::plot_layout(widths = c(umap_rel_w,
                                                  rep(panel_rel_w, length(p_panels))))
