@@ -121,15 +121,17 @@ embed_umap    <- FALSE              # off for the final figure: the gate below i
 embed_metric  <- "cosine"
 
 make_plot     <- TRUE               # write a coloured UMAP svg per metric
-## Which score the UMAP is coloured by and the score panel plots. "pred_nn" is
-## nn_input_comb$pred -- the calibrated ENSEMBLE mean over the 5 seeds, i.e. the
-## same number the per-gene pages show; "pred_raw" is the uncalibrated sigmoid.
-## They rank similarly but are not on the same footing, so the viewer and the
-## gene pages should quote one of them, not one each.
-score_col     <- "pred_nn"
+## Which score the UMAP is coloured by and the score panel plots. "pred_raw" is
+## nn_input_comb$pred_raw -- the uncalibrated ensemble mean of the 5 seeds'
+## sigmoid outputs, the number ensemble_global_predictions_*.csv reports as
+## score_mean. "pred_nn" is nn_input_comb$pred, the pooled-Platt calibrated
+## version, which the per-gene pages show. Calibration pulls the mid range down
+## hard (4.5k windows sit above 0.1 raw, 700 calibrated), so the threshold
+## options below (interactive_min, panel_unk_split) are read on THIS scale.
+score_col     <- "pred_raw"
 ## Axis/legend text, so the reader is not left to interpret a column name.
-score_label   <- c(pred_nn  = "ensemble score (mean of 5 seeds)",
-                   pred_raw = "raw score (uncalibrated)")
+score_label   <- c(pred_raw = "prediction",
+                   pred_nn  = "calibrated prediction")
 density_bins  <- 8                  # number of 2-D density contour levels (NULL = no contours)
 contour_col   <- "black"             # contour line colour
 contour_lw    <- 0.35               # contour line width
@@ -196,6 +198,18 @@ known_end_len <- 100                # max reference peptide length (see the audi
                                     # ligand_type is NA for most rows and unusable)
 known_end_gap <- 5                  # anchor-to-boundary distance to accept; matches
                                     # 9.2's own db_spacer < 6 rule
+## How each GPCR peptide's terminus sits in its receptor, read off the docked
+## receptor-ligand models the training set was built from. 9.2's rule: the
+## pocket-inserting residue's distance from the peptide terminus (lig1_end) is
+## < 3 for a clean END insertion, 3-15 for a LOOP insertion, >= 16 for a middle
+## insertion. It is directional -- a peptide has two ends and both windows
+## count as known ends, but only one terminus inserts -- so the class is
+## assigned per WINDOW, against the terminus that window sits at. NULL skips
+## it and the score panel keeps a single "GPCR peptide" column.
+docked_ref    <- path.expand("~/AF2_analysis/knowns.rds")
+docked_tol    <- 2                  # residues by which the docked peptide's end may
+                                    # differ from the reference boundary and still
+                                    # count as the same terminus
 
 ## Gene search box in the html: type a symbol, its best windows light up in the
 ## layout and are listed underneath. Needs jsonlite.
@@ -623,6 +637,59 @@ if (file.exists(known_end_ref)) {
   message("stratum: ", paste(sprintf("%s=%d", names(table(params$stratum)),
                                      table(params$stratum)), collapse = "  "))
   rm(.rcpt)
+
+  ## Insertion type of the GPCR-peptide windows, from the docked models. Same
+  ## funnel 9.2 applied before it labelled targets: relevant site, rank-1 model,
+  ## and per docked peptide the model whose inserting residue sits closest to a
+  ## terminus (ties by iptm). A window then looks for docked peptides of its
+  ## gene that share ITS boundary (within docked_tol) and reads their lig1_end:
+  ## same terminus as the window -> end / loop / middle by 9.2's cut-offs; the
+  ## other terminus -> that end does not insert. Several docked forms can share
+  ## a boundary (CCK-8 and CCK-33 end alike), so the best class wins.
+  params$insertion <- NA_character_
+  if (!is.null(docked_ref) && file.exists(docked_ref) &&
+      any(params$stratum == "GPCR peptide")) {
+    .dk <- readRDS(docked_ref) %>%
+      dplyr::filter(location == "relevant", rank == 1) %>%
+      dplyr::transmute(gene = .e2s[p2_name],
+                       ps   = as.integer(stringr::str_extract(p2_range, "^\\d+")),
+                       pe   = as.integer(stringr::str_extract(p2_range, "\\d+$")),
+                       ind  = as.integer(stringr::str_extract(lig1_end, "\\d+")),
+                       tt   = stringr::str_remove(lig1_end, "\\d+"),
+                       iptm) %>%
+      dplyr::filter(!is.na(gene), !is.na(ind)) %>%
+      dplyr::group_by(gene, ps, pe) %>%
+      dplyr::arrange(ind, dplyr::desc(iptm), .by_group = TRUE) %>%
+      dplyr::slice(1) %>% dplyr::ungroup()
+    .dkl <- split(.dk, .dk$gene)
+    ## the matched reference ligand's boundary on the window's side
+    .lb <- dplyr::bind_rows(ref %>% dplyr::transmute(name, gene, side = "C", pos = end),
+                            ref %>% dplyr::transmute(name, gene, side = "N", pos = start)) %>%
+      dplyr::distinct(name, gene, side, .keep_all = TRUE)
+    .side <- ifelse(.isC, "C", "N")
+    .pos  <- .lb$pos[match(paste(params$known_end_name, params$gene, .side),
+                           paste(.lb$name, .lb$gene, .lb$side))]
+    .cls  <- c(end = "end insertion", loop = "loop insertion",
+               middle = "non-inserting end", other = "non-inserting end")
+    .gi <- which(params$stratum == "GPCR peptide" & !is.na(.pos))
+    params$insertion[.gi] <- vapply(.gi, function(i) {
+      d <- .dkl[[params$gene[i]]]
+      if (is.null(d)) return("no model")
+      d <- d[abs((if (.side[i] == "C") d$pe else d$ps) - .pos[i]) <= docked_tol, , drop = FALSE]
+      if (!nrow(d)) return("no model")
+      k <- ifelse(d$tt != .side[i], "other",
+                  ifelse(d$ind < 3, "end", ifelse(d$ind < 16, "loop", "middle")))
+      ## end beats loop beats middle beats other-end, when forms disagree
+      unname(.cls[[names(.cls)[min(match(k, names(.cls)))]]])
+    }, character(1))
+    params$insertion[params$stratum == "GPCR peptide" & is.na(params$insertion)] <- "no model"
+    message("GPCR peptide insertion: ",
+            paste(sprintf("%s=%d", names(table(params$insertion)), table(params$insertion)),
+                  collapse = "  "))
+    rm(.dk, .dkl, .lb, .side, .pos, .cls, .gi)
+  } else if (!is.null(docked_ref)) {
+    message("no ", docked_ref, " -- GPCR peptides not split by insertion type")
+  }
   message(sprintf("known peptide ends: %d windows across %d genes (%d also in the training set)",
                   sum(params$known_end), dplyr::n_distinct(params$gene[params$known_end]),
                   sum(params$known_end & params$known == 1)))
@@ -692,18 +759,24 @@ gene_intro_html <- '
     So two points sit close together when their residue-level biophysical
     profiles are alike.</p>
 
-    <p><b>Colour</b> is the model&rsquo;s window-level prediction score &mdash; the
-    1D-CNN ensemble&rsquo;s global ranking output, averaged over 5 seeds. Dark =
-    high. Circles are C-terminal windows, triangles N-terminal.</p>
+    <p><b>Colour</b> is the model&rsquo;s prediction &mdash; the 1D-CNN
+    ensemble&rsquo;s window-level output, averaged over 5 seeds. Dark = high.
+    Circles are C-terminal windows, triangles N-terminal.</p>
 
-    <p><b>Score panel</b> (right) shows the same score for <i>every</i> scored
-    window, including those outside the gated UMAP, split by what is known about
-    the window: unknown (divided at 0.1 so the few that score are not buried
-    under the 58k that do not), a known peptide end, or a known GPCR-peptide end.
-    Known ends come from UniProt, GPCRdb and Guide to Pharmacology; read them as
-    a floor, not a census &mdash; the scored set is restricted to dibasic-anchored
-    windows, so the chemokine family, ADM, AVP, APLN and other peptides lacking
-    dibasic sites are absent. Colour there marks the training/validation set.</p>
+    <p><b>Prediction panel</b> (right) shows the same prediction for <i>every</i>
+    scored window, including those outside the gated UMAP, split by what is
+    known about the window: unknown (divided at 0.1 so the few that score are not
+    buried under the bulk that do not), a known peptide end, or a known
+    GPCR-peptide end. The GPCR peptides are further split by how the terminus
+    the window sits at engages the receptor in the docked receptor&ndash;ligand
+    model: <i>end insertion</i> (the pocket-contacting residue is within 2 of the
+    terminus), <i>loop insertion</i> (3&ndash;15 residues in), <i>non-inserting
+    end</i> (the peptide binds by its other terminus, or its middle), or
+    <i>no model</i>. Known ends come from UniProt, GPCRdb and Guide to
+    Pharmacology; read them as a floor, not a census &mdash; the scored set is
+    restricted to dibasic-anchored windows, so the chemokine family, ADM, AVP,
+    APLN and other peptides lacking dibasic sites are absent. Colour there marks
+    the training/validation set.</p>
 
     <p><b>Interaction.</b> Windows scoring above 0.1 are live, in both panels:
     hover one for its window id, score, peptide name if known, and amidation
@@ -722,7 +795,7 @@ gene_intro_html <- '
 
 ## ---- gene search widget template -------------------------------------------
 ## sprintf slots, in order: 1 datalist <option>s, 2 lookup JSON, 3 link base,
-## 4 score column name, 5 top-N, 6 highlight colour, 7 interactive threshold
+## 4 score label (as shown on the axes), 5 top-N, 6 highlight colour, 7 interactive threshold
 ## (text only -- it labels the static entries in the result list).
 ##
 ## Highlighting draws an OVERLAY circle into the same parent <g> as the matched
@@ -1119,13 +1192,18 @@ if (make_plot) {
         sdat$.set <- factor(ifelse(is.na(sdat$set), "none", as.character(sdat$set)),
                             levels = c("train", "val", "none"))
         ## panel-local strata: the unknowns split at panel_unk_split so the handful
-        ## that score are not lost in the 59k that do not. `stratum` itself stays
-        ## the three-level biological label.
+        ## that score are not lost in the 59k that do not, and the GPCR peptides
+        ## split by how the window's terminus sits in the receptor (see
+        ## docked_ref). `stratum` itself stays the three-level biological label.
+        .has_ins <- "insertion" %in% names(sdat) && any(!is.na(sdat$insertion))
+        .ins_lv  <- c("end insertion", "loop insertion", "non-inserting end", "no model")
         .lv <- c(paste0("unknown <", panel_unk_split), paste0("unknown >=", panel_unk_split),
-                 "peptide", "GPCR peptide")
+                 "peptide",
+                 if (.has_ins) paste0("GPCR peptide\n", .ins_lv) else "GPCR peptide")
         sdat$.strat <- factor(dplyr::case_when(
           sdat$stratum == "unknown" & sdat[[sc]] <  panel_unk_split ~ .lv[1],
           sdat$stratum == "unknown"                                  ~ .lv[2],
+          sdat$stratum == "GPCR peptide" & .has_ins                  ~ paste0("GPCR peptide\n", sdat$insertion),
           TRUE                                                       ~ as.character(sdat$stratum)),
           levels = .lv)
         sdat$.tip <- paste0(
@@ -1136,7 +1214,7 @@ if (make_plot) {
           "\namidation motif: ",
           if ("amidation" %in% names(sdat)) ifelse(sdat$amidation, "yes", "no") else "unknown",
           "\nset: ", as.character(sdat$.set),
-          "\nstratum: ", as.character(sdat$stratum))
+          "\nstratum: ", sub("\n", ", ", as.character(sdat$.strat), fixed = TRUE))
 
         ## Same deep link as the UMAP points: <link_base>/<gene>.html#<peps>,
         ## which the per-gene page matches against its panels' data-peps and
@@ -1180,10 +1258,12 @@ if (make_plot) {
           labs(x = NULL, y = .sc_lab(sc)) +
           theme_bw() +
           theme(legend.position = "bottom",
-                panel.grid.minor = element_blank()) +
+                panel.grid.minor = element_blank(),
+                ## seven columns share the panel once the GPCR peptides split
+                axis.text.x = element_text(size = if (.has_ins) 6.5 else 8)) +
           guides(colour = guide_legend(override.aes = list(size = 2.5, alpha = 1)))
         message(sprintf("  [%s] score panel: %d windows  (%s)", mt, nrow(sdat),
-                        paste(sprintf("%s=%d", levels(sdat$.strat),
+                        paste(sprintf("%s=%d", gsub("\n", " ", levels(sdat$.strat), fixed = TRUE),
                                       tabulate(sdat$.strat, nlevels(sdat$.strat))),
                               collapse = "  ")))
       }
@@ -1255,7 +1335,7 @@ if (make_plot) {
                          htmltools::htmlEscape(genes_sorted, attribute = TRUE)),
                  collapse = ""),
           as.character(jsonlite::toJSON(lut, dataframe = "rows", auto_unbox = TRUE)),
-          sub("/+$", "", link_base), sc, gene_search_n, gene_hit_col,
+          sub("/+$", "", link_base), .sc_lab(sc), gene_search_n, gene_hit_col,
           if (is.null(interactive_min)) "" else format(interactive_min)))
       }
 
