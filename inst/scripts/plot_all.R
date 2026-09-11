@@ -94,6 +94,13 @@ if (!"per_index_sd" %in% names(nn_input_comb))
 .want <- commandArgs(trailingOnly = TRUE)
 if (length(.want)) plot_genes <- .want
 
+## 10_4 rewrites plot_bundle.rds from whatever `the_input` holds, and defaults to
+## doing so. On a subset run that would replace a full 5,180-gene bundle with a
+## two-gene one -- so only write it when rendering everything.
+write_bundle <- !length(.want)
+if (!write_bundle)
+  message("subset run: leaving plot_bundle.rds alone")
+
 message("rendering ", if (length(.want)) length(.want) else dplyr::n_distinct(nn_input_comb$gene),
         " gene(s) -> ", plot_dir)
 source("inst/scripts/10_4_plot_proteins.R")

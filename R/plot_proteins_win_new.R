@@ -2148,7 +2148,13 @@ make_protein_plot_win <- function(old_nn_input,
         wgt
       )
 
-      out_file <- fs::path(plot_dir, old_nn_input[["gene"]], ext = "html")
+      ## Gene symbols can contain "/" (UNQ6190/PRO20217, UNQ6494/PRO21346),
+      ## which fs::path reads as a directory separator: the write then fails on a
+      ## missing subdirectory, the tryCatch below logs it and the run carries on
+      ## without a page for that gene. Flatten the symbol for the filename only.
+      out_file <- fs::path(plot_dir,
+                           gsub("[^A-Za-z0-9._-]+", "_", old_nn_input[["gene"]]),
+                           ext = "html")
       .step("writing html")
       htmltools::save_html(
         page,
@@ -2163,7 +2169,13 @@ make_protein_plot_win <- function(old_nn_input,
       }
     } else {
       page <- htmltools::tagList(nn_base_cxc_js, top_wgt, wgt)
-      out_file <- fs::path(plot_dir, old_nn_input[["gene"]], ext = "html")
+      ## Gene symbols can contain "/" (UNQ6190/PRO20217, UNQ6494/PRO21346),
+      ## which fs::path reads as a directory separator: the write then fails on a
+      ## missing subdirectory, the tryCatch below logs it and the run carries on
+      ## without a page for that gene. Flatten the symbol for the filename only.
+      out_file <- fs::path(plot_dir,
+                           gsub("[^A-Za-z0-9._-]+", "_", old_nn_input[["gene"]]),
+                           ext = "html")
       .step("writing html")
       htmltools::save_html(
         page,
