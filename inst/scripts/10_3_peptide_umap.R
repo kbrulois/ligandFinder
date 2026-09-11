@@ -38,6 +38,10 @@ library(tidyverse)
 
 ## ---- options ---------------------------------------------------------------
 out_csv       <- path.expand("~/AF2_analysis/peptide_umap_full.csv")     # the one output table
+## Cold-start inputs. Building `params` needs a training session (nn_input +
+## all_params3); re-PLOTTING it does not. These are the saved equivalents, used
+## when the session is empty -- see the fast path under "setup / guards".
+comb_rds      <- path.expand("~/AF2_analysis/nn_input_comb_ensemble.rds")
 load_csv      <- path.expand("~/AF2_analysis/peptide_pca_loadings.csv")  # PCA loadings (feature x PC)
 svg_stem      <- path.expand("~/AF2_analysis/peptide_umap")              # <stem>_<metric>.svg
 html_name     <- "ligandFinder_v4.html"  # fixed filename for the interactive page, written
@@ -45,13 +49,30 @@ html_name     <- "ligandFinder_v4.html"  # fixed filename for the interactive pa
                                          # plotted -- with more than one it would collide, so
                                          # the <stem>_<layout>.html form takes over. NULL = always
                                          # use the stem form. The svg is unaffected.
+## ---- linked side panels ----------------------------------------------------
+## Extra panels drawn in the SAME girafe as the UMAP and keyed on the same window
+## id, so hovering a window in one panel highlights it in all of them. Two
+## separate girafe objects would not link, however they are laid out.
+panel_score   <- TRUE                    # panel 1: score by stratum (violin + beeswarm)
+umap_rel_w    <- 1.15                    # UMAP width relative to one side panel
+panel_rel_w   <- 1                       # ... shrinking the UMAP is just this ratio
+panel_all     <- TRUE                    # panels cover EVERY window, not only the
+                                         # gated ones the UMAP draws. The score
+                                         # distribution is the point of panel 1, and
+                                         # the gate removes 56% of the windows.
+set_cols      <- c(train = "#1b7837", val = "#2166ac", none = "grey75")
+
 point_size    <- 1.2                     # data-mark size, shared by the static and the
                                          # interactive layer so the two cannot drift apart
 term_shapes   <- c(C = 16, N = 17)       # C-terminal windows draw as points, N-terminal as
                                          # triangles: terminus is categorical and the colour
                                          # aesthetic is already spent on the score
 
-feature_set   <- all_params3        # the per-residue features
+## The per-residue features -- only the UMAP/PCA build reads this, so on the
+## replot path (no training session) it is simply absent. The build branch keeps
+## its own stopifnot(exists("all_params3")), so a genuinely missing feature set
+## still stops the run rather than producing an empty layout.
+feature_set   <- if (exists("all_params3")) all_params3 else NULL
 standardize   <- TRUE               # center/scale each column so continuous feats don't dominate
 seed          <- 42
 
@@ -79,7 +100,15 @@ embed_umap    <- FALSE              # off for the final figure: the gate below i
 embed_metric  <- "cosine"
 
 make_plot     <- TRUE               # write a coloured UMAP svg per metric
-score_col     <- "pred_raw"         # continuous colour scale (uncalibrated model score)
+## Which score the UMAP is coloured by and the score panel plots. "pred_nn" is
+## nn_input_comb$pred -- the calibrated ENSEMBLE mean over the 5 seeds, i.e. the
+## same number the per-gene pages show; "pred_raw" is the uncalibrated sigmoid.
+## They rank similarly but are not on the same footing, so the viewer and the
+## gene pages should quote one of them, not one each.
+score_col     <- "pred_nn"
+## Axis/legend text, so the reader is not left to interpret a column name.
+score_label   <- c(pred_nn  = "ensemble score (mean of 5 seeds)",
+                   pred_raw = "raw score (uncalibrated)")
 density_bins  <- 8                  # number of 2-D density contour levels (NULL = no contours)
 contour_col   <- "black"             # contour line colour
 contour_lw    <- 0.35               # contour line width
@@ -153,6 +182,31 @@ subset_peps   <- NULL               # NULL = all windows; or a character vector 
 knowns_only   <- FALSE              # TRUE = only known peptides (fast sanity run)
 
 ## ---- setup / guards --------------------------------------------------------
+## Everything from here to the PCA block rebuilds `params` from the session --
+## the expensive half of this script, and the only half that needs nn_input +
+## all_params3. The annotation and plotting sections below only ever READ
+## `params`, so when the training session is gone but the saved table is there,
+## reload it and skip straight to them. Set reuse_csv explicitly to force a path.
+.from_csv <- if (exists("reuse_csv")) isTRUE(reuse_csv) else
+             (!exists("nn_input") && file.exists(out_csv))
+
+if (.from_csv) {
+  message("reuse: loading params from ", out_csv, " (skipping the UMAP/PCA rebuild)")
+  ## Only the label/coord columns -- the ~1,000 per-position columns are input to
+  ## the UMAP, which is not being recomputed, and reading them costs minutes.
+  params <- readr::read_csv(
+    out_csv,
+    col_select = c(peps, gene, terminus, target, win_type, end_type, known, set,
+                   pad_frac, dplyr::starts_with("UMAP"), dplyr::num_range("PC", 1:5)),
+    show_col_types = FALSE, progress = FALSE)
+  ## Drop any stale scores/annotations so the sections below re-derive them from
+  ## the CURRENT nn_input_comb, instead of silently keeping older values under
+  ## the same column names.
+  params <- dplyr::select(params, -dplyr::any_of(
+    c("pred_nn", "pred_raw", "pred_april17", "amidation",
+      "known_end", "known_end_name", "uniprot_known")))
+  message(sprintf("  %d windows x %d columns", nrow(params), ncol(params)))
+} else {
 stopifnot(exists("nn_input"), exists("all_params3"))
 if (!exists("seq_len")) seq_len <- nrow(nn_input[[1]]$all$data[[1]])
 if (!requireNamespace("uwot", quietly = TRUE))
@@ -309,6 +363,8 @@ if (add_pca) {
                   k, 100 * sum(ve), load_csv))
 }
 
+}  # end of the session-only build (see .from_csv above)
+
 ## ---- embedding UMAP --------------------------------------------------------
 ## Same points, laid out by the model's 16-d "embed" representation rather than
 ## by the input features. Lands in UMAP1_embed / UMAP2_embed, so the plot loop
@@ -368,9 +424,15 @@ if (add_scores) {
   ## nn_input_comb is the only score source, so a missing object stops the run
   ## rather than being skipped with a message: an unscored table would otherwise
   ## only announce itself much later, as a UMAP silently coloured by win_type.
+  ## Cold start: the saved ensemble table IS the object 10_1dcnn_new6.R leaves
+  ## in the session, so load it rather than demanding a training session.
+  if (!exists("nn_input_comb") && file.exists(comb_rds)) {
+    message("loading nn_input_comb from ", comb_rds)
+    nn_input_comb <- readRDS(comb_rds)
+  }
   if (!exists("nn_input_comb"))
-    stop("nn_input_comb not in session -- run 10_1dcnn_new6.R first, ",
-         "or set add_scores <- FALSE")
+    stop("nn_input_comb not in session and ", comb_rds, " does not exist -- ",
+         "run 10_1dcnn_new6.R first, or set add_scores <- FALSE")
   sc <- intersect(c("pred", "pred_raw", "pred_cal"), names(nn_input_comb))[1]
   if (is.na(sc))
     stop("nn_input_comb has no pred/pred_raw/pred_cal column")
@@ -405,8 +467,50 @@ if (add_scores) {
     message(sprintf("amidation: %d of %d windows carry the motif",
                     sum(params$amidation), nrow(params)))
   } else {
-    message("nn_input_comb has no amidation column -- no amidation rings ",
-            "(add it by re-running the amidation block in 10_1dcnn_new6.R)")
+    ## Recompute rather than skip. The motif is a fixed-position lookup, not a
+    ## search: 9.2 anchors every db window on db_ind, so the dibasic pair always
+    ## lands at the same local index -- 31 (2nd basic) for C-target windows, 6
+    ## (1st basic) for N-target ones -- with the glycine immediately 5' of it.
+    ## Same rule as the amidation block in 10_1dcnn_new6.R; kept here so a cold
+    ## start off the saved table is not silently missing the flag.
+    .ws <- if (exists("win_size")) c(N = win_size$N$start, C = win_size$C$start)
+           else c(N = -5L, C = -30L)                          # 9.2 defaults
+    .mpos <- function(tg) if (tg %in% c("C", "loop_C")) {
+        a <- 1L - .ws[["C"]]; c(g = a - 2L, b1 = a - 1L, b2 = a)
+      } else { a <- 1L - .ws[["N"]]; c(g = a - 1L, b1 = a, b2 = a + 1L) }
+    .aa <- function(md, i) { v <- as.character(md[["AA"]])
+                             if (i < 1L || i > length(v)) NA_character_ else v[[i]] }
+    .amid <- vapply(seq_len(nrow(nn_input_comb)), function(i) {
+      tg <- as.character(nn_input_comb$target[[i]])
+      if (!identical(as.character(nn_input_comb$win_type[[i]]), "db")) return(FALSE)
+      if (!tg %in% c("N", "loop_N", "C", "loop_C")) return(FALSE)
+      q <- .mpos(tg); md <- nn_input_comb$meta_data[[i]]
+      isTRUE(identical(.aa(md, q[["g"]]), "G") &&
+             .aa(md, q[["b1"]]) %in% c("K", "R") && .aa(md, q[["b2"]]) %in% c("K", "R"))
+    }, logical(1))
+    ## Guard: a wrong offset makes every window come back FALSE, which reads as
+    ## "no motifs found" rather than as a bug. Confirm the anchor really is basic.
+    .chk <- vapply(utils::head(which(nn_input_comb$win_type == "db"), 2000), function(i) {
+      q <- .mpos(as.character(nn_input_comb$target[[i]])); md <- nn_input_comb$meta_data[[i]]
+      isTRUE(.aa(md, q[["b1"]]) %in% c("K", "R") && .aa(md, q[["b2"]]) %in% c("K", "R"))
+    }, logical(1))
+    message(sprintf("amidation: recomputed; dibasic anchor confirmed in %.1f%% of sampled db windows",
+                    100 * mean(.chk)))
+    if (mean(.chk) < 0.9)
+      warning("amidation: the dibasic anchor is often NOT at the expected local ",
+              "position -- check win_size against 9.2", immediate. = TRUE)
+    nn_input_comb$amidation <- .amid
+    params <- dplyr::left_join(
+      params,
+      nn_input_comb %>%
+        dplyr::select(dplyr::all_of(c(key, "amidation"))) %>%
+        dplyr::group_by(dplyr::across(dplyr::all_of(key))) %>%
+        dplyr::summarise(amidation = any(amidation, na.rm = TRUE), .groups = "drop"),
+      by = key)
+    params$amidation[is.na(params$amidation)] <- FALSE
+    message(sprintf("amidation: %d of %d windows carry the motif",
+                    sum(params$amidation), nrow(params)))
+    rm(.ws, .mpos, .aa, .amid, .chk)
   }
 }
 
@@ -475,6 +579,25 @@ if (file.exists(known_end_ref)) {
 
   params$known_end      <- !is.na(hit)
   params$known_end_name <- hit
+
+  ## Three strata for the score panel. "GPCR peptide" is a matched reference
+  ## ligand that has a receptor annotated (GtoPdb / GPCRdb); "peptide" is a
+  ## matched ligand with none. The distinction is a property of the LIGAND, so
+  ## it is joined on known_end_name rather than recomputed per window.
+  .rcpt <- readRDS(known_end_ref) %>%
+    dplyr::transmute(name = dplyr::coalesce(as.character(final_name), "unnamed"),
+                     has_receptor = !is.na(receptor)) %>%
+    dplyr::group_by(name) %>%
+    dplyr::summarise(has_receptor = any(has_receptor), .groups = "drop")
+  params <- dplyr::left_join(params, .rcpt, by = c("known_end_name" = "name"))
+  params$stratum <- factor(
+    dplyr::case_when(!params$known_end              ~ "unknown",
+                     params$has_receptor %in% TRUE  ~ "GPCR peptide",
+                     TRUE                           ~ "peptide"),
+    levels = c("unknown", "peptide", "GPCR peptide"))
+  message("stratum: ", paste(sprintf("%s=%d", names(table(params$stratum)),
+                                     table(params$stratum)), collapse = "  "))
+  rm(.rcpt)
   message(sprintf("known peptide ends: %d windows across %d genes (%d also in the training set)",
                   sum(params$known_end), dplyr::n_distinct(params$gene[params$known_end]),
                   sum(params$known_end & params$known == 1)))
@@ -502,8 +625,15 @@ params <- params %>%
                   dplyr::matches("^PC[0-9]+$"),
                   .after = terminus)
 
-write_csv_fast(params, out_csv)
-message("wrote ", out_csv, "  (", nrow(params), " x ", ncol(params), ")")
+## Only on the full build. On the fast path `params` is a column subset of this
+## very file, so writing it back would silently discard the ~1,000 per-position
+## columns that the UMAP is built from.
+if (!.from_csv) {
+  write_csv_fast(params, out_csv)
+  message("wrote ", out_csv, "  (", nrow(params), " x ", ncol(params), ")")
+} else {
+  message("replot: leaving ", out_csv, " alone")
+}
 
 ## ---- UMAP plot per metric: 2-D density + model score ------------------------
 ## Points are coloured by the model score, with 2-D density contours over the top
@@ -678,7 +808,10 @@ gene_search_template <- '
 </script>'
 
 if (make_plot) {
-  sc <- intersect(c(score_col, "pred_nn"), names(params))[1]
+  sc <- intersect(c(score_col, "pred_nn", "pred_raw"), names(params))[1]
+  ## readable name for whichever column won
+  .sc_lab <- function(x) if (!is.na(x) && x %in% names(score_label))
+                           unname(score_label[[x]]) else x
 
   if (is.na(sc) || all(is.na(params[[sc]]))) {
     message("no usable score column (", score_col, ") -- colouring by win_type instead")
@@ -788,7 +921,7 @@ if (make_plot) {
 
       if (!is.na(sc))
         p <- p + scale_color_viridis_c(option = "magma", direction = -1,
-                                       na.value = "grey88", name = sc)
+                                       na.value = "grey88", name = .sc_lab(sc))
 
       ## Annotation rings stay a fixed open circle rather than following this
       ## scale: one shape scale cannot serve both solid data marks (16/17) and
@@ -911,8 +1044,68 @@ if (make_plot) {
                         data_id = .data[[".did"]], onclick = .data[[".click"]]),
                     size = point_size, alpha = 0.75)
 
+      ## ---- panel 1: score by stratum ---------------------------------------
+      ## data_id is the window id, identical to the UMAP layer's, and both go into
+      ## ONE girafe below -- that pairing is what links the panels. Drawn over
+      ## every scored window rather than the gated subset (see panel_all).
+      p_panels <- list()
+      if (isTRUE(panel_score) && !is.na(sc) && "stratum" %in% names(params)) {
+        sdat <- if (isTRUE(panel_all)) params else pdat
+        sdat <- sdat[!is.na(sdat[[sc]]) & !is.na(sdat$stratum), , drop = FALSE]
+        ## none first so the 59k grey bulk cannot bury the 1.6k train/val marks
+        sdat <- sdat[order(!is.na(sdat$set) & sdat$set != "none"), , drop = FALSE]
+        sdat$.did <- ifelse(is.na(sdat$peps),
+                            paste0("row", seq_len(nrow(sdat))), sdat$peps)
+        sdat$.set <- factor(ifelse(is.na(sdat$set), "none", as.character(sdat$set)),
+                            levels = c("train", "val", "none"))
+        sdat$.tip <- paste0(
+          ifelse(is.na(sdat$peps), "(unlabelled window)", sdat$peps),
+          "\n", .sc_lab(sc), ": ", round(sdat[[sc]], 3),
+          "\n", ifelse(sdat$terminus %in% "C", "C-terminal window",
+                                                "N-terminal window"),
+          "\namidation motif: ",
+          if ("amidation" %in% names(sdat)) ifelse(sdat$amidation, "yes", "no") else "unknown",
+          "\nset: ", as.character(sdat$.set),
+          "\nstratum: ", as.character(sdat$stratum))
+
+        ## quasirandom gives the beeswarm its width-proportional spread; without
+        ## ggbeeswarm fall back to jitter rather than dropping the panel.
+        swarm <- if (requireNamespace("ggbeeswarm", quietly = TRUE))
+                   ggbeeswarm::position_quasirandom(width = 0.34)
+                 else position_jitter(width = 0.28, height = 0)
+
+        p_panels$score <- ggplot(sdat, aes(x = stratum, y = .data[[sc]])) +
+          geom_violin(fill = "grey93", colour = "grey55", linewidth = 0.3,
+                      scale = "width", trim = TRUE) +
+          ggiraph::geom_point_interactive(
+            aes(colour = .set, tooltip = .tip, data_id = .did),
+            position = swarm, size = point_size * 0.75, alpha = 0.65,
+            stroke = 0) +
+          scale_colour_manual(values = set_cols, name = "set", drop = FALSE) +
+          scale_x_discrete(labels = function(x)
+            paste0(x, "\n(n=", tabulate(sdat$stratum, nlevels(sdat$stratum))[match(x, levels(sdat$stratum))], ")")) +
+          labs(x = NULL, y = .sc_lab(sc)) +
+          theme_bw() +
+          theme(legend.position = "bottom",
+                panel.grid.minor = element_blank()) +
+          guides(colour = guide_legend(override.aes = list(size = 2.5, alpha = 1)))
+        message(sprintf("  [%s] score panel: %d windows  (%s)", mt, nrow(sdat),
+                        paste(sprintf("%s=%d", levels(sdat$stratum),
+                                      tabulate(sdat$stratum, nlevels(sdat$stratum))),
+                              collapse = "  ")))
+      }
+
+      ## One girafe over the whole patchwork. width_svg grows with the panel count
+      ## so adding a panel makes the UMAP smaller rather than squeezing everything.
+      gob <- decorate(pt_int)
+      if (length(p_panels)) {
+        gob <- Reduce(`+`, p_panels, init = gob) +
+               patchwork::plot_layout(widths = c(umap_rel_w,
+                                                 rep(panel_rel_w, length(p_panels))))
+      }
       gir <- ggiraph::girafe(
-        ggobj = decorate(pt_int), width_svg = 12, height_svg = fig_h,
+        ggobj = gob,
+        width_svg = 12 + 4 * length(p_panels), height_svg = fig_h,
         options = list(
           ggiraph::opts_sizing(rescale = TRUE),
           ggiraph::opts_selection(type = "none"),
