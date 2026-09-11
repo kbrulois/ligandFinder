@@ -53,7 +53,11 @@ html_name     <- "ligandFinder_v5.html"  # fixed filename for the interactive pa
 ## Extra panels drawn in the SAME girafe as the UMAP and keyed on the same window
 ## id, so hovering a window in one panel highlights it in all of them. Two
 ## separate girafe objects would not link, however they are laid out.
-panel_score   <- TRUE                    # panel 1: score by stratum (violin + beeswarm)
+panel_score   <- TRUE                    # panel 1: score by stratum (beeswarm), beside the UMAP
+panel_celltype <- TRUE                   # panel 2: score by the gene's top cell type (see
+                                         # celltype_ref), full width UNDER the top row --
+                                         # ~80 columns need the whole width
+panel_ct_rel_h <- 0.8                    # its height relative to the top row
 umap_rel_w    <- 1.15                    # UMAP width relative to one side panel
 panel_rel_w   <- 1                       # ... shrinking the UMAP is just this ratio
 panel_all     <- TRUE                    # panels cover EVERY window, not only the
@@ -801,7 +805,11 @@ gene_intro_html <- '
     Pharmacology; read them as a floor, not a census &mdash; the scored set is
     restricted to dibasic-anchored windows, so the chemokine family, ADM, AVP,
     APLN and other peptides lacking dibasic sites are absent. Colour there marks
-    the training/validation set.</p>
+    the training/validation set. The full-width panel below it stratifies the
+    same prediction by the cell type in which each window&rsquo;s gene peaks
+    (Human Protein Atlas single-cell consensus, v23); columns run from the cell
+    type with the largest share of windows above 0.1 to the smallest, with
+    &ldquo;not detected&rdquo; and &ldquo;no HPA record&rdquo; last.</p>
 
     <p><b>Interaction.</b> Windows scoring above 0.1, and every known peptide
     end whatever it scores, are live, in both panels:
@@ -1149,7 +1157,7 @@ if (make_plot) {
 
     ## a 12x10 canvas split in two gives tall narrow panels; shorten it so each
     ## panel stays roughly square and the layout is still readable
-    fig_h    <- if (faceted) 7 else 10
+    fig_h    <- if (faceted) 4.7 else 6.7      # was 7 / 10; the row is a third shorter
     svg_path <- paste0(svg_stem, "_", mt, ".svg")
     ggsave(svg_path, decorate(pt), width = 12, height = fig_h)
     message("wrote ", svg_path)
@@ -1296,52 +1304,82 @@ if (make_plot) {
                   sub("/+$", "", link_base), sdat$gene, sdat$peps),
           "")
 
-        ## The swarm offsets are computed ONCE here, per column over every window
-        ## in it, and the points are then drawn at fixed x. Going through
+        ## One beeswarm panel: prediction by a categorical column. The swarm
+        ## offsets are computed ONCE here, per column over every window in it,
+        ## and the points are then drawn at fixed x. Going through
         ## position_quasirandom() instead would hand the column to ggplot2's
         ## collide(), which re-sorts it by group and so put the 1.5k train/val
         ## marks under the 57k grey ones however the rows were ordered above.
         ## With the x fixed, paint order is data order: none first, train/val
         ## last, on top. vipor::offsetX is the function ggbeeswarm itself calls
         ## (adjust = its bandwidth default); without it, a plain jitter.
-        sdat$.xc <- as.integer(sdat$.strat)
-        sdat$.xs <- sdat$.xc +
-          if (requireNamespace("vipor", quietly = TRUE))
-            vipor::offsetX(sdat[[sc]], x = sdat$.xc, width = panel_swarm_w, adjust = 0.5)
-          else stats::runif(nrow(sdat), -panel_swarm_w * 0.8, panel_swarm_w * 0.8)
-        .n_col <- tabulate(sdat$.strat, nlevels(sdat$.strat))
-
-        ## Points only -- no violin outline. data_id is the window id, shared with
-        ## the UMAP layer, so ggiraph highlights the same window in both panels on
-        ## hover; that only works because both go into ONE girafe.
+        ## Points only -- no violin outline. data_id is the window id, shared
+        ## with the UMAP layer, so ggiraph highlights the same window in every
+        ## panel on hover; that only works because all go into ONE girafe.
         ## Same static/interactive split as the UMAP (see .is_live); the row
-        ## order set above survives the split, so train/val end each layer.
-        s_int <- .is_live(sdat)
-        p_panels$score <- ggplot(sdat, aes(x = .xs, y = .data[[sc]])) +
-          geom_point(data = sdat[!s_int, , drop = FALSE], aes(colour = .set),
-                     size = panel_pt_size, alpha = 0.7) +
-          ggiraph::geom_point_interactive(
-            data = sdat[s_int, , drop = FALSE],
-            aes(colour = .set, tooltip = .tip, data_id = .did, onclick = .click),
-            size = panel_pt_size, alpha = 0.7) +
-          scale_colour_manual(values = set_cols, name = "set", drop = FALSE) +
-          ## a continuous axis dressed as the discrete one: one tick per column,
-          ## the same 0.6 of padding a discrete scale adds at each end, and no
-          ## dependence on which levels a layer happens to use
-          scale_x_continuous(breaks = seq_along(.lv),
-                             labels = function(b) paste0(.lv[b], "\n(n=", .n_col[b], ")"),
-                             limits = c(0.4, length(.lv) + 0.6), expand = expansion(0)) +
-          labs(x = NULL, y = .sc_lab(sc)) +
-          theme_bw() +
-          theme(legend.position = "bottom",
-                panel.grid.minor = element_blank(),
-                ## seven columns share the panel once the GPCR peptides split
-                axis.text.x = element_text(size = if (.has_ins) 6.5 else 8)) +
-          guides(colour = guide_legend(override.aes = list(size = 2.5, alpha = 1)))
+        ## order survives the split, so train/val end each layer.
+        swarm_panel <- function(d, strat, label_size = 8, angle = 0, legend = TRUE) {
+          lv <- levels(strat)
+          d$.xc <- as.integer(strat)
+          d$.xs <- d$.xc +
+            if (requireNamespace("vipor", quietly = TRUE))
+              vipor::offsetX(d[[sc]], x = d$.xc, width = panel_swarm_w, adjust = 0.5)
+            else stats::runif(nrow(d), -panel_swarm_w * 0.8, panel_swarm_w * 0.8)
+          n_col <- tabulate(strat, length(lv))
+          live  <- .is_live(d)
+          ggplot(d, aes(x = .xs, y = .data[[sc]])) +
+            geom_point(data = d[!live, , drop = FALSE], aes(colour = .set),
+                       size = panel_pt_size, alpha = 0.7) +
+            ggiraph::geom_point_interactive(
+              data = d[live, , drop = FALSE],
+              aes(colour = .set, tooltip = .tip, data_id = .did, onclick = .click),
+              size = panel_pt_size, alpha = 0.7) +
+            scale_colour_manual(values = set_cols, name = "set", drop = FALSE) +
+            ## a continuous axis dressed as the discrete one: one tick per column,
+            ## the same 0.6 of padding a discrete scale adds at each end, and no
+            ## dependence on which levels a layer happens to use
+            scale_x_continuous(breaks = seq_along(lv),
+                               labels = function(b) paste0(lv[b], "\n(n=", n_col[b], ")"),
+                               limits = c(0.4, length(lv) + 0.6), expand = expansion(0)) +
+            labs(x = NULL, y = .sc_lab(sc)) +
+            theme_bw() +
+            theme(legend.position = if (legend) "bottom" else "none",
+                  panel.grid.minor = element_blank(),
+                  axis.text.x = if (angle == 0) element_text(size = label_size)
+                                else element_text(size = label_size, angle = angle,
+                                                  hjust = 1, vjust = 0.5)) +
+            guides(colour = guide_legend(override.aes = list(size = 2.5, alpha = 1)))
+        }
+
+        ## seven columns share the panel once the GPCR peptides split
+        p_panels$score <- swarm_panel(sdat, sdat$.strat,
+                                      label_size = if (.has_ins) 6.5 else 8)
         message(sprintf("  [%s] score panel: %d windows  (%s)", mt, nrow(sdat),
                         paste(sprintf("%s=%d", gsub("\n", " ", levels(sdat$.strat), fixed = TRUE),
                                       tabulate(sdat$.strat, nlevels(sdat$.strat))),
                               collapse = "  ")))
+
+        ## ---- panel 2: score by the gene's top cell type ---------------------
+        ## Columns ordered by the share of windows above panel_unk_split, so the
+        ## cell types whose genes yield candidate windows read from the left;
+        ## "not detected" (HPA measured nothing) and "no HPA record" close the
+        ## axis. The label carries n so a high share on 20 windows is not read
+        ## like one on 2,000.
+        if (isTRUE(panel_celltype) && "top_celltype" %in% names(sdat)) {
+          .ct <- dplyr::case_when(is.na(sdat$top_celltype)             ~ "no HPA record",
+                                  sdat$top_celltype == "not_detected" ~ "not detected",
+                                  TRUE                                ~ sdat$top_celltype)
+          .ord <- tapply(sdat[[sc]] >= panel_unk_split, .ct, mean)
+          .ord <- names(sort(.ord, decreasing = TRUE))
+          .ord <- c(setdiff(.ord, c("not detected", "no HPA record")),
+                    intersect(c("not detected", "no HPA record"), .ord))
+          sdat$.ctf <- factor(.ct, levels = .ord)
+          p_panels$celltype <- swarm_panel(sdat, sdat$.ctf, label_size = 5.5,
+                                           angle = 90, legend = FALSE)
+          message(sprintf("  [%s] cell-type panel: %d columns; top 5 by share >= %s: %s",
+                          mt, length(.ord), format(panel_unk_split),
+                          paste(head(.ord, 5), collapse = ", ")))
+        }
       }
 
       ## One girafe over the whole patchwork. width_svg grows with the panel count
@@ -1355,13 +1393,22 @@ if (make_plot) {
         ## fails with "Can't add `x[[i]]` to a <ggplot> object".
         if (!requireNamespace("patchwork", quietly = TRUE))
           stop("install.packages('patchwork') to draw the side panels")
-        gob <- Reduce(`+`, p_panels, init = gob) +
+        ## top row: the UMAP beside the score panel; the cell-type panel, when
+        ## drawn, takes the whole width of a second row (see panel_celltype)
+        top <- Reduce(`+`, p_panels[setdiff(names(p_panels), "celltype")], init = gob) +
                patchwork::plot_layout(widths = c(umap_rel_w,
-                                                 rep(panel_rel_w, length(p_panels))))
+                                                 rep(panel_rel_w, length(p_panels) -
+                                                       ("celltype" %in% names(p_panels)))))
+        gob <- if ("celltype" %in% names(p_panels))
+                 patchwork::wrap_plots(top, p_panels$celltype, ncol = 1,
+                                       heights = c(1, panel_ct_rel_h))
+               else top
       }
+      n_side <- length(p_panels) - ("celltype" %in% names(p_panels))
       gir <- ggiraph::girafe(
         ggobj = gob,
-        width_svg = 12 + 4 * length(p_panels), height_svg = fig_h,
+        width_svg = 12 + 4 * n_side,
+        height_svg = fig_h * (1 + if ("celltype" %in% names(p_panels)) panel_ct_rel_h else 0),
         options = list(
           ggiraph::opts_sizing(rescale = TRUE),
           ggiraph::opts_selection(type = "none"),
