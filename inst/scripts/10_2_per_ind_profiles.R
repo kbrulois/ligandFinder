@@ -87,7 +87,8 @@ set_cols <- c(trn = "#1b7837", tst = "#2166ac", other = "#b35806")
 use_md   <- requireNamespace("ggtext", quietly = TRUE)
 if (!use_md) message("per_index: install.packages('ggtext') to colour the strip titles by trn/tst/other")
 
-for(term in c("C", "N")) {
+## `pi_terms` in the session restricts the termini (10_2b_bench_arm_session.R sets it)
+for(term in if (exists("pi_terms")) pi_terms else c("C", "N")) {
 
 # knowns for this terminus (incl. loop_*) + any user-supplied extra windows
 sub <- nn_input_comb %>%
@@ -151,7 +152,9 @@ p <- ggplot(data = df2 %>% filter(name != "seq"), aes(x = index, y = value, colo
 
 
 
-ggsave(stamped("per_index_preds_knowns_", term), plot = p, width = 18, height = 18)
+## `pi_prefix` in the session names the file (default as before)
+ggsave(stamped(if (exists("pi_prefix")) pi_prefix else "per_index_preds_knowns_", term),
+       plot = p, width = 18, height = 18)
 
 }
 
