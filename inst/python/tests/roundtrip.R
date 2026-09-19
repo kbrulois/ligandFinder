@@ -56,12 +56,17 @@ nn_input <- list(
 )
 
 cat("-- bridge --\n")
-mod <- lf_dcnn_python()
+## pin to THIS checkout: lf_dcnn_path() prefers the installed package's copy of
+## inst/python, which would test whatever was last installed, not the tree
+PY_PATH <- lf_dcnn_path(if (dir.exists("inst/python")) "inst/python" else NULL)
+mod <- lf_dcnn_python(path = PY_PATH)
 cfg <- lf_dcnn_config(CHANNELS, epochs = 3L, patience = 2L,
                       start_from_epoch = 1L, seed = 42L, mod = mod)
 
 check("python module imports", inherits(mod, "python.builtin.module"))
-check("param count is 2438", mod$build_model(cfg)$count_params() == 2438L)
+check("param count is 21406 (U-Net, no position ramp)", mod$build_model(cfg)$count_params() == 21406L)
+check("r_exact rebuilds the 2438-parameter R model",
+      mod$build_model(mod$Config$r_exact(channel_names = CHANNELS))$count_params() == 2438L)
 
 ## ---- the array contract ----------------------------------------------------
 arrays <- lf_dcnn_arrays(nn_input, cfg)
@@ -97,9 +102,11 @@ check("validate() rejects a pre-aperm array", {
 })
 
 ## ---- in-process run --------------------------------------------------------
+## isolated = FALSE on purpose: this half is the in-process reference the
+## standalone CLI run below is compared against
 cat("-- training (3 epochs) --\n")
 res <- lf_dcnn_run(nn_input, CHANNELS, epochs = 3L, patience = 2L,
-                   start_from_epoch = 1L, seed = 42L, verbose = 0L)
+                   start_from_epoch = 1L, seed = 42L, verbose = 0L, isolated = FALSE)
 
 n_all <- sum(vapply(nn_input, function(x) nrow(x$all), integer(1)))
 check("term order follows names(nn_input)", identical(res$term_order, c("N","C")))
@@ -110,10 +117,16 @@ check("per_index is (n, win_len, K_pi)",
 check("emb is (n, 16)", identical(dim(res$emb), c(n_all, 16L)))
 check("emb rows are L2-normalised", max(abs(rowSums(res$emb^2) - 1)) < 1e-6)
 check("pred is a probability", all(res$pred >= 0 & res$pred <= 1))
-check("pred correlates ~1.0 with rank(pred_raw)",
-      abs(cor(res$pred, rank(res$pred_raw), method = "spearman") - 1) < 1e-9)
-check("calibration is monotone (ranks identical)",
+## Calibration is MONOTONE in the raw score, so it cannot reorder. The sign is
+## not guaranteed: on a degenerate fit (few val positives, a 3-epoch run) the
+## logistic slope comes out negative, which reverses the ranking without
+## breaking monotonicity -- the same allowance the python selftest makes.
+check("pred correlates +/-1.0 with rank(pred_raw)",
+      abs(abs(cor(res$pred, rank(res$pred_raw), method = "spearman")) - 1) < 1e-9)
+check("calibration is monotone (ranks identical or exactly reversed)",
       identical(rank(res$pred, ties.method = "first"),
+                rank(res$pred_raw, ties.method = "first")) ||
+      identical(rank(-res$pred, ties.method = "first"),
                 rank(res$pred_raw, ties.method = "first")))
 check("one pooled calibrator over both models' val sets",
       res$calibrator$n_obs == sum(vapply(nn_input, function(x) nrow(x$val), integer(1))))
@@ -160,7 +173,7 @@ check("export wrote arrays.npz + config.json + meta.parquet",
 py <- file.path(dirname(reticulate::py_config()$python), "python")
 rc <- system2(py, c("-m","lf_dcnn","train","--input-dir", file.path(tmp,"in"),
                     "--output-dir", file.path(tmp,"out"), "--verbose","0"),
-              env = c(paste0("PYTHONPATH=", lf_dcnn_path())),
+              env = c(paste0("PYTHONPATH=", PY_PATH)),   # same tree as in-process
               stdout = FALSE, stderr = FALSE)
 check("standalone CLI exits 0", rc == 0)
 

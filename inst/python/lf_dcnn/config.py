@@ -72,10 +72,12 @@ class Config:
 
     # --- architecture ---
     l2: float = 1e-3
-    #: ``"flat"`` keeps full 36-position resolution through the whole trunk;
-    #: ``"unet"`` pools down and upsamples back, widening the channel count on
-    #: the way down.  See :func:`lf_dcnn.model.build_model`.
-    trunk: str = "flat"
+    #: ``"unet"`` (default since 2026-09-18, see 10_5_benchmark_window_model.R)
+    #: pools down and upsamples back, widening the channel count on the way
+    #: down; ``"flat"`` keeps full 36-position resolution through the whole
+    #: trunk (the original R model; see :meth:`r_exact`).  See
+    #: :func:`lf_dcnn.model.build_model`.
+    trunk: str = "unet"
     #: where the global (window-score) head reads from.
     #: ``"attn"``       the masked class softmax -> attention -> pool (default,
     #:                  and the only option for the flat trunk)
@@ -84,13 +86,18 @@ class Config:
     #:                  of forcing it through the 7-channel class softmax.
     #: ``"both"``       concatenate the two pooled vectors.
     global_head: str = "attn"
+    #: append the in-graph ``[0, 1]`` position ramp as an extra input channel
+    #: (see :class:`lf_dcnn.model.PositionRamp`). Off by default since
+    #: 2026-09-18: the trunk gets the raw channels only. The original R model
+    #: had it on (see :meth:`r_exact`).
+    position_ramp: bool = False
     conv_filters: tuple[int, ...] = (16, 8)
     conv_kernel: int = 3
     conv_dropout: tuple[float, ...] = (0.2, 0.3)
     #: U-Net only: channels per level, last entry is the bottleneck.
     #: ``(16, 32, 64)`` means 36->18->9 with 16, 32 then 64 filters.
     unet_filters: tuple[int, ...] = (16, 32, 64)
-    unet_dropout: tuple[float, ...] = (0.2, 0.2, 0.3)
+    unet_dropout: tuple[float, ...] = (0.2, 0.2, 0.2)
     pool_size: int = 2
     attention_heads: int = 2
     attention_key_dim: int = 8
@@ -160,6 +167,7 @@ class Config:
             object.__setattr__(self, f, int(getattr(self, f)))
         if self.seed is not None:
             object.__setattr__(self, "seed", int(self.seed))
+        object.__setattr__(self, "position_ramp", bool(self.position_ramp))
         for f in ("conv_dropout", "unet_dropout", "nt_span", "ct_span", "mid_span"):
             object.__setattr__(self, f, tuple(getattr(self, f)))
         for f in ("conv_filters", "unet_filters"):
@@ -204,7 +212,10 @@ class Config:
 
     @classmethod
     def r_exact(cls, **kwargs) -> "Config":
-        """Config reproducing ``10_1dcnn_new6.R`` including its two quirks."""
+        """Config reproducing the pre-port R model of ``10_1dcnn_new6.R``: the
+        flat trunk with the position ramp, plus its two quirks."""
+        kwargs.setdefault("trunk", "flat")
+        kwargs.setdefault("position_ramp", True)
         kwargs.setdefault("db_mask_both_termini", False)
         kwargs.setdefault("resample_each_epoch", False)
         return cls(**kwargs)

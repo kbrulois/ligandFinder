@@ -21,8 +21,10 @@ from .losses import PerIndexCatLoss, WeightedBinaryCrossentropy, make_masked_cat
 from .model import build_model
 from .synthetic import make_data
 
-#: parameter count of the default architecture; must equal the R model's
-EXPECTED_PARAMS = 2438
+#: parameter count of the default architecture (U-Net 16-32-64, no position ramp)
+EXPECTED_PARAMS = 21406
+#: the pre-port R model (flat trunk + position ramp), what Config.r_exact() builds
+FLAT_PARAMS = 2438
 
 
 def check_class_indices():
@@ -135,12 +137,24 @@ def check_model_shapes():
 def check_position_ramp():
     import keras
 
-    cfg = Config()
+    cfg = Config(position_ramp=True)
     model = build_model(cfg)
     ramp = keras.Model(model.input, model.get_layer("pos_ramp").output)
     got = np.asarray(ramp.predict(np.zeros((2, cfg.seq_len, cfg.n_channels), "float32"), verbose=0))
     want = np.linspace(0.0, 1.0, cfg.seq_len)
     assert np.allclose(got[0, :, 0], want, atol=1e-6), got[0, :3, 0]
+
+    # position_ramp=False (the default): no ramp layer, and the first conv loses
+    # exactly the ramp's kernel_size x filters weights -- nothing else moves
+    off = build_model(cfg.evolve(position_ramp=False))
+    assert "pos_ramp" not in [l.name for l in off.layers]
+    first = cfg.unet_filters[0] if cfg.trunk == "unet" else cfg.conv_filters[0]
+    assert model.count_params() - off.count_params() == cfg.conv_kernel * first, (
+        model.count_params(), off.count_params())
+    assert off.count_params() == EXPECTED_PARAMS
+    assert off.get_layer("per_index_cat").output.shape[1:] == (cfg.seq_len, cfg.K_pi)
+    # the R model: flat trunk, ramp on
+    assert build_model(Config.r_exact()).count_params() == FLAT_PARAMS
 
 
 def check_oversampler():
@@ -280,6 +294,69 @@ def check_end_to_end():
     assert res.term_index("N").size == res.n_by_term["N"]
     for term in res.term_order:
         assert "val_global_pr_auc" in res.histories[term], list(res.histories[term])
+    # single member: the member rows ARE the means
+    assert res.val_scores_members.shape == (1, res.val_scores.size)
+    assert np.allclose(res.val_scores_members[0], res.val_scores)
+    assert np.allclose(res.pred_raw_members[0], res.pred_raw)
+
+    # ensemble: mean/sd over the member rows must reproduce pred_raw / pred_sd,
+    # and the members must actually differ (different seeds)
+    res3 = run(data, cfg, verbose=0, n_seeds=3)
+    assert res3.pred_raw_members.shape == (3, n)
+    assert res3.val_scores_members.shape == (3, res3.val_scores.size)
+    assert np.allclose(res3.pred_raw_members.mean(0), res3.pred_raw, atol=1e-6)
+    assert np.allclose(res3.pred_raw_members.std(0, ddof=1), res3.pred_sd, atol=1e-5)
+    assert np.allclose(res3.val_scores_members.mean(0), res3.val_scores, atol=1e-6)
+    assert not np.allclose(res3.pred_raw_members[0], res3.pred_raw_members[1])
+    assert res3.params == {t: res3.models[t].count_params() for t in res3.term_order}
+
+
+def check_members_roundtrip():
+    """run() == run_member() x n + combine(), also through the on-disk member files."""
+    import tempfile
+
+    from .io import load_members, save_member
+    from .pipeline import combine, run, run_member, set_seed
+
+    cfg = _tiny_cfg()
+    data = make_data(cfg, seed=17)
+    ref = run(data, cfg, verbose=0, n_seeds=2)
+
+    set_seed(cfg.seed)
+    members = [run_member(data, cfg, k=k, n_seeds=2, verbose=0, keep_models=False) for k in range(2)]
+    assert [m.seed for m in members] == [cfg.seed, cfg.seed + 1]
+    with tempfile.TemporaryDirectory() as d:
+        for m in members:
+            assert len(save_member(d, m)) == len(m.terms)     # one file pair per terminus
+        back = load_members(d, term_order=cfg.term_order)
+    assert [m.k for m in back] == [0, 1]
+    assert back[0].terms == ref.term_order
+
+    # a terminus trained on its own (one model per process, the CLI's
+    # --isolated unit) reproduces the same terminus of the full member: the
+    # per-term rng offset keys on the FULL term order, not on what is trained
+    set_seed(cfg.seed)
+    solo = run_member(data, cfg, k=1, n_seeds=2, verbose=0, keep_models=False, terms=["C"])
+    assert solo.terms == ("C",)
+    assert np.allclose(solo.global_all["C"], members[1].global_all["C"], atol=1e-6)
+    with tempfile.TemporaryDirectory() as d:
+        save_member(d, run_member(data, cfg, k=0, n_seeds=2, verbose=0, keep_models=False, terms=["N"]))
+        save_member(d, run_member(data, cfg, k=0, n_seeds=2, verbose=0, keep_models=False, terms=["C"]))
+        merged = load_members(d, term_order=cfg.term_order)
+    assert len(merged) == 1 and merged[0].terms == ref.term_order
+    assert not back[0].models                                   # nothing live survives disk
+    res = combine(back, cfg)
+    # numerics through combine must match run()'s -- same seeds, same reduction
+    assert res.n_seeds == 2 and res.term_order == ref.term_order
+    assert np.allclose(res.pred_raw, ref.pred_raw, atol=1e-6)
+    assert np.allclose(res.pred_sd, ref.pred_sd, atol=1e-6)
+    assert np.allclose(res.per_index, ref.per_index, atol=1e-6)
+    assert np.allclose(res.val_scores_members, ref.val_scores_members, atol=1e-6)
+    assert np.allclose(res.emb, ref.emb, atol=1e-6)
+    assert res.params == ref.params
+    assert res.histories.keys() == ref.histories.keys()
+    # members in any order combine the same
+    assert np.allclose(combine(back[::-1], cfg).pred_raw, res.pred_raw)
     return res
 
 
@@ -350,7 +427,7 @@ def check_unet_trunk():
     assert model.get_layer("embed").output.shape[-1] == cfg.embed_units
 
     # the flat trunk must be untouched by any of this
-    assert build_model(Config(trunk="flat")).count_params() == EXPECTED_PARAMS
+    assert build_model(Config.r_exact()).count_params() == FLAT_PARAMS
 
     # a depth that does not divide the window is rejected up front, not at build
     try:
@@ -363,8 +440,8 @@ def check_unet_trunk():
 
 def check_global_head_variants():
     """The window score can read the class softmax, the bottleneck, or both."""
-    flat = build_model(Config(trunk="flat"))
-    assert flat.count_params() == EXPECTED_PARAMS      # default is untouched
+    flat = build_model(Config.r_exact())
+    assert flat.count_params() == FLAT_PARAMS          # the R model is untouched
     assert "gap_bneck" not in {l.name for l in flat.layers}
 
     seen = {}
@@ -421,6 +498,7 @@ CHECKS = [
     check_noise_only_on_continuous_channels,
     check_validate_catches_transpose,
     check_calibrator,
+    check_members_roundtrip,
 ]
 
 

@@ -34,7 +34,25 @@ nn_input_comb$pred_raw <- res$pred_raw
 
 ```bash
 python -m lf_dcnn train --input-dir /path/to/in --output-dir /path/to/out
+# 5-member ensemble, any Config field overridable as FIELD=JSON
+python -m lf_dcnn train --input-dir in --output-dir out --n-seeds 5 --set position_ramp=false
+# the same, one python process per member (see below), resumable
+python -m lf_dcnn train --input-dir in --output-dir out --n-seeds 5 --isolated
 ```
+
+**Use `--isolated` for ensembles.** The *second* model trained in one Keras/TF
+process can die mid-fit in a retraced `tf.function` — an AUC-metric variable,
+an Adam slot or the regularization-loss sum suddenly reads as shape `[0]`, as
+if it captured resources the previous model freed. It is intermittent (maybe
+one model in five) and has happened under reticulate and in plain python
+alike. `--isolated` therefore runs **one model per interpreter**:
+`run_member(..., terms=[T])` for every (member, terminus), each written to
+`<out>/members/member_NNN_T.{npz,json}`; models already on disk are skipped
+(an interrupted run resumes), then `combine()` merges them into the usual
+outputs. `python -m lf_dcnn combine` redoes just that last step. `run()` itself
+is `run_member()` × n + `combine()` and gives identical numbers in-process, and
+a terminus trained alone reproduces the same terminus of a full member; the
+selftest checks both.
 
 `--input-dir` holds `arrays.npz`, `config.json` and an optional `meta.parquet`;
 the run writes `outputs.npz`, `predictions.parquet` and `history.json`. Write
@@ -98,7 +116,7 @@ Neither is an error the R would report; both change what the model sees.
 | `losses.py` | weighted BCE, focal per-index CE + smoothness, masked categorical accuracy |
 | `data.py` | the array contract and the oversampled, noise-augmented sampler |
 | `calibrate.py` | pooled Platt calibration (IRLS mirroring R's `glm`; scipy cross-check) |
-| `pipeline.py` | `train` / `predict_all` / `embed` / `run` |
+| `pipeline.py` | `train` / `predict_all` / `embed`; `run_member` + `combine` = `run` |
 | `io.py` | the `.npz` + parquet exchange format |
 | `cli.py` | `python -m lf_dcnn train｜selftest` |
 | `synthetic.py` | contract-shaped fake windows for the tests |
@@ -110,17 +128,23 @@ Neither is an error the R would report; both change what the model sees.
 Everything above the trunk is identical either way, so the two are directly
 comparable.
 
-| | `"flat"` (default) | `"unet"` |
+| | `"unet"` (default since 2026-09-18) | `"flat"` (the R model; `Config.r_exact()`) |
 |---|---|---|
-| resolution | 36 positions throughout | 36 → 18 → 9 → 18 → 36 |
-| pooling | none | `MaxPooling1D` down, `UpSampling1D` + skip concat back up |
-| channels | 16 → 8 | 16 → 32 → 64 → 32 → 16 |
-| parameters | 2,438 | 21,454 |
-| receptive field | 5 positions | most of the window |
+| resolution | 36 → 18 → 9 → 18 → 36 | 36 positions throughout |
+| pooling | `MaxPooling1D` down, `UpSampling1D` + skip concat back up | none |
+| channels | 16 → 32 → 64 → 32 → 16 | 16 → 8 |
+| parameters | 21,406 (21,454 with the position ramp) | 2,390 (2,438 with the ramp) |
+| receptive field | most of the window | 5 positions |
 
 ```python
-Config(trunk="unet", unet_filters=(16, 32, 64), unet_dropout=(0.2, 0.2, 0.3))
+Config()                                                        # unet@16-32-64, no position ramp
+Config(trunk="unet", unet_filters=(16, 32, 64), unet_dropout=(0.2, 0.2, 0.2))   # the same, spelled out
+Config.r_exact()                                                # the pre-port R model
 ```
+
+The default was set on `inst/scripts/10_5_benchmark_window_model.R` (U-Net
+with vs without the position input, 5 seeds each, validation ROC/PR, top-hit
+violins and rank agreement); rerun it to revisit.
 
 `unet_filters` is one entry per level with the **last entry the bottleneck**, so
 `(16, 32, 64)` means two pooling steps. Every step must divide the window
@@ -133,11 +157,29 @@ those skips the per-residue head only sees upsampled 9-position features and
 returns blocky class boundaries — the fine positional detail that locates a
 cleavage site to the residue is exactly what the pooling discards.
 
-**The parameter count is the thing to watch.** The flat trunk is deliberately
-tiny because the labelled set is tiny — 11 and 16 training positives for the N
-and C models. The U-Net is ~9x larger against the same handful of positives, so
-compare it on held-out PR-AUC across several seeds before believing it, and
-consider `unet_filters=(8, 16, 32)` (~5.5k params) as a middle ground.
+**The parameter count is the thing to watch.** The labelled set is tiny — 11
+and 16 training positives for the N and C models — and the U-Net is ~9x the
+flat trunk against the same handful, so any change to it should be judged on
+held-out PR-AUC across several seeds (the benchmark script does exactly that),
+not on a single run. `unet_filters=(8, 16, 32)` (~5.5k params) is the middle
+ground if it ever overfits.
+
+## The position input
+
+The windows are anchored and aligned, so absolute position within the window
+is meaningful — but conv is translation-equivariant. `Config(position_ramp=True)`
+appends an in-graph `[0, 1]` ramp (`PositionRamp`) as a 27th channel; the
+default (`False`, since 2026-09-18) feeds the trunk the 26 raw channels only.
+The first conv gains or loses exactly `conv_kernel × filters` weights
+(21,406 ↔ 21,454 for the U-Net, 2,390 ↔ 2,438 flat) and nothing else moves.
+
+Whether the ramp earns its place is an empirical question that
+`inst/scripts/10_5_benchmark_window_model.R` answers on the real windows: both
+arms, `n_seeds` members per terminus, validation ROC/PR quoted as mean ± sd
+across seeds, plus the top-hit violin and rank agreement, written to one html.
+`Result.val_scores_members` / `pred_raw_members` (`(n_seeds, m)` / `(n_seeds, n)`)
+exist for that: the AUC of the averaged score is a different, usually higher,
+number than the average of the per-seed AUCs, and a benchmark needs the latter.
 
 ## Testing
 

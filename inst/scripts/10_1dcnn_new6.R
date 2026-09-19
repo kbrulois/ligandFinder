@@ -20,12 +20,17 @@ class_cols <- setNames(c("#FED439FF", "#370335FF", "#8A9197FF", "#D2AF81FF",
 )
 
 ## ---- train both terminus models and score every window ----------------------
-## Config defaults implement the intended architecture. Pass `r_exact = TRUE` to
-## reproduce the pre-port R model exactly, including the two places the old code
-## diverged from its own design: the DB position mask was overwritten with the CT
-## mask (so DB was allowed only at the C terminus), and the per-epoch resample
-## callback rebound a variable `fit` no longer read (so the negative sample and
-## the augmentation noise were drawn once). See inst/python/README.md.
+## Config defaults are the production architecture: the U-Net trunk
+## (unet@16-32-64, ~21.4k params) with NO position-ramp input, chosen 2026-09-18
+## on inst/scripts/10_5_benchmark_window_model.R. Pass `r_exact = TRUE` to
+## reproduce the pre-port R model exactly -- flat trunk, ramp on, and the two
+## places the old code diverged from its own design: the DB position mask was
+## overwritten with the CT mask (so DB was allowed only at the C terminus), and
+## the per-epoch resample callback rebound a variable `fit` no longer read (so
+## the negative sample and the augmentation noise were drawn once).
+## Training runs one python process per (member, terminus) model (`isolated`,
+## the default): the second model trained in one Keras/TF process dies
+## intermittently, and an ensemble trains ten. See inst/python/README.md.
 ## n_seeds = 5: five members per terminus. pred_raw / per_index come back as the
 ## ensemble MEAN, with pred_sd / per_index_sd giving the spread across members --
 ## a single softmax cannot tell "confidently 0.5" from "the members disagree",
@@ -217,43 +222,13 @@ nn_input_comb <- nn_input_comb %>%
   })
 
 ## --- annotate windows that ANCHOR a uniprot-peptide terminus -----------------
-## Windows are built as anchor + [-5,30] (N) / [-30,5] (C), so the putative peptide
-## boundary sits at a fixed anchor residue: wN+5 for N windows, wC-5 for C windows.
-## A window "hits" a uniprot peptide only if that peptide's matching terminus --
-## start (N-terminus) for an N window, end (C-terminus) for a C window -- lands at
-## the window's anchor residue (+/- anchor_tol), i.e. at the correct position, not
-## merely somewhere inside the window span.
+## The rule lives in R/uniprot_terminus_hits.R so the benchmark scripts
+## (10_5_benchmark_window_model.R) score "top hits" identically: a window hits
+## only if the peptide's matching terminus lands at the window's anchor residue
+## (wN+5 for N windows, wC-5 for C), +/- anchor_tol -- not merely inside the span.
+if (!exists("lf_uniprot_terminus_hits")) source("R/uniprot_terminus_hits.R")
 anchor_tol <- 2L
-
-## per-model terminus (N/C); derive here so this block is self-contained even if
-## the ranking mutate above hasn't been run on this nn_input_comb
-if (!"model" %in% names(nn_input_comb))
-  nn_input_comb$model <- stringr::str_remove(as.character(nn_input_comb$target), "^loop_")
-
-wm <- stringr::str_match(nn_input_comb$peps, "_w(\\d+)-(\\d+)$")
-nn_input_comb$wN         <- as.integer(wm[, 2])
-nn_input_comb$wC         <- as.integer(wm[, 3])
-nn_input_comb$anchor_res <- ifelse(nn_input_comb$model == "N",
-                                   nn_input_comb$wN + 5L,     # expected peptide N-terminus
-                                   nn_input_comb$wC - 5L)     # expected peptide C-terminus
-
-starts_by_gene <- split(as.integer(uniprot_peps$start), uniprot_peps$gene)  # peptide N-ends
-ends_by_gene   <- split(as.integer(uniprot_peps$end),   uniprot_peps$gene)  # peptide C-ends
-
-anchor_hits <- function(gene, model, anchor, tol) {
-  ter <- if (model == "N") starts_by_gene[[gene]] else ends_by_gene[[gene]]
-  if (is.null(ter) || is.na(anchor)) return(FALSE)
-  any(abs(ter - anchor) <= tol)
-}
-
-nn_input_comb$pep_terminus_hit <- FALSE
-idx <- which(nn_input_comb$gene %in% names(starts_by_gene))   # only genes with uniprot peptides
-if (length(idx) > 0) {
-  nn_input_comb$pep_terminus_hit[idx] <- mapply(
-    anchor_hits,
-    nn_input_comb$gene[idx], nn_input_comb$model[idx], nn_input_comb$anchor_res[idx],
-    MoreArgs = list(tol = anchor_tol))
-}
+nn_input_comb <- lf_uniprot_terminus_hits(nn_input_comb, uniprot_peps, anchor_tol = anchor_tol)
 
 message(sprintf("uniprot-terminus hits: %d windows (N: %d, C: %d)",
                 sum(nn_input_comb$pep_terminus_hit),

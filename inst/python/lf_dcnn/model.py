@@ -171,8 +171,11 @@ def build_model(cfg: Config | None = None, clear_session: bool = True) -> keras.
     inputs = layers.Input(shape=(cfg.seq_len, cfg.n_channels), name="window")
     reg = keras.regularizers.l2(cfg.l2)
 
-    pos_channel = PositionRamp(cfg.seq_len, name="pos_ramp")(inputs)
-    conv_in = layers.Concatenate(name="conv_in")([inputs, pos_channel])
+    if cfg.position_ramp:
+        pos_channel = PositionRamp(cfg.seq_len, name="pos_ramp")(inputs)
+        conv_in = layers.Concatenate(name="conv_in")([inputs, pos_channel])
+    else:
+        conv_in = inputs
 
     shared, bottleneck = (_unet_trunk if cfg.trunk == "unet" else _flat_trunk)(
         conv_in, cfg, reg
