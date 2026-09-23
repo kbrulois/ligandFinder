@@ -33,11 +33,14 @@ suppressMessages({ library(dplyr); library(tidyr); library(ggplot2) })
 }
 cache_dir   <- path.expand(.opt("--cache-dir", "~/AF2_analysis/lf_dcnn_bench_t5"))
 arm_dir     <- .opt("--arm", "unet_t5")            # <cache-dir>/<arm>: outputs + members
-input_name  <- .opt("--input", "t5")               # base | t5 -- which channels the arm trained on
+input_name  <- .opt("--input", "t5")               # base | t5 | esm_c -- which channels the arm trained on
 term        <- .opt("--term", "C")
 member      <- as.integer(.opt("--member", "0"))   # only member 0 has saved weights
 nn_cache    <- path.expand(.opt("--nn-input", "~/AF2_analysis/lf_dcnn_compare_nn_input.rds"))
-plm_parquet <- path.expand(.opt("--plm", "~/AF2_analysis/lf_plm/prot_t5_pca32.parquet"))
+plm_parquet <- path.expand(.opt("--plm", switch(input_name,
+                                                t5    = "~/AF2_analysis/lf_plm/prot_t5_pca32.parquet",
+                                                esm_c = "~/AF2_analysis/lf_plm/esm_c_pca32.parquet",
+                                                "")))
 seq_parquet <- path.expand(.opt("--sequences", "~/AF2_analysis/lf_plm/sequences.parquet"))
 out_prefix  <- .opt("--out-prefix", paste0("model_importance_", arm_dir, "_", term))
 what        <- strsplit(.opt("--what", "saliency,per_index"), ",")[[1]]
@@ -53,7 +56,7 @@ mod <- lf_dcnn_python(path = file.path(ROOT, "inst", "python"))
 .cc <- readRDS(nn_cache)
 nn_input    <- .cc$nn_input[term]
 all_params3 <- .cc$all_params3
-if (input_name == "t5") {
+if (input_name != "base") {
   built <- lf_plm_attach(nn_input, lf_plm_read(plm_parquet), lf_read_parquet(seq_parquet), all_params3)
   nn_input <- built$nn_input; all_params3 <- built$channels
 }
@@ -114,19 +117,19 @@ xt <- tf$convert_to_tensor(val_x, dtype = tf$float32)
 with(tf$GradientTape() %as% tape, { tape$watch(xt); logit <- tf$matmul(pen_model(xt), W) + b })
 grads <- as.array(tape$gradient(logit, xt))                       # (n, seq_len, C)
 rank_tbl <- tibble(channel = all_params3,
-                   group   = if_else(grepl("^plm_", all_params3), "ProtT5 PCA", "hand-built"),
+                   group   = if_else(grepl("^plm_", all_params3), "PLM PCA", "hand-built"),
                    mean_abs_grad_pos = apply(abs(grads[val_pos, , , drop = FALSE]), 3, mean),
                    mean_abs_grad_all = apply(abs(grads), 3, mean)) %>%
   arrange(desc(mean_abs_grad_pos)) %>% mutate(rank = row_number())
 write.csv(rank_tbl, file.path(out_dir, sprintf("%s_channel_ranking_%s.csv", out_prefix, stamp)), row.names = FALSE)
 message("channel ranking (mean |d logit/dx| over the ", length(val_pos), " validation positives):")
 print(as.data.frame(head(rank_tbl, 15)), row.names = FALSE, digits = 3)
-message(sprintf("share of total |gradient| on ProtT5 channels: %.1f%% (they are %.0f%% of channels)",
-                100 * sum(rank_tbl$mean_abs_grad_pos[rank_tbl$group == "ProtT5 PCA"]) / sum(rank_tbl$mean_abs_grad_pos),
-                100 * mean(rank_tbl$group == "ProtT5 PCA")))
+message(sprintf("share of total |gradient| on PLM channels: %.1f%% (they are %.0f%% of channels)",
+                100 * sum(rank_tbl$mean_abs_grad_pos[rank_tbl$group == "PLM PCA"]) / sum(rank_tbl$mean_abs_grad_pos),
+                100 * mean(rank_tbl$group == "PLM PCA")))
 p_rank <- ggplot(rank_tbl, aes(x = reorder(channel, mean_abs_grad_pos), y = mean_abs_grad_pos, fill = group)) +
   geom_col() + coord_flip() +
-  scale_fill_manual(values = c("hand-built" = "grey55", "ProtT5 PCA" = "#1B9E77"), name = NULL) +
+  scale_fill_manual(values = c("hand-built" = "grey55", "PLM PCA" = "#1B9E77"), name = NULL) +
   labs(x = NULL, y = "mean |d logit / d x|  (validation positives, all positions)",
        title = sprintf("Channel saliency, %s arm, %s terminus (member %d)", arm_dir, term, member)) +
   theme_bw(base_size = 10) + theme(legend.position = "top")

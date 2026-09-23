@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 PROT_T5 = "Rostlab/prot_t5_xl_half_uniref50-enc"   # encoder only, fp16 weights, 1024-d
-ESM_C = "esmc_600m"                                 # 1152-d
+ESM_C = "biohub/ESMC-600M"                          # 1152-d; ungated on HF, `pip install esm`
 
 
 def pick_device(device: str | None = None) -> str:
@@ -57,17 +57,24 @@ def _prot_t5(device: str) -> Callable[[str], np.ndarray]:
 
 
 def _esm_c(device: str) -> Callable[[str], np.ndarray]:
+    """ESM C 600M through the esm package's HF-style API (esm >= 3.4)."""
     import torch
-    from esm.models.esmc import ESMC
-    from esm.sdk.api import ESMProtein, LogitsConfig
+    from esm.models.esmc import EsmcForMaskedLM
+    from esm.tokenization import EsmSequenceTokenizer
 
-    mdl = ESMC.from_pretrained(ESM_C).to(device).eval()
+    tok = EsmSequenceTokenizer()
+    mdl = EsmcForMaskedLM.from_pretrained(ESM_C).to(device).eval()
+    if device != "cpu":
+        mdl = mdl.to(torch.bfloat16)      # bf16 halves memory; ESM C was trained in bf16
 
     def run(seq: str) -> np.ndarray:
-        p = mdl.encode(ESMProtein(sequence=seq))
+        ids = torch.tensor([tok.encode(seq)], device=device)       # BOS + residues + EOS
         with torch.no_grad():
-            out = mdl.logits(p, LogitsConfig(return_embeddings=True))
-        return out.embeddings[0, 1:-1].float().cpu().numpy()  # drop BOS / EOS
+            out = mdl(input_ids=ids, return_dict=True)
+        h = out.last_hidden_state[0, 1:-1]                          # drop BOS / EOS
+        if h.shape[0] != len(seq):
+            raise RuntimeError(f"ESM C returned {h.shape[0]} tokens for {len(seq)} residues")
+        return h.float().cpu().numpy()
 
     return run
 

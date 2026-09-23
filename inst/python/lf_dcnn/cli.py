@@ -110,11 +110,19 @@ def cmd_train(args) -> int:
                 if npz.exists():
                     print(f"model {i}/{n} (member {k + 1}, {term}): reusing {npz}")
                     continue
-                print(f"model {i}/{n} (member {k + 1}, {term}): training in a subprocess", flush=True)
-                rc = subprocess.call([sys.executable, "-u", "-m", "lf_dcnn", *base,
-                                      "--member", str(k), "--term", term])
-                if rc != 0 or not npz.exists():
-                    raise SystemExit(f"member {k} {term} failed (rc={rc}); "
+                # The mid-fit "[0]-shaped tensor" crash is nondeterministic and
+                # rare per model once isolated, and a fresh process with the same
+                # seed has always succeeded on retry -- so retry, a few times.
+                for attempt in range(1, args.retries + 1):
+                    print(f"model {i}/{n} (member {k + 1}, {term}): training in a subprocess"
+                          + (f" (attempt {attempt}/{args.retries})" if attempt > 1 else ""), flush=True)
+                    rc = subprocess.call([sys.executable, "-u", "-m", "lf_dcnn", *base,
+                                          "--member", str(k), "--term", term])
+                    if rc == 0 and npz.exists():
+                        break
+                    print(f"model {i}/{n} (member {k + 1}, {term}): failed (rc={rc})", flush=True)
+                else:
+                    raise SystemExit(f"member {k} {term} failed {args.retries} times; "
                                      f"rerun to resume from {npz.parent}")
         return cmd_combine(args)
 
@@ -159,7 +167,9 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--n-seeds", type=int, default=1,
                    help="ensemble members per terminus (seeds seed..seed+n-1)")
     t.add_argument("--isolated", action="store_true",
-                   help="train each member in its own process, then combine")
+                   help="train each (member, terminus) model in its own process, then combine")
+    t.add_argument("--retries", type=int, default=3,
+                   help="with --isolated: attempts per model before giving up")
     t.add_argument("--member", type=int, default=None, metavar="K",
                    help="train only member K (0-based) and write it under "
                         "<output-dir>/members/; used by --isolated")
