@@ -7,7 +7,8 @@
 ##   position_ramp   the U-Net with vs without the in-graph position channel
 ##                   (what set the 2026-09-18 defaults)
 ##   t5              C terminus only: the U-Net on the 26 hand-built channels vs
-##                   the same plus ProtT5 embedding channels (PCA-reduced by
+##                   the same plus ProtT5 embedding channels, vs the same plus
+##                   ESM C embedding channels (each PCA-reduced to 32 by
 ##                   `python -m lf_plm reduce`, attached by R/plm_features.R)
 ##
 ## The page compares, per arm:
@@ -57,8 +58,11 @@ n_seeds     <- as.integer(.opt("--n-seeds", "5"))
 base_seed   <- as.integer(.opt("--seed", "42"))
 nn_cache    <- path.expand(.opt("--nn-input", "~/AF2_analysis/lf_dcnn_compare_nn_input.rds"))
 uniprot_csv <- path.expand(.opt("--uniprot-peps", "~/Desktop/Peptides/uniprot_peptides.csv"))
-plm_parquet <- path.expand(.opt("--plm", "~/AF2_analysis/lf_plm/prot_t5_pca32.parquet"))
+plm_parquet <- path.expand(.opt("--plm", "~/AF2_analysis/lf_plm/prot_t5_pca32.parquet"))      # input "t5"
+esm_parquet <- path.expand(.opt("--esm", "~/AF2_analysis/lf_plm/esm_c_pca32.parquet"))        # input "esm_c"
 seq_parquet <- path.expand(.opt("--sequences", "~/AF2_analysis/lf_plm/sequences.parquet"))
+known_end_ref <- .opt("--ligand-list", "")           # default <repo>/inst/extdata/ligand_list.rds, set below
+docked_ref    <- path.expand(.opt("--docked", "~/AF2_analysis/knowns.rds"))
 refresh     <- .flag("--refresh")
 verbose     <- as.integer(.opt("--verbose", "1"))   # 1 = one line per model in <cache-dir>/<arm>.log
 epochs      <- .opt("--epochs", NA)     # smoke-test knob; NA = Config default (2000)
@@ -97,7 +101,7 @@ presets <- list(
         desc = "the same U-Net trunk on the raw channels only")),
     cols = c("unet, position ramp" = "#7570B3", "unet, no position ramp" = "#E7298A")),
   t5 = list(
-    title     = "U-Net window model \u2014 do ProtT5 embedding channels help? (C terminus)",
+    title     = "U-Net window model \u2014 do protein-language-model channels help? (C terminus)",
     cache_dir = "~/AF2_analysis/lf_dcnn_bench_t5",
     out       = "~/AF2_analysis/ligandFinder_v7_benchmark_t5.html",
     terms     = "C",
@@ -107,8 +111,12 @@ presets <- list(
         desc = "the production U-Net (no position ramp) on the 26 hand-built per-residue channels"),
       "unet, 26 + ProtT5" = list(
         cfg = unet, input = "t5", dir = "unet_t5", short = "t5",
-        desc = "the same U-Net with ProtT5-XL-U50 per-residue embeddings appended, PCA-reduced to 32 channels fit over the whole secretome sample and scaled to [0,1] (inst/python/lf_plm)")),
-    cols = c("unet, 26 channels" = "#E7298A", "unet, 26 + ProtT5" = "#1B9E77"))
+        desc = "the same U-Net with ProtT5-XL-U50 per-residue embeddings (1024-d) appended, PCA-reduced to 32 channels fit over the whole secretome sample and scaled to [0,1] (inst/python/lf_plm)"),
+      "unet, 26 + ESM C" = list(
+        cfg = unet, input = "esm_c", dir = "unet_esm_c", short = "esmc",
+        desc = "the same U-Net with ESM C 600M per-residue embeddings (1152-d) appended, reduced and scaled the same way")),
+    cols = c("unet, 26 channels" = "#E7298A", "unet, 26 + ProtT5" = "#1B9E77",
+             "unet, 26 + ESM C" = "#7570B3"))
 )
 if (!preset %in% names(presets))
   stop("--preset must be one of: ", paste(names(presets), collapse = ", "))
@@ -130,6 +138,11 @@ ROOT  <- if (length(.this)) normalizePath(file.path(dirname(.this[[1]]), "..", "
 if (!exists("lf_dcnn_run"))              source(file.path(ROOT, "R", "dcnn_bridge.R"))
 if (!exists("lf_uniprot_terminus_hits")) source(file.path(ROOT, "R", "uniprot_terminus_hits.R"))
 if (!exists("lf_plm_attach"))            source(file.path(ROOT, "R", "plm_features.R"))
+if (!exists("lf_known_peptide_ends"))    source(file.path(ROOT, "R", "known_peptide_ends.R"))
+if (!exists("lf_amidation_motif"))       source(file.path(ROOT, "R", "amidation_motif.R"))
+known_end_ref <- if (nzchar(known_end_ref)) path.expand(known_end_ref) else
+                 file.path(ROOT, "inst", "extdata", "ligand_list.rds")
+id_map_path <- file.path(ROOT, "data", "id_mapping.rds")
 invisible(lf_dcnn_python(path = file.path(ROOT, "inst", "python")))
 
 ## ---- the window data ----------------------------------------------------------
@@ -156,15 +169,17 @@ for (t in names(nn_input)) for (s in c("train", "val", "all"))
 ## ---- input variants: which channels each arm trains on ------------------------
 ## Each builder returns list(nn_input, channels) with the SAME windows in the
 ## same order (only columns differ), so every arm scores identical rows.
+attach_plm <- function(parquet, name) {
+  for (f in c(parquet, seq_parquet)) if (!file.exists(f))
+    stop("input '", name, "' needs ", f, " -- run `python -m lf_plm embed` then `reduce` (see inst/python/lf_plm)")
+  plm  <- lf_plm_read(parquet)
+  seqs <- lf_read_parquet(seq_parquet)          # not arrow:: -- see lf_read_parquet
+  lf_plm_attach(nn_input, plm, seqs, all_params3)
+}
 input_builders <- list(
-  base = function() list(nn_input = nn_input, channels = all_params3),
-  t5   = function() {
-    for (f in c(plm_parquet, seq_parquet)) if (!file.exists(f))
-      stop("input 't5' needs ", f, " -- run `python -m lf_plm embed` then `reduce` (see inst/python/lf_plm)")
-    plm  <- lf_plm_read(plm_parquet)
-    seqs <- lf_read_parquet(seq_parquet)        # not arrow:: -- see lf_read_parquet
-    lf_plm_attach(nn_input, plm, seqs, all_params3)
-  }
+  base  = function() list(nn_input = nn_input, channels = all_params3),
+  t5    = function() attach_plm(plm_parquet, "t5"),
+  esm_c = function() attach_plm(esm_parquet, "esm_c")
 )
 
 uniprot_peps <- data.table::fread(uniprot_csv) %>% as_tibble()
@@ -362,7 +377,7 @@ p_pr <- ggplot(pr_pts, aes(x = recall, y = precision,
 ## ---- every window, both approaches ---------------------------------------------
 ## The `all` split of both termini, in the row order lf_dcnn_run() scores it.
 win_base <- bind_rows(lapply(nn_input, function(x) x$all)) %>%
-  select(any_of(c("peps", "win_type", "gene", "target", "pep_id", "known"))) %>%
+  select(any_of(c("peps", "win_type", "gene", "target", "pep_id", "known", "meta_data"))) %>%
   mutate(model = sub("^loop_", "", as.character(target)))
 if (!"gene" %in% names(win_base)) win_base$gene <- sub("_.*$", "", win_base$peps)
 
@@ -371,6 +386,18 @@ message(sprintf("uniprot-terminus hits: %d windows (N: %d, C: %d)",
                 sum(win_base$pep_terminus_hit),
                 sum(win_base$pep_terminus_hit & win_base$model == "N"),
                 sum(win_base$pep_terminus_hit & win_base$model == "C")))
+## G|K/R-K/R at the dibasic anchor (R/amidation_motif.R; 9.2's default window offsets)
+win_base <- lf_amidation_motif(win_base) %>% select(-meta_data)
+## known peptide boundaries from ligand_list.rds, with the peptide's class:
+## unknown / peptide (non-GPCR ligand) / GPCR peptide: end insertion, loop
+## insertion, non-inserting end, no model (see R/known_peptide_ends.R)
+if (file.exists(known_end_ref) && file.exists(id_map_path)) {
+  win_base <- lf_known_peptide_ends(win_base, known_end_ref, docked_ref, readRDS(id_map_path))
+} else {
+  message("no ", known_end_ref, " / ", id_map_path, " -- skipping the peptide_class annotation")
+  win_base$known_end <- NA; win_base$known_end_name <- NA_character_
+  win_base$stratum <- NA_character_; win_base$insertion <- NA_character_; win_base$peptide_class <- NA_character_
+}
 
 ## per window, the top-N members' mean and sd: a trimmed aggregate that drops
 ## the members that scored it lowest. For a window the members split on (say
@@ -421,8 +448,11 @@ p_violin <- ggplot(viol_dat, aes(x = hit, y = pred_raw, fill = hit)) +
               quantile.linetype = 1) +
   geom_jitter_interactive(
     data = ~ dplyr::filter(.x, pep_terminus_hit),
-    aes(tooltip = sprintf("%s\n%s | pred %.3f (raw %.3f ± %.3f) | top%d raw %.3f ± %.3f\ncand. rank %s (top%d: %s)",
-                          peps, approach, pred, pred_raw, pred_sd, top_n_members,
+    aes(tooltip = sprintf("%s%s%s\n%s | pred %.3f (raw %.3f ± %.3f) | top%d raw %.3f ± %.3f\ncand. rank %s (top%d: %s)",
+                          peps, ifelse(is.na(known_end_name), "",
+                                       sprintf("  [%s: %s]", known_end_name, peptide_class)),
+                          ifelse(amidation, "  amidation motif", ""),
+                          approach, pred, pred_raw, pred_sd, top_n_members,
                           pred_raw_top3, pred_sd_top3,
                           ifelse(is.na(rank_cand), "known", rank_cand), top_n_members,
                           ifelse(is.na(rank_cand_top3), "known", rank_cand_top3)),
@@ -444,9 +474,9 @@ p_violin <- ggplot(viol_dat, aes(x = hit, y = pred_raw, fill = hit)) +
 arm_names <- names(approaches)
 ref_arm   <- arm_names[[1]]
 cand <- windows %>% filter(known == 0) %>%
-  select(approach, model, peps, gene, win_type, pep_terminus_hit,
+  select(approach, model, peps, gene, win_type, pep_terminus_hit, amidation, peptide_class, known_end_name,
          pred, pred_sd, pred_raw, pred_raw_top3, pred_sd_top3, rank_cand, rank_cand_top3) %>%
-  pivot_wider(id_cols = c(model, peps, gene, win_type, pep_terminus_hit),
+  pivot_wider(id_cols = c(model, peps, gene, win_type, pep_terminus_hit, amidation, peptide_class, known_end_name),
               names_from = approach,
               values_from = c(pred, pred_sd, pred_raw, pred_raw_top3, pred_sd_top3,
                               rank_cand, rank_cand_top3),
@@ -519,7 +549,8 @@ top_tbl <- bind_rows(lapply(arm_names, function(nm) {
                          raw = sprintf("%.3f ± %.3f", .data[[col("pred_raw", nm)]], .data[[col("pred_sd", nm)]]),
                          top3 = sprintf("%.3f ± %.3f", .data[[col("pred_raw_top3", nm)]], .data[[col("pred_sd_top3", nm)]]),
                          rank_top3 = .data[[col("rank_cand_top3", nm)]],
-                         uniprot_hit = pep_terminus_hit)
+                         uniprot_hit = pep_terminus_hit, amidation,
+                         peptide_class = as.character(peptide_class))
   for (o in others) out[[paste0("rank | ", o)]] <- d[[col("rank_cand", o)]]
   out
 }))
@@ -637,14 +668,15 @@ stem <- sub("\\.html$", "", html_path)
 write.csv(auc_summary, paste0(stem, "_metrics.csv"), row.names = FALSE)
 write.csv(overlap,     paste0(stem, "_overlap.csv"), row.names = FALSE)
 win_cols <- c("pred", "pred_raw", "pred_sd", "rank_cand", "pred_raw_top3", "pred_sd_top3", "rank_cand_top3")
-write.csv(windows %>% select(approach, model, win_type, peps, gene, known, pep_terminus_hit, all_of(win_cols)),
+ann_cols <- c("pep_terminus_hit", "amidation", "known_end", "known_end_name", "stratum", "insertion", "peptide_class")
+write.csv(windows %>% select(approach, model, win_type, peps, gene, known, all_of(ann_cols), all_of(win_cols)),
           paste0(stem, "_windows.csv"), row.names = FALSE)
 ## the same, one row per window with an arm suffix on every score column
 short_of <- vapply(approaches, function(a) a$short %||% gsub("[^A-Za-z0-9]+", "_", a$dir), character(1))
 windows_wide <- windows %>%
   mutate(arm = unname(short_of[as.character(approach)])) %>%
-  select(model, win_type, peps, gene, known, pep_terminus_hit, arm, all_of(win_cols)) %>%
-  pivot_wider(id_cols = c(peps, gene, model, win_type, known, pep_terminus_hit),
+  select(model, win_type, peps, gene, known, all_of(ann_cols), arm, all_of(win_cols)) %>%
+  pivot_wider(id_cols = c(peps, gene, model, win_type, known, all_of(ann_cols)),
               names_from = arm, values_from = all_of(win_cols), names_glue = "{.value}_{arm}")
 write.csv(windows_wide, paste0(stem, "_windows_wide.csv"), row.names = FALSE)
 ## static copies of every panel, svg for figures and png for a quick look

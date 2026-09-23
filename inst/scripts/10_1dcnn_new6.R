@@ -129,26 +129,10 @@ nn_input_comb <- nn_input_comb %>%
   mutate(rank_cat = row_number(), .by = c(category, known))
 
 ## ---- amidation-motif windows -----------------------------------------------
-## An amidated peptide is cut at a dibasic site with a glycine immediately 5' of
-## it: ...X-G | K/R-K/R. The G is the amide donor, so a db window carrying one is
-## a candidate amidation site.
-##
-## The anchor sits at a FIXED position in every db window, which is what makes
-## this a lookup rather than a search: 9.2 sets window_origin = db_ind and then
-## wN = db_ind + win_size[[t]]$start, so db_ind always lands at local position
-## 1 - start (31 for C windows, 6 for N). Clamped windows are padded back out to
-## seq_len at the front, so the offset holds there too. Two asymmetries matter:
-##   * db_ind is the SECOND basic residue for C-target windows (the C branch of
-##     9.2 adds a full lookahead offset) but the FIRST for N-target ones.
-##   * BOTH termini are eligible. The motif is a property of the dibasic SITE,
-##     not of the peptide you approach it from: in a polyprotein precursor one
-##     dibasic pair is simultaneously the C-terminal cut of the peptide before it
-##     and the start of the peptide after it, so a G sitting 5' of that pair is a
-##     real amide donor regardless of which direction the window was anchored
-##     from. An N-anchored window therefore reads its G at local position 5, a
-##     C-anchored one at 29.
-amid_targets <- c("N", "loop_N", "C", "loop_C")
-
+## ...X-G | K/R-K/R at the dibasic anchor: the G is the amide donor. The rule
+## (and why the anchor is a fixed local position, and why both termini count)
+## lives in R/amidation_motif.R so the benchmark CSVs flag the same windows.
+if (!exists("lf_amidation_motif")) source("R/amidation_motif.R")
 ## (braced: at top level R parses `if (...) x` and a following `else` as two
 ## statements, so the else must not start its own line)
 .ws_start <- if (exists("win_size")) {
@@ -156,54 +140,8 @@ amid_targets <- c("N", "loop_N", "C", "loop_C")
 } else {
   c(N = -5L, C = -30L)                                             # 9.2 defaults
 }
-
-## local positions of the glycine and the two basic residues, per target
-.motif_pos <- function(tg) {
-  if (tg %in% c("C", "loop_C")) {
-    a <- 1L - .ws_start[["C"]]                  # db_ind = 2nd basic
-    c(g = a - 2L, b1 = a - 1L, b2 = a)
-  } else {
-    a <- 1L - .ws_start[["N"]]                  # db_ind = 1st basic
-    c(g = a - 1L, b1 = a, b2 = a + 1L)
-  }
-}
-
-.aa_at <- function(md, i) {
-  aa <- as.character(md[["AA"]])
-  if (i < 1L || i > length(aa)) NA_character_ else aa[[i]]
-}
-
-## Sanity check FIRST: if the anchor offset were wrong, every window would
-## quietly come back FALSE and look like "no amidation motifs found". Confirm the
-## two anchor positions really are basic residues before trusting the G test.
-.db_i <- which(nn_input_comb$win_type == "db")
-.chk  <- vapply(.db_i, function(i) {
-  p <- .motif_pos(as.character(nn_input_comb$target[[i]]))
-  md <- nn_input_comb$meta_data[[i]]
-  isTRUE(.aa_at(md, p[["b1"]]) %in% c("K", "R") &&
-         .aa_at(md, p[["b2"]]) %in% c("K", "R"))
-}, logical(1))
-message(sprintf("amidation: dibasic anchor confirmed at the expected offset in %d/%d db windows (%.1f%%)",
-                sum(.chk), length(.chk), 100 * mean(.chk)))
-if (mean(.chk) < 0.9)
-  warning("amidation: the dibasic anchor is often NOT at the expected local position -- ",
-          "check win_size against 9.2 before using the `amidation` column", immediate. = TRUE)
-
-nn_input_comb$amidation <- vapply(seq_len(nrow(nn_input_comb)), function(i) {
-  tg <- as.character(nn_input_comb$target[[i]])
-  if (!identical(as.character(nn_input_comb$win_type[[i]]), "db")) return(FALSE)
-  if (!tg %in% amid_targets) return(FALSE)
-  p  <- .motif_pos(tg)
-  md <- nn_input_comb$meta_data[[i]]
-  isTRUE(identical(.aa_at(md, p[["g"]]), "G") &&
-         .aa_at(md, p[["b1"]]) %in% c("K", "R") &&
-         .aa_at(md, p[["b2"]]) %in% c("K", "R"))
-}, logical(1))
-
-message(sprintf("amidation: %d windows carry the G|dibasic motif (%d of them known peptides)",
-                sum(nn_input_comb$amidation),
-                sum(nn_input_comb$amidation & nn_input_comb$known == 1)))
-rm(.ws_start, .motif_pos, .aa_at, .db_i, .chk)
+nn_input_comb <- lf_amidation_motif(nn_input_comb, win_start = .ws_start)
+rm(.ws_start)
 
 uniprot_peps <- data.table::fread("~/Desktop/Peptides/uniprot_peptides.csv") %>% as_tibble()
 
