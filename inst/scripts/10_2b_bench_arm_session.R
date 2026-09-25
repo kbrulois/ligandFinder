@@ -21,7 +21,7 @@
 ##
 ## Output under ~/AF2_analysis, stamped:
 ##   <out-prefix>_<group>[_<term>]_<stamp>.svg          (saliency, as 10_2)
-##   <out-prefix>_channel_ranking_<stamp>.{svg,png,csv}
+##   <out-prefix>_channel_ranking_<stamp>.{svg,csv}
 ##   <out-prefix>_per_index_knowns_<term>_<stamp>.svg   (per_index)
 ## ------------------------------------------------------------------------------
 
@@ -138,9 +138,8 @@ p_rank <- ggplot(rank_tbl, aes(x = reorder(channel, mean_abs_grad_pos), y = mean
   labs(x = NULL, y = "mean |d logit / d x|  (validation positives, all positions)",
        title = sprintf("Channel saliency, %s arm, %s terminus (member %d)", arm_dir, term, member)) +
   theme_bw(base_size = 10) + theme(legend.position = "top")
-for (ext in c("svg", "png"))
-  ggsave(file.path(out_dir, sprintf("%s_channel_ranking_%s.%s", out_prefix, stamp, ext)), p_rank,
-         width = 7, height = 2 + 0.17 * n_channels, dpi = 150)
+ggsave(file.path(out_dir, sprintf("%s_channel_ranking_%s.svg", out_prefix, stamp)), p_rank,
+       width = 7, height = 2 + 0.17 * n_channels)
 
 ## PLM channels as extra 10_2 groups: 8 per figure, most salient first, so the
 ## components that move the logit are in plm_a and the tail in plm_d

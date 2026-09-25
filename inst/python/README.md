@@ -174,7 +174,7 @@ positive gradient. Measured on the trained model it was effectively dead —
 mean probability 0.007 at scored positions, 0.057 at background, and never the
 argmax at any of 1,065,564 positions.
 
-`Config.none_in_loss` (default `False`, opt in per arm) trains on them
+`Config.none_in_loss` (default `True` since 2026-09-25) trains on them
 instead, with `pi_weight_none` (default 0.1) keeping the
 75%-of-in-batch-positions majority from swamping the six real classes. The weight is applied after the mean-1
 normalisation, so every real class keeps exactly the weight the masked model

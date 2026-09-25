@@ -38,9 +38,9 @@
 ## metrics; they stay in the embedding and are NA in the metric columns.
 ##
 ## Output under ~/AF2_analysis, stamped:
-##   plm_residue_umap_<stamp>.{svg,png}          classes + amino acid, both backends
-##   plm_residue_umap_metrics_<stamp>.{svg,png}  the same space by relASA / cons / AFM
-##   plm_residue_umap_byterm_<stamp>.{svg,png}   classes split by which terminus inserts
+##   plm_residue_umap_<stamp>.svg          classes + amino acid, both backends
+##   plm_residue_umap_metrics_<stamp>.svg  the same space by relASA / cons / AFM
+##   plm_residue_umap_byterm_<stamp>.svg   classes split by which terminus inserts
 ##   plm_residue_umap_labelled_<stamp>.csv       coords + label + metrics, labelled residues
 ##   plm_residue_umap_all_<stamp>.csv.gz         the same for every embedded residue
 ##   plm_residue_knn_<stamp>.csv                 kNN label purity vs the within-AA null
@@ -320,9 +320,8 @@ p <- patchwork::wrap_plots(
                        format(nrow(bg) / nlevels(d$backend), big.mark = ","),
                        nrow(fg) / nlevels(d$backend), nrow(kn)))
 
-for (ext in c("svg", "png"))
-  ggsave(file.path(out_dir, sprintf("plm_residue_umap_%s.%s", stamp, ext)), p,
-         width = 6 * nlevels(d$backend) + 1, height = 15, dpi = 150)
+ggsave(file.path(out_dir, sprintf("plm_residue_umap_%s.svg", stamp)), p,
+       width = 6 * nlevels(d$backend) + 1, height = 15)
 
 ## ---- the same space, coloured by the hand-built channels ------------------------
 show_met <- c(relASA = "relative solvent accessibility", cons_rs_n = "conservation (normalised)",
@@ -346,9 +345,8 @@ if (length(show_met)) {
       title = "Per-residue PLM embedding space, coloured by the hand-built channels",
       subtitle = sprintf("%.0f%% of embedded residues have secretome_aa coverage; the rest are omitted from these panels",
                          100 * mean(!is.na(d$relASA))))
-  for (ext in c("svg", "png"))
-    ggsave(file.path(out_dir, sprintf("plm_residue_umap_metrics_%s.%s", stamp, ext)), pm,
-           width = 5.5 * nlevels(d$backend), height = 5 * length(show_met), dpi = 150)
+  ggsave(file.path(out_dir, sprintf("plm_residue_umap_metrics_%s.svg", stamp)), pm,
+         width = 5.5 * nlevels(d$backend), height = 5 * length(show_met))
 }
 
 ## ---- classes split by which terminus inserts -----------------------------------
@@ -392,9 +390,8 @@ pt <- ggplot(mapping = aes(UMAP1, UMAP2)) +
   theme_bw(base_size = 11) +
   theme(legend.position = "bottom", panel.grid.minor = element_blank(),
         strip.text = element_text(size = 9), strip.background = element_rect(fill = "grey95"))
-for (ext in c("svg", "png"))
-  ggsave(file.path(out_dir, sprintf("plm_residue_umap_byterm_%s.%s", stamp, ext)), pt,
-         width = 6 * length(term_lv), height = 5.6 * nlevels(d$backend), dpi = 150)
+ggsave(file.path(out_dir, sprintf("plm_residue_umap_byterm_%s.svg", stamp)), pt,
+       width = 6 * length(term_lv), height = 5.6 * nlevels(d$backend))
 
 ## kNN label purity within each terminus: does the embedding separate the
 ## classes better where the peptide inserts by its end than by a loop?
@@ -423,6 +420,6 @@ write.csv(fg, file.path(out_dir, sprintf("plm_residue_umap_labelled_%s.csv", sta
 data.table::fwrite(d, file.path(out_dir, sprintf("plm_residue_umap_all_%s.csv.gz", stamp)))
 write.csv(bind_rows(knn_tbl), file.path(out_dir, sprintf("plm_residue_knn_%s.csv", stamp)), row.names = FALSE)
 write.csv(met_knn, file.path(out_dir, sprintf("plm_residue_metric_knn_%s.csv", stamp)), row.names = FALSE)
-message("\nwrote ", file.path(out_dir, sprintf("plm_residue_umap_%s.{svg,png}", stamp)),
+message("\nwrote ", file.path(out_dir, sprintf("plm_residue_umap_%s.svg", stamp)),
         "\n      plm_residue_umap_labelled_", stamp, ".csv  (coords per labelled residue)",
         "\n      plm_residue_knn_", stamp, ".csv  (kNN label purity in the 32-d space)")

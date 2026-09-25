@@ -51,7 +51,7 @@
 ## re-running only the plotting is seconds; --refresh retrains everything.
 ##
 ## Output: --out (default per preset), plus <stem>_metrics.csv,
-## <stem>_overlap.csv, <stem>_windows.csv and svg/png copies of every panel.
+## <stem>_overlap.csv, <stem>_windows.csv and svg copies of every panel.
 ## ------------------------------------------------------------------------------
 
 suppressMessages({
@@ -779,12 +779,10 @@ windows_wide <- windows %>%
   pivot_wider(id_cols = c(peps, gene, model, win_type, known, all_of(ann_cols)),
               names_from = arm, values_from = all_of(win_cols), names_glue = "{.value}_{arm}")
 write.csv(windows_wide, paste0(stem, "_windows_wide.csv"), row.names = FALSE)
-## static copies of every panel, svg for figures and png for a quick look
-for (ext in c("svg", "png")) {
-  ggsave(sprintf("%s_violin.%s", stem, ext), p_violin, width = 10, height = 1.2 + 2.4 * length(arm_names), dpi = 150)
-  ggsave(sprintf("%s_roc.%s",    stem, ext), p_roc,    width = 11, height = 4.6, dpi = 150)
-  ggsave(sprintf("%s_pr.%s",     stem, ext), p_pr,     width = 11, height = 4.6, dpi = 150)
-  ggsave(sprintf("%s_rank.%s",   stem, ext), p_rank,   width = 10, height = 3.2 + 2.6 * (length(arm_names) - 1), dpi = 150)
-}
+## static copies of every panel (svg only -- the html carries the interactive ones)
+ggsave(sprintf("%s_violin.svg", stem), p_violin, width = 10, height = 1.2 + 2.4 * length(arm_names))
+ggsave(sprintf("%s_roc.svg",    stem), p_roc,    width = 11, height = 4.6)
+ggsave(sprintf("%s_pr.svg",     stem), p_pr,     width = 11, height = 4.6)
+ggsave(sprintf("%s_rank.svg",   stem), p_rank,   width = 10, height = 3.2 + 2.6 * (length(arm_names) - 1))
 message("\nwrote ", html_path, "\n      ", stem, "_{metrics,overlap,windows,windows_wide}.csv",
-        "\n      ", stem, "_{violin,roc,pr,rank}.{svg,png}")
+        "\n      ", stem, "_{violin,roc,pr,rank}.svg")

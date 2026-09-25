@@ -100,12 +100,16 @@ class Config:
     #: train on the ``none`` positions instead of masking them out of the
     #: per-index loss.
     #:
-    #: OFF by default, deliberately, even though it measures better on the
-    #: C terminus (10_5_benchmark_window_model.R --preset none_class /
-    #: none_weight): the evidence is C-only, and turning it on substantially
-    #: reshuffles which candidates rank highly -- ANO8_w12-47, for one, drops
-    #: from candidate rank 282 to 1321. Opt in per arm until the N terminus
-    #: confirms it.
+    #: ON by default since 2026-09-25. At 20 seeds on the C terminus
+    #: (10_5_benchmark_window_model.R --preset none20) it recovers more
+    #: held-out known peptide ends (median candidate rank 204 vs 318, 37 vs 31
+    #: of 52 in the top 500) and collapses ensemble disagreement (member sd
+    #: .05 vs .28), at 0.716 vs 0.845 per-residue real-class accuracy.
+    #:
+    #: Two caveats the numbers do not carry: the evidence is C-TERMINUS ONLY,
+    #: and the 20-seed arms were run at pi_weight_none = 1.0 while the default
+    #: here is 0.1 (chosen on the 5-seed sweep, where every weight was within
+    #: noise of every other).
     #:
     #: What masking costs: a NEGATIVE window is all ``none``, so it contributes
     #: nothing at all to the per-index loss, and the ``none`` column never
@@ -118,7 +122,7 @@ class Config:
     #: ``none`` is 96% of the raw training positions (75% after the 1:3 window
     #: oversampling), so it needs ``pi_weight_none`` to not swamp the six real
     #: classes.  Requires ``include_none``.
-    none_in_loss: bool = False
+    none_in_loss: bool = True
     #: append the in-graph ``[0, 1]`` position ramp as an extra input channel
     #: (see :class:`lf_dcnn.model.PositionRamp`). Off by default since
     #: 2026-09-18: the trunk gets the raw channels only. The original R model
@@ -267,6 +271,7 @@ class Config:
         flat trunk with the position ramp, plus its two quirks."""
         kwargs.setdefault("trunk", "flat")
         kwargs.setdefault("position_ramp", True)
+        kwargs.setdefault("none_in_loss", False)      # the R model masked `none`
         kwargs.setdefault("db_mask_both_termini", False)
         kwargs.setdefault("resample_each_epoch", False)
         return cls(**kwargs)

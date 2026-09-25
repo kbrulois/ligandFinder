@@ -62,8 +62,8 @@ def check_position_masks():
 
 
 def check_pi_weights():
-    masked = Config()                        # the default: `none` masked out
-    trained = Config(none_in_loss=True)      # opt-in: `none` trained, weighted down
+    masked = Config(none_in_loss=False)      # what r_exact and the pre-9/25 model use
+    trained = Config()                       # the default: `none` trained, weighted down
     for term, anchor in (("C", "CT_cleavage_context"), ("N", "NT_cleavage_context")):
         w = masked.pi_weights(term)
         # with `none` at its nominal 1, the vector is normalised to mean 1
@@ -207,7 +207,7 @@ def check_none_in_loss():
     """Training on `none` must add those positions and change nothing else."""
     from .losses import PerIndexCatLoss
 
-    base, on = Config(), Config(none_in_loss=True)       # `none` masked by default
+    base, on = Config(none_in_loss=False), Config()      # `none` trained by default
     # the real classes keep exactly the weights the default trains with; only
     # `none` moves, so the two arms differ by the `none` positions alone
     wb, wo = base.pi_weights("C"), on.pi_weights("C")
