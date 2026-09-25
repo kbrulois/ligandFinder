@@ -257,6 +257,40 @@ def check_position_ramp():
     assert build_model(Config.r_exact()).count_params() == FLAT_PARAMS
 
 
+def check_resample_reaches_training():
+    """The per-epoch redraw must actually reach fit(), not just exist.
+
+    This is the failure the port was written to fix: the R script's
+    `on_epoch_begin` callback rebound its own `train_ds` variable, which `fit`
+    no longer read, so the redraw never happened and every epoch trained on one
+    fixed draw. A test that calls `_resample()` by hand would pass even if
+    Keras never invoked it, so drive a real `fit()` and fingerprint the draw
+    ORDER-INDEPENDENTLY -- `resample_each_epoch = False` still reshuffles, so a
+    per-batch fingerprint cannot tell the two apart.
+    """
+    import keras
+
+    from .data import OversampledWindows, TermArrays
+    from .model import compile_model
+
+    for flag, want in ((True, 4), (False, 1)):
+        cfg = Config(epochs=4, patience=3, start_from_epoch=1, seed=42,
+                     resample_each_epoch=flag)
+        arrays = TermArrays.from_mapping(make_data(cfg, seed=5)["C"]["train"]).validate(cfg)
+        ds = OversampledWindows(arrays, cfg, rng=np.random.default_rng(0))
+        seen = []
+
+        class Probe(keras.callbacks.Callback):
+            def on_epoch_begin(self, epoch, logs=None):
+                seen.append((round(float(ds._x.sum()), 2), float(ds._yg.sum())))
+
+        compile_model(build_model(cfg), cfg, "C").fit(ds, epochs=4, verbose=0, callbacks=[Probe()])
+        draws = {x for x, _ in seen}
+        assert len(draws) == want, (flag, len(draws), want)
+        # every positive is in every draw either way; only the negatives move
+        assert len({p for _, p in seen}) == 1, seen
+
+
 def check_oversampler():
     cfg = Config()
     data = make_data(cfg, seed=3)
@@ -597,6 +631,7 @@ CHECKS = [
     check_include_none,
     check_none_in_loss,
     check_oversampler,
+    check_resample_reaches_training,
     check_noise_only_on_continuous_channels,
     check_validate_catches_transpose,
     check_calibrator,

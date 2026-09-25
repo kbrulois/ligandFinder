@@ -13,10 +13,12 @@
 ##                   collapse the head onto `none`. Everything else -- the
 ##                   arrays, the real-class weights, the seeds -- is identical.
 ##   none_weight     C terminus only: the same question as `none_class` swept
-##                   over pi_weight_none (0.1 / 0.3 / 0.6) against the masked
-##                   default, to see whether the result turns on the particular
-##                   weight. ~0.31 equalises the in-batch none:real loss mass,
-##                   so the sweep brackets it either side.
+##                   over pi_weight_none (0.1 / 0.3 / 0.6 / 1.0) against the
+##                   masked default, to see whether the result turns on the
+##                   particular weight. ~0.31 equalises the in-batch none:real
+##                   loss mass, so the sweep brackets it either side; 1.0 is the
+##                   un-downweighted case, where `none` carries its full 3.2:1
+##                   majority and the head could collapse onto it.
 ##   t5              C terminus only: the U-Net on the 26 hand-built channels vs
 ##                   the same plus ProtT5 embedding channels, vs the same plus
 ##                   ESM C embedding channels (each PCA-reduced to 32 by
@@ -117,6 +119,25 @@ presets <- list(
         cfg = unet, input = "base", dir = "unet_16-32-64_no_ramp", short = "noramp",
         desc = "the same U-Net trunk on the raw channels only")),
     cols = c("unet, position ramp" = "#7570B3", "unet, no position ramp" = "#E7298A")),
+  none20 = list(
+    ## The none_class comparison at 20 seeds instead of 5, C terminus only: the
+    ## 5-seed differences (held-out known-end ranks, and ANO8_w12-47 swinging on
+    ## one or two members) were inside what re-fitting alone can produce.
+    ## Member k always trains with seed base_seed + k whatever n_seeds is, so
+    ## this reuses the 5 members each arm already has -- see the README.
+    title     = "U-Net window model \u2014 `none` masked vs trained at full weight, 20 seeds (C terminus)",
+    cache_dir = "~/AF2_analysis/lf_dcnn_bench_none20",
+    out       = "~/AF2_analysis/ligandFinder_v10_benchmark_none20.html",
+    terms     = "C",
+    arms = list(
+      "none masked (default)" = list(
+        cfg = unet, input = "base", dir = "unet_base", short = "masked",
+        desc = "the production model: `none` in the softmax, its positions masked out of the per-index loss"),
+      "none trained (w=1.0)" = list(
+        cfg = c(unet[names(unet) != "none_in_loss"], list(none_in_loss = TRUE, pi_weight_none = 1.0)),
+        input = "base", dir = "unet_none_w1", short = "w1",
+        desc = "`none` trained at full weight -- no down-weighting at all, carrying its ~3.2:1 in-batch majority")),
+    cols = c("none masked (default)" = "#E7298A", "none trained (w=1.0)" = "#08306B")),
   t5 = list(
     title     = "U-Net window model \u2014 do protein-language-model channels help? (C terminus)",
     cache_dir = "~/AF2_analysis/lf_dcnn_bench_t5",
@@ -161,16 +182,17 @@ presets <- list(
         cfg = unet, input = "base", dir = "unet_base", short = "masked",
         desc = "the production model: `none` present in the softmax but masked out of the per-index loss")),
       ## w = 0.3 reuses the arm the `none_class` preset already trained
-      stats::setNames(lapply(c(0.1, 0.3, 0.6), function(wt) list(
+      stats::setNames(lapply(c(0.1, 0.3, 0.6, 1.0), function(wt) list(
         cfg = c(unet[names(unet) != "none_in_loss"], list(none_in_loss = TRUE, pi_weight_none = wt)),
         input = "base",
         dir = if (wt == 0.3) "unet_none_in_loss" else sprintf("unet_none_w%s", sub("\\.", "", format(wt))),
         short = sprintf("w%s", sub("\\.", "", format(wt))),
         desc = sprintf("`none` trained, weighted %.1f against an ordinary class (%s the ~0.31 that equalises the in-batch none:real loss mass)",
                        wt, if (wt < 0.31) "below" else if (wt > 0.31) "above" else "at"))),
-        sprintf("none trained (w=%.1f)", c(0.1, 0.3, 0.6)))),
+        sprintf("none trained (w=%.1f)", c(0.1, 0.3, 0.6, 1.0)))),
     cols = c("none masked (default)" = "#E7298A", "none trained (w=0.1)" = "#A6D854",
-             "none trained (w=0.3)" = "#1B9E77", "none trained (w=0.6)" = "#0B5345"))
+             "none trained (w=0.3)" = "#1B9E77", "none trained (w=0.6)" = "#0B5345",
+             "none trained (w=1.0)" = "#08306B"))
 )
 if (!preset %in% names(presets))
   stop("--preset must be one of: ", paste(names(presets), collapse = ", "))
