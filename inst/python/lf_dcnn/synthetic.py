@@ -22,7 +22,9 @@ def make_term(
     seq, C, K_pi = cfg.seq_len, cfg.n_channels, cfg.K_pi
     pi_names = list(cfg.pi_names)
     i_pad = pi_names.index("padding")
-    i_none = pi_names.index("none")
+    # with Config.include_none = False there is no `none` column; background
+    # positions then carry an all-zero label row, which the loss masks on
+    i_none = pi_names.index("none") if "none" in pi_names else -1
     i_pocket = pi_names.index("pep_pocket")
     i_db = pi_names.index("DB")
     lo, hi = cfg.mid_span
@@ -43,7 +45,9 @@ def make_term(
             x[i, a : a + 5, 1] += 0.6            # the learnable lift
 
     x[:, :, cfg.pad_channel_id] = (cls == i_pad).astype("float32")
-    y_per_index_cat = np.eye(K_pi, dtype="float32")[cls]
+    y_per_index_cat = np.concatenate(
+        [np.eye(K_pi, dtype="float32"), np.zeros((1, K_pi), dtype="float32")]
+    )[np.where(cls < 0, K_pi, cls)]        # cls == -1 (no `none` column) -> all-zero row
 
     order = rng.permutation(n)
     return {

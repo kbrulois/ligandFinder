@@ -174,6 +174,14 @@ lf_dcnn_arrays <- function(nn_input, cfg, splits = c("train", "val", "all")) {
 #' @param keep_arrays return the built contract arrays as `$arrays`, which
 #'   10_1dcnn_new6.R re-exposes as `nn_in_all` for the plotting scripts. Set
 #'   FALSE to drop them once scoring is done (they are the bulk of the memory).
+#' @param isolated TRUE (default) trains every (member, terminus) model in its
+#'   own python process through the standalone CLI (`python -m lf_dcnn train
+#'   --isolated`) and reads the outputs back; `models` are rebuilt from the
+#'   first member's saved weights. The second model trained in one Keras/TF
+#'   process dies intermittently in a retraced tf.function, and an ensemble
+#'   trains ten, so in-process (`FALSE`) is only for tiny runs and tests. The
+#'   arrays and outputs live beside `cache` (`<cache>_isolated/`), or in a
+#'   tempdir when there is no cache.
 #' @param ... further Config fields (`epochs`, `seed`, ...).
 #' @return list with `pred`, `pred_raw`, `pred_sd`, `per_index`, `per_index_sd`,
 #'   `per_index_tbl`, `per_index_sd_tbl`, `emb`,
@@ -182,7 +190,7 @@ lf_dcnn_arrays <- function(nn_input, cfg, splits = c("train", "val", "all")) {
 #' @export
 lf_dcnn_run <- function(nn_input, channel_names, r_exact = FALSE,
                         verbose = 1L, keep_arrays = TRUE, n_seeds = 5L,
-                        cache = NULL, refresh = FALSE, ...,
+                        cache = NULL, refresh = FALSE, isolated = TRUE, ...,
                         venv = "r-tensorflow", path = NULL) {
   mod <- lf_dcnn_python(venv = venv, path = path)
   cfg <- lf_dcnn_config(channel_names, r_exact = r_exact, ..., mod = mod)
@@ -217,9 +225,17 @@ lf_dcnn_run <- function(nn_input, channel_names, r_exact = FALSE,
   }
 
   data <- lf_dcnn_arrays(nn_input, cfg)
-  res  <- mod$run(data, cfg, verbose = as.integer(verbose),
-                  n_seeds = as.integer(n_seeds))
-  out  <- res$to_dict()
+  if (isTRUE(isolated)) {
+    out <- lf_dcnn_run_isolated(data, cfg, n_seeds = n_seeds, verbose = verbose,
+                                work = if (!is.null(.cp)) paste0(tools::file_path_sans_ext(.cp), "_isolated")
+                                       else tempfile("lf_dcnn_"),
+                                refresh = refresh, mod = mod, path = path)
+    res <- list(models = out$models)
+  } else {
+    res <- mod$run(data, cfg, verbose = as.integer(verbose),
+                   n_seeds = as.integer(n_seeds))
+    out <- res$to_dict()
+  }
 
   out$per_index_tbl <- lf_dcnn_per_index_tibbles(out$per_index, out$pi_names)
   ## sd across ensemble members, same shape and column names as the mean, so the
@@ -254,6 +270,47 @@ lf_dcnn_run <- function(nn_input, channel_names, r_exact = FALSE,
             .cp)
     message("lf_dcnn_run: cached to ", cache, "  (weights in ", basename(wd), ")")
   }
+  out
+}
+
+#' The isolated trainer: export, `python -m lf_dcnn train --isolated`, import
+#'
+#' Returns the same list `Result.to_dict()` gives in-process, plus `models`
+#' rebuilt from the first member's weights. Models already under
+#' `<work>/out/members/` are reused unless `refresh`.
+#' @keywords internal
+lf_dcnn_run_isolated <- function(data, cfg, n_seeds, verbose, work, refresh = FALSE,
+                                 mod = NULL, path = NULL) {
+  mod <- mod %||% lf_dcnn_python(path = path)
+  in_dir <- file.path(work, "in"); out_dir <- file.path(work, "out")
+  if (isTRUE(refresh)) unlink(out_dir, recursive = TRUE)
+  dir.create(in_dir, showWarnings = FALSE, recursive = TRUE)
+  mod$io$save_inputs(in_dir, data, cfg)                 # arrays.npz + config.json (all overrides)
+
+  py   <- file.path(dirname(reticulate::py_config()$python), "python")
+  ## the subprocess must run the SAME tree this session imported -- not
+  ## whatever lf_dcnn_path() would pick (it prefers the installed package)
+  py_path <- dirname(dirname(reticulate::py_to_r(reticulate::py_get_attr(mod, "__file__"))))
+  argv <- c("-u", "-m", "lf_dcnn", "train", "--isolated",
+            "--input-dir", in_dir, "--output-dir", out_dir,
+            "--n-seeds", as.integer(n_seeds), "--verbose", as.integer(verbose))
+  message("lf_dcnn_run: training ", n_seeds, " member(s) x ", length(cfg$term_order),
+          " termini, one process each; log: ", file.path(work, "train.log"))
+  rc <- system2(py, argv, env = paste0("PYTHONPATH=", py_path),
+                stdout = file.path(work, "train.log"), stderr = file.path(work, "train.log"))
+  if (rc != 0 || !file.exists(file.path(out_dir, "outputs.npz")))
+    stop("lf_dcnn_run: `python -m lf_dcnn train --isolated` failed (rc=", rc,
+         "); see ", file.path(work, "train.log"), ". Re-running resumes from the members on disk.")
+
+  out <- mod$io$load_outputs(out_dir)
+  out$predictions <- NULL
+  out$term_order  <- as.character(unlist(out$term_order))
+  out$pi_names    <- as.character(unlist(out$pi_names))
+  out$n_seeds     <- as.integer(out$n_seeds)
+  out$models <- stats::setNames(lapply(out$term_order, function(tm) {
+    w <- file.path(out_dir, "members", sprintf("member_000_%s.weights.h5", tm))
+    m <- mod$build_model(cfg); m$load_weights(normalizePath(w)); m
+  }), out$term_order)
   out
 }
 

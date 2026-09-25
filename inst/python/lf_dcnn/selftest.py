@@ -18,11 +18,15 @@ from .calibrate import PlattCalibrator
 from .config import Config
 from .data import OversampledWindows, TermArrays
 from .losses import PerIndexCatLoss, WeightedBinaryCrossentropy, make_masked_cat_accuracy
+from keras import ops
+
 from .model import build_model
 from .synthetic import make_data
 
-#: parameter count of the default architecture; must equal the R model's
-EXPECTED_PARAMS = 2438
+#: parameter count of the default architecture (U-Net 16-32-64, no position ramp)
+EXPECTED_PARAMS = 21406
+#: the pre-port R model (flat trunk + position ramp), what Config.r_exact() builds
+FLAT_PARAMS = 2438
 
 
 def check_class_indices():
@@ -58,14 +62,27 @@ def check_position_masks():
 
 
 def check_pi_weights():
-    cfg = Config()
+    masked = Config(none_in_loss=False)      # what r_exact and the pre-9/25 model use
+    trained = Config()                       # the default: `none` trained, weighted down
     for term, anchor in (("C", "CT_cleavage_context"), ("N", "NT_cleavage_context")):
-        w = cfg.pi_weights(term)
+        w = masked.pi_weights(term)
+        # with `none` at its nominal 1, the vector is normalised to mean 1
         assert abs(w.mean() - 1.0) < 1e-6, w.mean()
-        d = dict(zip(cfg.pi_names, w))
+        d = dict(zip(masked.pi_names, w))
         assert d[anchor] > d["DB"] > d["gap"]
         assert abs(d[anchor] / d["gap"] - 3.0) < 1e-5
         assert abs(d["DB"] / d["gap"] - 2.0) < 1e-5
+
+        # pi_weight_none is applied AFTER that normalisation, so the mean is no
+        # longer 1 -- deliberately: what must hold is that every other class
+        # keeps EXACTLY the weight the masked model trains with, so the two
+        # differ by the `none` positions alone and not by a shifted loss scale
+        t = trained.pi_weights(term)
+        keep = [i for i, n in enumerate(trained.pi_names) if n != "none"]
+        assert np.allclose(t[keep], w[keep]), (t, w)
+        i_none = trained.pi_names.index("none")
+        assert np.isclose(t[i_none], w[i_none] * trained.pi_weight_none)
+        assert t.mean() < 1.0
 
 
 def check_losses():
@@ -132,15 +149,146 @@ def check_model_shapes():
     assert model.get_layer("embed").output.shape[-1] == cfg.embed_units
 
 
+def check_include_none():
+    """Dropping the `none` column must change only the softmax, not the masking.
+
+    Uses ``none_in_loss = False`` throughout: with `none` masked out of the
+    loss it is never a training target either way, so the set of scored
+    positions and the loss on them must be identical and only the column count
+    moves.
+    """
+    from .losses import PerIndexCatLoss, make_masked_cat_accuracy
+
+    on, off = Config(none_in_loss=False), Config(include_none=False, none_in_loss=False)
+    assert (on.K_cat, on.K_pi, on.none_index) == (7, 8, 6)
+    assert (off.K_cat, off.K_pi, off.none_index) == (6, 7, -1)
+    assert "none" not in off.pi_names and off.pi_names[-1] == "padding"
+    assert off.mask_matrix_cat.shape == (off.seq_len, off.K_cat)
+    # the first conv loses the dropped column's weights and nothing else moves
+    assert build_model(off).count_params() < build_model(on).count_params()
+    assert Config.r_exact().none_in_loss is False        # the R model masked `none`
+
+    # same windows, the two label layouts: with-none one-hot vs an all-zero row
+    rng = np.random.default_rng(3)
+    n, seq = 4, on.seq_len
+    cls = rng.integers(0, on.K_pi, size=(n, seq))
+    y_on = np.eye(on.K_pi, dtype="float32")[cls]
+    y_off = np.delete(y_on, on.none_index, axis=-1)          # none rows -> all zero
+    assert np.allclose(y_off.sum(-1), (cls != on.none_index).astype("float32"))
+
+    # A prediction that never puts its argmax on `none`, so the only thing left
+    # that could differ between the two layouts is WHICH POSITIONS are scored.
+    # (With mass on the `none` column the two genuinely differ, and in the
+    # dropped-column model's favour: a scored position can no longer lose its
+    # argmax to a class it is never trained to emit. That difference is the
+    # point of the ablation, not an invariant.)
+    p_on = np.asarray(rng.random((n, seq, on.K_pi)), dtype="float32")
+    p_on[:, :, on.none_index] = 0.0
+    p_on /= p_on.sum(-1, keepdims=True)
+    p_off = np.delete(p_on, on.none_index, axis=-1)
+    p_off /= p_off.sum(-1, keepdims=True)
+
+    acc_on = make_masked_cat_accuracy(on.none_index, on.padding_index)
+    acc_off = make_masked_cat_accuracy(off.none_index, off.padding_index)
+    keep = (cls != on.none_index) & (cls != on.padding_index)
+    assert keep.sum() > 0
+    assert abs(float(acc_on(y_on, p_on)) - float(acc_off(y_off, p_off))) < 1e-5, (
+        float(acc_on(y_on, p_on)), float(acc_off(y_off, p_off)))
+
+    # and the loss masks the same positions: a loss with every `none` position
+    # removed from the mask is unchanged when those rows go all-zero
+    l_off = PerIndexCatLoss(off.pi_weights("C"), off.none_index, off.gamma, 0.0)
+    v_all = float(ops.mean(l_off(y_off, p_off)))
+    y_zero = y_off.copy(); y_zero[cls == on.none_index] = 0.0
+    assert abs(v_all - float(ops.mean(l_off(y_zero, p_off)))) < 1e-6
+
+
+def check_none_in_loss():
+    """Training on `none` must add those positions and change nothing else."""
+    from .losses import PerIndexCatLoss
+
+    base, on = Config(none_in_loss=False), Config()      # `none` trained by default
+    # the real classes keep exactly the weights the default trains with; only
+    # `none` moves, so the two arms differ by the `none` positions alone
+    wb, wo = base.pi_weights("C"), on.pi_weights("C")
+    keep = [i for i, n in enumerate(base.pi_names) if n != "none"]
+    assert np.allclose(wb[keep], wo[keep]), (wb, wo)
+    assert np.isclose(wo[on.none_index], wb[on.none_index] * on.pi_weight_none)
+    assert on.pi_weight_none < 1.0, "a weight-1 `none` would swamp the real classes"
+
+    rng = np.random.default_rng(11)
+    n, seq = 6, base.seq_len
+    cls = rng.integers(0, base.K_pi, size=(n, seq))
+    y = np.eye(base.K_pi, dtype="float32")[cls]
+    p_ = np.asarray(rng.random((n, seq, base.K_pi)), dtype="float32")
+    p_ /= p_.sum(-1, keepdims=True)
+
+    masked = PerIndexCatLoss(wb, base.none_index, base.gamma, 0.0, mask_none=True)
+    trained = PerIndexCatLoss(wo, on.none_index, on.gamma, 0.0, mask_none=False)
+    # with no `none` position at all the two must agree; introduce some and they
+    # must not (the whole point), and the trained one must stay finite
+    no_none = cls.copy(); no_none[no_none == base.none_index] = 0
+    y2 = np.eye(base.K_pi, dtype="float32")[no_none]
+    assert np.allclose(float(ops.mean(masked(y2, p_))), float(ops.mean(trained(y2, p_))), atol=1e-5)
+    assert not np.isclose(float(ops.mean(masked(y, p_))), float(ops.mean(trained(y, p_))))
+    assert np.isfinite(float(ops.mean(trained(y, p_))))
+
+
 def check_position_ramp():
     import keras
 
-    cfg = Config()
+    cfg = Config(position_ramp=True)
     model = build_model(cfg)
     ramp = keras.Model(model.input, model.get_layer("pos_ramp").output)
     got = np.asarray(ramp.predict(np.zeros((2, cfg.seq_len, cfg.n_channels), "float32"), verbose=0))
     want = np.linspace(0.0, 1.0, cfg.seq_len)
     assert np.allclose(got[0, :, 0], want, atol=1e-6), got[0, :3, 0]
+
+    # position_ramp=False (the default): no ramp layer, and the first conv loses
+    # exactly the ramp's kernel_size x filters weights -- nothing else moves
+    off = build_model(cfg.evolve(position_ramp=False))
+    assert "pos_ramp" not in [l.name for l in off.layers]
+    first = cfg.unet_filters[0] if cfg.trunk == "unet" else cfg.conv_filters[0]
+    assert model.count_params() - off.count_params() == cfg.conv_kernel * first, (
+        model.count_params(), off.count_params())
+    assert off.count_params() == EXPECTED_PARAMS
+    assert off.get_layer("per_index_cat").output.shape[1:] == (cfg.seq_len, cfg.K_pi)
+    # the R model: flat trunk, ramp on
+    assert build_model(Config.r_exact()).count_params() == FLAT_PARAMS
+
+
+def check_resample_reaches_training():
+    """The per-epoch redraw must actually reach fit(), not just exist.
+
+    This is the failure the port was written to fix: the R script's
+    `on_epoch_begin` callback rebound its own `train_ds` variable, which `fit`
+    no longer read, so the redraw never happened and every epoch trained on one
+    fixed draw. A test that calls `_resample()` by hand would pass even if
+    Keras never invoked it, so drive a real `fit()` and fingerprint the draw
+    ORDER-INDEPENDENTLY -- `resample_each_epoch = False` still reshuffles, so a
+    per-batch fingerprint cannot tell the two apart.
+    """
+    import keras
+
+    from .data import OversampledWindows, TermArrays
+    from .model import compile_model
+
+    for flag, want in ((True, 4), (False, 1)):
+        cfg = Config(epochs=4, patience=3, start_from_epoch=1, seed=42,
+                     resample_each_epoch=flag)
+        arrays = TermArrays.from_mapping(make_data(cfg, seed=5)["C"]["train"]).validate(cfg)
+        ds = OversampledWindows(arrays, cfg, rng=np.random.default_rng(0))
+        seen = []
+
+        class Probe(keras.callbacks.Callback):
+            def on_epoch_begin(self, epoch, logs=None):
+                seen.append((round(float(ds._x.sum()), 2), float(ds._yg.sum())))
+
+        compile_model(build_model(cfg), cfg, "C").fit(ds, epochs=4, verbose=0, callbacks=[Probe()])
+        draws = {x for x, _ in seen}
+        assert len(draws) == want, (flag, len(draws), want)
+        # every positive is in every draw either way; only the negatives move
+        assert len({p for _, p in seen}) == 1, seen
 
 
 def check_oversampler():
@@ -280,6 +428,69 @@ def check_end_to_end():
     assert res.term_index("N").size == res.n_by_term["N"]
     for term in res.term_order:
         assert "val_global_pr_auc" in res.histories[term], list(res.histories[term])
+    # single member: the member rows ARE the means
+    assert res.val_scores_members.shape == (1, res.val_scores.size)
+    assert np.allclose(res.val_scores_members[0], res.val_scores)
+    assert np.allclose(res.pred_raw_members[0], res.pred_raw)
+
+    # ensemble: mean/sd over the member rows must reproduce pred_raw / pred_sd,
+    # and the members must actually differ (different seeds)
+    res3 = run(data, cfg, verbose=0, n_seeds=3)
+    assert res3.pred_raw_members.shape == (3, n)
+    assert res3.val_scores_members.shape == (3, res3.val_scores.size)
+    assert np.allclose(res3.pred_raw_members.mean(0), res3.pred_raw, atol=1e-6)
+    assert np.allclose(res3.pred_raw_members.std(0, ddof=1), res3.pred_sd, atol=1e-5)
+    assert np.allclose(res3.val_scores_members.mean(0), res3.val_scores, atol=1e-6)
+    assert not np.allclose(res3.pred_raw_members[0], res3.pred_raw_members[1])
+    assert res3.params == {t: res3.models[t].count_params() for t in res3.term_order}
+
+
+def check_members_roundtrip():
+    """run() == run_member() x n + combine(), also through the on-disk member files."""
+    import tempfile
+
+    from .io import load_members, save_member
+    from .pipeline import combine, run, run_member, set_seed
+
+    cfg = _tiny_cfg()
+    data = make_data(cfg, seed=17)
+    ref = run(data, cfg, verbose=0, n_seeds=2)
+
+    set_seed(cfg.seed)
+    members = [run_member(data, cfg, k=k, n_seeds=2, verbose=0, keep_models=False) for k in range(2)]
+    assert [m.seed for m in members] == [cfg.seed, cfg.seed + 1]
+    with tempfile.TemporaryDirectory() as d:
+        for m in members:
+            assert len(save_member(d, m)) == len(m.terms)     # one file pair per terminus
+        back = load_members(d, term_order=cfg.term_order)
+    assert [m.k for m in back] == [0, 1]
+    assert back[0].terms == ref.term_order
+
+    # a terminus trained on its own (one model per process, the CLI's
+    # --isolated unit) reproduces the same terminus of the full member: the
+    # per-term rng offset keys on the FULL term order, not on what is trained
+    set_seed(cfg.seed)
+    solo = run_member(data, cfg, k=1, n_seeds=2, verbose=0, keep_models=False, terms=["C"])
+    assert solo.terms == ("C",)
+    assert np.allclose(solo.global_all["C"], members[1].global_all["C"], atol=1e-6)
+    with tempfile.TemporaryDirectory() as d:
+        save_member(d, run_member(data, cfg, k=0, n_seeds=2, verbose=0, keep_models=False, terms=["N"]))
+        save_member(d, run_member(data, cfg, k=0, n_seeds=2, verbose=0, keep_models=False, terms=["C"]))
+        merged = load_members(d, term_order=cfg.term_order)
+    assert len(merged) == 1 and merged[0].terms == ref.term_order
+    assert not back[0].models                                   # nothing live survives disk
+    res = combine(back, cfg)
+    # numerics through combine must match run()'s -- same seeds, same reduction
+    assert res.n_seeds == 2 and res.term_order == ref.term_order
+    assert np.allclose(res.pred_raw, ref.pred_raw, atol=1e-6)
+    assert np.allclose(res.pred_sd, ref.pred_sd, atol=1e-6)
+    assert np.allclose(res.per_index, ref.per_index, atol=1e-6)
+    assert np.allclose(res.val_scores_members, ref.val_scores_members, atol=1e-6)
+    assert np.allclose(res.emb, ref.emb, atol=1e-6)
+    assert res.params == ref.params
+    assert res.histories.keys() == ref.histories.keys()
+    # members in any order combine the same
+    assert np.allclose(combine(back[::-1], cfg).pred_raw, res.pred_raw)
     return res
 
 
@@ -350,7 +561,7 @@ def check_unet_trunk():
     assert model.get_layer("embed").output.shape[-1] == cfg.embed_units
 
     # the flat trunk must be untouched by any of this
-    assert build_model(Config(trunk="flat")).count_params() == EXPECTED_PARAMS
+    assert build_model(Config.r_exact()).count_params() == FLAT_PARAMS
 
     # a depth that does not divide the window is rejected up front, not at build
     try:
@@ -363,8 +574,8 @@ def check_unet_trunk():
 
 def check_global_head_variants():
     """The window score can read the class softmax, the bottleneck, or both."""
-    flat = build_model(Config(trunk="flat"))
-    assert flat.count_params() == EXPECTED_PARAMS      # default is untouched
+    flat = build_model(Config.r_exact())
+    assert flat.count_params() == FLAT_PARAMS          # the R model is untouched
     assert "gap_bneck" not in {l.name for l in flat.layers}
 
     seen = {}
@@ -417,10 +628,14 @@ CHECKS = [
     check_global_head_variants,
     check_unet_trains,
     check_position_ramp,
+    check_include_none,
+    check_none_in_loss,
     check_oversampler,
+    check_resample_reaches_training,
     check_noise_only_on_continuous_channels,
     check_validate_catches_transpose,
     check_calibrator,
+    check_members_roundtrip,
 ]
 
 

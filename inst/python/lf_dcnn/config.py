@@ -72,10 +72,12 @@ class Config:
 
     # --- architecture ---
     l2: float = 1e-3
-    #: ``"flat"`` keeps full 36-position resolution through the whole trunk;
-    #: ``"unet"`` pools down and upsamples back, widening the channel count on
-    #: the way down.  See :func:`lf_dcnn.model.build_model`.
-    trunk: str = "flat"
+    #: ``"unet"`` (default since 2026-09-18, see 10_5_benchmark_window_model.R)
+    #: pools down and upsamples back, widening the channel count on the way
+    #: down; ``"flat"`` keeps full 36-position resolution through the whole
+    #: trunk (the original R model; see :meth:`r_exact`).  See
+    #: :func:`lf_dcnn.model.build_model`.
+    trunk: str = "unet"
     #: where the global (window-score) head reads from.
     #: ``"attn"``       the masked class softmax -> attention -> pool (default,
     #:                  and the only option for the flat trunk)
@@ -84,13 +86,55 @@ class Config:
     #:                  of forcing it through the 7-channel class softmax.
     #: ``"both"``       concatenate the two pooled vectors.
     global_head: str = "attn"
+    #: give the per-index softmax an explicit ``none`` column.
+    #:
+    #: ``none`` is never a training target either way -- positions labelled
+    #: ``none`` are masked out of the per-index loss (see
+    #: :class:`lf_dcnn.losses.PerIndexCatLoss`). The column only decides whether
+    #: the model has somewhere to put probability mass at a position it is not
+    #: scored on, and whether the global head's attention sees that column.
+    #: ``False`` drops it: ``K_cat`` 7 -> 6, ``K_pi`` 8 -> 7, and a ``none``
+    #: position becomes an all-zero label row, which is what the loss then masks
+    #: on. See inst/scripts/10_5_benchmark_window_model.R --preset none_class.
+    include_none: bool = True
+    #: train on the ``none`` positions instead of masking them out of the
+    #: per-index loss.
+    #:
+    #: ON by default since 2026-09-25. At 20 seeds on the C terminus
+    #: (10_5_benchmark_window_model.R --preset none20) it recovers more
+    #: held-out known peptide ends (median candidate rank 204 vs 318, 37 vs 31
+    #: of 52 in the top 500) and collapses ensemble disagreement (member sd
+    #: .05 vs .28), at 0.716 vs 0.845 per-residue real-class accuracy.
+    #:
+    #: Two caveats the numbers do not carry: the evidence is C-TERMINUS ONLY,
+    #: and the 20-seed arms were run at pi_weight_none = 1.0 while the default
+    #: here is 0.1 (chosen on the 5-seed sweep, where every weight was within
+    #: noise of every other).
+    #:
+    #: What masking costs: a NEGATIVE window is all ``none``, so it contributes
+    #: nothing at all to the per-index loss, and the ``none`` column never
+    #: receives a positive gradient. Measured on the trained default it is
+    #: effectively dead -- mean probability 0.007 at scored positions, and
+    #: never the argmax at any of 1,065,564 positions. Training on it saturates
+    #: validation PR AUC, recovers more held-out known peptide ends and
+    #: tightens the ensemble, at ~5 points of per-residue real-class accuracy.
+    #:
+    #: ``none`` is 96% of the raw training positions (75% after the 1:3 window
+    #: oversampling), so it needs ``pi_weight_none`` to not swamp the six real
+    #: classes.  Requires ``include_none``.
+    none_in_loss: bool = True
+    #: append the in-graph ``[0, 1]`` position ramp as an extra input channel
+    #: (see :class:`lf_dcnn.model.PositionRamp`). Off by default since
+    #: 2026-09-18: the trunk gets the raw channels only. The original R model
+    #: had it on (see :meth:`r_exact`).
+    position_ramp: bool = False
     conv_filters: tuple[int, ...] = (16, 8)
     conv_kernel: int = 3
     conv_dropout: tuple[float, ...] = (0.2, 0.3)
     #: U-Net only: channels per level, last entry is the bottleneck.
     #: ``(16, 32, 64)`` means 36->18->9 with 16, 32 then 64 filters.
     unet_filters: tuple[int, ...] = (16, 32, 64)
-    unet_dropout: tuple[float, ...] = (0.2, 0.2, 0.3)
+    unet_dropout: tuple[float, ...] = (0.2, 0.2, 0.2)
     pool_size: int = 2
     attention_heads: int = 2
     attention_key_dim: int = 8
@@ -110,6 +154,20 @@ class Config:
     # cleavage context tripled (CT for the C model, NT for the N model).
     pi_weight_db: float = 2.0
     pi_weight_anchor: float = 3.0
+    #: weight of the ``none`` class when ``none_in_loss``, relative to an
+    #: ordinary (weight-1) class. The oversampler already brings the in-batch
+    #: ``none``:real ratio down to ~3.2:1, so ~0.31 equalises their TOTAL loss
+    #: mass; the focal term (``gamma``) suppresses easy ``none`` positions
+    #: further. 1.0 lets ``none`` dominate, 0.0 reproduces masking it out.
+    #:
+    #: 0.1 by default. A 0.1/0.3/0.6 sweep (--preset none_weight) saturates
+    #: validation PR AUC at every weight and is within noise on held-out known
+    #: ends, so the weight is not tuned -- 0.1 is the cheapest setting that
+    #: gets the benefit: it costs the least real-class accuracy (0.766 vs 0.716
+    #: at 0.6) and lets ``none`` take the fewest scored positions (0.3% vs
+    #: 2.4%). Note the arms rank CANDIDATES quite differently despite matching
+    #: on every summary metric (Spearman 0.27 between w=0.1 and w=0.6).
+    pi_weight_none: float = 0.1
 
     # --- optimisation ---
     learning_rate: float = 3e-4
@@ -160,6 +218,11 @@ class Config:
             object.__setattr__(self, f, int(getattr(self, f)))
         if self.seed is not None:
             object.__setattr__(self, "seed", int(self.seed))
+        object.__setattr__(self, "position_ramp", bool(self.position_ramp))
+        object.__setattr__(self, "include_none", bool(self.include_none))
+        object.__setattr__(self, "none_in_loss", bool(self.none_in_loss))
+        if self.none_in_loss and not self.include_none:
+            raise ValueError("none_in_loss needs include_none: there is no `none` column to train")
         for f in ("conv_dropout", "unet_dropout", "nt_span", "ct_span", "mid_span"):
             object.__setattr__(self, f, tuple(getattr(self, f)))
         for f in ("conv_filters", "unet_filters"):
@@ -204,7 +267,11 @@ class Config:
 
     @classmethod
     def r_exact(cls, **kwargs) -> "Config":
-        """Config reproducing ``10_1dcnn_new6.R`` including its two quirks."""
+        """Config reproducing the pre-port R model of ``10_1dcnn_new6.R``: the
+        flat trunk with the position ramp, plus its two quirks."""
+        kwargs.setdefault("trunk", "flat")
+        kwargs.setdefault("position_ramp", True)
+        kwargs.setdefault("none_in_loss", False)      # the R model masked `none`
         kwargs.setdefault("db_mask_both_termini", False)
         kwargs.setdefault("resample_each_epoch", False)
         return cls(**kwargs)
@@ -235,8 +302,8 @@ class Config:
 
     @property
     def cat_cols(self) -> tuple[int, ...]:
-        """The 6 real classes plus an explicit ``none`` (last)."""
-        return self.real_cols + (self.none_col,)
+        """The 6 real classes, plus an explicit ``none`` last when included."""
+        return self.real_cols + ((self.none_col,) if self.include_none else ())
 
     @property
     def K_cat(self) -> int:
@@ -257,8 +324,14 @@ class Config:
 
     @property
     def none_index(self) -> int:
-        """Index of ``none`` within the per-index softmax (== ``K_cat - 1``)."""
-        return self.K_cat - 1
+        """Index of ``none`` within the per-index softmax (== ``K_cat - 1``),
+        or ``-1`` when there is no ``none`` column.
+
+        ``-1`` tells the loss and the metric to mask on an all-zero label row
+        instead of on a ``none`` one-hot; both say "this position is background,
+        do not score it".
+        """
+        return self.K_cat - 1 if self.include_none else -1
 
     @property
     def padding_index(self) -> int:
@@ -318,6 +391,15 @@ class Config:
         A hand-set prior, not learned: emphasise the anchor-side cleavage
         context (CT for the C model, NT for the N model) plus a moderate DB
         boost.  Mean-1 keeps the per-index loss magnitude stable.
+
+        ``pi_weight_none`` is applied AFTER that normalisation, so turning
+        ``none_in_loss`` on scales only the ``none`` entry and leaves every
+        real class at exactly the weight a masked model trains with -- the two
+        differ by the `none` positions alone, not by a shifted loss magnitude.
+        The returned vector's mean is then BELOW 1 (0.92 at the default
+        ``pi_weight_none``); that is the intended trade, since renormalising
+        afterwards would push every real class up and reintroduce exactly the
+        confound this avoids.
         """
         w = np.ones(self.K_pi, dtype="float32")
         names = self.pi_names
@@ -327,7 +409,10 @@ class Config:
                 w[i] = self.pi_weight_db
             if n == anchor:
                 w[i] = self.pi_weight_anchor
-        return (w / w.mean()).astype("float32")
+        w = (w / w.mean()).astype("float32")
+        if self.include_none and self.none_in_loss:
+            w[self.none_index] *= float(self.pi_weight_none)
+        return w
 
     # --- channel roles ---
     @property

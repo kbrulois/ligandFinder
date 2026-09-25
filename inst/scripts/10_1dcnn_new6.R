@@ -20,12 +20,21 @@ class_cols <- setNames(c("#FED439FF", "#370335FF", "#8A9197FF", "#D2AF81FF",
 )
 
 ## ---- train both terminus models and score every window ----------------------
-## Config defaults implement the intended architecture. Pass `r_exact = TRUE` to
-## reproduce the pre-port R model exactly, including the two places the old code
-## diverged from its own design: the DB position mask was overwritten with the CT
-## mask (so DB was allowed only at the C terminus), and the per-epoch resample
-## callback rebound a variable `fit` no longer read (so the negative sample and
-## the augmentation noise were drawn once). See inst/python/README.md.
+## Config defaults are the production architecture: the U-Net trunk
+## (unet@16-32-64, ~21.4k params) with NO position-ramp input, chosen 2026-09-18
+## on inst/scripts/10_5_benchmark_window_model.R, and since 2026-09-25 a
+## per-index head that TRAINS on the `none` positions (none_in_loss = TRUE,
+## pi_weight_none = 0.1) rather than masking them out -- chosen on that
+## script's none20 preset (20 seeds, C terminus). NOTE the cache fingerprint
+## changes with it, so the first run after this retrains. Pass `r_exact = TRUE` to
+## reproduce the pre-port R model exactly -- flat trunk, ramp on, and the two
+## places the old code diverged from its own design: the DB position mask was
+## overwritten with the CT mask (so DB was allowed only at the C terminus), and
+## the per-epoch resample callback rebound a variable `fit` no longer read (so
+## the negative sample and the augmentation noise were drawn once).
+## Training runs one python process per (member, terminus) model (`isolated`,
+## the default): the second model trained in one Keras/TF process dies
+## intermittently, and an ensemble trains ten. See inst/python/README.md.
 ## n_seeds = 5: five members per terminus. pred_raw / per_index come back as the
 ## ensemble MEAN, with pred_sd / per_index_sd giving the spread across members --
 ## a single softmax cannot tell "confidently 0.5" from "the members disagree",
@@ -124,26 +133,10 @@ nn_input_comb <- nn_input_comb %>%
   mutate(rank_cat = row_number(), .by = c(category, known))
 
 ## ---- amidation-motif windows -----------------------------------------------
-## An amidated peptide is cut at a dibasic site with a glycine immediately 5' of
-## it: ...X-G | K/R-K/R. The G is the amide donor, so a db window carrying one is
-## a candidate amidation site.
-##
-## The anchor sits at a FIXED position in every db window, which is what makes
-## this a lookup rather than a search: 9.2 sets window_origin = db_ind and then
-## wN = db_ind + win_size[[t]]$start, so db_ind always lands at local position
-## 1 - start (31 for C windows, 6 for N). Clamped windows are padded back out to
-## seq_len at the front, so the offset holds there too. Two asymmetries matter:
-##   * db_ind is the SECOND basic residue for C-target windows (the C branch of
-##     9.2 adds a full lookahead offset) but the FIRST for N-target ones.
-##   * BOTH termini are eligible. The motif is a property of the dibasic SITE,
-##     not of the peptide you approach it from: in a polyprotein precursor one
-##     dibasic pair is simultaneously the C-terminal cut of the peptide before it
-##     and the start of the peptide after it, so a G sitting 5' of that pair is a
-##     real amide donor regardless of which direction the window was anchored
-##     from. An N-anchored window therefore reads its G at local position 5, a
-##     C-anchored one at 29.
-amid_targets <- c("N", "loop_N", "C", "loop_C")
-
+## ...X-G | K/R-K/R at the dibasic anchor: the G is the amide donor. The rule
+## (and why the anchor is a fixed local position, and why both termini count)
+## lives in R/amidation_motif.R so the benchmark CSVs flag the same windows.
+if (!exists("lf_amidation_motif")) source("R/amidation_motif.R")
 ## (braced: at top level R parses `if (...) x` and a following `else` as two
 ## statements, so the else must not start its own line)
 .ws_start <- if (exists("win_size")) {
@@ -151,54 +144,8 @@ amid_targets <- c("N", "loop_N", "C", "loop_C")
 } else {
   c(N = -5L, C = -30L)                                             # 9.2 defaults
 }
-
-## local positions of the glycine and the two basic residues, per target
-.motif_pos <- function(tg) {
-  if (tg %in% c("C", "loop_C")) {
-    a <- 1L - .ws_start[["C"]]                  # db_ind = 2nd basic
-    c(g = a - 2L, b1 = a - 1L, b2 = a)
-  } else {
-    a <- 1L - .ws_start[["N"]]                  # db_ind = 1st basic
-    c(g = a - 1L, b1 = a, b2 = a + 1L)
-  }
-}
-
-.aa_at <- function(md, i) {
-  aa <- as.character(md[["AA"]])
-  if (i < 1L || i > length(aa)) NA_character_ else aa[[i]]
-}
-
-## Sanity check FIRST: if the anchor offset were wrong, every window would
-## quietly come back FALSE and look like "no amidation motifs found". Confirm the
-## two anchor positions really are basic residues before trusting the G test.
-.db_i <- which(nn_input_comb$win_type == "db")
-.chk  <- vapply(.db_i, function(i) {
-  p <- .motif_pos(as.character(nn_input_comb$target[[i]]))
-  md <- nn_input_comb$meta_data[[i]]
-  isTRUE(.aa_at(md, p[["b1"]]) %in% c("K", "R") &&
-         .aa_at(md, p[["b2"]]) %in% c("K", "R"))
-}, logical(1))
-message(sprintf("amidation: dibasic anchor confirmed at the expected offset in %d/%d db windows (%.1f%%)",
-                sum(.chk), length(.chk), 100 * mean(.chk)))
-if (mean(.chk) < 0.9)
-  warning("amidation: the dibasic anchor is often NOT at the expected local position -- ",
-          "check win_size against 9.2 before using the `amidation` column", immediate. = TRUE)
-
-nn_input_comb$amidation <- vapply(seq_len(nrow(nn_input_comb)), function(i) {
-  tg <- as.character(nn_input_comb$target[[i]])
-  if (!identical(as.character(nn_input_comb$win_type[[i]]), "db")) return(FALSE)
-  if (!tg %in% amid_targets) return(FALSE)
-  p  <- .motif_pos(tg)
-  md <- nn_input_comb$meta_data[[i]]
-  isTRUE(identical(.aa_at(md, p[["g"]]), "G") &&
-         .aa_at(md, p[["b1"]]) %in% c("K", "R") &&
-         .aa_at(md, p[["b2"]]) %in% c("K", "R"))
-}, logical(1))
-
-message(sprintf("amidation: %d windows carry the G|dibasic motif (%d of them known peptides)",
-                sum(nn_input_comb$amidation),
-                sum(nn_input_comb$amidation & nn_input_comb$known == 1)))
-rm(.ws_start, .motif_pos, .aa_at, .db_i, .chk)
+nn_input_comb <- lf_amidation_motif(nn_input_comb, win_start = .ws_start)
+rm(.ws_start)
 
 uniprot_peps <- data.table::fread("~/Desktop/Peptides/uniprot_peptides.csv") %>% as_tibble()
 
@@ -217,43 +164,13 @@ nn_input_comb <- nn_input_comb %>%
   })
 
 ## --- annotate windows that ANCHOR a uniprot-peptide terminus -----------------
-## Windows are built as anchor + [-5,30] (N) / [-30,5] (C), so the putative peptide
-## boundary sits at a fixed anchor residue: wN+5 for N windows, wC-5 for C windows.
-## A window "hits" a uniprot peptide only if that peptide's matching terminus --
-## start (N-terminus) for an N window, end (C-terminus) for a C window -- lands at
-## the window's anchor residue (+/- anchor_tol), i.e. at the correct position, not
-## merely somewhere inside the window span.
+## The rule lives in R/uniprot_terminus_hits.R so the benchmark scripts
+## (10_5_benchmark_window_model.R) score "top hits" identically: a window hits
+## only if the peptide's matching terminus lands at the window's anchor residue
+## (wN+5 for N windows, wC-5 for C), +/- anchor_tol -- not merely inside the span.
+if (!exists("lf_uniprot_terminus_hits")) source("R/uniprot_terminus_hits.R")
 anchor_tol <- 2L
-
-## per-model terminus (N/C); derive here so this block is self-contained even if
-## the ranking mutate above hasn't been run on this nn_input_comb
-if (!"model" %in% names(nn_input_comb))
-  nn_input_comb$model <- stringr::str_remove(as.character(nn_input_comb$target), "^loop_")
-
-wm <- stringr::str_match(nn_input_comb$peps, "_w(\\d+)-(\\d+)$")
-nn_input_comb$wN         <- as.integer(wm[, 2])
-nn_input_comb$wC         <- as.integer(wm[, 3])
-nn_input_comb$anchor_res <- ifelse(nn_input_comb$model == "N",
-                                   nn_input_comb$wN + 5L,     # expected peptide N-terminus
-                                   nn_input_comb$wC - 5L)     # expected peptide C-terminus
-
-starts_by_gene <- split(as.integer(uniprot_peps$start), uniprot_peps$gene)  # peptide N-ends
-ends_by_gene   <- split(as.integer(uniprot_peps$end),   uniprot_peps$gene)  # peptide C-ends
-
-anchor_hits <- function(gene, model, anchor, tol) {
-  ter <- if (model == "N") starts_by_gene[[gene]] else ends_by_gene[[gene]]
-  if (is.null(ter) || is.na(anchor)) return(FALSE)
-  any(abs(ter - anchor) <= tol)
-}
-
-nn_input_comb$pep_terminus_hit <- FALSE
-idx <- which(nn_input_comb$gene %in% names(starts_by_gene))   # only genes with uniprot peptides
-if (length(idx) > 0) {
-  nn_input_comb$pep_terminus_hit[idx] <- mapply(
-    anchor_hits,
-    nn_input_comb$gene[idx], nn_input_comb$model[idx], nn_input_comb$anchor_res[idx],
-    MoreArgs = list(tol = anchor_tol))
-}
+nn_input_comb <- lf_uniprot_terminus_hits(nn_input_comb, uniprot_peps, anchor_tol = anchor_tol)
 
 message(sprintf("uniprot-terminus hits: %d windows (N: %d, C: %d)",
                 sum(nn_input_comb$pep_terminus_hit),

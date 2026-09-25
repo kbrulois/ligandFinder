@@ -53,6 +53,12 @@ class PerIndexCatLoss(keras.losses.Loss):
     ``none`` positions are masked out; ``padding`` positions are trained.  The
     smoothness term penalises large changes between adjacent positions of the
     predicted softmax, skipping any adjacency that touches a masked position.
+
+    ``none_index = -1`` means the softmax has no ``none`` column
+    (``Config.include_none = False``); a ``none`` position is then an all-zero
+    label row, and that is what gets masked.  ``mask_none = False``
+    (``Config.none_in_loss``) trains on the ``none`` positions instead of
+    masking them; the class weight is what keeps them from dominating.
     """
 
     def __init__(
@@ -61,20 +67,31 @@ class PerIndexCatLoss(keras.losses.Loss):
         none_index,
         gamma=2.0,
         smoothness_weight=0.01,
+        mask_none=True,
         name="per_index_cat_loss",
         **kw,
     ):
         super().__init__(name=name, **kw)
         self.class_weights = [float(w) for w in class_weights]
         self.none_index = int(none_index)
+        self.mask_none = bool(mask_none)
         self.gamma = float(gamma)
         self.smoothness_weight = float(smoothness_weight)
 
     def call(self, y_true, y_pred):
         y_true = ops.cast(y_true, y_pred.dtype)
         labels = y_true                                  # (batch, seq, K_pi) one-hot
-        none_flag = y_true[:, :, self.none_index]        # (batch, seq): 1 at background
-        keep = 1.0 - none_flag                           # train real + padding; mask none
+        # which positions the loss scores:
+        #   mask_none (default) -- real + padding, background masked out
+        #   not mask_none       -- every position, `none` included, weighted by
+        #                          class_weights[none_index] so it cannot swamp
+        #   no `none` column    -- background is an all-zero row; mask on that
+        if self.none_index < 0:
+            keep = ops.sum(y_true, axis=-1)
+        elif self.mask_none:
+            keep = 1.0 - y_true[:, :, self.none_index]
+        else:
+            keep = ops.ones_like(y_true[:, :, 0])
 
         p = ops.clip(y_pred, EPS, 1.0 - EPS)
         cw = ops.reshape(
@@ -105,6 +122,7 @@ class PerIndexCatLoss(keras.losses.Loss):
             **super().get_config(),
             "class_weights": self.class_weights,
             "none_index": self.none_index,
+            "mask_none": self.mask_none,
             "gamma": self.gamma,
             "smoothness_weight": self.smoothness_weight,
         }
@@ -115,13 +133,16 @@ def make_masked_cat_accuracy(none_index: int, padding_index: int):
 
     ``padding`` is excluded because it is trivially predictable from the input
     padding channel, and ``none`` because it is masked out of the loss.
+    ``none_index = -1`` (no ``none`` column) masks all-zero label rows instead.
     """
 
     def masked_cat_accuracy(y_true, y_pred):
         y_true = ops.cast(y_true, y_pred.dtype)
         pad_flag = y_true[:, :, padding_index]
-        none_flag = y_true[:, :, none_index]
-        keep = (1.0 - pad_flag) * (1.0 - none_flag)
+        not_none = (
+            1.0 - y_true[:, :, none_index] if none_index >= 0 else ops.sum(y_true, axis=-1)
+        )
+        keep = (1.0 - pad_flag) * not_none
         correct = (
             ops.cast(
                 ops.equal(ops.argmax(y_pred, axis=-1), ops.argmax(y_true, axis=-1)),

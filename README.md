@@ -53,21 +53,23 @@ angles, H-bond energies and amino-acid properties.
 
 ### 2 · Model
 
-A small 1-D CNN with an attention head, trained **once per terminus** (N and C):
+A small 1-D U-Net with an attention head, trained **once per terminus** (N and C):
 
 ```
-input 36 × 26  (+ normalised position ramp)
-  → Conv1D 16 · gelu → Conv1D 8 · gelu          shared trunk
+input 36 × 26
+  → Conv1D 16 → pool → Conv1D 32 → pool → Conv1D 64     encoder (36 → 18 → 9)
+  → upsample + skip → Conv1D 32 → upsample + skip → Conv1D 16   decoder
   → per-residue logits (8 classes)
        ├── softmax                              per-residue head
        └── masked softmax → attention → pool
              → embed 16-d → global window score
 ```
 
-Deliberately tiny — **2,438 parameters** — because the labelled set is small: a
-few dozen known peptides per terminus. Training oversamples the positives,
-jitters the continuous channels as augmentation, and calibrates the two models
-onto a common scale with a single pooled Platt fit.
+Still small — **21,406 parameters** — because the labelled set is small: a few
+dozen known peptides per terminus. Five members per terminus are trained from
+different seeds and averaged, with the spread kept alongside. Training
+oversamples the positives, jitters the continuous channels as augmentation,
+and calibrates the two models onto a common scale with a single pooled Platt fit.
 
 The modelling lives in [`inst/python/lf_dcnn`](inst/python/lf_dcnn) (Keras 3).
 It runs in-process from R through reticulate, or standalone from `.npz` files
