@@ -30,8 +30,13 @@ build_x <- function(dataset) {
 ## saved nn_input_comb only.
 if (exists("models")) {
 real_class_names <- names(classes)[real_cols]   # 6 real classes (for the breakdown)
-pi_names <- names(classes)[c(real_cols, which(names(classes) == "none"),
-                            which(names(classes) == "padding"))]   # 8 output cols: [6 real, none, padding]
+## Output column order. Take it from the session when a caller has already read
+## it off the Config (10_1dcnn_new6.R and 10_2b_bench_arm_session.R both do):
+## reconstructing it here assumes a `none` column, which Config(include_none =
+## FALSE) does not have, and would mislabel a 7-column head with 8 names.
+if (!exists("pi_names"))
+  pi_names <- names(classes)[c(real_cols, which(names(classes) == "none"),
+                               which(names(classes) == "padding"))]
 for (term in names(nn_input)) {
   vp    <- predict(models[[term]], build_x(nn_input[[term]]$val), verbose = 0)[["per_index_cat"]]  # (n, seq, K_pi)
   truth <- do.call(rbind, nn_input[[term]]$val$known_idx)                                          # (n, seq) labels

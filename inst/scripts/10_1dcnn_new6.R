@@ -22,7 +22,10 @@ class_cols <- setNames(c("#FED439FF", "#370335FF", "#8A9197FF", "#D2AF81FF",
 ## ---- train both terminus models and score every window ----------------------
 ## Config defaults are the production architecture: the U-Net trunk
 ## (unet@16-32-64, ~21.4k params) with NO position-ramp input, chosen 2026-09-18
-## on inst/scripts/10_5_benchmark_window_model.R. Pass `r_exact = TRUE` to
+## on inst/scripts/10_5_benchmark_window_model.R. Training the per-index head on
+## the `none` positions (none_in_loss = TRUE, pi_weight_none = 0.1) measures
+## better on the C terminus but is NOT on by default -- see that script's
+## none_class / none_weight presets, and Config.none_in_loss. Pass `r_exact = TRUE` to
 ## reproduce the pre-port R model exactly -- flat trunk, ramp on, and the two
 ## places the old code diverged from its own design: the DB position mask was
 ## overwritten with the CT mask (so DB was allowed only at the C terminus), and

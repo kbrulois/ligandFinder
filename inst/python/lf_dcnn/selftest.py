@@ -18,6 +18,8 @@ from .calibrate import PlattCalibrator
 from .config import Config
 from .data import OversampledWindows, TermArrays
 from .losses import PerIndexCatLoss, WeightedBinaryCrossentropy, make_masked_cat_accuracy
+from keras import ops
+
 from .model import build_model
 from .synthetic import make_data
 
@@ -60,14 +62,27 @@ def check_position_masks():
 
 
 def check_pi_weights():
-    cfg = Config()
+    masked = Config()                        # the default: `none` masked out
+    trained = Config(none_in_loss=True)      # opt-in: `none` trained, weighted down
     for term, anchor in (("C", "CT_cleavage_context"), ("N", "NT_cleavage_context")):
-        w = cfg.pi_weights(term)
+        w = masked.pi_weights(term)
+        # with `none` at its nominal 1, the vector is normalised to mean 1
         assert abs(w.mean() - 1.0) < 1e-6, w.mean()
-        d = dict(zip(cfg.pi_names, w))
+        d = dict(zip(masked.pi_names, w))
         assert d[anchor] > d["DB"] > d["gap"]
         assert abs(d[anchor] / d["gap"] - 3.0) < 1e-5
         assert abs(d["DB"] / d["gap"] - 2.0) < 1e-5
+
+        # pi_weight_none is applied AFTER that normalisation, so the mean is no
+        # longer 1 -- deliberately: what must hold is that every other class
+        # keeps EXACTLY the weight the masked model trains with, so the two
+        # differ by the `none` positions alone and not by a shifted loss scale
+        t = trained.pi_weights(term)
+        keep = [i for i, n in enumerate(trained.pi_names) if n != "none"]
+        assert np.allclose(t[keep], w[keep]), (t, w)
+        i_none = trained.pi_names.index("none")
+        assert np.isclose(t[i_none], w[i_none] * trained.pi_weight_none)
+        assert t.mean() < 1.0
 
 
 def check_losses():
@@ -132,6 +147,91 @@ def check_model_shapes():
     # per_index_cat is a softmax
     assert np.allclose(out["per_index_cat"].sum(-1), 1.0, atol=1e-5)
     assert model.get_layer("embed").output.shape[-1] == cfg.embed_units
+
+
+def check_include_none():
+    """Dropping the `none` column must change only the softmax, not the masking.
+
+    Uses ``none_in_loss = False`` throughout: with `none` masked out of the
+    loss it is never a training target either way, so the set of scored
+    positions and the loss on them must be identical and only the column count
+    moves.
+    """
+    from .losses import PerIndexCatLoss, make_masked_cat_accuracy
+
+    on, off = Config(none_in_loss=False), Config(include_none=False, none_in_loss=False)
+    assert (on.K_cat, on.K_pi, on.none_index) == (7, 8, 6)
+    assert (off.K_cat, off.K_pi, off.none_index) == (6, 7, -1)
+    assert "none" not in off.pi_names and off.pi_names[-1] == "padding"
+    assert off.mask_matrix_cat.shape == (off.seq_len, off.K_cat)
+    # the first conv loses the dropped column's weights and nothing else moves
+    assert build_model(off).count_params() < build_model(on).count_params()
+    assert Config.r_exact().none_in_loss is False        # the R model masked `none`
+
+    # same windows, the two label layouts: with-none one-hot vs an all-zero row
+    rng = np.random.default_rng(3)
+    n, seq = 4, on.seq_len
+    cls = rng.integers(0, on.K_pi, size=(n, seq))
+    y_on = np.eye(on.K_pi, dtype="float32")[cls]
+    y_off = np.delete(y_on, on.none_index, axis=-1)          # none rows -> all zero
+    assert np.allclose(y_off.sum(-1), (cls != on.none_index).astype("float32"))
+
+    # A prediction that never puts its argmax on `none`, so the only thing left
+    # that could differ between the two layouts is WHICH POSITIONS are scored.
+    # (With mass on the `none` column the two genuinely differ, and in the
+    # dropped-column model's favour: a scored position can no longer lose its
+    # argmax to a class it is never trained to emit. That difference is the
+    # point of the ablation, not an invariant.)
+    p_on = np.asarray(rng.random((n, seq, on.K_pi)), dtype="float32")
+    p_on[:, :, on.none_index] = 0.0
+    p_on /= p_on.sum(-1, keepdims=True)
+    p_off = np.delete(p_on, on.none_index, axis=-1)
+    p_off /= p_off.sum(-1, keepdims=True)
+
+    acc_on = make_masked_cat_accuracy(on.none_index, on.padding_index)
+    acc_off = make_masked_cat_accuracy(off.none_index, off.padding_index)
+    keep = (cls != on.none_index) & (cls != on.padding_index)
+    assert keep.sum() > 0
+    assert abs(float(acc_on(y_on, p_on)) - float(acc_off(y_off, p_off))) < 1e-5, (
+        float(acc_on(y_on, p_on)), float(acc_off(y_off, p_off)))
+
+    # and the loss masks the same positions: a loss with every `none` position
+    # removed from the mask is unchanged when those rows go all-zero
+    l_off = PerIndexCatLoss(off.pi_weights("C"), off.none_index, off.gamma, 0.0)
+    v_all = float(ops.mean(l_off(y_off, p_off)))
+    y_zero = y_off.copy(); y_zero[cls == on.none_index] = 0.0
+    assert abs(v_all - float(ops.mean(l_off(y_zero, p_off)))) < 1e-6
+
+
+def check_none_in_loss():
+    """Training on `none` must add those positions and change nothing else."""
+    from .losses import PerIndexCatLoss
+
+    base, on = Config(), Config(none_in_loss=True)       # `none` masked by default
+    # the real classes keep exactly the weights the default trains with; only
+    # `none` moves, so the two arms differ by the `none` positions alone
+    wb, wo = base.pi_weights("C"), on.pi_weights("C")
+    keep = [i for i, n in enumerate(base.pi_names) if n != "none"]
+    assert np.allclose(wb[keep], wo[keep]), (wb, wo)
+    assert np.isclose(wo[on.none_index], wb[on.none_index] * on.pi_weight_none)
+    assert on.pi_weight_none < 1.0, "a weight-1 `none` would swamp the real classes"
+
+    rng = np.random.default_rng(11)
+    n, seq = 6, base.seq_len
+    cls = rng.integers(0, base.K_pi, size=(n, seq))
+    y = np.eye(base.K_pi, dtype="float32")[cls]
+    p_ = np.asarray(rng.random((n, seq, base.K_pi)), dtype="float32")
+    p_ /= p_.sum(-1, keepdims=True)
+
+    masked = PerIndexCatLoss(wb, base.none_index, base.gamma, 0.0, mask_none=True)
+    trained = PerIndexCatLoss(wo, on.none_index, on.gamma, 0.0, mask_none=False)
+    # with no `none` position at all the two must agree; introduce some and they
+    # must not (the whole point), and the trained one must stay finite
+    no_none = cls.copy(); no_none[no_none == base.none_index] = 0
+    y2 = np.eye(base.K_pi, dtype="float32")[no_none]
+    assert np.allclose(float(ops.mean(masked(y2, p_))), float(ops.mean(trained(y2, p_))), atol=1e-5)
+    assert not np.isclose(float(ops.mean(masked(y, p_))), float(ops.mean(trained(y, p_))))
+    assert np.isfinite(float(ops.mean(trained(y, p_))))
 
 
 def check_position_ramp():
@@ -494,6 +594,8 @@ CHECKS = [
     check_global_head_variants,
     check_unet_trains,
     check_position_ramp,
+    check_include_none,
+    check_none_in_loss,
     check_oversampler,
     check_noise_only_on_continuous_channels,
     check_validate_catches_transpose,

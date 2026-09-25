@@ -60,7 +60,11 @@ if (input_name != "base") {
   built <- lf_plm_attach(nn_input, lf_plm_read(plm_parquet), lf_read_parquet(seq_parquet), all_params3)
   nn_input <- built$nn_input; all_params3 <- built$channels
 }
-in_dir  <- file.path(cache_dir, if (input_name == "base") "in" else paste0("in_", input_name))
+## an arm whose Config changes the LABEL arrays (e.g. include_none = FALSE)
+## has its own export directory; --in-dir names it
+in_dir  <- .opt("--in-dir", "")
+in_dir  <- if (nzchar(in_dir)) path.expand(in_dir) else
+           file.path(cache_dir, if (input_name == "base") "in" else paste0("in_", input_name))
 cfg     <- mod$Config$from_json(file.path(in_dir, "config.json"))
 stopifnot(identical(as.character(cfg$channel_names), all_params3),
           identical(as.character(cfg$term_order), names(nn_input)))
@@ -83,6 +87,7 @@ nn_input_comb$pred_raw <- as.numeric(out$pred_raw)
 nn_input_comb$pred_sd  <- as.numeric(out$pred_sd)
 ## per-residue softmax: the ensemble MEAN (and sd) across the arm's members
 pi_names_out <- as.character(unlist(out$pi_names))
+pi_names     <- pi_names_out          # 10_2_per_ind_profiles.R reads this
 nn_input_comb$per_index    <- lf_dcnn_per_index_tibbles(out$per_index,    pi_names_out)
 nn_input_comb$per_index_sd <- lf_dcnn_per_index_tibbles(out$per_index_sd, pi_names_out)
 known_dat <- nn_input_comb %>% filter(known == 1)     # 10_2 profiles these...

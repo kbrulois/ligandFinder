@@ -241,6 +241,7 @@ def compile_model(model: keras.Model, cfg: Config, term: str) -> keras.Model:
             "per_index_cat": PerIndexCatLoss(
                 class_weights=cfg.pi_weights(term),
                 none_index=cfg.none_index,
+                mask_none=not cfg.none_in_loss,
                 gamma=cfg.gamma,
                 smoothness_weight=cfg.smoothness_weight,
             ),

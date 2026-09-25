@@ -6,6 +6,17 @@
 ## A `--preset` names the arms:
 ##   position_ramp   the U-Net with vs without the in-graph position channel
 ##                   (what set the 2026-09-18 defaults)
+##   none_class      C terminus only: the production model (`none` present in
+##                   the softmax but MASKED OUT of the per-index loss) against
+##                   one that TRAINS on the `none` positions, with the class
+##                   down-weighted so the 75%-of-positions majority cannot
+##                   collapse the head onto `none`. Everything else -- the
+##                   arrays, the real-class weights, the seeds -- is identical.
+##   none_weight     C terminus only: the same question as `none_class` swept
+##                   over pi_weight_none (0.1 / 0.3 / 0.6) against the masked
+##                   default, to see whether the result turns on the particular
+##                   weight. ~0.31 equalises the in-batch none:real loss mass,
+##                   so the sweep brackets it either side.
 ##   t5              C terminus only: the U-Net on the 26 hand-built channels vs
 ##                   the same plus ProtT5 embedding channels, vs the same plus
 ##                   ESM C embedding channels (each PCA-reduced to 32 by
@@ -83,8 +94,14 @@ top_n_members <- 3L                     # "top3": the best members only, outlier
 ## The U-Net is the compare_r_python.R harness's "unet@16-32-64": trunk "unet",
 ## filters 16-32-64 (two pooling levels, 36 -> 18 -> 9), dropout 0.2 per level,
 ## ~21.4k parameters; the production model since 2026-09-18.
+## Every arm pins the fields that define it, defaults or not. The benchmark
+## reuses a cached arm on the presence of its outputs.npz alone -- it does not
+## re-check the Config -- so an arm that inherited a default would silently be
+## re-labelled whenever that default moved. `none_in_loss` became TRUE on
+## 2026-09-25; these arms were trained before that and pin FALSE to stay what
+## they were when their numbers were reported.
 unet <- list(trunk = "unet", unet_filters = c(16L, 32L, 64L), unet_dropout = c(0.2, 0.2, 0.2),
-             position_ramp = FALSE)
+             position_ramp = FALSE, none_in_loss = FALSE)
 presets <- list(
   position_ramp = list(
     title     = "U-Net window model \u2014 does it need the position input?",
@@ -116,7 +133,44 @@ presets <- list(
         cfg = unet, input = "esm_c", dir = "unet_esm_c", short = "esmc",
         desc = "the same U-Net with ESM C 600M per-residue embeddings (1152-d) appended, reduced and scaled the same way")),
     cols = c("unet, 26 channels" = "#E7298A", "unet, 26 + ProtT5" = "#1B9E77",
-             "unet, 26 + ESM C" = "#7570B3"))
+             "unet, 26 + ESM C" = "#7570B3")),
+  none_class = list(
+    title     = "U-Net window model \u2014 does the per-residue softmax need a `none` column? (C terminus)",
+    cache_dir = "~/AF2_analysis/lf_dcnn_bench_t5",   # shares the `t5` preset's arrays and its 26-channel arm
+    out       = "~/AF2_analysis/ligandFinder_v8_benchmark_none.html",
+    terms     = "C",
+    ## A third arm, dropping the `none` column entirely, is still cached under
+    ## unet_base_no_none: add
+    ##   cfg = c(unet, list(include_none = FALSE)), dir = "unet_base_no_none"
+    arms = list(
+      "unet, none masked (default)" = list(
+        cfg = unet, input = "base", dir = "unet_base", short = "masked",
+        desc = "the production model: `none` is a column of the 8-way per-residue softmax but its positions are masked out of the loss, so the column never receives a positive gradient"),
+      "unet, none trained (w=0.3)" = list(
+        cfg = c(unet[names(unet) != "none_in_loss"], list(none_in_loss = TRUE, pi_weight_none = 0.3)),
+        input = "base", dir = "unet_none_in_loss", short = "trained",
+        desc = "the same model trained ON the `none` positions, with the class weighted 0.3 against an ordinary class -- the oversampler leaves `none`:real at ~3.2:1 in-batch, so this roughly equalises their total loss mass while the focal term suppresses the easy ones")),
+    cols = c("unet, none masked (default)" = "#E7298A", "unet, none trained (w=0.3)" = "#1B9E77")),
+  none_weight = list(
+    title     = "U-Net window model \u2014 how much does training on `none` depend on its weight? (C terminus)",
+    cache_dir = "~/AF2_analysis/lf_dcnn_bench_t5",
+    out       = "~/AF2_analysis/ligandFinder_v9_benchmark_none_weight.html",
+    terms     = "C",
+    arms = c(
+      list("none masked (default)" = list(
+        cfg = unet, input = "base", dir = "unet_base", short = "masked",
+        desc = "the production model: `none` present in the softmax but masked out of the per-index loss")),
+      ## w = 0.3 reuses the arm the `none_class` preset already trained
+      stats::setNames(lapply(c(0.1, 0.3, 0.6), function(wt) list(
+        cfg = c(unet[names(unet) != "none_in_loss"], list(none_in_loss = TRUE, pi_weight_none = wt)),
+        input = "base",
+        dir = if (wt == 0.3) "unet_none_in_loss" else sprintf("unet_none_w%s", sub("\\.", "", format(wt))),
+        short = sprintf("w%s", sub("\\.", "", format(wt))),
+        desc = sprintf("`none` trained, weighted %.1f against an ordinary class (%s the ~0.31 that equalises the in-batch none:real loss mass)",
+                       wt, if (wt < 0.31) "below" else if (wt > 0.31) "above" else "at"))),
+        sprintf("none trained (w=%.1f)", c(0.1, 0.3, 0.6)))),
+    cols = c("none masked (default)" = "#E7298A", "none trained (w=0.1)" = "#A6D854",
+             "none trained (w=0.3)" = "#1B9E77", "none trained (w=0.6)" = "#0B5345"))
 )
 if (!preset %in% names(presets))
   stop("--preset must be one of: ", paste(names(presets), collapse = ", "))
@@ -143,7 +197,7 @@ if (!exists("lf_amidation_motif"))       source(file.path(ROOT, "R", "amidation_
 known_end_ref <- if (nzchar(known_end_ref)) path.expand(known_end_ref) else
                  file.path(ROOT, "inst", "extdata", "ligand_list.rds")
 id_map_path <- file.path(ROOT, "data", "id_mapping.rds")
-invisible(lf_dcnn_python(path = file.path(ROOT, "inst", "python")))
+mod <- lf_dcnn_python(path = file.path(ROOT, "inst", "python"))
 
 ## ---- the window data ----------------------------------------------------------
 if (!exists("nn_input") || !exists("all_params3")) {
@@ -189,19 +243,43 @@ uniprot_peps <- data.table::fread(uniprot_csv) %>% as_tibble()
 ## `--isolated` CLI run per arm, outputs read back with lf_dcnn_import().
 ## `params` and `n_seeds` come from history.json, written by the CLI.
 dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
+
+## Most Config overrides change only the MODEL, so arms can share one
+## arrays.npz. A few change the LABEL arrays -- `include_none` drops a column
+## from y_per_index_cat -- so an arm that sets one needs its own export, or
+## TermArrays.validate() would (rightly) reject the shapes. Key the export on
+## the input variant plus any such field that actually differs from the Config
+## default, which keeps default-valued arms sharing the existing directory.
+target_fields <- c("include_none", "class_names", "seq_len")
+.cfg_default <- lf_dcnn_config(all_params3, mod = mod)
+.as_txt <- function(v) paste(unlist(v), collapse = ",")
+export_spec <- function(a) {
+  ov <- a$cfg[intersect(names(a$cfg), target_fields)]
+  ov <- ov[vapply(names(ov), function(f)
+    !identical(.as_txt(ov[[f]]), .as_txt(.cfg_default[[f]])), logical(1))]
+  tag <- if (!length(ov)) "" else
+    paste0("_", paste(names(ov), vapply(ov, .as_txt, ""), sep = "", collapse = "_"))
+  list(key = paste0(a$input, tag), input = a$input, overrides = ov,
+       dir = file.path(cache_dir, paste0(if (a$input == "base") "in" else paste0("in_", a$input), tag)))
+}
+specs <- lapply(approaches, export_spec)
 in_dirs <- list()
-for (inp in unique(vapply(approaches, `[[`, "", "input"))) {
-  in_dir <- file.path(cache_dir, if (inp == "base") "in" else paste0("in_", inp))
-  in_dirs[[inp]] <- in_dir
-  if (refresh || !file.exists(file.path(in_dir, "arrays.npz"))) {
-    built <- input_builders[[inp]]()
+for (sp in specs[!duplicated(vapply(specs, `[[`, "", "key"))]) {
+  in_dirs[[sp$key]] <- sp$dir
+  if (refresh || !file.exists(file.path(sp$dir, "arrays.npz"))) {
+    built <- input_builders[[sp$input]]()
     stopifnot(identical(lapply(built$nn_input, function(x) x$all$peps),
                         lapply(nn_input, function(x) x$all$peps)))
     meta <- bind_rows(lapply(built$nn_input, function(x) x$all)) %>%
       select(any_of(c("peps", "gene", "win_type", "target", "known")))
-    lf_dcnn_export(built$nn_input, built$channels, in_dir, meta = meta, seed = base_seed)
-    message(sprintf("exported arrays for input '%s' (%d channels) to %s",
-                    inp, length(built$channels), in_dir))
+    do.call(lf_dcnn_export, c(list(built$nn_input, built$channels, sp$dir,
+                                   meta = meta, seed = base_seed), sp$overrides))
+    message(sprintf("exported arrays for '%s' (%d channels%s) to %s", sp$key,
+                    length(built$channels),
+                    if (length(sp$overrides))
+                      paste0(", ", paste(names(sp$overrides), vapply(sp$overrides, .as_txt, ""),
+                                         sep = "=", collapse = ", ")) else "",
+                    sp$dir))
     rm(built)
   }
 }
@@ -213,7 +291,7 @@ runs <- lapply(names(approaches), function(nm) {
   out_dir <- file.path(cache_dir, approaches[[nm]]$dir)
   done    <- file.path(out_dir, "outputs.npz")
   if (refresh) unlink(out_dir, recursive = TRUE)     # members too, or they would be reused
-  in_dir <- in_dirs[[approaches[[nm]]$input]]
+  in_dir <- in_dirs[[specs[[nm]]$key]]
   if (refresh || !file.exists(done)) {
     message(sprintf("\n== %s  (n_seeds = %d, seed = %d): training in a subprocess ==",
                     nm, n_seeds, base_seed))
