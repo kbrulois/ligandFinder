@@ -358,6 +358,52 @@ lf_dcnn_per_index_tibbles <- function(arr, class_names) {
   })
 }
 
+#' Pack per-precursor residue features into one array for `lf_dcnn.scan`
+#'
+#' The exhaustive scan (every mature residue of every precursor, ~3M windows for
+#' one terminus) cannot take the window contract -- as a list of 36-row tibbles
+#' it is tens of GB -- so it builds its windows python-side from the residue
+#' features instead. This writes those: one float32 `(total_residues,
+#' n_channels)` array plus, per precursor, the row its residue 1 lives at and
+#' its mature range.
+#'
+#' Row order is `prec`'s row order, which is what the scan's `prot_idx` indexes.
+#'
+#' @param prec one row per precursor, with `accession`, `n_prot`, `c_prot`.
+#' @param feats list of `(nchar(seq), n_channels)` matrices, parallel to `prec`.
+#' @param channel_names the channel order, i.e. `all_params3`.
+#' @param path destination `.npz`.
+#' @return `path`, invisibly.
+#' @export
+lf_dcnn_pack_residues <- function(prec, feats, channel_names, path,
+                                  venv = "r-tensorflow", py_path = NULL) {
+  stopifnot(length(feats) == nrow(prec))
+  if (!identical(colnames(feats[[1]]), as.character(channel_names)))
+    stop("feats columns are not channel_names, in order", call. = FALSE)
+  lf_dcnn_python(venv = venv, path = py_path)
+  np <- reticulate::import("numpy", convert = FALSE)
+
+  L <- vapply(feats, nrow, integer(1))
+  if (any(L != prec$c_prot))
+    stop("nrow(feats[[i]]) must equal c_prot (the precursor's last residue)",
+         call. = FALSE)
+  off <- c(0L, cumsum(L)[-length(L)])              # 0-based row of residue 1
+  tot <- sum(L)
+
+  ## Build CHANNEL-major (n_channels, total): R fills column-major, so this same
+  ## memory read as numpy row-major is already the (total, n_channels) we want --
+  ## the transpose is then a numpy view, never a second 600 MB R copy.
+  M <- matrix(0, length(channel_names), tot)
+  for (i in seq_along(feats)) M[, (off[i] + 1L):(off[i] + L[i])] <- t(feats[[i]])
+  np$savez(path.expand(path),
+           feat   = np$ascontiguousarray(np$asarray(M, dtype = "float32")$T),
+           offset = np$asarray(off, dtype = "int64"),
+           n_prot = np$asarray(as.integer(prec$n_prot), dtype = "int64"),
+           c_prot = np$asarray(as.integer(prec$c_prot), dtype = "int64"))
+  rm(M); invisible(gc())
+  invisible(path)
+}
+
 ## ---- entry point 2: standalone, via disk ------------------------------------
 
 #' Write the array contract to a directory the standalone CLI can read

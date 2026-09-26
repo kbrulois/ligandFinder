@@ -62,22 +62,11 @@ stopifnot(identical(colnames(feats[[1]]), fc$all_params3),
 
 ## ---- 1. residues -> one float32 array + offsets -------------------------------
 if (!file.exists(res_npz) || .flag("--refresh-residues")) {
-  L   <- vapply(feats, nrow, integer(1))
-  off <- c(0L, cumsum(L)[-length(L)])                  # 0-based row of residue 1
-  tot <- sum(L)
   message(sprintf("packing %d precursors, %s residues x %d channels ...",
-                  length(feats), format(tot, big.mark = ","), length(fc$all_params3)))
-  ## channel-major (C, total): its column-major layout IS numpy's row-major
-  ## (total, C), so no transpose of the big array is ever needed
-  M <- matrix(0, length(fc$all_params3), tot)
-  for (i in seq_along(feats)) M[, (off[i] + 1L):(off[i] + L[i])] <- t(feats[[i]])
-  ## transpose on the numpy side: t(M) in R would be another 636 MB copy
-  np$savez(res_npz,
-           feat   = np$ascontiguousarray(np$asarray(M, dtype = "float32")$T),
-           offset = np$asarray(off, dtype = "int64"),
-           n_prot = np$asarray(prec$n_prot, dtype = "int64"),
-           c_prot = np$asarray(prec$c_prot, dtype = "int64"))
-  rm(M); invisible(gc())
+                  length(feats), format(sum(nchar(prec$seq)), big.mark = ","),
+                  length(fc$all_params3)))
+  lf_dcnn_pack_residues(prec, feats, fc$all_params3, res_npz,
+                        py_path = file.path(ROOT, "inst", "python"))
   message("residues -> ", res_npz)
 } else {
   message("reusing ", res_npz, " (--refresh-residues to rebuild)")
