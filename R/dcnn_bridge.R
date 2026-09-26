@@ -69,11 +69,20 @@ lf_dcnn_utf8_streams <- function() {
 #'   overwrite and its non-functional per-epoch resample. See the package README.
 #' @param ... any other Config field (`epochs`, `seed`, `noise_frac`, ...).
 #' @export
-lf_dcnn_config <- function(channel_names, r_exact = FALSE, ..., mod = NULL) {
+lf_dcnn_config <- function(channel_names, r_exact = FALSE, pepend = NULL, ...,
+                           mod = NULL) {
   mod <- mod %||% lf_dcnn_python()
   args <- list(channel_names = as.character(channel_names),
                n_channels    = length(channel_names), ...)
   ctor <- if (isTRUE(r_exact)) mod$Config$r_exact else mod$Config
+  if (!is.null(pepend)) {
+    if (isTRUE(r_exact))
+      stop("r_exact and pepend are different presets; pass one", call. = FALSE)
+    ## Config.pepend() carries the peptide-end class vocabulary AND re-derives
+    ## the position masks from the anchor; both are wrong if set by hand here.
+    ctor <- mod$Config$pepend
+    args <- c(list(term = as.character(pepend)), args)
+  }
   do.call(ctor, args)
 }
 
@@ -318,6 +327,16 @@ lf_dcnn_run_isolated <- function(data, cfg, n_seeds, verbose, work, refresh = FA
 #' @keywords internal
 lf_dcnn_align_terms <- function(cfg, terms) {
   if (identical(as.character(cfg$term_order), as.character(terms))) return(cfg)
+  ## The peptide-end preset's position masks are term-SPECIFIC (the anchor sits
+  ## at 28 for C, 8 for N) while `mask_matrix_cat` is not, so widening its
+  ## term_order here would score one terminus through the other's mask and
+  ## silently zero true classes. Config.pepend() pins term_order for exactly
+  ## this reason; refuse to undo it rather than train something wrong.
+  if (!"DB" %in% as.character(cfg$class_names) && length(terms) > 1L)
+    stop("a peptide-end Config is per-terminus (term_order ",
+         paste(as.character(cfg$term_order), collapse = "/"), "), but ",
+         length(terms), " termini were given: ", paste(terms, collapse = ", "),
+         ". Train one terminus at a time, with its own Config.", call. = FALSE)
   cfg$evolve(term_order = as.character(terms))
 }
 

@@ -295,6 +295,79 @@ def check_pepend_config():
         raise AssertionError("Config.pepend must reject a term that is not N or C")
 
 
+def check_scan_windows():
+    """Exhaustive-scan window geometry, and that chunking cannot change a score.
+
+    ``build_windows`` is the python twin of R's ``lf_pepend_slice``; the two are
+    checked against each other on real data by
+    inst/scripts/10_8b_pepend_scan.R's caller. Here: the geometry on a synthetic
+    precursor whose residue *r* carries the value *r*, so a misplaced residue is
+    visible, plus the invariant that the chunk size is a memory knob only.
+    """
+    from .scan import Residues, build_windows, scan
+
+    cfg = Config.pepend("C", n_channels=3, channel_names=("a", "b", "padding"))
+    pad_col = cfg.channel_names.index("padding")
+    # two precursors, 50 and 9 residues; the second is shorter than the window
+    lens = [50, 9]
+    feat = np.zeros((sum(lens), 3), dtype="float32")
+    off = np.array([0, 50], dtype="int64")
+    for i, L in enumerate(lens):
+        feat[off[i]:off[i] + L, 0] = np.arange(1, L + 1)      # channel a = residue no.
+        feat[off[i]:off[i] + L, 1] = i + 1                    # channel b = which protein
+    # precursor 0 has a 5-residue signal peptide: mature range 6..50
+    res = Residues(feat=feat, offset=off, n_prot=np.array([6, 1], dtype="int64"),
+                   c_prot=np.array([50, 9], dtype="int64")).validate(cfg)
+    assert list(res.n_anchors) == [45, 9]
+
+    # anchor 40 of precursor 0: position 28 must be residue 40, and the window
+    # runs 13..48 (a + p - 28), all inside the mature range -- no padding
+    w = build_windows(res, 0, [40], cfg, 28, pad_col)
+    assert w.shape == (1, 36, 3)
+    assert w[0, 27, 0] == 40.0, w[0, 27, 0]
+    assert np.array_equal(w[0, :, 0], np.arange(13, 49))
+    assert (w[0, :, 1] == 1).all() and (w[0, :, 2] == 0).all()
+
+    # anchor 8 of precursor 0: the window starts at residue -19, so everything
+    # before the mature start (6) is padding -- and padding means every channel
+    # 0 with `padding` 1, exactly as lf_pepend_slice writes it
+    w = build_windows(res, 0, [8], cfg, 28, pad_col)
+    # coord = a + p - 28 = p - 20, so p = 1..36 spans residues -19..16 and only
+    # p >= 26 reaches the mature start at 6
+    pad = w[0, :, 2] == 1
+    assert pad.sum() == 25, pad.sum()
+    assert np.array_equal(np.flatnonzero(~pad) + 1, np.arange(26, 37))
+    assert (w[0, pad, 0] == 0).all() and (w[0, pad, 1] == 0).all()
+    assert np.array_equal(w[0, ~pad, 0], np.arange(6, 17))
+    # the anchor itself is residue 8, at position 28
+    assert w[0, 27, 0] == 8.0
+
+    # precursor 1 is 9 long: its last anchor pads on BOTH sides of the peptide
+    w = build_windows(res, 1, [9], cfg, 28, pad_col)
+    assert w[0, 27, 0] == 9.0 and (w[0, 28:, 2] == 1).all()
+    assert np.array_equal(w[0, 19:28, 0], np.arange(1, 10))
+
+    # --- chunking is a memory knob, not a numerical one -----------------------
+    model = build_model(cfg)
+    a = scan(res, [model], cfg, "C", chunk_windows=10_000, batch_size=64)
+    b = scan(res, [model], cfg, "C", chunk_windows=1, batch_size=64)
+    assert a["score"].shape == (54,)
+    assert np.array_equal(a["prot_idx"], b["prot_idx"])
+    assert np.array_equal(a["anchor"], b["anchor"])
+    assert np.allclose(a["score"], b["score"], atol=1e-6), np.abs(a["score"] - b["score"]).max()
+    # row order: precursor 0's anchors 6..50, then precursor 1's 1..9
+    assert a["anchor"][0] == 6 and a["anchor"][44] == 50 and a["anchor"][45] == 1
+    assert (a["sd"] == 0).all(), "one member cannot disagree with itself"
+
+    # two members: the mean and the ddof=1 sd must be the real ones
+    m2 = build_model(cfg)
+    two = scan(res, [model, m2], cfg, "C", chunk_windows=10_000, batch_size=64)
+    s1 = scan(res, [model], cfg, "C", chunk_windows=10_000, batch_size=64)["score"]
+    s2 = scan(res, [m2], cfg, "C", chunk_windows=10_000, batch_size=64)["score"]
+    assert np.allclose(two["score"], (s1 + s2) / 2, atol=1e-6)
+    assert np.allclose(two["sd"], np.stack([s1, s2]).std(0, ddof=1), atol=1e-5)
+
+
 def check_position_ramp():
     import keras
 
@@ -692,6 +765,7 @@ CHECKS = [
     check_include_none,
     check_none_in_loss,
     check_pepend_config,
+    check_scan_windows,
     check_oversampler,
     check_resample_reaches_training,
     check_noise_only_on_continuous_channels,

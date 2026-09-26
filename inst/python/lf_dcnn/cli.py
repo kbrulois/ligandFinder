@@ -80,12 +80,17 @@ def cmd_train(args) -> int:
         data, cfg, _ = load_inputs(args.input_dir)
         cfg = _apply(cfg, args)
         m = run_member(data, cfg, k=args.member, n_seeds=args.n_seeds,
-                       verbose=args.verbose, keep_models=(args.member == 0),
+                       verbose=args.verbose, keep_models=True,
                        terms=[args.term] if args.term else None)
         for f in save_member(args.output_dir, m):
             print(f"wrote {f}")
-        # member 0 is the one combine() keeps for embeddings/models; its
-        # weights let a caller rebuild live models (R's lf_dcnn_run does)
+        # EVERY member's weights, not only member 0's. combine() needs just
+        # member 0 (for the embeddings, and for the live `models` R rebuilds),
+        # which is what this used to keep -- but scoring a set too large to fit
+        # the array contract, as lf_dcnn.scan does over every position in the
+        # secretome, has to rebuild the whole ensemble from disk afterwards, and
+        # a member whose weights were never written would silently shrink that
+        # ensemble to one model. One extra 21k-param model per process.
         for term, model in m.models.items():
             w = member_paths(args.output_dir, m.k, term)[0].with_suffix(".weights.h5")
             model.save_weights(w)
