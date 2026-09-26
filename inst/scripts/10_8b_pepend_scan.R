@@ -22,7 +22,14 @@
 ## Ranks are on the RAW ensemble mean. The Platt calibration the training run
 ## fits is monotone, so it cannot change any ranking; it only rescales.
 ##
-## Output: ~/AF2_analysis/lf_pepend_scan_<term>.rds
+## READ THE PEAK RANKS, NOT THE WINDOW RANKS. Adjacent anchors differ by one
+## residue out of 36, so one real signal becomes a long run of near-identical
+## windows and a few loci swallow the top of a window-ranked list (top 1,000
+## windows: 59 genes; top 1,000 peaks: 447). The script collapses each run to its
+## local maximum and ranks those too; that is the number to quote.
+##
+## Output: ~/AF2_analysis/lf_pepend_scan_<term>.rds -- `scan` (every window),
+## `peaks` (local maxima, ranked), `knowns_peak` (each known end's nearest peak)
 ## ------------------------------------------------------------------------------
 
 suppressMessages({ library(dplyr); library(purrr) })
@@ -94,11 +101,15 @@ if (!is.na(n_seeds) && n_have != n_seeds)
                      "Retrain with --refresh (member weights are needed to",
                      "rebuild the ensemble for the scan)."), n_seeds, n_have),
        call. = FALSE)
-message(sprintf("\nscanning with %d member(s) ...", n_have))
-mod$scan$scan_to_npz(residues_npz = res_npz, out_dir = out_dir, term = term,
-                     out_npz = scan_npz, n_seeds = as.integer(n_have),
-                     chunk_windows = as.integer(chunk_w),
-                     batch_size = as.integer(batch_sz), verbose = TRUE)
+if (file.exists(scan_npz) && !.flag("--refresh-scan")) {
+  message(sprintf("\nreusing %s (--refresh-scan to rescore)", basename(scan_npz)))
+} else {
+  message(sprintf("\nscanning with %d member(s) ...", n_have))
+  mod$scan$scan_to_npz(residues_npz = res_npz, out_dir = out_dir, term = term,
+                       out_npz = scan_npz, n_seeds = as.integer(n_have),
+                       chunk_windows = as.integer(chunk_w),
+                       batch_size = as.integer(batch_sz), verbose = TRUE)
+}
 
 z <- np$load(scan_npz)
 got <- list(score = as.numeric(reticulate::py_to_r(z[["score"]])),
@@ -143,13 +154,61 @@ kn %>% filter(!is.na(rank_all)) %>% group_by(motif) %>%
             .groups = "drop") %>% arrange(median_rank) %>%
   as.data.frame() %>% print(row.names = FALSE)
 
-message(sprintf("\ntop %d windows overall (known ends marked):", top_n))
-scan_t %>% arrange(rank_all) %>% head(top_n) %>%
-  left_join(kn %>% select(accession, anchor, pep_name), by = c("accession", "anchor")) %>%
-  mutate(known = ifelse(is.na(pep_name), "", pep_name)) %>%
-  select(rank_all, gene, accession, anchor, score, sd, known) %>%
-  as.data.frame() %>% print(row.names = FALSE, digits = 3)
+## ---- 4. local peaks: the honest ranking --------------------------------------
+## Neighbouring anchors differ by one residue out of 36, so a single real signal
+## shows up as a long run of near-identical windows -- rank the windows and a
+## handful of loci swallow the whole top of the list. Collapse each run to its
+## local maximum (nothing scoring higher within +/- `peak_w` residues of it) and
+## rank those instead.
+suppressMessages(library(data.table))
+peak_w <- as.integer(.opt("--peak-window", "5"))
+dt <- as.data.table(scan_t); setorder(dt, accession, anchor)
+shifts <- c(lapply(seq_len(peak_w), function(k) list(k, "lag")),
+            lapply(seq_len(peak_w), function(k) list(k, "lead")))
+dt[, rmax := do.call(pmax, c(list(score),
+     lapply(shifts, function(z) shift(score, z[[1]], fill = -Inf, type = z[[2]])))),
+   by = accession]
+pk <- dt[score >= rmax][order(-score)][, rank_peak := .I][, rmax := NULL]
 
-saveRDS(list(term = term, scan = scan_t, knowns = kn, n_members = NA_integer_),
+message(sprintf("\nlocal peaks (+/-%d): %s of %s windows (%.1f%%)",
+                peak_w, format(nrow(pk), big.mark = ","),
+                format(nrow(dt), big.mark = ","), 100 * nrow(pk) / nrow(dt)))
+message(sprintf("  concentration: top 1,000 WINDOWS span %d genes, top 1,000 PEAKS %d",
+                n_distinct(head(arrange(scan_t, rank_all), 1000)$gene),
+                uniqueN(head(pk, 1000)$gene)))
+
+## A known end need not be a peak itself; the nearest peak within +/-peak_w
+## stands in for it. Knowns with NO peak nearby are counted, not hidden -- the
+## model simply has no local opinion there.
+near <- pk[, .(accession, panchor = anchor, prank = rank_peak)]
+kp <- merge(as.data.table(kn)[, .(accession, anchor, pep_name, split, at_candidate)],
+            near, by = "accession", allow.cartesian = TRUE)[abs(anchor - panchor) <= peak_w]
+kp <- kp[order(prank)][, .SD[1], by = .(pep_name)]
+message(sprintf("  known %s ends with a peak within +/-%d: %d of %d (%d have none)",
+                term, peak_w, nrow(kp), nrow(kn), nrow(kn) - nrow(kp)))
+for (g in list(list("all knowns", rep(TRUE, nrow(kp))),
+               list("held out (val)", kp$split == "val"),
+               list("at a candidate motif", kp$at_candidate),
+               list("at NO candidate motif", !kp$at_candidate))) {
+  v <- kp$prank[g[[2]]]
+  if (!length(v)) next
+  message(sprintf("  %-22s n %3d   median peak-rank %7s   top 100 %3d   top 500 %3d   top 1k %3d",
+                  g[[1]], length(v), format(as.integer(median(v)), big.mark = ","),
+                  sum(v <= 100), sum(v <= 500), sum(v <= 1000)))
+}
+
+message(sprintf("\ntop %d local peaks (a known end within +/-%d is named, with its offset):",
+                top_n, peak_w))
+merge(head(pk, top_n),
+      kp[, .(rank_peak = prank, pep_name, known_anchor = anchor)],
+      by = "rank_peak", all.x = TRUE)[order(rank_peak)] %>%
+  transmute(rank_peak, gene, accession, anchor, score = round(score, 5),
+            sd = round(sd, 5),
+            known = ifelse(is.na(pep_name), "",
+                           sprintf("%s (%+d)", pep_name, known_anchor - anchor))) %>%
+  as.data.frame() %>% print(row.names = FALSE)
+
+saveRDS(list(term = term, n_members = n_have, peak_w = peak_w,
+             scan = scan_t, peaks = as_tibble(pk), knowns = kn, knowns_peak = as_tibble(kp)),
         out_p)
 message("\nscan -> ", out_p, "  (arrays in ", basename(scan_npz), ")")
