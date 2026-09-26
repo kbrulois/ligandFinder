@@ -29,6 +29,25 @@ CLASS_NAMES: tuple[str, ...] = (
     "none",
 )
 
+#: class vocabulary of the peptide-END set (inst/scripts/10_7_pepend_windows.R).
+#: No ``DB`` and no ``gap``: both were defined relative to the dibasic slot that
+#: set does not anchor on, so whatever precedes the peptide is NT context and
+#: whatever follows it CT context, dibasic or not.  Mirrors
+#: ``LF_PEPEND_CLASSES`` in R/pepend_windows.R; order is load-bearing, as for
+#: :data:`CLASS_NAMES`.
+PEPEND_CLASS_NAMES: tuple[str, ...] = (
+    "CT_cleavage_context",
+    "NT_cleavage_context",
+    "pep_other",
+    "pep_pocket",
+    "padding",
+    "none",
+)
+
+#: where the peptide's own terminal residue sits in a peptide-end window,
+#: 1-based (``LF_PEPEND$anchor`` in R/pepend_windows.R).
+PEPEND_ANCHOR: dict[str, int] = {"N": 8, "C": 28}
+
 #: default input channel order, mirroring `all_params3` in 9.2_add_contact_data.R
 DEFAULT_CHANNEL_NAMES: tuple[str, ...] = (
     "cons_rs_n", "min_afm", "mean_afm", "relASA",
@@ -106,10 +125,9 @@ class Config:
     #: of 52 in the top 500) and collapses ensemble disagreement (member sd
     #: .05 vs .28), at 0.716 vs 0.845 per-residue real-class accuracy.
     #:
-    #: Two caveats the numbers do not carry: the evidence is C-TERMINUS ONLY,
-    #: and the 20-seed arms were run at pi_weight_none = 1.0 while the default
-    #: here is 0.1 (chosen on the 5-seed sweep, where every weight was within
-    #: noise of every other).
+    #: The caveat the numbers do not carry: the evidence is C-TERMINUS ONLY.
+    #: The 20-seed arms ran at pi_weight_none = 1.0, the default since
+    #: 2026-09-25 (see that field).
     #:
     #: What masking costs: a NEGATIVE window is all ``none``, so it contributes
     #: nothing at all to the per-index loss, and the ``none`` column never
@@ -160,14 +178,17 @@ class Config:
     #: mass; the focal term (``gamma``) suppresses easy ``none`` positions
     #: further. 1.0 lets ``none`` dominate, 0.0 reproduces masking it out.
     #:
-    #: 0.1 by default. A 0.1/0.3/0.6 sweep (--preset none_weight) saturates
-    #: validation PR AUC at every weight and is within noise on held-out known
-    #: ends, so the weight is not tuned -- 0.1 is the cheapest setting that
-    #: gets the benefit: it costs the least real-class accuracy (0.766 vs 0.716
-    #: at 0.6) and lets ``none`` take the fewest scored positions (0.3% vs
-    #: 2.4%). Note the arms rank CANDIDATES quite differently despite matching
-    #: on every summary metric (Spearman 0.27 between w=0.1 and w=0.6).
-    pi_weight_none: float = 0.1
+    #: 1.0 by default since 2026-09-25 -- the weight the 20-seed evidence for
+    #: ``none_in_loss`` was gathered at (--preset none20, the ``unet_none_w1``
+    #: arm), and better than 0.1 on every aggregate there. It does not collapse
+    #: onto ``none``: it takes 97.7% of background argmaxes but 3.8% of scored
+    #: ones, so the oversampler and the focal term, not this weight, are what
+    #: hold the majority back. It was 0.1 before, chosen on a 5-seed
+    #: 0.1/0.3/0.6 sweep (--preset none_weight) where every weight was within
+    #: noise; 0.1 costs less real-class accuracy (0.766 vs 0.716 at 0.6). The
+    #: weights rank CANDIDATES quite differently despite matching on every
+    #: summary metric (Spearman 0.27 between w=0.1 and w=0.6).
+    pi_weight_none: float = 1.0
 
     # --- optimisation ---
     learning_rate: float = 3e-4
@@ -274,6 +295,41 @@ class Config:
         kwargs.setdefault("none_in_loss", False)      # the R model masked `none`
         kwargs.setdefault("db_mask_both_termini", False)
         kwargs.setdefault("resample_each_epoch", False)
+        return cls(**kwargs)
+
+    @classmethod
+    def pepend(cls, term: str, **kwargs) -> "Config":
+        """Config for the peptide-END set of ``inst/scripts/10_7_pepend_windows.R``.
+
+        That set anchors on the peptide's own terminal residue -- its last
+        residue at position 28 for a C window, its first at position 8 for an N
+        window -- rather than on a dibasic site, and drops ``DB`` and ``gap``
+        (see :data:`PEPEND_CLASS_NAMES`).
+
+        The stock ``nt_span``/``ct_span``/``mid_span`` encode the dibasic layout
+        (NT 1-5, CT 31-36) and are simply WRONG for this one, so they are
+        re-derived from the anchor to match ``lf_pepend_labels``: everything
+        strictly beyond the peptide terminus is that side's context, the peptide
+        itself runs to the window edge, and the near-side context fills only
+        what a peptide short enough to end inside the window leaves over.
+
+        The spans are term-specific but :attr:`mask_matrix_cat` is not, so this
+        pins ``term_order`` to the single terminus asked for; build a second
+        Config for the other one rather than training both from this.
+        """
+        if term not in PEPEND_ANCHOR:
+            raise ValueError(
+                f"term must be one of {sorted(PEPEND_ANCHOR)}, got {term!r}")
+        a = PEPEND_ANCHOR[term]
+        seq_len = int(kwargs.get("seq_len", cls.seq_len))
+        if term == "C":
+            spans = dict(mid_span=(1, a), ct_span=(a + 1, seq_len), nt_span=(1, a - 1))
+        else:
+            spans = dict(mid_span=(a, seq_len), nt_span=(1, a - 1), ct_span=(a + 1, seq_len))
+        for k, v in spans.items():
+            kwargs.setdefault(k, v)
+        kwargs.setdefault("class_names", PEPEND_CLASS_NAMES)
+        kwargs.setdefault("term_order", (term,))
         return cls(**kwargs)
 
     def evolve(self, **kwargs) -> "Config":
@@ -396,8 +452,8 @@ class Config:
         ``none_in_loss`` on scales only the ``none`` entry and leaves every
         real class at exactly the weight a masked model trains with -- the two
         differ by the `none` positions alone, not by a shifted loss magnitude.
-        The returned vector's mean is then BELOW 1 (0.92 at the default
-        ``pi_weight_none``); that is the intended trade, since renormalising
+        The returned vector's mean is then not 1 (below it for any
+        ``pi_weight_none`` < 1); that is the intended trade, since renormalising
         afterwards would push every real class up and reintroduce exactly the
         confound this avoids.
         """

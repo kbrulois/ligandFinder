@@ -175,17 +175,19 @@ mean probability 0.007 at scored positions, 0.057 at background, and never the
 argmax at any of 1,065,564 positions.
 
 `Config.none_in_loss` (default `True` since 2026-09-25) trains on them
-instead, with `pi_weight_none` (default 0.1) keeping the
-75%-of-in-batch-positions majority from swamping the six real classes. The weight is applied after the mean-1
+instead, with `pi_weight_none` (default 1.0, also since 2026-09-25) scaling
+the `none` class against the six real ones. Even at 1.0 the
+75%-of-in-batch-positions majority does not swamp them: the oversampler and the
+focal term hold it back. The weight is applied after the mean-1
 normalisation, so every real class keeps exactly the weight the masked model
 trained with. `Config.r_exact()` pins `none_in_loss=False`.
 
 On the C terminus this saturates validation PR AUC (1.000 vs .876 ± .066
 masked), lifts held-out known peptide ends (35 vs 31 of 52 in the top 500) and
 tightens the ensemble (member sd 0.11 vs 0.34 among the top 100), at a cost of
-~5 points of per-residue real-class accuracy. A 0.1/0.3/0.6 sweep is within
-noise on every summary metric, so the weight is not tuned; 0.1 is the cheapest
-setting that gets the benefit. It stays off by default because the arms rank
+~5 points of per-residue real-class accuracy. A 5-seed 0.1/0.3/0.6 sweep is
+within noise on every summary metric; the 20-seed comparison (`--preset
+none20`) ran at w = 1.0, which is why that is the default. The weights do rank
 CANDIDATES quite differently despite matching on every summary metric (Spearman
 0.27 between w=0.1 and w=0.6; ANO8_w12-47 goes from candidate rank 282 masked to
 1321 at w=0.1), and the evidence is C-terminus only.

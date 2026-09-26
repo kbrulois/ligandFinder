@@ -24,7 +24,7 @@ class_cols <- setNames(c("#FED439FF", "#370335FF", "#8A9197FF", "#D2AF81FF",
 ## (unet@16-32-64, ~21.4k params) with NO position-ramp input, chosen 2026-09-18
 ## on inst/scripts/10_5_benchmark_window_model.R, and since 2026-09-25 a
 ## per-index head that TRAINS on the `none` positions (none_in_loss = TRUE,
-## pi_weight_none = 0.1) rather than masking them out -- chosen on that
+## pi_weight_none = 1.0) rather than masking them out -- chosen on that
 ## script's none20 preset (20 seeds, C terminus). NOTE the cache fingerprint
 ## changes with it, so the first run after this retrains. Pass `r_exact = TRUE` to
 ## reproduce the pre-port R model exactly -- flat trunk, ramp on, and the two

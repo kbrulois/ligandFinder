@@ -73,15 +73,18 @@ def check_pi_weights():
         assert abs(d[anchor] / d["gap"] - 3.0) < 1e-5
         assert abs(d["DB"] / d["gap"] - 2.0) < 1e-5
 
-        # pi_weight_none is applied AFTER that normalisation, so the mean is no
-        # longer 1 -- deliberately: what must hold is that every other class
-        # keeps EXACTLY the weight the masked model trains with, so the two
-        # differ by the `none` positions alone and not by a shifted loss scale
-        t = trained.pi_weights(term)
-        keep = [i for i, n in enumerate(trained.pi_names) if n != "none"]
-        assert np.allclose(t[keep], w[keep]), (t, w)
-        i_none = trained.pi_names.index("none")
-        assert np.isclose(t[i_none], w[i_none] * trained.pi_weight_none)
+        # pi_weight_none is applied AFTER that normalisation, so below 1 the
+        # mean is no longer 1 -- deliberately: what must hold is that every
+        # other class keeps EXACTLY the weight the masked model trains with, so
+        # the two differ by the `none` positions alone and not by a shifted
+        # loss scale. (The default weight is 1.0, which leaves the vector
+        # unchanged, so the down-weighted case is checked explicitly.)
+        for cfg in (trained, trained.evolve(pi_weight_none=0.1)):
+            t = cfg.pi_weights(term)
+            keep = [i for i, n in enumerate(cfg.pi_names) if n != "none"]
+            assert np.allclose(t[keep], w[keep]), (t, w)
+            i_none = cfg.pi_names.index("none")
+            assert np.isclose(t[i_none], w[i_none] * cfg.pi_weight_none)
         assert t.mean() < 1.0
 
 
@@ -214,7 +217,9 @@ def check_none_in_loss():
     keep = [i for i, n in enumerate(base.pi_names) if n != "none"]
     assert np.allclose(wb[keep], wo[keep]), (wb, wo)
     assert np.isclose(wo[on.none_index], wb[on.none_index] * on.pi_weight_none)
-    assert on.pi_weight_none < 1.0, "a weight-1 `none` would swamp the real classes"
+    # 1.0 since 2026-09-25: at 20 seeds it did not swamp the real classes (the
+    # oversampler and the focal term hold `none` back), but >1 has never been run
+    assert 0.0 < on.pi_weight_none <= 1.0, on.pi_weight_none
 
     rng = np.random.default_rng(11)
     n, seq = 6, base.seq_len
@@ -232,6 +237,62 @@ def check_none_in_loss():
     assert np.allclose(float(ops.mean(masked(y2, p_))), float(ops.mean(trained(y2, p_))), atol=1e-5)
     assert not np.isclose(float(ops.mean(masked(y, p_))), float(ops.mean(trained(y, p_))))
     assert np.isfinite(float(ops.mean(trained(y, p_))))
+
+
+def check_pepend_config():
+    """The peptide-END preset: no DB/gap, and masks re-derived from the anchor.
+
+    The stock spans encode the dibasic layout (NT 1-5, CT 31-36) and are wrong
+    for a set anchored on the peptide's own terminal residue, so the preset
+    re-derives them. The expected spans below are read off ``lf_pepend_labels``
+    in R/pepend_windows.R, and verified against the built set: 0 of the 1,778
+    labelled windows in lf_pepend_nn_input.rds put a class outside them.
+    """
+    from .config import PEPEND_ANCHOR, PEPEND_CLASS_NAMES
+
+    c = Config.pepend("C")
+    assert c.class_names == PEPEND_CLASS_NAMES
+    assert "DB" not in c.pi_names and "gap" not in c.pi_names
+    # 4 real + none = 5 cat, + padding = 6 per-index columns
+    assert (c.K_cat, c.K_pi, c.none_index, c.padding_index) == (5, 6, 4, 5)
+    assert c.pi_names[-2:] == ("none", "padding")
+    # the C peptide ENDS at 28: CT strictly after it, the peptide up to it, and
+    # NT only where a peptide short enough to start inside the window leaves room
+    assert (c.nt_span, c.mid_span, c.ct_span) == ((1, 27), (1, 28), (29, 36))
+    n = Config.pepend("N")
+    # the N peptide STARTS at 8: mirror image
+    assert (n.nt_span, n.mid_span, n.ct_span) == ((1, 7), (8, 36), (9, 36))
+
+    for cfg, term in ((c, "C"), (n, "N")):
+        a = PEPEND_ANCHOR[term]
+        m = cfg.mask_matrix_cat
+        assert m.shape == (cfg.seq_len, cfg.K_cat)
+        col = {cfg.class_names[k]: m[:, j] for j, k in enumerate(cfg.cat_cols)}
+        assert col["none"].all(), "`none` is allowed everywhere"
+        far = "CT_cleavage_context" if term == "C" else "NT_cleavage_context"
+        near = "NT_cleavage_context" if term == "C" else "CT_cleavage_context"
+        # the anchor position itself is the peptide terminus: peptide yes, and
+        # neither context may claim it
+        assert col["pep_other"][a - 1] == 1.0 and col["pep_pocket"][a - 1] == 1.0
+        assert col[far][a - 1] == 0.0 and col[near][a - 1] == 0.0
+        assert np.array_equal(col["pep_other"], col["pep_pocket"])
+        # the anchor-side weight goes to that terminus' context, as for the
+        # dibasic set; DB/gap simply never match, so they cost nothing
+        w = cfg.pi_weights(term)
+        d = dict(zip(cfg.pi_names, w))
+        assert d[f"{term}T_cleavage_context"] == max(w)
+        assert abs(w.mean() - 1.0) < 1e-6 or cfg.pi_weight_none != 1.0
+
+    # the per-index head really narrows to 6 columns, and the trunk still builds
+    assert build_model(c).get_layer("per_index_cat").output.shape[1:] == (c.seq_len, 6)
+    # one terminus per Config, since mask_matrix_cat is not term-aware
+    assert c.term_order == ("C",) and n.term_order == ("N",)
+    try:
+        Config.pepend("X")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Config.pepend must reject a term that is not N or C")
 
 
 def check_position_ramp():
@@ -630,6 +691,7 @@ CHECKS = [
     check_position_ramp,
     check_include_none,
     check_none_in_loss,
+    check_pepend_config,
     check_oversampler,
     check_resample_reaches_training,
     check_noise_only_on_continuous_channels,
