@@ -117,7 +117,10 @@ dt[, motif := lf_pepend_motif_vec(seqs[[.BY$accession]], term, anchor,
 dt[, motif4 := fifelse(motif == "G + dibasic", "dibasic", motif)]
 
 if ("motif_candidate" %in% names(dt)) {
-  chk <- dt[!is.na(motif_candidate)]
+  ## fread gives an absent character field "" rather than NA, and the candidate
+  ## table only has a motif for the knowns -- test for both or the comparison
+  ## silently covers every candidate row instead of the 86 that carry one
+  chk <- dt[!is.na(motif_candidate) & nzchar(motif_candidate)]
   if (nrow(chk) && !all(chk$motif == chk$motif_candidate))
     stop(sprintf("computed motif disagrees with the candidate table on %d of %d rows",
                  sum(chk$motif != chk$motif_candidate), nrow(chk)), call. = FALSE)
