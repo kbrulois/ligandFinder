@@ -122,6 +122,53 @@ lf_pepend_motif <- function(seq, term, anchor, n_prot) {
   }, character(1))
 }
 
+#' Vectorised twin of [lf_pepend_motif()], for many anchors in ONE precursor
+#'
+#' [lf_pepend_motif()] is a `vapply` with up to four `grepl` calls per window,
+#' which is the wrong shape for the exhaustive scan's ~3M anchors. This takes one
+#' sequence and every anchor in it at once, and must agree with the scalar
+#' version exactly -- `10_9d_pepend_scan_csv.R` asserts that on a sample, and on
+#' every window where the candidate table already carries a `motif`.
+#'
+#' The precedence is the scalar version's, which is load-bearing: `terminus`
+#' wins over everything, then `dibasic`, then `G + dibasic`, then `monobasic`.
+#' A residue past the end of the sequence is `NA`, and `%in%` folds that to FALSE
+#' the way the scalar version's short `substring` fails to match.
+#'
+#' @param seq one precursor sequence.
+#' @param term `"N"` or `"C"`.
+#' @param anchor integer vector of anchors, in precursor coordinates.
+#' @param n_prot first residue of the mature precursor.
+#' @return character vector, one label per `anchor`.
+#' @export
+lf_pepend_motif_vec <- function(seq, term, anchor, n_prot) {
+  a  <- as.integer(anchor)
+  aa <- strsplit(seq, "", fixed = TRUE)[[1]]
+  L  <- length(aa)
+  ## Out of range must become NA, never a negative or zero subscript: an N anchor
+  ## at a mature start of 1 asks for residues 0 and -1, and R refuses to mix
+  ## those. NA then folds to FALSE through `%in%`, exactly as the scalar
+  ## version's too-short `substring` fails to match.
+  at <- function(i) {
+    i[i < 1L | i > L] <- NA_integer_
+    aa[i]
+  }
+  basic <- function(i) at(i) %in% c("K", "R")
+  if (identical(as.character(term), "C")) {
+    b1 <- basic(a + 1L); b2 <- basic(a + 2L); b3 <- basic(a + 3L)
+    g1 <- at(a + 1L) %in% "G"
+    ifelse(a >= L,            "terminus",
+    ifelse(b1 & b2,           "dibasic",
+    ifelse(g1 & b2 & b3,      "G + dibasic",
+    ifelse(b1 | (g1 & b2),    "monobasic", "other"))))
+  } else {
+    b_1 <- basic(a - 1L); b_2 <- basic(a - 2L)
+    ifelse(a <= as.integer(n_prot), "terminus",
+    ifelse(b_2 & b_1,               "dibasic",
+    ifelse(b_1,                     "monobasic", "other")))
+  }
+}
+
 #' Slice one window out of a precursor's residue-feature matrix
 #'
 #' @param feat `(nchar(seq), n_channels)` matrix from 9.2's channel recipe,

@@ -40,6 +40,7 @@ term     <- toupper(.opt("--term", "C"))
 scan_p   <- path.expand(.opt("--scan", sprintf("~/AF2_analysis/lf_pepend_scan_%s.rds", term)))
 cand_csv <- path.expand(.opt("--candidates", sprintf("~/AF2_analysis/lf_pepend_all_windows_%s_eec.csv", term)))
 eec_p    <- path.expand(.opt("--eec", "~/AF2_analysis/eec_gene_classification.tsv"))
+cache_p  <- path.expand(.opt("--feature-cache", "~/AF2_analysis/lf_pepend_residue_cache.rds"))
 pa_p     <- path.expand(.opt("--proteinatlas", "~/AF2_analysis/hpa_cache/proteinatlas.tsv"))
 out_csv  <- path.expand(.opt("--out", sprintf("~/AF2_analysis/lf_pepend_scan_windows_%s.csv", term)))
 min_sc   <- as.numeric(.opt("--min-score", "-1"))
@@ -48,6 +49,7 @@ no_gz    <- .flag("--no-gzip")
 .this <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
 ROOT  <- if (length(.this)) normalizePath(file.path(dirname(.this[[1]]), "..", "..")) else getwd()
 source(file.path(ROOT, "R", "eec_expression.R"))
+source(file.path(ROOT, "R", "pepend_windows.R"))
 
 ## ---- 1. the scan --------------------------------------------------------------
 s  <- readRDS(scan_p)
@@ -81,6 +83,9 @@ if (file.exists(cand_csv)) {
             grep("^db_(mean|n_seeds|sd)", names(fread(cand_csv, nrows = 0)), value = TRUE))
   cand <- fread(cand_csv, select = keep)
   setnames(cand, "peps", "candidate_peps")
+  ## the candidate table's `motif` exists for the knowns only; keep it aside to
+  ## check the one computed for every window below against it
+  setnames(cand, "motif", "motif_candidate")
   before <- nrow(dt)
   dt <- merge(dt, cand, by = c("accession", "anchor"), all.x = TRUE, sort = FALSE)
   stopifnot(nrow(dt) == before)
@@ -93,6 +98,43 @@ if (file.exists(cand_csv)) {
   message("\n", cand_csv, " not found -- candidate/db columns omitted")
   dt[, is_candidate := FALSE]
 }
+
+## ---- 2b. motif: what sits just outside EVERY anchor ---------------------------
+## The candidate table carries `motif` for the knowns only. Here it is computed
+## for every scanned position, with lf_pepend_motif_vec -- validated against the
+## scalar lf_pepend_motif over 157,833 anchors per terminus, and re-checked below
+## against whatever the candidate table already had.
+fc    <- readRDS(cache_p)
+seqs  <- setNames(fc$prec$seq,    fc$prec$accession)
+nprot <- setNames(fc$prec$n_prot, fc$prec$accession)
+miss  <- setdiff(unique(dt$accession), names(seqs))
+if (length(miss)) stop(length(miss), " accession(s) absent from ", cache_p, call. = FALSE)
+
+dt[, motif := lf_pepend_motif_vec(seqs[[.BY$accession]], term, anchor,
+                                  nprot[[.BY$accession]]), by = accession]
+## the four classes asked for: the amidation variant is a dibasic pair with a
+## glycine in front, so it folds into `dibasic` rather than becoming a fifth
+dt[, motif4 := fifelse(motif == "G + dibasic", "dibasic", motif)]
+
+if ("motif_candidate" %in% names(dt)) {
+  chk <- dt[!is.na(motif_candidate)]
+  if (nrow(chk) && !all(chk$motif == chk$motif_candidate))
+    stop(sprintf("computed motif disagrees with the candidate table on %d of %d rows",
+                 sum(chk$motif != chk$motif_candidate), nrow(chk)), call. = FALSE)
+  message(sprintf("\nmotif: computed for all %s rows; matches the candidate table on the %s that had one",
+                  format(nrow(dt), big.mark = ","), format(nrow(chk), big.mark = ",")))
+  dt[, motif_candidate := NULL]
+}
+message("  motif (5 classes, as elsewhere in the codebase):")
+print(as.data.frame(dt[, .(rows = .N, peaks = sum(is_peak),
+                           median_score = round(median(score), 4),
+                           max_score = round(max(score), 4)), by = motif][order(-rows)]),
+      row.names = FALSE)
+message("  motif4 (the four asked for):")
+print(as.data.frame(dt[, .(rows = .N, pct = round(100 * .N / nrow(dt), 2),
+                           peaks = sum(is_peak),
+                           median_score = round(median(score), 4)), by = motif4][order(-rows)]),
+      row.names = FALSE)
 
 ## ---- 3. EEC expression: per GENE, so it lands on every row ---------------------
 ## Join on GENE SYMBOL -- the HPA table has no UniProt accession or entry name,
@@ -108,7 +150,7 @@ front <- intersect(c("gene", "accession", "anchor", "score", "sd",
                      grep("^score_top", names(dt), value = TRUE),
                      grep("^n_seeds_gt_", names(dt), value = TRUE),
                      "rank_all", "is_peak", "rank_peak",
-                     "is_candidate", "candidate_peps", "win_type", "motif",
+                     "motif4", "motif", "is_candidate", "candidate_peps", "win_type",
                      "known", "pep_name"), names(dt))
 setcolorder(dt, c(front, setdiff(names(dt), front)))
 setorderv(dt, "rank_all")
