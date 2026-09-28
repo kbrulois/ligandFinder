@@ -49,6 +49,9 @@ out_p    <- path.expand(.opt("--out", sprintf("~/AF2_analysis/lf_pepend_scan_%s.
 chunk_w  <- as.integer(.opt("--chunk-windows", "200000"))
 batch_sz <- as.integer(.opt("--batch-size", "4096"))
 top_n    <- as.integer(.opt("--top", "50"))
+## per-window seed summaries, in the same currency as the candidate tables
+thresh   <- as.numeric(.opt("--thresh", "0.2"))
+top_k    <- as.integer(.opt("--top-k", "5"))
 
 stopifnot(term %in% c("N", "C"))
 
@@ -108,18 +111,28 @@ if (file.exists(scan_npz) && !.flag("--refresh-scan")) {
   mod$scan$scan_to_npz(residues_npz = res_npz, out_dir = out_dir, term = term,
                        out_npz = scan_npz, n_seeds = as.integer(n_have),
                        chunk_windows = as.integer(chunk_w),
-                       batch_size = as.integer(batch_sz), verbose = TRUE)
+                       batch_size = as.integer(batch_sz),
+                       top_k = as.integer(top_k),
+                       thresholds = reticulate::tuple(as.numeric(thresh)),
+                       verbose = TRUE)
 }
 
 z <- np$load(scan_npz)
+keys <- as.character(reticulate::py_to_r(z$files))
 got <- list(score = as.numeric(reticulate::py_to_r(z[["score"]])),
             sd    = as.numeric(reticulate::py_to_r(z[["sd"]])),
             prot  = as.integer(reticulate::py_to_r(z[["prot_idx"]])),
             anchor = as.integer(reticulate::py_to_r(z[["anchor"]])))
+## the per-window order statistic and threshold counts, whatever they were named
+extra <- setdiff(grep("^score_top|^n_seeds_gt_", keys, value = TRUE), names(got))
+for (k in extra) got[[k]] <- as.numeric(reticulate::py_to_r(z[[k]]))
+if (length(extra)) message("  carrying: ", paste(extra, collapse = ", "))
 
-scan_t <- tibble(accession = prec$accession[got$prot + 1L],
-                 gene = prec$gene[got$prot + 1L],
-                 anchor = got$anchor, score = got$score, sd = got$sd) %>%
+scan_t <- bind_cols(
+  tibble(accession = prec$accession[got$prot + 1L],
+         gene = prec$gene[got$prot + 1L],
+         anchor = got$anchor, score = got$score, sd = got$sd),
+  as_tibble(got[extra])) %>%
   mutate(rank_all = as.integer(rank(-score, ties.method = "first")))
 
 message(sprintf("\nscored %s windows over %d precursors",

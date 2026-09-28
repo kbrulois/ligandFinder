@@ -367,6 +367,26 @@ def check_scan_windows():
     assert np.allclose(two["score"], (s1 + s2) / 2, atol=1e-6)
     assert np.allclose(two["sd"], np.stack([s1, s2]).std(0, ddof=1), atol=1e-5)
 
+    # --- the order statistics and threshold counts, against the members --------
+    # These cannot come from a running sum/sum-of-squares, so they are the part
+    # most likely to go wrong silently; check them against the members directly.
+    S = np.stack([s1, s2])
+    k1 = scan(res, [model, m2], cfg, "C", chunk_windows=10_000, batch_size=64,
+              top_k=1, thresholds=(0.2, 0.5))
+    # top-1 of 2 members is the per-window MAX, not the better member overall
+    assert np.allclose(k1["score_top1"], S.max(0), atol=1e-6)
+    # top_k clamped to n_members degenerates to the plain mean
+    assert np.allclose(two["score_top2"], S.mean(0), atol=1e-6)
+    assert np.allclose(a["score_top1"], a["score"], atol=1e-6)     # one member
+    for t in (0.2, 0.5):
+        assert np.array_equal(k1[f"n_seeds_gt_{t:g}"], (S > t).sum(0)), t
+        assert k1[f"n_seeds_gt_{t:g}"].max() <= 2
+    # and chunking must not move them either
+    k1b = scan(res, [model, m2], cfg, "C", chunk_windows=1, batch_size=64,
+               top_k=1, thresholds=(0.2,))
+    assert np.allclose(k1b["score_top1"], k1["score_top1"], atol=1e-6)
+    assert np.array_equal(k1b["n_seeds_gt_0.2"], k1["n_seeds_gt_0.2"])
+
 
 def check_position_ramp():
     import keras

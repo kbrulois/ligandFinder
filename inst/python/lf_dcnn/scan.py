@@ -133,13 +133,23 @@ def load_member_models(out_dir, cfg: Config, term: str, n_seeds: int | None = No
 
 def scan(res: Residues, models, cfg: Config, term: str,
          chunk_windows: int = 200_000, batch_size: int = 4096,
+         top_k: int = 5, thresholds=(0.2,),
          progress=None) -> dict[str, np.ndarray]:
     """Score every mature position of every precursor.
 
     Windows are built once per chunk and scored by every member in turn, so the
-    feature slicing is paid once rather than ``n_seeds`` times. Returns the
-    ensemble mean and the across-member sd (``ddof=1``, matching
-    :attr:`Result.pred_sd`), plus the precursor index and anchor of each row.
+    feature slicing is paid once rather than ``n_seeds`` times.
+
+    Per window it returns the ensemble mean, the across-member sd (``ddof=1``,
+    matching :attr:`Result.pred_sd`), the mean of the ``top_k`` members that
+    score THAT window highest, and how many members exceed each of
+    ``thresholds`` -- the same summaries the candidate-window tables carry, so
+    the exhaustive scan and those tables can be read in one currency.
+
+    The per-member scores of a chunk are held together (``n_members`` x chunk)
+    to compute the order statistics, which a running sum/sum-of-squares cannot
+    give. That is ~16 MB at the default chunk, against 20 x 3M floats for the
+    whole scan.
     """
     if term not in PEPEND_ANCHOR:
         raise ValueError(f"term must be one of {sorted(PEPEND_ANCHOR)}, got {term!r}")
@@ -147,13 +157,17 @@ def scan(res: Residues, models, cfg: Config, term: str,
     anchor_pos = PEPEND_ANCHOR[term]
     pad_col = cfg.channel_names.index("padding")
     n_mem = len(models)
+    kk = max(1, min(int(top_k), n_mem))
+    ths = [float(t) for t in thresholds]
 
     counts = res.n_anchors
     total = int(counts.sum())
     starts = np.concatenate(([0], np.cumsum(counts)))[:-1]
 
-    score_sum = np.zeros(total, dtype="float64")
-    score_sq = np.zeros(total, dtype="float64")
+    mean_all = np.zeros(total, dtype="float32")
+    sd_all = np.zeros(total, dtype="float32")
+    top_all = np.zeros(total, dtype="float32")
+    n_gt = {t: np.zeros(total, dtype="int16") for t in ths}
     prot_idx = np.zeros(total, dtype="int32")
     anchor_of = np.zeros(total, dtype="int32")
     for i in range(len(res)):
@@ -179,34 +193,39 @@ def scan(res: Residues, models, cfg: Config, term: str,
             x[at:at + a.size] = build_windows(res, p, a, cfg, anchor_pos, pad_col)
             at += int(a.size)
 
-        for m in models:
-            g = np.asarray(m.predict(x, verbose=0, batch_size=batch_size)["global"],
-                           dtype="float64").reshape(-1)
-            score_sum[lo_row:hi_row] += g
-            score_sq[lo_row:hi_row] += g * g
+        G = np.empty((n_mem, k), dtype="float64")
+        for mi, m in enumerate(models):
+            G[mi] = np.asarray(m.predict(x, verbose=0, batch_size=batch_size)["global"],
+                               dtype="float64").reshape(-1)
+        mean_all[lo_row:hi_row] = G.mean(0)
+        if n_mem > 1:
+            sd_all[lo_row:hi_row] = G.std(0, ddof=1)
+        # the kk highest members of each window, not the kk best members overall
+        top_all[lo_row:hi_row] = (G if kk == n_mem else
+                                  np.partition(G, n_mem - kk, axis=0)[n_mem - kk:]).mean(0)
+        for t in ths:
+            n_gt[t][lo_row:hi_row] = (G > t).sum(0)
 
         done += k
         if progress is not None:
             progress(done, total)
         i = j
 
-    mean = score_sum / n_mem
-    if n_mem > 1:
-        var = (score_sq - n_mem * mean * mean) / (n_mem - 1)
-        sd = np.sqrt(np.maximum(var, 0.0))
-    else:
-        sd = np.zeros_like(mean)
-    return {
-        "score": mean.astype("float32"),
-        "sd": sd.astype("float32"),
+    out = {
+        "score": mean_all,
+        "sd": sd_all,
+        f"score_top{kk}": top_all,
         "prot_idx": prot_idx,
         "anchor": anchor_of,
     }
+    for t in ths:
+        out[f"n_seeds_gt_{t:g}"] = n_gt[t]
+    return out
 
 
 def scan_to_npz(residues_npz, out_dir, term, out_npz, n_seeds=None,
                 calibrator=None, chunk_windows=200_000, batch_size=4096,
-                verbose=True) -> dict[str, np.ndarray]:
+                top_k=5, thresholds=(0.2,), verbose=True) -> dict[str, np.ndarray]:
     """Read residues, rebuild the ensemble, scan, write ``out_npz``.
 
     ``out_dir`` is the isolated trainer's output directory; its sibling
@@ -230,7 +249,8 @@ def scan_to_npz(residues_npz, out_dir, term, out_npz, n_seeds=None,
             print(f"  {done:,}/{total:,} ({100 * done / total:.1f}%)", flush=True)
 
     got = scan(res, models, cfg, term, chunk_windows=chunk_windows,
-               batch_size=batch_size, progress=prog if verbose else None)
+               batch_size=batch_size, top_k=top_k, thresholds=thresholds,
+               progress=prog if verbose else None)
     if calibrator is not None:
         got["score_cal"] = np.asarray(
             calibrator.predict(got["score"].astype("float64")), dtype="float32")
