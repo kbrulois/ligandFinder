@@ -38,7 +38,8 @@ scan_p <- path.expand(.opt("--scan", sprintf("~/AF2_analysis/lf_pepend_scan_%s.r
 cache_p<- path.expand(.opt("--feature-cache", "~/AF2_analysis/lf_pepend_residue_cache.rds"))
 run_p  <- path.expand(.opt("--run", sprintf("~/AF2_analysis/lf_pepend_run_%s.rds", term)))
 out_p  <- path.expand(.opt("--out", sprintf("~/AF2_analysis/lf_scan_peaks_nn_input_%s.rds", gene)))
-top_n  <- as.integer(.opt("--top", "0"))   # 0 = local maxima only
+top_n  <- as.integer(.opt("--top", "0"))        # 0 = local maxima only
+max_pk <- as.integer(.opt("--max-peaks", "0"))  # cap the peaks, best first
 
 .this <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
 ROOT  <- if (length(.this)) normalizePath(file.path(dirname(.this[[1]]), "..", "..")) else getwd()
@@ -59,7 +60,17 @@ pk <- sc$peaks %>% filter(accession == p$accession) %>% arrange(desc(score))
 if (top_n > 0) {
   pk <- sc$scan %>% filter(accession == p$accession) %>% slice_max(score, n = top_n)
   message("using the top ", nrow(pk), " windows by score")
-} else message("using the ", nrow(pk), " local maxima")
+} else {
+  message("using the ", nrow(pk), " local maxima")
+  ## a long precursor has many local maxima -- KNG1 has 24 -- and every window is
+  ## its own overlap layer, so cap them rather than stack two dozen rows
+  if (max_pk > 0 && nrow(pk) > max_pk) {
+    message("  capping to the top ", max_pk, " by score (dropped ",
+            nrow(pk) - max_pk, ", best dropped scores ",
+            sprintf("%.3f", pk$score[max_pk + 1L]), ")")
+    pk <- pk %>% slice_head(n = max_pk)
+  }
+}
 stopifnot(nrow(pk) > 0)
 kn <- sc$knowns %>% filter(accession == p$accession)
 
