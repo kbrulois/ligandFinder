@@ -33,6 +33,7 @@ cache_p<- path.expand(.opt("--feature-cache", "~/AF2_analysis/lf_pepend_residue_
 in_p   <- path.expand(.opt("--input", "~/AF2_analysis/lf_pepend_nn_input.rds"))
 ll_p   <- .opt("--ligand-list", "inst/extdata/ligand_list.rds")
 out_st <- path.expand(.opt("--out", sprintf("~/AF2_analysis/lf_scan_protein_%s_%s", gene, term)))
+no_png <- "--no-png" %in% .args
 
 .this <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
 ROOT  <- if (length(.this)) normalizePath(file.path(dirname(.this[[1]]), "..", "..")) else getwd()
@@ -65,11 +66,26 @@ peps <- tryCatch(readRDS(file.path(ROOT, ll_p)) %>% filter(accession == p$access
 ## isoforms of one peptide share a C terminus and differ by a residue or two at
 ## the N side, so drawn on one row they sit on top of each other -- give each
 ## its own row
+## KNG1 carries six bradykinin-family peptides that all end within a few residues
+## of each other, so a label centred on each span lands on top of the others.
+## Rows separate them vertically, and the label goes to the RIGHT of the span's
+## end, where a C-terminal peptide leaves the rest of the axis empty.
 peps <- peps %>% mutate(row = dplyr::row_number(),
-                        y = -0.085 - 0.075 * (row - 1),
-                        y_lab = y - 0.048)
-Y_LO <- if (nrow(peps)) min(peps$y_lab) - 0.045 else -0.06
+                        y = -0.085 - 0.085 * (row - 1))
+Y_LO <- if (nrow(peps)) min(peps$y) - 0.075 else -0.06
 if (nrow(kn)) { message("known ", term, " ends:"); print(as.data.frame(kn %>% select(pep_name, anchor, score, rank_all)), row.names = FALSE) }
+
+## A 97-residue precursor and a 644-residue one cannot share a canvas width or a
+## letter size. Width scales with length (SVG is vector, so wide is fine and
+## zooms); the letter is sized so its width fits one residue, and the letters are
+## dropped entirely when that would take them below legibility.
+PLOT_W  <- max(11, min(42, 3.5 + L * 0.034))
+per_res <- (PLOT_W - 2.2) * 25.4 / L                 # mm of canvas per residue
+SEQ_SZ  <- max(0.85, min(1.9, per_res / 0.62))
+SHOW_AA <- per_res / 0.62 >= 0.8
+BRK_W   <- if (L > 400) 50 else if (L > 200) 25 else 10
+message(sprintf("canvas %.1f in, %.2f mm/residue, letter %.2f%s, x breaks every %d",
+                PLOT_W, per_res, SEQ_SZ, if (SHOW_AA) "" else " (letters dropped)", BRK_W))
 
 ## ---- 2. the track ---------------------------------------------------------------
 ## The sequence strip annotates each residue by WHAT IT IS. An earlier version
@@ -95,8 +111,8 @@ p_track <- ggplot(tr, aes(anchor, score)) +
       aes(x = start, xend = end, y = y, yend = y),
       colour = LF_VIZ$ink2, linewidth = 1.6, lineend = "round") } +
   {if (nrow(peps)) geom_text(data = peps, inherit.aes = FALSE,
-      aes(x = (start + end) / 2, y = y_lab, label = final_name),
-      colour = LF_VIZ$ink2, size = 2.7) } +
+      aes(x = end + L * 0.006, y = y, label = final_name),
+      colour = LF_VIZ$ink2, size = 2.6, hjust = 0) } +
   geom_ribbon(aes(ymin = pmax(score - sd, 0), ymax = pmin(score + sd, 1)),
               fill = LF_VIZ$s1, alpha = 0.2) +
   geom_line(colour = LF_VIZ$s1, linewidth = 0.8) +
@@ -117,7 +133,7 @@ p_track <- ggplot(tr, aes(anchor, score)) +
       aes(anchor, score, label = sprintf("%s\nends here (%d)", pep_name, anchor)),
       colour = LF_VIZ$ink, size = 2.9, hjust = 1.08, vjust = 0.15, lineheight = 1.1) } +
   scale_x_continuous(limits = c(0.5, L + 0.5), expand = c(0, 0),
-                     breaks = scales::breaks_width(10)) +
+                     breaks = scales::breaks_width(BRK_W)) +
   scale_y_continuous(limits = c(Y_LO, 1.09), breaks = seq(0, 1, 0.25), expand = c(0, 0)) +
   labs(title = sprintf("%s (%s): every step-1 %s-terminus window", gene, p$accession, term),
        subtitle = sprintf(paste("One window per mature residue -- %d of them, each a 36-residue window",
@@ -144,14 +160,14 @@ message(sprintf("residues: %d in a dibasic pair, %d single K/R, %d amidation G",
 
 p_seq <- ggplot(seqd, aes(pos, 1)) +
   geom_tile(aes(fill = res), height = 0.42, colour = NA) +
-  geom_text(aes(label = aa), size = 1.85, colour = LF_VIZ$ink, vjust = 0.5) +
+  {if (SHOW_AA) geom_text(aes(label = aa), size = SEQ_SZ, colour = LF_VIZ$ink, vjust = 0.5) } +
   {if (length(amid)) annotate("point", x = amid, y = 0.735, shape = 17, size = 1.7,
                               colour = LF_VIZ$ink) } +
   {if (length(amid)) annotate("text", x = amid[1], y = 0.60, label = "amidation G",
                               size = 2.4, colour = LF_VIZ$ink2, hjust = 0.5) } +
   scale_fill_manual(values = RES, name = "residue", breaks = names(RES)) +
   scale_x_continuous(limits = c(0.5, L + 0.5), expand = c(0, 0),
-                     breaks = scales::breaks_width(10)) +
+                     breaks = scales::breaks_width(BRK_W)) +
   labs(x = "residue (the window's anchor = the peptide's last residue)", y = NULL) +
   lf_viz_theme() +
   theme(axis.text.y = element_blank(), panel.grid = element_blank(),
@@ -163,11 +179,12 @@ p_seq <- ggplot(seqd, aes(pos, 1)) +
 fig <- p_track / p_seq + plot_layout(heights = c(5, 1.5)) +
   plot_annotation(theme = theme(plot.background = element_rect(fill = LF_VIZ$surface, colour = NA)))
 
-ggsave(paste0(out_st, ".svg"), fig, width = 11, height = 5.9, device = svglite::svglite)
-ggsave(paste0(out_st, ".png"), fig, width = 11, height = 5.9, dpi = 200, bg = LF_VIZ$surface)
-message("\nplot -> ", out_st, ".{svg,png}")
+ggsave(paste0(out_st, ".svg"), fig, width = PLOT_W, height = 5.9, device = svglite::svglite)
+if (!no_png)
+  ggsave(paste0(out_st, ".png"), fig, width = PLOT_W, height = 5.9, dpi = 200, bg = LF_VIZ$surface)
+message("\nplot -> ", out_st, if (no_png) ".svg" else ".{svg,png}")
 
 message("\ntop 8 positions:")
 print(as.data.frame(tr %>% arrange(desc(score)) %>% head(8) %>%
         mutate(aa = aa[anchor], next3 = substring(p$seq, anchor + 1, anchor + 3)) %>%
-        select(anchor, aa, next3, motif, score, sd, rank_all)), row.names = FALSE, digits = 3)
+        select(anchor, aa, next3, anchor_ctx, score, sd, rank_all)), row.names = FALSE, digits = 3)
