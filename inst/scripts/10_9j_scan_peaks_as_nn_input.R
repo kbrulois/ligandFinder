@@ -117,11 +117,18 @@ nn <- tibble(
   target   = term,
   pep_id   = NA_character_,
   known    = as.integer(pk$anchor %in% kn$anchor),
+  ## `index` here is the PRECURSOR coordinate, not the window position 1..36:
+  ## make_detail_panel binds it as `index_og` and uses it as the x axis of the
+  ## click-through panel, which is the protein's residue axis. Numbering it
+  ## 1..36 drew every panel over the first 36 residues of the protein instead of
+  ## over its own window. (per_index keeps a window-local `index`, but that one
+  ## is dropped by the panel -- only meta_data's is load-bearing.)
   meta_data = lapply(seq_len(nrow(pk)), function(i) {
     r <- w_start[i] + 0:35
-    tibble(index = seq_len(36L),
-           AA = ifelse(r >= p$n_prot & r <= p$c_prot, aa[pmin(pmax(r, 1L), length(aa))], NA_character_),
-           residue = r)
+    tibble(index = r,
+           AA = ifelse(r >= p$n_prot & r <= p$c_prot,
+                       aa[pmin(pmax(r, 1L), length(aa))], NA_character_),
+           win_pos = seq_len(36L))
   }),
   pred_raw = rowMeans(g),
   pred_sd  = apply(g, 1, sd),
