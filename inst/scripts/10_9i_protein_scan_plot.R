@@ -51,10 +51,9 @@ message(sprintf("%s (%s): %d residues, mature %d-%d", gene, p$accession, L, p$n_
 
 sc <- readRDS(scan_p)
 tr <- sc$scan %>% filter(accession == p$accession) %>% arrange(anchor) %>%
-  mutate(motif = lf_pepend_motif_vec(p$seq, term, anchor, p$n_prot),
-         motif3 = case_when(motif %in% c("dibasic", "G + dibasic") ~ "dibasic",
-                            motif == "monobasic" ~ "monobasic",
-                            TRUE ~ "other / terminus"))
+  ## a property of the WINDOW, not of the residue: what sits just outside the
+  ## anchor. It belongs on the anchor axis, never as a colour on the residue.
+  mutate(anchor_ctx = lf_pepend_motif_vec(p$seq, term, anchor, p$n_prot))
 pk <- sc$peaks %>% filter(accession == p$accession) %>% arrange(anchor)
 message(sprintf("scanned %d positions; %d local peaks; score %.3f-%.3f",
                 nrow(tr), nrow(pk), min(tr$score), max(tr$score)))
@@ -73,7 +72,13 @@ Y_LO <- if (nrow(peps)) min(peps$y_lab) - 0.045 else -0.06
 if (nrow(kn)) { message("known ", term, " ends:"); print(as.data.frame(kn %>% select(pep_name, anchor, score, rank_all)), row.names = FALSE) }
 
 ## ---- 2. the track ---------------------------------------------------------------
-MOT <- c(dibasic = LF_VIZ$s2, monobasic = LF_VIZ$s3, `other / terminus` = LF_VIZ$grid)
+## The sequence strip annotates each residue by WHAT IT IS. An earlier version
+## coloured each anchor by what FOLLOWED it, which painted Y64, G65, T60, Q62 and
+## friends as "dibasic"/"monobasic" -- 1 of 11 coloured positions was actually a
+## K or an R. That is a window property wearing a residue's clothes.
+RES <- c(`dibasic pair (KK/KR/RK/RR)` = LF_VIZ$s2,
+         `single K / R`               = LF_VIZ$s3,
+         other                        = LF_VIZ$grid)
 sig <- tibble(xmin = 0.5, xmax = p$n_prot - 0.5)          # signal peptide: not scanned
 
 top <- tr %>% slice_max(score, n = 1)
@@ -97,6 +102,11 @@ p_track <- ggplot(tr, aes(anchor, score)) +
   geom_line(colour = LF_VIZ$s1, linewidth = 0.8) +
   geom_point(data = pk, colour = LF_VIZ$s1, fill = LF_VIZ$surface,
              shape = 21, size = 2.2, stroke = 0.8) +
+  ## anchors whose following context could actually be cleaved -- the window
+  ## property, marked on the anchor axis instead of on the residues
+  geom_point(data = tr %>% filter(anchor_ctx %in% c("dibasic", "G + dibasic")),
+             aes(anchor, -0.03), shape = 25, size = 1.6, colour = LF_VIZ$s2,
+             fill = LF_VIZ$s2) +
   ## the known end: a rule at the anchor, labelled
   {if (nrow(lab_kn)) geom_segment(data = lab_kn, inherit.aes = FALSE,
       aes(x = anchor, xend = anchor, y = 0, yend = score),
@@ -112,21 +122,34 @@ p_track <- ggplot(tr, aes(anchor, score)) +
   labs(title = sprintf("%s (%s): every step-1 %s-terminus window", gene, p$accession, term),
        subtitle = sprintf(paste("One window per mature residue -- %d of them, each a 36-residue window",
                                 "anchored on that residue.\nLine is the 20-seed mean, band +/- 1 sd.",
-                                "Circles mark local maxima (+/-5)."), nrow(tr)),
+                                "Circles mark local maxima (+/-5); triangles mark anchors",
+                                "followed by a dibasic site."), nrow(tr)),
        x = NULL, y = "window score") +
   lf_viz_theme() +
   theme(axis.text.x = element_blank(), panel.grid.major.x = element_blank())
 
 ## ---- 3. sequence + motif strip ---------------------------------------------------
-seqd <- tibble(pos = seq_len(L), aa = aa) %>%
-  left_join(tr %>% select(pos = anchor, motif3), by = "pos") %>%
-  mutate(motif3 = ifelse(is.na(motif3), "other / terminus", motif3))
+is_basic <- aa %in% c("K", "R")
+in_pair  <- rep(FALSE, L)
+pr <- which(head(is_basic, -1) & tail(is_basic, -1))     # i and i+1 both basic
+in_pair[c(pr, pr + 1L)] <- TRUE
+## the amidation glycine: a G immediately before such a pair. It is a modifier of
+## the site, not a site type, so it gets a mark rather than a fourth hue.
+amid <- pr[pr > 1L & aa[pmax(pr - 1L, 1L)] == "G"] - 1L
+seqd <- tibble(pos = seq_len(L), aa = aa,
+               res = ifelse(in_pair, names(RES)[1],
+                     ifelse(is_basic, names(RES)[2], names(RES)[3])))
+message(sprintf("residues: %d in a dibasic pair, %d single K/R, %d amidation G",
+                sum(in_pair), sum(is_basic & !in_pair), length(amid)))
 
 p_seq <- ggplot(seqd, aes(pos, 1)) +
-  geom_tile(aes(fill = motif3), height = 0.42, colour = NA) +
+  geom_tile(aes(fill = res), height = 0.42, colour = NA) +
   geom_text(aes(label = aa), size = 1.85, colour = LF_VIZ$ink, vjust = 0.5) +
-  scale_fill_manual(values = MOT, name = "what follows the anchor",
-                    breaks = names(MOT)) +
+  {if (length(amid)) annotate("point", x = amid, y = 0.735, shape = 17, size = 1.7,
+                              colour = LF_VIZ$ink) } +
+  {if (length(amid)) annotate("text", x = amid[1], y = 0.60, label = "amidation G",
+                              size = 2.4, colour = LF_VIZ$ink2, hjust = 0.5) } +
+  scale_fill_manual(values = RES, name = "residue", breaks = names(RES)) +
   scale_x_continuous(limits = c(0.5, L + 0.5), expand = c(0, 0),
                      breaks = scales::breaks_width(10)) +
   labs(x = "residue (the window's anchor = the peptide's last residue)", y = NULL) +
