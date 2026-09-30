@@ -98,8 +98,11 @@ class Config:
     #: :func:`lf_dcnn.model.build_model`.
     trunk: str = "unet"
     #: where the global (window-score) head reads from.
-    #: ``"attn"``       the masked class softmax -> attention -> pool (default,
-    #:                  and the only option for the flat trunk)
+    #: ``"attn"``       the masked class softmax -> attention -> pool (default)
+    #: ``"gap"``        the same masked class softmax, average-pooled with NO
+    #:                  attention. The ablation of ``attn``: identical input to
+    #:                  the embedding, identical width, the pooling alone
+    #:                  differs, and it carries no parameters of its own.
     #: ``"bottleneck"`` the U-Net bottleneck -> pool. Gives the score direct
     #:                  access to the pooled whole-window representation instead
     #:                  of forcing it through the 7-channel class softmax.
@@ -261,10 +264,13 @@ class Config:
                 raise ValueError(f"class_names must contain {name!r}")
         if self.trunk not in ("flat", "unet"):
             raise ValueError(f"trunk must be 'flat' or 'unet', got {self.trunk!r}")
-        if self.global_head not in ("attn", "bottleneck", "both"):
+        if self.global_head not in ("attn", "gap", "bottleneck", "both"):
             raise ValueError(
-                f"global_head must be 'attn', 'bottleneck' or 'both', got {self.global_head!r}")
-        if self.global_head != "attn" and self.trunk != "unet":
+                "global_head must be 'attn', 'gap', 'bottleneck' or 'both', got "
+                f"{self.global_head!r}")
+        ## `gap` reads the class softmax like `attn` does, so it needs no
+        ## bottleneck and works on either trunk
+        if self.global_head in ("bottleneck", "both") and self.trunk != "unet":
             raise ValueError(
                 f"global_head={self.global_head!r} needs a bottleneck; it is only "
                 "available with trunk='unet'")

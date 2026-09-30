@@ -189,7 +189,7 @@ def build_model(cfg: Config | None = None, clear_session: bool = True) -> keras.
     per_index_cat = layers.Activation("softmax", name="per_index_cat")(per_index_logits)
 
     pooled = []
-    if cfg.global_head in ("attn", "both"):
+    if cfg.global_head in ("attn", "gap", "both"):
         # Masked softmax over the [6 real + none] logits, so the ranking head's
         # class view includes background/none but not padding.
         masked_sum = ClassPositionMask(cfg.mask_matrix_cat, name="class_position_mask")(
@@ -197,15 +197,21 @@ def build_model(cfg: Config | None = None, clear_session: bool = True) -> keras.
         )
         masked_sum = layers.Activation("softmax", name="masked_sum")(masked_sum)
 
-        # A SMALL multi-head attention over the masked class softmax, then pool.
-        # A plain GAP of the softmax washed out all positional signal and tanked
-        # global AUC; the attention restores it at ~1/6 the cost of the old
-        # 4-head/key_dim-32 version.
-        attn = layers.MultiHeadAttention(
-            num_heads=cfg.attention_heads, key_dim=cfg.attention_key_dim, name="attn"
-        )(masked_sum, masked_sum)
-        a = layers.LayerNormalization(name="attn_norm")(attn)
-        pooled.append(layers.GlobalAveragePooling1D(name="gap")(a))
+        if cfg.global_head == "gap":
+            # The ablation: pool the class softmax straight, no attention. On the
+            # DIBASIC-anchored set this washed out the positional signal and
+            # tanked global AUC, which is why `attn` is the default -- but that
+            # was a different training set and a different window geometry, so
+            # the arm is kept runnable rather than only remembered.
+            pooled.append(layers.GlobalAveragePooling1D(name="gap")(masked_sum))
+        else:
+            # A SMALL multi-head attention over the masked class softmax, then
+            # pool, at ~1/6 the cost of the old 4-head/key_dim-32 version.
+            attn = layers.MultiHeadAttention(
+                num_heads=cfg.attention_heads, key_dim=cfg.attention_key_dim, name="attn"
+            )(masked_sum, masked_sum)
+            a = layers.LayerNormalization(name="attn_norm")(attn)
+            pooled.append(layers.GlobalAveragePooling1D(name="gap")(a))
 
     if cfg.global_head in ("bottleneck", "both"):
         # Straight off the U-Net bottleneck: the score sees the pooled

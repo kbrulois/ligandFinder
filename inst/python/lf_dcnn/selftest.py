@@ -733,23 +733,35 @@ def check_global_head_variants():
     assert "gap_bneck" not in {l.name for l in flat.layers}
 
     seen = {}
-    for head, has_attn, embed_in in [
-        ("attn", True, 7),          # masked class softmax -> attention -> pool
-        ("bottleneck", False, 64),  # straight off the U-Net bottleneck
-        ("both", True, 71),         # concatenation of the two
+    for head, has_attn, has_bneck, embed_in in [
+        ("attn", True, False, 7),          # masked class softmax -> attention -> pool
+        ("gap", False, False, 7),          # the SAME softmax, pooled with no attention
+        ("bottleneck", False, True, 64),   # straight off the U-Net bottleneck
+        ("both", True, True, 71),          # concatenation of attn and bottleneck
     ]:
         cfg = Config(trunk="unet", global_head=head)
         m = build_model(cfg)
         names = {l.name for l in m.layers}
         assert ("attn" in names) is has_attn, (head, names & {"attn"})
-        assert ("gap_bneck" in names) is (head != "attn"), head
+        assert ("gap_bneck" in names) is has_bneck, head
         assert m.get_layer("embed").input.shape[-1] == embed_in, (head, m.get_layer("embed").input.shape)
         # the per-residue head is unaffected by where the score reads from
         out = m.predict(np.zeros((2, cfg.seq_len, cfg.n_channels), "float32"), verbose=0)
         assert out["per_index_cat"].shape == (2, cfg.seq_len, cfg.K_pi)
         assert out["global"].shape == (2, 1)
         seen[head] = m.count_params()
-    assert seen["both"] > seen["bottleneck"] > seen["attn"], seen
+    assert seen["both"] > seen["bottleneck"] > seen["attn"] > seen["gap"], seen
+    # `gap` differs from `attn` by the attention block alone: same pooled width,
+    # so the whole parameter gap is the MultiHeadAttention plus its LayerNorm.
+    # Derived from the layers, not hardcoded -- it scales with K_cat, so the
+    # peptide-end vocabulary (5 classes) and the dibasic one (7) differ.
+    m_attn = build_model(Config(trunk="unet", global_head="attn"))
+    extra = sum(l.count_params() for l in m_attn.layers if l.name in ("attn", "attn_norm"))
+    assert extra > 0
+    assert seen["attn"] - seen["gap"] == extra, (seen, extra)
+
+    # `gap` reads the class softmax, so unlike `bottleneck` it needs no U-Net
+    assert build_model(Config(trunk="flat", global_head="gap")).count_params() > 0
 
     # a bottleneck head needs a trunk that has one
     try:
