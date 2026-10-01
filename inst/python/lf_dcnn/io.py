@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 
 from .config import Config
-from .data import ARRAY_NAMES
+from .data import ALL_ARRAY_NAMES as ARRAY_NAMES
 
 ARRAYS_FILE = "arrays.npz"
 CONFIG_FILE = "config.json"

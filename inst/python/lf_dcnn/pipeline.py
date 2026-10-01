@@ -85,14 +85,18 @@ def train(
 
 
 def predict_all(model: keras.Model, x: np.ndarray, batch_size: int = 256) -> dict[str, np.ndarray]:
-    """Predict both heads.  Returns ``{"global": (n,), "per_index_cat": (n, seq, K_pi)}``."""
+    """Predict every head.  Returns ``{"global": (n,), "per_index_cat": (n, seq,
+    K_pi)}``, plus ``"ins_class": (n, K_ins)`` when that head is built."""
     out = model.predict(x, verbose=0, batch_size=batch_size)
     if not isinstance(out, dict):  # single-output fallback
         out = {"global": out}
-    return {
+    got = {
         "global": np.asarray(out["global"], dtype="float64").reshape(-1),
         "per_index_cat": np.asarray(out["per_index_cat"], dtype="float32"),
     }
+    if isinstance(out, dict) and "ins_class" in out:
+        got["ins_class"] = np.asarray(out["ins_class"], dtype="float32")
+    return got
 
 
 def embed(model: keras.Model, x: np.ndarray, batch_size: int = 256) -> np.ndarray:

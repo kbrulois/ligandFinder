@@ -26,7 +26,6 @@ def make_term(
     # positions then carry an all-zero label row, which the loss masks on
     i_none = pi_names.index("none") if "none" in pi_names else -1
     i_pocket = pi_names.index("pep_pocket")
-    i_db = pi_names.index("DB")
     lo, hi = cfg.mid_span
 
     x = rng.random((n, seq, C)).astype("float32")
@@ -38,7 +37,6 @@ def make_term(
     n_pad = rng.integers(0, 4, size=n)
     for i in range(n):
         cls[i, : n_pad[i]] = i_pad
-        cls[i, cfg.ct_span[0] - 1 : cfg.ct_span[0] + 1] = i_db
         if y_global[i, 0] == 1:
             a = rng.integers(lo - 1, hi - 6)
             cls[i, a : a + 5] = i_pocket

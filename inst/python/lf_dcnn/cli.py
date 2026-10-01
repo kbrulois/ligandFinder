@@ -51,7 +51,6 @@ def _apply(cfg: Config, args) -> Config:
     if args.seed is not None:
         over["seed"] = args.seed
     if getattr(args, "r_exact", False):
-        over["db_mask_both_termini"] = False
         over["resample_each_epoch"] = False
     for item in getattr(args, "set", []):
         field, _, raw = item.partition("=")

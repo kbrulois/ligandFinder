@@ -24,22 +24,26 @@ from .model import build_model
 from .synthetic import make_data
 
 #: parameter count of the default architecture (U-Net 16-32-64, no position ramp)
-EXPECTED_PARAMS = 21406
-#: the pre-port R model (flat trunk + position ramp), what Config.r_exact() builds
-FLAT_PARAMS = 2438
+EXPECTED_PARAMS = 21206
+#: the flat trunk with the position ramp. This is NO LONGER the pre-port R
+#: model: that one carried DB and gap, and with those classes gone its 2,438
+#: parameters cannot be rebuilt. The flat trunk remains as an architecture
+#: option, not as a reproduction.
+FLAT_PARAMS = 2254
 
 
 def check_class_indices():
     cfg = Config()
-    assert cfg.K_cat == 7 and cfg.K_pi == 8, (cfg.K_cat, cfg.K_pi)
+    assert cfg.K_cat == 5 and cfg.K_pi == 6, (cfg.K_cat, cfg.K_pi)
     assert cfg.pi_names == (
-        "CT_cleavage_context", "DB", "gap", "NT_cleavage_context",
+        "CT_cleavage_context", "NT_cleavage_context",
         "pep_other", "pep_pocket", "none", "padding",
     ), cfg.pi_names
+    assert "DB" not in cfg.pi_names and "gap" not in cfg.pi_names
     # `none` sits at K_cat - 1, `padding` last -- the loss masks none and keeps
     # padding, the metric masks both.
-    assert cfg.none_index == cfg.K_cat - 1 == 6
-    assert cfg.padding_index == cfg.K_pi - 1 == 7
+    assert cfg.none_index == cfg.K_cat - 1 == 4
+    assert cfg.padding_index == cfg.K_pi - 1 == 5
     assert cfg.pad_channel_id == cfg.n_channels - 1 == 25
     assert cfg.cont_channel_ids == (0, 1, 2, 3)
 
@@ -47,18 +51,26 @@ def check_class_indices():
 def check_position_masks():
     cfg = Config()
     m = cfg.mask_matrix_cat
-    assert m.shape == (36, 7), m.shape
+    assert m.shape == (36, 5), m.shape
     names = [cfg.class_names[c] for c in cfg.cat_cols]
     col = {n: m[:, i] for i, n in enumerate(names)}
     assert np.array_equal(np.flatnonzero(col["NT_cleavage_context"]), np.arange(0, 5))
     assert np.array_equal(np.flatnonzero(col["CT_cleavage_context"]), np.arange(30, 36))
-    assert np.array_equal(np.flatnonzero(col["gap"]), np.arange(5, 30))
+    assert np.array_equal(np.flatnonzero(col["pep_other"]), np.arange(5, 30))
+    assert np.array_equal(col["pep_other"], col["pep_pocket"])
     assert col["none"].sum() == 36
-    # documented intent: DB at both termini
-    assert col["DB"].sum() == 11, col["DB"].sum()
-    # r_exact reproduces the R script's overwrite: DB gets the CT mask alone
-    r_col = Config.r_exact().mask_matrix_cat[:, names.index("DB")]
-    assert np.array_equal(np.flatnonzero(r_col), np.arange(30, 36))
+
+    # a vocabulary that still carries DB or gap has no position rule for them,
+    # and must be refused rather than handed all-zero columns
+    stale = Config(class_names=("CT_cleavage_context", "DB", "gap",
+                                "NT_cleavage_context", "pep_other", "pep_pocket",
+                                "padding", "none"))
+    try:
+        stale.mask_matrix_cat
+    except ValueError as e:
+        assert "DB" in str(e) and "gap" in str(e), e
+    else:
+        raise AssertionError("accepted a vocabulary with no rule for DB/gap")
 
 
 def check_pi_weights():
@@ -69,9 +81,11 @@ def check_pi_weights():
         # with `none` at its nominal 1, the vector is normalised to mean 1
         assert abs(w.mean() - 1.0) < 1e-6, w.mean()
         d = dict(zip(masked.pi_names, w))
-        assert d[anchor] > d["DB"] > d["gap"]
-        assert abs(d[anchor] / d["gap"] - 3.0) < 1e-5
-        assert abs(d["DB"] / d["gap"] - 2.0) < 1e-5
+        # the anchor-side context is the only class still carrying a hand-set
+        # prior; DB's boost went with the class
+        other = [v for n, v in d.items() if n != anchor]
+        assert all(d[anchor] > o for o in other), d
+        assert abs(d[anchor] / d["pep_other"] - 3.0) < 1e-5
 
         # pi_weight_none is applied AFTER that normalisation, so below 1 the
         # mean is no longer 1 -- deliberately: what must hold is that every
@@ -163,8 +177,8 @@ def check_include_none():
     from .losses import PerIndexCatLoss, make_masked_cat_accuracy
 
     on, off = Config(none_in_loss=False), Config(include_none=False, none_in_loss=False)
-    assert (on.K_cat, on.K_pi, on.none_index) == (7, 8, 6)
-    assert (off.K_cat, off.K_pi, off.none_index) == (6, 7, -1)
+    assert (on.K_cat, on.K_pi, on.none_index) == (5, 6, 4)
+    assert (off.K_cat, off.K_pi, off.none_index) == (4, 5, -1)
     assert "none" not in off.pi_names and off.pi_names[-1] == "padding"
     assert off.mask_matrix_cat.shape == (off.seq_len, off.K_cat)
     # the first conv loses the dropped column's weights and nothing else moves
@@ -386,6 +400,76 @@ def check_scan_windows():
                top_k=1, thresholds=(0.2,))
     assert np.allclose(k1b["score_top1"], k1["score_top1"], atol=1e-6)
     assert np.array_equal(k1b["n_seeds_gt_0.2"], k1["n_seeds_gt_0.2"])
+
+
+def check_ins_head():
+    """The insertion head: 3-way softmax, negatives masked out of its loss.
+
+    The label exists only for KNOWN peptide ends. A negative is not a peptide
+    end, so it has no insertion class and carries an all-zero row -- the same
+    convention an unlabelled POSITION uses in the per-index loss. What must hold
+    is that such a row contributes nothing whatever the model predicts for it.
+    """
+    from .data import OversampledWindows, TermArrays
+    from .losses import MaskedWindowCatLoss, make_masked_window_accuracy
+    from .model import compile_model
+
+    off, on = Config.pepend("C"), Config.pepend("C", ins_head=True)
+    assert "ins_class" not in build_model(off).output          # off by default
+    m = build_model(on)
+    assert tuple(m.get_layer("ins_class").output.shape) == (None, on.K_ins)
+    assert on.K_ins == 3 and on.ins_class_names[0] == "inserting"
+    # it reads the same pooled embedding the window score does
+    assert m.get_layer("ins_class").input is m.get_layer("global").input
+
+    # --- the mask, against a hand-computed value -------------------------------
+    y = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 0], [0, 0, 0]], "float32")
+    p = np.array([[.7, .2, .1], [.2, .6, .2], [.9, .05, .05], [.1, .1, .8]], "float32")
+    L = MaskedWindowCatLoss()
+    got = float(ops.mean(L(y, p)))
+    want = float(-(np.log(.7) + np.log(.6)) / 2)      # mean over the LABELLED two
+    assert abs(got - want) < 1e-5, (got, want)
+    # whatever the masked rows predict must not move it
+    p2 = p.copy(); p2[2:] = [[.01, .01, .98]]
+    assert abs(float(ops.mean(L(y, p2))) - got) < 1e-6
+    # and the normalisation is over labelled rows, not the batch: doubling the
+    # masked rows leaves the loss alone
+    y3 = np.concatenate([y, np.zeros((4, 3), "float32")])
+    p3 = np.concatenate([p, np.full((4, 3), 1 / 3, "float32")])
+    assert abs(float(ops.mean(L(y3, p3))) - got) < 1e-5
+    assert abs(float(make_masked_window_accuracy()(y, p)) - 1.0) < 1e-6
+
+    # --- it reaches training, with the negatives masked ------------------------
+    ## synthetic.make_data builds the DIBASIC vocabulary (it indexes a "DB"
+    ## class), so the training leg runs on that one. The insertion head is
+    ## orthogonal to the per-index classes and does not care which vocabulary
+    ## sits beside it -- the pepend-specific parts are checked above.
+    cfg = Config(ins_head=True, epochs=2, patience=5, start_from_epoch=1, seed=3)
+    d = make_data(cfg, seed=5)["C"]["train"]
+    n = d["x"].shape[0]
+    gl = np.asarray(d["y_global"]).reshape(-1)
+    ins = np.zeros((n, cfg.K_ins), "float32")
+    rows = np.flatnonzero(gl == 1)                      # only the positives labelled
+    ins[rows, np.arange(len(rows)) % cfg.K_ins] = 1.0
+    arrays = TermArrays.from_mapping({**d, "y_ins": ins}).validate(cfg)
+    assert arrays.y_ins is not None and "ins_class" in arrays.targets()
+    ds = OversampledWindows(arrays, cfg, rng=np.random.default_rng(0))
+    xb, yb = ds[0]
+    assert "ins_class" in yb and yb["ins_class"].shape[1:] == (cfg.K_ins,)
+    # every unlabelled row in the batch is all-zero, i.e. masked
+    lab = yb["ins_class"].sum(-1)
+    assert np.all((lab == 0) | (lab == 1)), np.unique(lab)
+    assert np.allclose(lab, yb["global"].reshape(-1))   # labelled exactly where positive
+    h = compile_model(build_model(cfg), cfg, "C").fit(ds, epochs=2, verbose=0)
+    assert "ins_class_masked_window_accuracy" in h.history, list(h.history)
+
+    # a missing y_ins with the head on is an error, not a silent skip
+    try:
+        TermArrays.from_mapping(d).validate(cfg)
+    except ValueError as e:
+        assert "y_ins" in str(e)
+    else:
+        raise AssertionError("accepted ins_head with no y_ins")
 
 
 def check_position_ramp():
@@ -734,10 +818,10 @@ def check_global_head_variants():
 
     seen = {}
     for head, has_attn, has_bneck, embed_in in [
-        ("attn", True, False, 7),          # masked class softmax -> attention -> pool
-        ("gap", False, False, 7),          # the SAME softmax, pooled with no attention
+        ("attn", True, False, 5),          # masked class softmax -> attention -> pool
+        ("gap", False, False, 5),          # the SAME softmax, pooled with no attention
         ("bottleneck", False, True, 64),   # straight off the U-Net bottleneck
-        ("both", True, True, 71),          # concatenation of attn and bottleneck
+        ("both", True, True, 69),          # concatenation of attn and bottleneck
     ]:
         cfg = Config(trunk="unet", global_head=head)
         m = build_model(cfg)
@@ -798,6 +882,7 @@ CHECKS = [
     check_none_in_loss,
     check_pepend_config,
     check_scan_windows,
+    check_ins_head,
     check_oversampler,
     check_resample_reaches_training,
     check_noise_only_on_continuous_channels,

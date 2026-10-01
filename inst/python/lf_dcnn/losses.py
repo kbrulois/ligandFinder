@@ -128,6 +128,56 @@ class PerIndexCatLoss(keras.losses.Loss):
         }
 
 
+@keras.saving.register_keras_serializable(package="lf_dcnn")
+class MaskedWindowCatLoss(keras.losses.Loss):
+    """Categorical CE over a per-WINDOW softmax, skipping unlabelled windows.
+
+    A window with no label carries an all-zero row -- the same convention the
+    per-index loss uses for an unlabelled POSITION (``none_index = -1``). For the
+    insertion head that is every negative: a candidate or random anchor is not a
+    peptide end, so it has no insertion class to predict and must not be scored
+    on one.
+
+    The mask is per SAMPLE, not per position, so unlike
+    :class:`PerIndexCatLoss` it cannot be normalised inside a sample. Scaling by
+    ``batch / sum(keep)`` makes Keras's mean over the batch come out as the mean
+    over LABELLED windows; without it the head's loss would be silently shrunk
+    by whatever fraction of the batch happened to be labelled, which the
+    oversampler changes whenever its ratio does.
+    """
+
+    def __init__(self, gamma=0.0, name="masked_window_cat_loss", **kw):
+        super().__init__(name=name, **kw)
+        self.gamma = float(gamma)
+
+    def call(self, y_true, y_pred):
+        y_true = ops.cast(y_true, y_pred.dtype)
+        keep = ops.sum(y_true, axis=-1)                     # 1 labelled, 0 not
+        p = ops.clip(y_pred, EPS, 1.0 - EPS)
+        ce = -ops.sum(y_true * ops.power(1.0 - p, self.gamma) * ops.log(p), axis=-1)
+        n = ops.cast(ops.shape(keep)[0], y_pred.dtype)
+        return ce * keep * n / (ops.sum(keep) + EPS)
+
+    def get_config(self):
+        return {**super().get_config(), "gamma": self.gamma}
+
+
+def make_masked_window_accuracy():
+    """Argmax accuracy over the labelled windows only."""
+
+    def masked_window_accuracy(y_true, y_pred):
+        y_true = ops.cast(y_true, y_pred.dtype)
+        keep = ops.sum(y_true, axis=-1)
+        correct = ops.cast(
+            ops.equal(ops.argmax(y_pred, axis=-1), ops.argmax(y_true, axis=-1)),
+            y_pred.dtype,
+        )
+        return ops.sum(correct * keep) / (ops.sum(keep) + EPS)
+
+    masked_window_accuracy.__name__ = "masked_window_accuracy"
+    return masked_window_accuracy
+
+
 def make_masked_cat_accuracy(none_index: int, padding_index: int):
     """Argmax accuracy over positions that are neither ``padding`` nor ``none``.
 

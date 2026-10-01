@@ -65,7 +65,10 @@ lf_dcnn_utf8_streams <- function() {
 #' Build an lf_dcnn Config
 #'
 #' @param channel_names input channel order, i.e. `all_params3`.
-#' @param r_exact reproduce 10_1dcnn_new6.R exactly, including its DB-mask
+#' @param r_exact the flat trunk with the position ramp and `none` masked. NO
+#'   LONGER reproduces 10_1dcnn_new6.R: that model carried the DB and gap
+#'   classes, which were removed with the dibasic-anchored set. Kept as an
+#'   architecture preset only. Formerly reproduced its DB-mask
 #'   overwrite and its non-functional per-epoch resample. See the package README.
 #' @param ... any other Config field (`epochs`, `seed`, `noise_frac`, ...).
 #' @export
@@ -327,13 +330,15 @@ lf_dcnn_run_isolated <- function(data, cfg, n_seeds, verbose, work, refresh = FA
 #' @keywords internal
 lf_dcnn_align_terms <- function(cfg, terms) {
   if (identical(as.character(cfg$term_order), as.character(terms))) return(cfg)
-  ## The peptide-end preset's position masks are term-SPECIFIC (the anchor sits
-  ## at 28 for C, 8 for N) while `mask_matrix_cat` is not, so widening its
-  ## term_order here would score one terminus through the other's mask and
-  ## silently zero true classes. Config.pepend() pins term_order for exactly
-  ## this reason; refuse to undo it rather than train something wrong.
-  if (!"DB" %in% as.character(cfg$class_names) && length(terms) > 1L)
-    stop("a peptide-end Config is per-terminus (term_order ",
+  ## Position masks are term-SPECIFIC -- the peptide's own terminal residue sits
+  ## at window position 28 for C and 8 for N -- while `mask_matrix_cat` is not,
+  ## so widening term_order here would score one terminus through the other's
+  ## mask and silently zero true classes. This used to be gated on the
+  ## vocabulary carrying no "DB", i.e. on the config being a peptide-end one;
+  ## with the dibasic-anchored set retired there is no other kind, so the rule
+  ## is unconditional.
+  if (length(terms) > 1L)
+    stop("a Config is per-terminus (term_order ",
          paste(as.character(cfg$term_order), collapse = "/"), "), but ",
          length(terms), " termini were given: ", paste(terms, collapse = ", "),
          ". Train one terminus at a time, with its own Config.", call. = FALSE)

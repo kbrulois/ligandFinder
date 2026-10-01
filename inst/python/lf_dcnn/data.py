@@ -32,6 +32,11 @@ from .config import Config
 
 SPLITS = ("train", "val", "all")
 ARRAY_NAMES = ("x", "y_global", "y_per_index_cat")
+#: carried only when Config.ins_head is on; an UNLABELLED window (a negative --
+#: not a peptide end, so no insertion class) is an all-zero row, which is what
+#: MaskedWindowCatLoss masks on.
+OPTIONAL_ARRAY_NAMES = ("y_ins",)
+ALL_ARRAY_NAMES = ARRAY_NAMES + OPTIONAL_ARRAY_NAMES
 
 
 @dataclass
@@ -41,10 +46,15 @@ class TermArrays:
     x: np.ndarray
     y_global: np.ndarray
     y_per_index_cat: np.ndarray
+    y_ins: "np.ndarray | None" = None
 
     @classmethod
     def from_mapping(cls, m: Mapping[str, np.ndarray]) -> "TermArrays":
-        return cls(**{k: np.asarray(m[k], dtype="float32") for k in ARRAY_NAMES})
+        got = {k: np.asarray(m[k], dtype="float32") for k in ARRAY_NAMES}
+        for k in OPTIONAL_ARRAY_NAMES:
+            if k in m and m[k] is not None:
+                got[k] = np.asarray(m[k], dtype="float32")
+        return cls(**got)
 
     def __len__(self) -> int:
         return int(self.x.shape[0])
@@ -56,6 +66,13 @@ class TermArrays:
             "y_global": (n, 1),
             "y_per_index_cat": (n, cfg.seq_len, cfg.K_pi),
         }
+        if cfg.ins_head and self.y_ins is None:
+            raise ValueError(
+                f"{where}ins_head is on but y_ins is missing. A window-level "
+                "insertion label is required for every window; a negative "
+                "carries an all-zero row rather than being absent.")
+        if self.y_ins is not None:
+            want["y_ins"] = (n, cfg.K_ins)
         for name, shape in want.items():
             got = tuple(getattr(self, name).shape)
             if got != shape:
@@ -67,7 +84,10 @@ class TermArrays:
         return self
 
     def targets(self) -> dict[str, np.ndarray]:
-        return {"global": self.y_global, "per_index_cat": self.y_per_index_cat}
+        t = {"global": self.y_global, "per_index_cat": self.y_per_index_cat}
+        if self.y_ins is not None:
+            t["ins_class"] = self.y_ins
+        return t
 
 
 def as_term_data(
@@ -135,6 +155,8 @@ class OversampledWindows(keras.utils.PyDataset):
         """
         order = self.rng.permutation(self._x.shape[0])
         self._x, self._yg, self._yc = self._x[order], self._yg[order], self._yc[order]
+        if self._yi is not None:
+            self._yi = self._yi[order]
 
     def _resample(self) -> None:
         cfg = self.cfg
@@ -160,6 +182,10 @@ class OversampledWindows(keras.utils.PyDataset):
         self._x = x_sel.astype("float32")
         self._yg = self.arrays.y_global[idx].astype("float32")
         self._yc = self.arrays.y_per_index_cat[idx].astype("float32")
+        ## the insertion label rides the same index, so an oversampled negative
+        ## keeps its all-zero row and stays masked out of that head
+        self._yi = (None if self.arrays.y_ins is None
+                    else self.arrays.y_ins[idx].astype("float32"))
 
     # --- keras.utils.PyDataset ---------------------------------------------
     def __len__(self) -> int:
@@ -168,10 +194,10 @@ class OversampledWindows(keras.utils.PyDataset):
     def __getitem__(self, i):
         lo = i * self.cfg.batch_size
         hi = min(lo + self.cfg.batch_size, self._x.shape[0])
-        return (
-            self._x[lo:hi],
-            {"global": self._yg[lo:hi], "per_index_cat": self._yc[lo:hi]},
-        )
+        y = {"global": self._yg[lo:hi], "per_index_cat": self._yc[lo:hi]}
+        if self._yi is not None:
+            y["ins_class"] = self._yi[lo:hi]
+        return (self._x[lo:hi], y)
 
     def on_epoch_end(self) -> None:
         # Keras calls this after every epoch, so the next epoch trains on a

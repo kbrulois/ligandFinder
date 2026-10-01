@@ -16,12 +16,16 @@ from typing import Mapping
 import numpy as np
 
 # --- class vocabulary --------------------------------------------------------
-# Order is load-bearing: it is the order R's `classes` vector uses, and the
-# one-hot columns of `y_per_index_cat` are derived from it.
+# Order is load-bearing: the one-hot columns of `y_per_index_cat` are derived
+# from it.
+#
+# `DB` and `gap` were removed once the peptide-end set became the production
+# one. Both were defined RELATIVE TO THE DIBASIC SLOT that set does not anchor
+# on -- `DB` was the pair itself and `gap` the space between it and the peptide
+# -- so neither has a referent here: whatever precedes the peptide is NT
+# context and whatever follows it CT context, dibasic or not.
 CLASS_NAMES: tuple[str, ...] = (
     "CT_cleavage_context",
-    "DB",
-    "gap",
     "NT_cleavage_context",
     "pep_other",
     "pep_pocket",
@@ -43,6 +47,11 @@ PEPEND_CLASS_NAMES: tuple[str, ...] = (
     "padding",
     "none",
 )
+
+#: the insertion classes of the peptide-end head, in softmax column order.
+#: Decided by where the `pep_pocket` residues sit relative to the end a window
+#: scores -- see lf_pepend_insertion_class() in R/pepend_windows.R.
+PEPEND_INS_CLASSES: tuple[str, ...] = ("inserting", "loop", "non_inserting")
 
 #: where the peptide's own terminal residue sits in a peptide-end window,
 #: 1-based (``LF_PEPEND$anchor`` in R/pepend_windows.R).
@@ -71,10 +80,11 @@ DEFAULT_CONT_CHANNELS: tuple[str, ...] = (
 class Config:
     """Immutable model/training configuration.
 
-    Use :meth:`r_exact` for a configuration that reproduces
-    ``10_1dcnn_new6.R`` bit-for-bit, including the two places where that script
-    diverges from its own documented intent (see ``db_mask_both_termini`` and
-    ``resample_each_epoch``).
+    :meth:`r_exact` is the flat trunk with the position ramp. It NO LONGER
+    reproduces ``10_1dcnn_new6.R``: that model's per-index head carried the
+    ``DB`` and ``gap`` classes, and those went with the dibasic-anchored set, so
+    its 2,438 parameters cannot be rebuilt from this vocabulary. The preset
+    survives as an architecture choice, not as a reproduction.
     """
 
     # --- geometry ---
@@ -94,7 +104,7 @@ class Config:
     #: ``"unet"`` (default since 2026-09-18, see 10_5_benchmark_window_model.R)
     #: pools down and upsamples back, widening the channel count on the way
     #: down; ``"flat"`` keeps full 36-position resolution through the whole
-    #: trunk (the original R model; see :meth:`r_exact`).  See
+    #: trunk (see :meth:`r_exact`).  See
     #: :func:`lf_dcnn.model.build_model`.
     trunk: str = "unet"
     #: where the global (window-score) head reads from.
@@ -108,6 +118,17 @@ class Config:
     #:                  of forcing it through the 7-channel class softmax.
     #: ``"both"``       concatenate the two pooled vectors.
     global_head: str = "attn"
+    #: a second window-level head: a 3-way softmax over the insertion classes
+    #: (see :data:`PEPEND_INS_CLASSES`), reading the same pooled embedding the
+    #: window score does.
+    #:
+    #: Off by default, because the label exists only for the peptide-end set and
+    #: only for its KNOWN windows. A negative is not a peptide end, so it has no
+    #: insertion class at all -- it carries an all-zero row and is masked out of
+    #: this head's loss, exactly as an unlabelled position is masked out of the
+    #: per-index loss. See :class:`lf_dcnn.losses.MaskedWindowCatLoss`.
+    ins_head: bool = False
+    ins_class_names: tuple[str, ...] = PEPEND_INS_CLASSES
     #: give the per-index softmax an explicit ``none`` column.
     #:
     #: ``none`` is never a training target either way -- positions labelled
@@ -147,7 +168,7 @@ class Config:
     #: append the in-graph ``[0, 1]`` position ramp as an extra input channel
     #: (see :class:`lf_dcnn.model.PositionRamp`). Off by default since
     #: 2026-09-18: the trunk gets the raw channels only. The original R model
-    #: had it on (see :meth:`r_exact`).
+    #: had it on; :meth:`r_exact` still turns it on.
     position_ramp: bool = False
     conv_filters: tuple[int, ...] = (16, 8)
     conv_kernel: int = 3
@@ -165,6 +186,7 @@ class Config:
     # --- losses ---
     gamma: float = 2.0
     smoothness_weight: float = 0.01
+    loss_weight_ins: float = 1.0
     loss_weight_global: float = 0.05
     loss_weight_per_index: float = 1.0
     # The oversampler already rebalances each batch to ~1:3, so ALSO upweighting
@@ -173,7 +195,6 @@ class Config:
     bce_weight_1: float = 1.0
     # per-index class weights: everything 1, DB doubled, and the anchor-side
     # cleavage context tripled (CT for the C model, NT for the N model).
-    pi_weight_db: float = 2.0
     pi_weight_anchor: float = 3.0
     #: weight of the ``none`` class when ``none_in_loss``, relative to an
     #: ordinary (weight-1) class. The oversampler already brings the in-batch
@@ -213,12 +234,6 @@ class Config:
     cont_channel_names: tuple[str, ...] = DEFAULT_CONT_CHANNELS
 
     # --- documented-intent switches (see class docstring) ---
-    #: ``True`` (default, and what the design calls for) allows the DB class at
-    #: BOTH termini in the global head's position mask.  The R script assigns the
-    #: NT and CT masks to overlapping column sets in sequence, so its second
-    #: assignment silently overwrites DB with the CT mask alone; ``False``
-    #: reproduces that.
-    db_mask_both_termini: bool = True
     #: ``True`` (default, and what the design calls for) redraws the negative
     #: sample and the augmentation noise every epoch.  The R script's
     #: ``on_epoch_begin`` callback rebinds its ``train_ds`` variable, but ``fit``
@@ -294,14 +309,23 @@ class Config:
 
     @classmethod
     def r_exact(cls, **kwargs) -> "Config":
-        """Config reproducing the pre-port R model of ``10_1dcnn_new6.R``: the
-        flat trunk with the position ramp, plus its two quirks."""
+        """The flat trunk with the position ramp and ``none`` masked out.
+
+        It is named for the pre-port R model of ``10_1dcnn_new6.R`` and no
+        longer reproduces it: that model's per-index head had ``DB`` and
+        ``gap``, which were removed with the dibasic-anchored set. What is left
+        is the architecture, not the reproduction.
+        """
         kwargs.setdefault("trunk", "flat")
         kwargs.setdefault("position_ramp", True)
         kwargs.setdefault("none_in_loss", False)      # the R model masked `none`
-        kwargs.setdefault("db_mask_both_termini", False)
         kwargs.setdefault("resample_each_epoch", False)
         return cls(**kwargs)
+
+    @property
+    def K_ins(self) -> int:
+        """Width of the insertion-class softmax."""
+        return len(self.ins_class_names)
 
     @classmethod
     def pepend(cls, term: str, **kwargs) -> "Config":
@@ -430,20 +454,20 @@ class Config:
         by_class = {
             "NT_cleavage_context": self.nt_mask,
             "CT_cleavage_context": self.ct_mask,
-            "gap": self.mid_mask,
             "pep_other": self.mid_mask,
             "pep_pocket": self.mid_mask,
-            "DB": (
-                np.maximum(self.nt_mask, self.ct_mask)
-                if self.db_mask_both_termini
-                else self.ct_mask
-            ),
             "none": np.ones(self.seq_len, dtype="float32"),
         }
-        cols = [
-            by_class.get(self.class_names[c], np.zeros(self.seq_len, dtype="float32"))
-            for c in self.cat_cols
-        ]
+        ## A class with no rule used to fall back to an all-zero column, which
+        ## silently forbids it everywhere. Be loud instead: that is how a stale
+        ## vocabulary (one still carrying DB or gap) would otherwise get through.
+        missing = [self.class_names[c] for c in self.cat_cols if self.class_names[c] not in by_class]
+        if missing:
+            raise ValueError(
+                f"no position rule for class(es) {missing}. The vocabulary is "
+                f"{list(self.class_names)}; DB and gap were removed with the "
+                "dibasic-anchored set.")
+        cols = [by_class[self.class_names[c]] for c in self.cat_cols]
         return np.stack(cols, axis=1).astype("float32")
 
     # --- per-index class weights ---
@@ -467,8 +491,6 @@ class Config:
         names = self.pi_names
         anchor = "CT_cleavage_context" if term == "C" else "NT_cleavage_context"
         for i, n in enumerate(names):
-            if n == "DB":
-                w[i] = self.pi_weight_db
             if n == anchor:
                 w[i] = self.pi_weight_anchor
         w = (w / w.mean()).astype("float32")
