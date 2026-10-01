@@ -36,13 +36,18 @@ term    <- toupper(.opt("--term", "C"))
 in_path <- path.expand(.opt("--input", "~/AF2_analysis/lf_pepend_nn_input.rds"))
 n_seeds <- as.integer(.opt("--n-seeds", "20"))
 verbose <- as.integer(.opt("--verbose", "0"))
-out_p   <- path.expand(.opt("--out", sprintf("~/AF2_analysis/lf_pepend_run_%s.rds", term)))
+ins_head <- "--ins-head" %in% .args
+## a different head is a different model, so it gets its own cache rather than
+## relying on the fingerprint alone to tell them apart
+out_p   <- path.expand(.opt("--out", sprintf("~/AF2_analysis/lf_pepend_run_%s%s.rds",
+                                             term, if (ins_head) "_ins" else "")))
 
 stopifnot(term %in% c("N", "C"))
 
 .this <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
 ROOT  <- if (length(.this)) normalizePath(file.path(dirname(.this[[1]]), "..", "..")) else getwd()
 source(file.path(ROOT, "R", "dcnn_bridge.R"))
+source(file.path(ROOT, "R", "pepend_windows.R"))   # lf_pepend_insertion_class
 
 message("reading ", in_path, " ...")
 x <- readRDS(in_path)
@@ -63,13 +68,16 @@ message(sprintf("terminus %s: train %d, val %d, all %d windows; %d channels",
 ## i.e. the INSTALLED copy, which silently shadows this checkout -- pin it to the
 ## tree this script came from, or Config.pepend() is simply not there.
 run <- lf_dcnn_run(nn_input, channel_names = x$all_params3,
-                   pepend = term, n_seeds = n_seeds, isolated = TRUE,
+                   pepend = term, ins_head = ins_head,
+                   n_seeds = n_seeds, isolated = TRUE,
                    verbose = verbose, cache = out_p, refresh = .flag("--refresh"),
                    keep_arrays = FALSE, path = file.path(ROOT, "inst", "python"))
 
 cfg <- run$config
-message(sprintf("\ntrained: %s, %d params, %d seeds", cfg$trunk,
-                as.integer(run$params[[term]]), n_seeds))
+message(sprintf("\ntrained: %s, %d params, %d seeds%s", cfg$trunk,
+                as.integer(run$params[[term]]), n_seeds,
+                if (ins_head) sprintf(" | insertion head: %s",
+                                      paste(as.character(cfg$ins_class_names), collapse = "/")) else ""))
 message(sprintf("masks: nt %s  mid %s  ct %s",
                 paste(as.integer(cfg$nt_span), collapse = "-"),
                 paste(as.integer(cfg$mid_span), collapse = "-"),

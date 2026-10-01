@@ -463,6 +463,31 @@ def check_ins_head():
     h = compile_model(build_model(cfg), cfg, "C").fit(ds, epochs=2, verbose=0)
     assert "ins_class_masked_window_accuracy" in h.history, list(h.history)
 
+    # --- the head's predictions must reach disk and come back ------------------
+    import tempfile
+    from .io import load_members, save_member
+    from .pipeline import run_member
+
+    data = make_data(cfg, seed=7)
+    for t in data:
+        for sp in data[t]:
+            g = np.asarray(data[t][sp]["y_global"]).reshape(-1)
+            yi = np.zeros((g.size, cfg.K_ins), "float32")
+            r = np.flatnonzero(g == 1)
+            yi[r, np.arange(len(r)) % cfg.K_ins] = 1.0
+            data[t][sp]["y_ins"] = yi
+    mem = run_member(data, cfg, k=0, n_seeds=1, verbose=0, keep_models=False)
+    assert mem.ins_all and mem.ins_val, "the head ran but its predictions were dropped"
+    for t in mem.terms:
+        assert mem.ins_all[t].shape[1] == cfg.K_ins
+        assert np.allclose(mem.ins_all[t].sum(-1), 1.0, atol=1e-5)   # a softmax
+    with tempfile.TemporaryDirectory() as dd:
+        save_member(dd, mem)
+        back = load_members(dd, term_order=cfg.term_order)[0]
+    for t in mem.terms:
+        assert np.allclose(back.ins_all[t], mem.ins_all[t], atol=1e-6)
+        assert np.allclose(back.ins_val[t], mem.ins_val[t], atol=1e-6)
+
     # a missing y_ins with the head on is an error, not a silent skip
     try:
         TermArrays.from_mapping(d).validate(cfg)

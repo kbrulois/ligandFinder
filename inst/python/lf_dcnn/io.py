@@ -181,6 +181,10 @@ def save_member(path, member) -> list[Path]:
                 _key(term, "val", "x"): np.asarray(member.val[term], dtype="float64"),
                 _key(term, "val_labels", "x"): np.asarray(member.val_labels[term], dtype="float64"),
                 _key(term, "emb", "x"): np.asarray(member.emb[term], dtype="float64"),
+                **({_key(term, "ins", "x"): np.asarray(member.ins_all[term], dtype="float32")}
+                   if term in member.ins_all else {}),
+                **({_key(term, "ins_val", "x"): np.asarray(member.ins_val[term], dtype="float32")}
+                   if term in member.ins_val else {}),
             },
         )
         with open(js, "w") as fh:
@@ -223,6 +227,11 @@ def load_members(path, term_order=None) -> list:
                 m.val[t] = z[_key(t, "val", "x")]
                 m.val_labels[t] = z[_key(t, "val_labels", "x")]
                 m.emb[t] = z[_key(t, "emb", "x")]
+                ## present only for a member trained with the insertion head
+                if _key(t, "ins", "x") in z.files:
+                    m.ins_all[t] = z[_key(t, "ins", "x")]
+                if _key(t, "ins_val", "x") in z.files:
+                    m.ins_val[t] = z[_key(t, "ins_val", "x")]
                 m.histories[t] = meta["histories"][t]
                 m.params[t] = int(meta["params"][t])
 

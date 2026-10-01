@@ -124,9 +124,43 @@ lf_dcnn_split_arrays <- function(input, bk) {
   y_per_index_cat[, , seq_len(bk$K_cat)] <- onehot[, , bk$cat_cols, drop = FALSE]
   y_per_index_cat[, , bk$K_pi]           <- onehot[, , bk$padding_col]
 
-  list(x               = x,
-       y_global        = matrix(as.numeric(input[["known"]]), ncol = 1),
-       y_per_index_cat = y_per_index_cat)
+  out <- list(x               = x,
+              y_global        = matrix(as.numeric(input[["known"]]), ncol = 1),
+              y_per_index_cat = y_per_index_cat)
+
+  ## y_ins: the insertion class of each KNOWN peptide end, one-hot.
+  ##
+  ## A negative is not a peptide end, so it has no insertion class and gets an
+  ## ALL-ZERO row -- that is the mask MaskedWindowCatLoss keys on, the same
+  ## convention an unlabelled POSITION uses in the per-index loss. It is not a
+  ## fourth class and it is not a missing value.
+  ##
+  ## Derived here rather than stored in nn_input, so the rule lives in exactly
+  ## one place (lf_pepend_insertion_class) and the 88 MB rds need not be rebuilt
+  ## when the tolerance changes.
+  if (!is.null(bk$ins_names)) {
+    if (!exists("lf_pepend_insertion_class"))
+      stop("ins_head needs lf_pepend_insertion_class(); source R/pepend_windows.R ",
+           "alongside this file", call. = FALSE)
+    if (!all(c("known_idx", "term", "len", "known") %in% names(input)))
+      stop("ins_head needs known_idx/term/len/known on the split; this looks ",
+           "like a contract from before the peptide-end set", call. = FALSE)
+    y_ins <- matrix(0, n, length(bk$ins_names))
+    kn <- which(as.numeric(input[["known"]]) == 1)
+    if (length(kn)) {
+      cls <- lf_pepend_insertion_class(input[["known_idx"]][kn],
+                                       input[["term"]][kn], input[["len"]][kn])
+      j <- match(cls, bk$ins_names)
+      if (anyNA(j))
+        stop("insertion class(es) not in the Config vocabulary: ",
+             paste(unique(cls[is.na(j)]), collapse = ", "), call. = FALSE)
+      y_ins[cbind(kn, j)] <- 1
+    }
+    ## every labelled row sums to 1, every other to 0 -- the loss masks on this
+    stopifnot(all(rowSums(y_ins) == as.numeric(input[["known"]])))
+    out$y_ins <- y_ins
+  }
+  out
 }
 
 #' Read the class bookkeeping out of a Python Config
@@ -145,7 +179,9 @@ lf_dcnn_bookkeeping <- function(cfg) {
     ## Python indices are 0-based; R needs them 1-based
     cat_cols    = as.integer(cfg$cat_cols) + 1L,
     padding_col = as.integer(cfg$padding_col) + 1L,
-    pi_names    = as.character(cfg$pi_names)
+    pi_names    = as.character(cfg$pi_names),
+    ## NULL unless the insertion head is on
+    ins_names   = if (isTRUE(as.logical(cfg$ins_head))) as.character(cfg$ins_class_names) else NULL
   )
 }
 

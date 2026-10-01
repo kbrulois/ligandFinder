@@ -203,8 +203,14 @@ class Member:
     val: dict[str, np.ndarray]             # term -> (m,)          raw val scores
     val_labels: dict[str, np.ndarray]      # term -> (m,)
     emb: dict[str, np.ndarray]             # term -> (n, embed)    L2-normalised
+    #: insertion-class softmax, when that head is built. Empty otherwise, so a
+    #: member trained without it round-trips through disk unchanged.
     histories: dict[str, dict]
     params: dict[str, int]
+    #: insertion-class softmax, when that head is built. Empty otherwise, so a
+    #: member trained without it round-trips through disk unchanged.
+    ins_all: dict[str, np.ndarray] = field(default_factory=dict)   # (n, K_ins)
+    ins_val: dict[str, np.ndarray] = field(default_factory=dict)   # (m, K_ins)
     models: dict[str, keras.Model] = field(default_factory=dict, repr=False)
 
 
@@ -278,7 +284,13 @@ def run_member(
         p = predict_all(model, splits["all"].x)
         m.global_all[term] = p["global"]
         m.per_index_all[term] = p["per_index_cat"]
-        m.val[term] = predict_all(model, splits["val"].x)["global"]
+        pv = predict_all(model, splits["val"].x)
+        ## the head's PREDICTIONS, not just its training metric -- without these
+        ## a finished run can only be judged by the number keras printed
+        if "ins_class" in p:
+            m.ins_all[term] = p["ins_class"]
+            m.ins_val[term] = pv["ins_class"]
+        m.val[term] = pv["global"]
         m.val_labels[term] = splits["val"].y_global[:, 0].astype("float64")
         m.emb[term] = embed(model, splits["all"].x)
         m.histories[term] = history
