@@ -26,12 +26,24 @@ in_path <- path.expand(.opt("--in", "~/AF2_analysis/lf_pepend_nn_input.rds"))
 out_dir <- path.expand(.opt("--out-dir", "~/AF2_analysis"))
 stamp   <- format(Sys.time(), "%Y%m%d_%H%M%S")
 
+.this <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
+ROOT  <- if (length(.this)) normalizePath(file.path(dirname(.this[[1]]), "..", "..")) else getwd()
+source(file.path(ROOT, "R", "pepend_windows.R"))
+TOL <- as.integer(.opt("--tol", "2"))
+
 k <- readRDS(in_path)$knowns
+## where the pocket sits relative to THIS end -- the classification under review
+k <- dplyr::bind_cols(k, lf_pepend_insertion_class(k$known_idx, k$term, k$len,
+                                                   tol = TOL, detail = TRUE))
 
 class_cols <- c(NT_cleavage_context = "#D2AF81FF", pep_other = "#D5E4A2FF",
                 pep_pocket = "#197EC0FF", CT_cleavage_context = "#FED439FF",
                 padding = "grey85")
 motif_lv <- c("dibasic", "G + dibasic", "monobasic", "terminus", "other")
+cls_lv   <- c("inserting", "loop", "non_inserting")
+cls_lab  <- c(inserting = "INSERTING\npocket at\nthis end",
+              loop = "LOOP\npocket mid-peptide,\nnear neither end",
+              non_inserting = "NON-INSERTING\npocket at the far end,\nor not in the window")
 ins_short <- c("end insertion" = "end ins", "loop insertion" = "loop ins",
                "non-inserting end" = "non-ins")
 
@@ -39,11 +51,17 @@ k <- k %>%
   mutate(term  = factor(term, levels = c("N", "C"),
                         labels = c("N terminus: first residue at 8", "C terminus: last residue at 28")),
          motif = factor(motif, levels = motif_lv),
+         ins_class = factor(ins_class, levels = cls_lv),
          name  = coalesce(pep_name, sub("^[^_]+_", "", pep_id)),
-         row   = sprintf("%s %s %d-%d (%d) | %s%s",
-                         gene, name, pep_start, pep_end, len, ins_short[insertion],
+         ## the two distances the call turned on, so the rule can be audited
+         ## from the figure rather than taken on trust
+         row   = sprintf("%s %s %d-%d (%d) | %s | end %s far %s | %s%s",
+                         gene, name, pep_start, pep_end, len, motif,
+                         ifelse(is.na(gap_end), "-", gap_end),
+                         ifelse(is.na(gap_far), "-", gap_far),
+                         ins_short[insertion],
                          ifelse(grepl(";", pep_ids), " | shared", ""))) %>%
-  arrange(term, motif, len, gene) %>%
+  arrange(term, ins_class, len, gene) %>%
   group_by(term) %>% mutate(y = rev(row_number())) %>% ungroup()
 
 tiles <- k %>%
@@ -53,7 +71,7 @@ tiles <- k %>%
   mutate(known_idx = factor(known_idx, levels = names(class_cols)))
 
 ## motif group separators and labels
-grp <- k %>% group_by(term, motif) %>% summarise(lo = min(y), hi = max(y), n = n(), .groups = "drop")
+grp <- k %>% group_by(term, ins_class) %>% summarise(lo = min(y), hi = max(y), n = n(), .groups = "drop")
 cut <- tibble(term = factor(levels(k$term), levels = levels(k$term)), x = c(7.5, 28.5))
 
 split_cols <- c(train = "grey60", val = "#2166ac")
@@ -67,7 +85,7 @@ mk <- function(t) {
     geom_point(data = k %>% filter(term == t), aes(x = -0.2, y = y, colour = split), size = 1.1) +
     geom_vline(data = cut %>% filter(term == t), aes(xintercept = x), linewidth = 0.6) +
     geom_hline(yintercept = head(sort(g$hi), -1) + 0.5, linewidth = 0.4, colour = "grey30") +
-    annotate("text", x = 37, y = (g$lo + g$hi) / 2, label = sprintf("%s\n(%d)", g$motif, g$n),
+    annotate("text", x = 37, y = (g$lo + g$hi) / 2, label = sprintf("%s\n(%d)", cls_lab[as.character(g$ins_class)], g$n),
              hjust = 0, size = 2.6, lineheight = 0.9) +
     scale_fill_manual(values = class_cols, name = "label", drop = FALSE) +
     scale_colour_manual(values = split_cols, name = "split") +
@@ -92,7 +110,13 @@ p <- patchwork::wrap_plots(lapply(levels(k$term), mk), nrow = 1, guides = "colle
                       "pocket = in the receptor pocket in the docked model. Groups: what flanks this end.\n",
                       "Row: gene, peptide, range (length) | how this end sits in the docked model ",
                       "(end/loop insertion or non-inserting) | shared = end shared by several peptides, ",
-                      "labelled from the shortest.")) &
+                      "labelled from the shortest.\n",
+                      sprintf(paste0("GROUPS are the classification under review, from the pocket labels in THIS window ",
+                                     "(tolerance %d residues): INSERTING = a pocket residue within %d of this end; ",
+                                     "LOOP = pocket present but near neither end;\nNON-INSERTING = pocket within %d of ",
+                                     "the peptide's other terminus, or no pocket in the window. Row shows end/far = the ",
+                                     "two distances the call turned on. `inserting` wins when the pocket reaches both ends ",
+                                     "(a 4-residue peptide inserts at each)."), TOL, TOL, TOL))) &
   theme(legend.position = "bottom")
 
 n_rows <- max(table(k$term))

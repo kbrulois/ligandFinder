@@ -169,6 +169,68 @@ lf_pepend_motif_vec <- function(seq, term, anchor, n_prot) {
   }
 }
 
+#' How this end sits in the receptor pocket, from the window's own labels
+#'
+#' Three mutually exclusive classes, decided by where the `pep_pocket` residues
+#' sit relative to the END THIS WINDOW SCORES, not relative to the peptide as a
+#' whole. A window is one end, so a peptide contributes one row per terminus and
+#' the two can differ.
+#'
+#' \describe{
+#'   \item{`inserting`}{a pocket residue within `tol` of this end, measured into
+#'     the peptide. The anchor residue itself counts as distance 0.}
+#'   \item{`loop`}{pocket residues present but near NEITHER end -- they sit in
+#'     the middle of the peptide.}
+#'   \item{`non_inserting`}{no pocket residue in the window at all, or the
+#'     pocket is within `tol` of the peptide's OTHER terminus and not this one.}
+#' }
+#'
+#' `inserting` takes precedence. A peptide short enough for the pocket to reach
+#' both ends -- CCK-4 is 4 residues, [Leu]enkephalin 5 -- is inserting at each of
+#' them, and calling such an end "non-inserting" because the pocket also touches
+#' the far terminus would be plainly wrong.
+#'
+#' This is NOT the same as the `insertion` column 10_7 derives from the docked
+#' model's `ins_term`/`ins_ind`. That asks which terminus the model inserts and
+#' how deep; this asks where the pocket labels fall inside this 36-residue
+#' window. They disagree on 13 of 178 windows.
+#'
+#' @param known_idx list of 36-long label vectors, or one such vector.
+#' @param term `"N"` or `"C"`, vectorised with `known_idx`.
+#' @param len the peptide's length, to locate its far terminus.
+#' @param tol residues of slack at either end; 2 by default.
+#' @param detail TRUE returns a tibble with the two distances the call turned on
+#'   (`gap_end`, `gap_far`) beside the class, so a figure can show its own
+#'   working and the rule can be audited rather than trusted.
+#' @return character vector: `"inserting"`, `"loop"` or `"non_inserting"`; or a
+#'   tibble when `detail`.
+#' @export
+lf_pepend_insertion_class <- function(known_idx, term, len, tol = 2L, detail = FALSE) {
+  if (!is.list(known_idx)) known_idx <- list(known_idx)
+  term <- as.character(term); len <- as.integer(len)
+  gaps <- lapply(seq_along(known_idx), function(i) {
+    a  <- LF_PEPEND$anchor[[term[[i]]]]
+    pk <- which(known_idx[[i]] == "pep_pocket")
+    if (!length(pk)) return(c(gap_end = NA_real_, gap_far = NA_real_))
+    if (term[[i]] == "C") {
+      near <- pk[pk <= a]
+      c(gap_end = if (length(near)) a - max(near) else NA_real_,
+        gap_far = min(pk) - (a - len[[i]] + 1L))
+    } else {
+      near <- pk[pk >= a]
+      c(gap_end = if (length(near)) min(near) - a else NA_real_,
+        gap_far = (a + len[[i]] - 1L) - max(pk))
+    }
+  })
+  gE <- vapply(gaps, `[[`, 1, "gap_end"); gF <- vapply(gaps, `[[`, 1, "gap_far")
+  cls <- ifelse(!is.na(gE) & gE <= tol, "inserting",
+         ifelse(!is.na(gF) & gF <= tol, "non_inserting", "loop"))
+  ## no pocket in the window at all is non-inserting, not loop
+  cls[vapply(known_idx, function(v) !any(v == "pep_pocket"), logical(1))] <- "non_inserting"
+  if (detail) return(tibble::tibble(gap_end = gE, gap_far = gF, ins_class = cls))
+  cls
+}
+
 #' Slice one window out of a precursor's residue-feature matrix
 #'
 #' @param feat `(nchar(seq), n_channels)` matrix from 9.2's channel recipe,
