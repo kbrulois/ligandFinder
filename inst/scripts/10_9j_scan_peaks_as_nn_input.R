@@ -86,17 +86,43 @@ for (i in seq_len(nrow(pk)))
   X[i, , ] <- as.matrix(lf_pepend_slice(feat, w_start[i], p$n_prot, p$c_prot)[, fc$all_params3])
 xp <- np$ascontiguousarray(np$asarray(X, dtype = "float32"))
 
+## `predict_all` returns `ins_class` only when the model was built with the
+## masked 3-way insertion head (--run ..._ins.rds). Collect it when it is there
+## and leave the output shape untouched when it is not.
+ins_names <- tryCatch(as.character(cfg$ins_class_names), error = function(e) character(0))
 g <- matrix(0, nrow(pk), length(models))
 PI <- array(0, c(length(models), nrow(pk), 36L, length(pi_names)))
+INS <- NULL
 for (m in seq_along(models)) {
   out <- mod$pipeline$predict_all(models[[m]], xp)
   g[, m] <- as.numeric(reticulate::py_to_r(out[["global"]]))
   PI[m, , , ] <- reticulate::py_to_r(out[["per_index_cat"]])
+  if ("ins_class" %in% names(out)) {
+    if (is.null(INS)) INS <- array(0, c(length(models), nrow(pk), length(ins_names)))
+    INS[m, , ] <- reticulate::py_to_r(out[["ins_class"]])
+  }
 }
-## the scan's stored score is the same ensemble mean -- check, don't assume
-stopifnot(max(abs(rowMeans(g) - pk$score)) < 1e-5)
-message(sprintf("scored %d window(s) with %d members; max|mean - scan score| %.2g",
-                nrow(pk), length(models), max(abs(rowMeans(g) - pk$score))))
+if (!is.null(INS))
+  message(sprintf("insertion head present: %s", paste(ins_names, collapse = "/")))
+## The scan's stored score is the ensemble mean of the run the scan was BUILT
+## with. Re-scoring with that same run must reproduce it exactly -- assert that.
+## Re-scoring with a different run (e.g. the --ins-head arm) legitimately gives
+## different numbers, so report the deviation instead of dying on it: the global
+## head is perturbed by the extra loss, which is the thing worth seeing.
+.dev <- max(abs(rowMeans(g) - pk$score))
+.scan_run <- path.expand(sprintf("~/AF2_analysis/lf_pepend_run_%s.rds", term))
+if (identical(normalizePath(run_p, mustWork = FALSE),
+              normalizePath(.scan_run, mustWork = FALSE))) {
+  stopifnot(.dev < 1e-5)
+  message(sprintf("scored %d window(s) with %d members; max|mean - scan score| %.2g",
+                  nrow(pk), length(models), .dev))
+} else {
+  message(sprintf(paste0("scored %d window(s) with %d members from a run the scan ",
+                         "was NOT built with\n  (%s)\n  so the scores differ from ",
+                         "the stored scan: max|delta| %.3f, mean |delta| %.3f"),
+                  nrow(pk), length(models), basename(run_p), .dev,
+                  mean(abs(rowMeans(g) - pk$score))))
+}
 
 aa <- strsplit(p$seq, "")[[1]]
 pi_tbl <- function(m) as_tibble(setNames(as.data.frame(m), pi_names)) %>%
@@ -143,11 +169,35 @@ nn <- tibble(
   rank_cat = pk$rank_peak,
   end_type = NA_character_)
 
+## ---- 4. the insertion head, if this run has one -----------------------------
+## Ensemble mean over members, same reduction as pred_raw. The column names are
+## what make_protein_plot_win looks for; without them the page renders exactly
+## as it did before the head existed.
+if (!is.null(INS)) {
+  ins_mean <- apply(INS, c(2, 3), mean)                 # (n_windows, K_ins)
+  colnames(ins_mean) <- ins_names
+  am <- max.col(ins_mean, ties.method = "first")
+  ## how many members voted for the ensemble's call -- the same confidence
+  ## currency as pepend_n_seeds_gt_0.2 elsewhere
+  ## apply over the member margin returns (n_windows, n_members), so the
+  ## comparison against `am` recycles down each column and rowSums counts per
+  ## WINDOW -- colSums here would count per member and be length 20.
+  per_member <- apply(INS, 1, function(M) max.col(M, ties.method = "first"))
+  if (length(models) == 1L) per_member <- matrix(per_member, ncol = 1L)
+  nn$ins_class           <- ins_names[am]
+  nn$ins_p_inserting     <- ins_mean[, "inserting"]
+  nn$ins_p_loop          <- ins_mean[, "loop"]
+  nn$ins_p_non_inserting <- ins_mean[, "non_inserting"]
+  nn$ins_n_seeds_agree   <- rowSums(per_member == am)
+}
+
 saveRDS(nn, out_p)
 message("\nnn_input_comb -> ", out_p)
 print(as.data.frame(nn %>% mutate(anchor = pk$anchor) %>%
-        select(peps, anchor, known, pred, pred_sd, rank_peak = rank_cat, rank_all = rank)),
-      row.names = FALSE, digits = 4)
+        select(peps, anchor, known, pred, pred_sd, rank_peak = rank_cat, rank_all = rank,
+               any_of(c("ins_class", "ins_p_inserting", "ins_p_loop",
+                        "ins_p_non_inserting", "ins_n_seeds_agree")))),
+      row.names = FALSE, digits = 3)
 message("\nnow run:\n  LF_NN_INPUT_COMB=", out_p,
         " \\\n    LF_PLOT_DIR=~/AF2_analysis/scan_peak_plots \\\n",
         "    Rscript inst/scripts/plot_all.R ", gene)

@@ -29,6 +29,13 @@ suppressMessages({ library(dplyr) })
 term   <- toupper(.opt("--term", "C"))
 meta_p <- path.expand(.opt("--meta", "~/AF2_analysis/lf_scan_protein_meta.rds"))
 out_p  <- path.expand(.opt("--out", sprintf("~/AF2_analysis/lf_scan_gallery_%s.html", term)))
+## The page used to hardcode its own description, which silently lied the moment
+## the meta held a different kind of figure. Both are overridable.
+ttl_s  <- .opt("--title", sprintf("Step-1 scan tracks \u2014 %s terminus", term))
+sub_s  <- .opt("--subtitle", paste0(
+  "One window per mature residue, scored by the 20-seed peptide-end model. ",
+  "x is the window&rsquo;s <b>anchor</b>: the residue a cleavage there would leave as the ",
+  "peptide&rsquo;s last. Band is &plusmn;1 sd across seeds."))
 
 .this <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
 ROOT  <- if (length(.this)) normalizePath(file.path(dirname(.this[[1]]), "..", "..")) else getwd()
@@ -36,9 +43,23 @@ source(file.path(ROOT, "R", "viz_theme.R"))
 
 meta <- readRDS(meta_p)
 meta$group[is.na(meta$group)] <- "other"
-GRP <- c(train = "Training split", val = "Validation split", other = "Not in the training set")
+## The headings used to be a fixed train/val/other, and `filter(group == g)` over
+## that fixed set SILENTLY DROPPED every gene in any other group -- a meta with
+## 71 rows rendered 59, because 12 genes have knowns in both splits and are
+## grouped "train/val". Start from the known labels, then append whatever else
+## the meta actually contains, so a gene cannot vanish from the page.
+GRP <- c(train = "Training split", `train/val` = "Both splits",
+         val = "Validation split", other = "Not in the training set")
+.extra <- setdiff(unique(meta$group), names(GRP))
+if (length(.extra)) {
+  GRP <- c(GRP, stats::setNames(.extra, .extra))
+  message("note: group(s) not in the standard set, kept as their own heading: ",
+          paste(.extra, collapse = ", "))
+}
+GRP <- GRP[names(GRP) %in% unique(meta$group)]
 meta <- meta %>% mutate(group = factor(group, levels = names(GRP))) %>%
   arrange(group, desc(best_score))
+stopifnot(!any(is.na(meta$group)))
 message(nrow(meta), " figures: ", paste(sprintf("%s %d", names(GRP),
         as.integer(table(factor(meta$group, levels = names(GRP))))), collapse = ", "))
 
@@ -110,7 +131,7 @@ first <- meta$gene[1]
 html <- sprintf('<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Step-1 scan tracks (%s terminus)</title>
+<title>%s</title>
 <style>
  :root{--surface:%s;--ink:%s;--ink2:%s;--grid:%s;--s1:%s;--s2:%s}
  *{box-sizing:border-box}
@@ -148,10 +169,8 @@ html <- sprintf('<!doctype html>
 </style></head>
 <body data-fit="fit">
 <header>
- <h1>Step-1 scan tracks &mdash; %s terminus</h1>
- <div class="sub">One window per mature residue, scored by the 20-seed peptide-end model.
-  x is the window&rsquo;s <b>anchor</b>: the residue a cleavage there would leave as the
-  peptide&rsquo;s last. Band is &plusmn;1 sd across seeds. %d proteins.
+ <h1>%s</h1>
+ <div class="sub">%s %d proteins.
   <kbd>&larr;</kbd><kbd>&rarr;</kbd> to step between them.</div>
 </header>
 <nav>%s</nav>
@@ -196,8 +215,8 @@ html <- sprintf('<!doctype html>
  show(genes.indexOf(h) >= 0 ? h : %s);
 })();
 </script></body></html>',
-  term, LF_VIZ$surface, LF_VIZ$ink, LF_VIZ$ink2, LF_VIZ$grid, LF_VIZ$s1, LF_VIZ$s2,
-  term, nrow(meta),
+  ttl_s, LF_VIZ$surface, LF_VIZ$ink, LF_VIZ$ink2, LF_VIZ$grid, LF_VIZ$s1, LF_VIZ$s2,
+  ttl_s, sub_s, nrow(meta),
   paste(unlist(btns), collapse = "\n"),
   paste(unlist(metas), collapse = "\n"),
   paste(unlist(figs), collapse = "\n"),

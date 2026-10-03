@@ -123,8 +123,10 @@ got <- list(score = as.numeric(reticulate::py_to_r(z[["score"]])),
             sd    = as.numeric(reticulate::py_to_r(z[["sd"]])),
             prot  = as.integer(reticulate::py_to_r(z[["prot_idx"]])),
             anchor = as.integer(reticulate::py_to_r(z[["anchor"]])))
-## the per-window order statistic and threshold counts, whatever they were named
-extra <- setdiff(grep("^score_top|^n_seeds_gt_", keys, value = TRUE), names(got))
+## the per-window order statistic and threshold counts, whatever they were
+## named, plus the insertion head's per-class means/votes when the members carry
+## that head (ins_p_*, ins_votes_*, ins_sd_inserting -- absent otherwise)
+extra <- setdiff(grep("^score_top|^n_seeds_gt_|^ins_", keys, value = TRUE), names(got))
 for (k in extra) got[[k]] <- as.numeric(reticulate::py_to_r(z[[k]]))
 if (length(extra)) message("  carrying: ", paste(extra, collapse = ", "))
 

@@ -165,18 +165,72 @@ make_one <- function(gene) {
           legend.text = element_text(colour = LF_VIZ$ink2, size = 8),
           legend.title = element_text(colour = LF_VIZ$ink2, size = 8))
 
-  fig <- p_track / p_seq + plot_layout(heights = c(5, 1.5)) +
+  ## ---- the insertion head, when the scan was made with a model that has one --
+  ## All three classes on the ANCHOR axis, like the score above it: each is a
+  ## property of the whole window ("if the peptide ended here, where would the
+  ## pocket sit?"), not of the residue underneath. Absent columns -> no panel and
+  ## a figure identical to before. Suppress with options(lf.scan_show_ins = FALSE).
+  INS_COLS <- c(inserting = "ins_p_inserting", loop = "ins_p_loop",
+                non_inserting = "ins_p_non_inserting")
+  p_ins <- NULL
+  if (isTRUE(getOption("lf.scan_show_ins", TRUE)) && all(INS_COLS %in% names(tr))) {
+    ins_long <- tr %>%
+      select(anchor, all_of(unname(INS_COLS))) %>%
+      tidyr::pivot_longer(-anchor, names_to = "col", values_to = "p") %>%
+      mutate(ins_class = factor(names(INS_COLS)[match(col, INS_COLS)],
+                                levels = names(INS_COLS)))
+    ## same hues as the window strip in plot_proteins_win_new.R so the two
+    ## visuals read alike; the greys are darkened because a 0.7pt line needs more
+    ## contrast than a 1.6pt filled bar does.
+    INS_PAL <- c(inserting = "#1B7837", loop = "#E08214", non_inserting = "#878787")
+    p_ins <- ggplot(ins_long, aes(anchor, p, colour = ins_class)) +
+      {if (p$n_prot > 1) annotate("rect", xmin = 0.5, xmax = p$n_prot - 0.5,
+                                  ymin = -Inf, ymax = Inf, fill = LF_VIZ$grid, alpha = 0.55) } +
+      {if (nrow(lab_kn)) geom_vline(data = lab_kn, inherit.aes = FALSE,
+          aes(xintercept = anchor), colour = LF_VIZ$ink,
+          linewidth = 0.4, linetype = "22") } +
+      geom_line(linewidth = 0.7) +
+      scale_colour_manual(values = INS_PAL, name = "insertion head",
+                          breaks = names(INS_PAL)) +
+      scale_x_continuous(limits = c(0.5, L + 0.5), expand = c(0, 0),
+                         breaks = scales::breaks_width(BRK_W)) +
+      scale_y_continuous(limits = c(0, 1.02), breaks = seq(0, 1, 0.5), expand = c(0, 0)) +
+      labs(x = NULL, y = "insertion class") +
+      lf_viz_theme() +
+      theme(axis.text.x = element_blank(), panel.grid.major.x = element_blank(),
+            legend.position = "bottom", legend.justification = "left",
+            legend.key.size = unit(9, "pt"),
+            legend.text = element_text(colour = LF_VIZ$ink2, size = 8),
+            legend.title = element_text(colour = LF_VIZ$ink2, size = 8))
+  }
+
+  fig <- if (is.null(p_ins)) p_track / p_seq + plot_layout(heights = c(5, 1.5))
+         else p_track / p_ins / p_seq + plot_layout(heights = c(5, 2.2, 1.5))
+  fig <- fig +
     plot_annotation(theme = theme(plot.background =
                                     element_rect(fill = LF_VIZ$surface, colour = NA)))
+  FIG_H <- if (is.null(p_ins)) 5.9 else 7.9
   st <- file.path(out_dir, sprintf("lf_scan_protein_%s_%s", gene, term))
-  ggsave(paste0(st, ".svg"), fig, width = PLOT_W, height = 5.9, device = svglite::svglite)
-  if (!no_png) ggsave(paste0(st, ".png"), fig, width = PLOT_W, height = 5.9,
+  ggsave(paste0(st, ".svg"), fig, width = PLOT_W, height = FIG_H, device = svglite::svglite)
+  if (!no_png) ggsave(paste0(st, ".png"), fig, width = PLOT_W, height = FIG_H,
                       dpi = 200, bg = LF_VIZ$surface)
 
   best <- tr %>% slice_max(score, n = 1, with_ties = FALSE)
   message(sprintf("  %-8s %4d res, %4d scanned, %2d peaks, best %.3f @ %d, %d known, %.0f in",
                   gene, L, nrow(tr), nrow(pk), best$score, best$anchor, nrow(kn), PLOT_W))
-  tibble(gene = gene, accession = p$accession, group = group, term = term,
+  ## `group` drives the gallery's headings, and it used to be the --group flag
+  ## alone: unset meant NA, which 10_9k renders as "Not in the training set".
+  ## NPY was filed under that heading while its own caption two lines below read
+  ## "(train, G + dibasic)" -- the gallery contradicting itself on one screen,
+  ## because the heading came from a CLI default and the caption from the data.
+  ## Derive it from the knowns' actual splits whenever --group is not given.
+  grp <- if (!is.na(group)) group
+         else if (!nrow(kn)) "other"
+         else paste(sort(unique(as.character(kn$split))), collapse = "/")
+  if (is.na(group))
+    message("  group not given -- derived \"", grp, "\" from the known end(s)")
+
+  tibble(gene = gene, accession = p$accession, group = grp, term = term,
          n_res = L, n_scanned = nrow(tr), n_peaks = nrow(pk),
          best_score = best$score, best_anchor = best$anchor,
          width_in = PLOT_W, svg = paste0(st, ".svg"),

@@ -369,6 +369,49 @@ make_protein_plot_win <- function(old_nn_input,
                                      dplyr::coalesce(as.character(end_type), "NA"),
                                      target_short)
             )
+
+          ## ---- insertion head (optional) ------------------------------------
+          ## The peptide-end model's masked 3-way head: where the pocket sits in
+          ## the window relative to the peptide's own end. Purely additive -- an
+          ## input without these columns renders exactly as before. Join them on
+          ## `peps` upstream (see inst/scripts/10_9m_plot_protein_ins.R).
+          ## Suppress with options(lf.nn_show_ins = FALSE).
+          .ins_cols <- c("ins_class", "ins_p_inserting", "ins_p_loop",
+                         "ins_p_non_inserting")
+          .has_ins <- isTRUE(getOption("lf.nn_show_ins", TRUE)) &&
+            all(.ins_cols %in% names(nn_w)) && !all(is.na(nn_w$ins_class))
+          if (.has_ins) {
+            ## top probability is the argmax one; recompute rather than trust a
+            ## column that may not have travelled with the rest.
+            nn_w$ins_p_top <- pmax(nn_w$ins_p_inserting, nn_w$ins_p_loop,
+                                   nn_w$ins_p_non_inserting)
+            .seeds <- if ("ins_n_seeds_agree" %in% names(nn_w))
+              sprintf("  %s/20 seeds", nn_w$ins_n_seeds_agree) else ""
+            nn_w <- nn_w %>%
+              dplyr::mutate(
+                ## Only the windows that matched. A page mixes window sets --
+                ## NPY has 2 windows here and only w37-72 exists in the
+                ## peptide-end candidate set -- and an unconditional paste0
+                ## writes a literal "NA NA" onto every window that did not.
+                ##
+                ## Same line, not a new one: the label box is already as tall as
+                ## the layer spacing allows. ASCII separator -- a U+00B7 did not
+                ## survive the svg round-trip.
+                label_txt = dplyr::if_else(
+                  is.na(ins_class), label_txt,
+                  paste0(label_txt, "  | ", ins_class, " ",
+                         sprintf("%.2f", ins_p_top))),
+                tooltip = dplyr::if_else(
+                  is.na(ins_class), tooltip,
+                  paste0(tooltip, sprintf(
+                    "\ninsertion: %s  (inserting %.2f / loop %.2f / non_inserting %.2f)%s",
+                    ins_class, ins_p_inserting, ins_p_loop, ins_p_non_inserting,
+                    .seeds)))
+              )
+            message("plot_proteins_win_new: insertion head on ",
+                    sum(!is.na(nn_w$ins_class)), " of ", nrow(nn_w),
+                    " window(s) for ", gene_tp)
+          }
           nn_anno <- nn_w
         }
       }
@@ -1482,6 +1525,46 @@ make_protein_plot_win <- function(old_nn_input,
                       nrow(db_marks)))
       }
 
+      ## ---- insertion-head probability bars ---------------------------------
+      ## One bar per window, under its rect: the three class probabilities laid
+      ## end to end across the window's own x span, so width IS probability. The
+      ## argmax alone would hide that most windows are a confident
+      ## `non_inserting` while a few are genuinely split.
+      ##
+      ## Drawn as thick geom_segment with `colour`, NOT geom_rect with `fill`:
+      ## fill is already bound to the continuous viridis scale for pred_raw, and
+      ## a second fill scale would need ggnewscale. colour is unmapped here.
+      ins_bars <- NULL
+      if (isTRUE(getOption("lf.nn_show_ins", TRUE)) &&
+          all(c("ins_p_inserting", "ins_p_loop", "ins_p_non_inserting") %in%
+              names(nn_anno))) {
+        .ib <- nn_anno %>%
+          dplyr::select(layer, start, end, panel_id,
+                        inserting = ins_p_inserting, loop = ins_p_loop,
+                        non_inserting = ins_p_non_inserting) %>%
+          dplyr::filter(!is.na(inserting)) %>%
+          tidyr::pivot_longer(c(inserting, loop, non_inserting),
+                              names_to = "ins_class", values_to = "p") %>%
+          ## fixed class order so the bar reads the same way on every window
+          dplyr::mutate(ins_class = factor(ins_class,
+                          levels = c("inserting", "loop", "non_inserting"))) %>%
+          dplyr::arrange(panel_id, ins_class) %>%
+          dplyr::group_by(panel_id) %>%
+          ## normalise within the window: the three means are an average of 20
+          ## softmaxes, so they sum to 1 only up to rounding.
+          dplyr::mutate(
+            frac = p / sum(p),
+            x1   = (start - 0.3) + (end - start + 0.6) * (cumsum(frac) - frac),
+            x2   = (start - 0.3) + (end - start + 0.6) * cumsum(frac)
+          ) %>%
+          dplyr::ungroup()
+        if (nrow(.ib)) {
+          ins_bars <- .ib
+          .step(sprintf("insertion bars: %d window(s)",
+                        dplyr::n_distinct(ins_bars$panel_id)))
+        }
+      }
+
       .step("building nn strip")
       nn_strip_p <- ggplot2::ggplot(nn_anno) +
         ## drawn as rects (not thick segments) so each window can carry a thin
@@ -1577,6 +1660,29 @@ make_protein_plot_win <- function(old_nn_input,
             inherit.aes = FALSE, size = 2.6, colour = "black", fill = "white",
             label.size = 0.15, label.r = grid::unit(0.05, "lines"),
             label.padding = grid::unit(0.10, "lines"))
+      }
+
+      ## Sits just below each window rect. layer + 0.17 + 0.09 = layer + 0.26,
+      ## inside the scale_y_reverse limit of max_layer + 0.5, so no window is
+      ## clipped and nothing else moves.
+      if (!is.null(ins_bars)) {
+        nn_strip_p <- nn_strip_p +
+          ggplot2::geom_segment(
+            data = ins_bars,
+            ggplot2::aes(x = x1, xend = x2,
+                         y = layer + nn_win_half_h + 0.09,
+                         yend = layer + nn_win_half_h + 0.09,
+                         colour = ins_class),
+            inherit.aes = FALSE, linewidth = 1.6, lineend = "butt") +
+          ggplot2::scale_colour_manual(
+            values = c(inserting = "#1b7837", loop = "#f1a340",
+                       non_inserting = "#bdbdbd"),
+            drop = FALSE, name = "insertion head",
+            guide = ggplot2::guide_legend(
+              order = 2, title.position = "left", title.vjust = 1,
+              keywidth = grid::unit(1.1, "lines"),
+              keyheight = grid::unit(0.4, "lines"),
+              override.aes = list(linewidth = 2.2)))
       }
 
       .step("girafe: nn strip")

@@ -168,6 +168,14 @@ def scan(res: Residues, models, cfg: Config, term: str,
     sd_all = np.zeros(total, dtype="float32")
     top_all = np.zeros(total, dtype="float32")
     n_gt = {t: np.zeros(total, dtype="int16") for t in ths}
+    # The masked 3-way insertion head, when the members were built with one.
+    # Accumulated as running sums per chunk rather than held per member: the
+    # full (n_members, chunk, 3) block buys nothing here, since no order
+    # statistic is wanted -- only the mean, the spread of `inserting`, and how
+    # many members call each class.
+    ins_names = [str(c) for c in (getattr(cfg, "ins_class_names", None) or [])]
+    ins_mean = ins_sd_ins = ins_votes = None
+    ins_idx = ins_names.index("inserting") if "inserting" in ins_names else 0
     prot_idx = np.zeros(total, dtype="int32")
     anchor_of = np.zeros(total, dtype="int32")
     for i in range(len(res)):
@@ -194,9 +202,33 @@ def scan(res: Residues, models, cfg: Config, term: str,
             at += int(a.size)
 
         G = np.empty((n_mem, k), dtype="float64")
+        c_sum = c_sq = c_votes = None
         for mi, m in enumerate(models):
-            G[mi] = np.asarray(m.predict(x, verbose=0, batch_size=batch_size)["global"],
-                               dtype="float64").reshape(-1)
+            pred = m.predict(x, verbose=0, batch_size=batch_size)
+            G[mi] = np.asarray(pred["global"], dtype="float64").reshape(-1)
+            if isinstance(pred, dict) and "ins_class" in pred:
+                P = np.asarray(pred["ins_class"], dtype="float64")
+                if c_sum is None:
+                    c_sum = np.zeros((k, P.shape[1]))
+                    c_sq = np.zeros(k)
+                    c_votes = np.zeros((k, P.shape[1]), dtype="int16")
+                c_sum += P
+                c_sq += P[:, ins_idx] ** 2
+                c_votes[np.arange(k), P.argmax(1)] += 1
+        if c_sum is not None:
+            if ins_mean is None:
+                ins_mean = np.zeros((total, c_sum.shape[1]), dtype="float32")
+                ins_sd_ins = np.zeros(total, dtype="float32")
+                ins_votes = np.zeros((total, c_sum.shape[1]), dtype="int16")
+            mu = c_sum / n_mem
+            ins_mean[lo_row:hi_row] = mu
+            if n_mem > 1:
+                # sample sd of p(inserting) from the running sums, same ddof=1
+                # as sd_all; clipped because catastrophic cancellation can push
+                # an all-but-identical set a hair below zero.
+                var = (c_sq - n_mem * mu[:, ins_idx] ** 2) / (n_mem - 1)
+                ins_sd_ins[lo_row:hi_row] = np.sqrt(np.clip(var, 0.0, None))
+            ins_votes[lo_row:hi_row] = c_votes
         mean_all[lo_row:hi_row] = G.mean(0)
         if n_mem > 1:
             sd_all[lo_row:hi_row] = G.std(0, ddof=1)
@@ -220,6 +252,11 @@ def scan(res: Residues, models, cfg: Config, term: str,
     }
     for t in ths:
         out[f"n_seeds_gt_{t:g}"] = n_gt[t]
+    if ins_mean is not None:
+        for c, name in enumerate(ins_names):
+            out[f"ins_p_{name}"] = ins_mean[:, c]
+            out[f"ins_votes_{name}"] = ins_votes[:, c]
+        out["ins_sd_inserting"] = ins_sd_ins
     return out
 
 
