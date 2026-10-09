@@ -44,7 +44,22 @@ suppressMessages({ library(dplyr); library(tidyr); library(purrr) })
 out_path    <- path.expand(.opt("--out", "~/AF2_analysis/lf_pepend_nn_input.rds"))
 n_ctrl      <- as.integer(.opt("--n-ctrl", "400"))       # negatives per split per terminus
 random_frac <- as.numeric(.opt("--random-frac", "0.25")) # of those, anchored at random residues
+## NEAR-END negatives: windows anchored a few residues off a REAL peptide end,
+## labelled 0. Every other negative comes from a precursor with no known peptide
+## at all, so the model has never been shown "almost, but not this residue" --
+## and it shows: in the step-1 scan the local argmax lands on the true end only
+## 30% of the time, with d=+1 scoring HIGHER on average than d=0.
+## Taken OUT of n_ctrl rather than added to it, so the negative count per split
+## is unchanged and only its composition differs.
+near_n      <- as.integer(.opt("--near-n", "0"))          # 0 = off, the old set
+near_lo     <- as.integer(.opt("--near-lo", "2"))         # |offset| range, inclusive
+near_hi     <- as.integer(.opt("--near-hi", "8"))
 val_frac    <- as.numeric(.opt("--val-frac", "0.34"))
+## Swap the two sides after splitting. With --val-frac 0.5 this is the second
+## fold of a 2-fold cross-validation: every known that was TRAIN in the first
+## build is VAL here and vice versa, so training both gives each known one
+## in-sample and one held-out prediction.
+swap_splits <- "--swap-splits" %in% .args
 sim_h       <- as.numeric(.opt("--sim-h", "0.30"))
 seed        <- as.integer(.opt("--seed", "42"))
 docked_ref  <- path.expand(.opt("--docked", "~/AF2_analysis/knowns.rds"))
@@ -251,6 +266,35 @@ rand <- bind_rows(lapply(c("N", "C"), function(t) {
 })) %>% distinct(accession, term, anchor, .keep_all = TRUE)
 message("candidate windows:"); print(as.data.frame(count(cand, term, win_type)))
 
+## near-end anchors: every known end displaced by +/- near_lo..near_hi, kept
+## inside the mature range. `parent` carries the end it came from so the split
+## can follow it -- a window 2 residues from a VAL positive must not be a TRAIN
+## negative, which is the whole reason these are informative.
+near <- if (near_n > 0) {
+  ends %>%
+    select(accession, gene, term, parent = anchor, n_prot, c_prot,
+           pep_start, pep_end, pocket) %>%
+    tidyr::crossing(d = c(-rev(near_lo:near_hi), near_lo:near_hi)) %>%
+    mutate(anchor = parent + d, win_type = "near_end") %>%
+    filter(anchor >= n_prot, anchor <= c_prot) %>%
+    ## an offset that lands on ANOTHER known end of the same terminus is a
+    ## positive, not a near miss -- polyproteins (POMC, PENK) make this common
+    anti_join(ends %>% select(accession, term, anchor), by = c("accession", "term", "anchor"))
+} else ends[0, ] %>% mutate(parent = integer(0), d = integer(0))
+if (near_n > 0) {
+  near$w_start <- lf_pepend_start(near$term, near$anchor)
+  ## real per-index labels, from the real peptide coordinates. These windows DO
+  ## cover peptide residues, unlike every other negative, so labelling them
+  ## "none" would teach the per-index head to deny a peptide it can see.
+  near$known_idx <- pmap(list(near$w_start, near$pep_start, near$pep_end,
+                              near$n_prot, near$c_prot, near$pocket), lf_pepend_labels)
+  message(sprintf("near-end anchors: %d (|offset| %d-%d, %d dropped as other known ends)",
+                  nrow(near), near_lo, near_hi,
+                  sum(duplicated(rbind(near[, c("accession","term","anchor")],
+                                       ends[, c("accession","term","anchor")]))) ))
+  print(as.data.frame(count(near, term)))
+}
+
 ## how many known ends a candidate anchor would have found
 ends$at_candidate <- paste(ends$accession, ends$term, ends$anchor) %in%
   paste(cand$accession, cand$term, cand$anchor)
@@ -292,6 +336,9 @@ known_w <- make_windows(ends %>% select(accession, gene, term, anchor, win_type,
 message("slicing ", nrow(cand), " candidate windows ...")
 cand_w  <- make_windows(cand) %>% mutate(known = 0)
 rand_w  <- make_windows(rand) %>% mutate(known = 0)
+near_w  <- if (near_n > 0) make_windows(
+  near %>% select(accession, gene, term, anchor, win_type, n_prot, c_prot,
+                  known_idx, parent, d)) %>% mutate(known = 0) else NULL
 
 ## ---- 6. split and assemble ---------------------------------------------------------------
 ## 9.2's split_knowns: cluster windows by aligned-sequence identity so no
@@ -304,7 +351,11 @@ split_knowns <- function(k_sub) {
   cl <- cutree(hc, h = sim_h)
   ord <- unique(cl[hc$order])
   val_cl <- ord[seq(2L, length(ord), by = max(2L, round(1 / val_frac)))]
-  list(train = which(!cl %in% val_cl), val = which(cl %in% val_cl))
+  out <- list(train = which(!cl %in% val_cl), val = which(cl %in% val_cl))
+  ## the complement, taken AFTER clustering so both folds respect the same
+  ## similarity boundaries -- no cluster straddles the split in either one
+  if (swap_splits) out <- list(train = out$val, val = out$train)
+  out
 }
 
 draw_negatives <- function(pool, n, exclude = character(0)) {
@@ -318,9 +369,24 @@ nn_input <- lapply(c(N = "N", C = "C"), function(t) {
   neg_c <- cand_w %>% filter(term == t, !gene %in% banned, !peps %in% k$peps)
   neg_r <- rand_w %>% filter(term == t, !peps %in% k$peps)
   n_r <- round(n_ctrl * random_frac)
-  tr_neg <- bind_rows(draw_negatives(neg_c, n_ctrl - n_r), draw_negatives(neg_r, n_r))
-  va_neg <- bind_rows(draw_negatives(neg_c, n_ctrl - n_r, tr_neg$peps),
-                      draw_negatives(neg_r, n_r, tr_neg$peps))
+  n_n <- if (is.null(near_w)) 0L else min(near_n, n_ctrl - n_r)
+  ## A near-end negative INHERITS ITS PARENT'S SPLIT. Drawing it freely would put
+  ## a window 2 residues from a val positive into train -- 34 of its 36 residues
+  ## are the same residues, so the val end would effectively be in training.
+  near_tr <- near_va <- NULL
+  if (n_n > 0) {
+    nw <- near_w %>% filter(term == t, !peps %in% k$peps)
+    par_tr <- k$anchor[sp$train]; par_va <- k$anchor[sp$val]
+    key <- function(acc, a) paste(acc, a)
+    near_tr <- nw %>% filter(key(accession, parent) %in% key(k$accession[sp$train], par_tr))
+    near_va <- nw %>% filter(key(accession, parent) %in% key(k$accession[sp$val],   par_va))
+  }
+  tr_neg <- bind_rows(draw_negatives(neg_c, n_ctrl - n_r - n_n),
+                      draw_negatives(neg_r, n_r),
+                      if (n_n > 0) draw_negatives(near_tr, n_n))
+  va_neg <- bind_rows(draw_negatives(neg_c, n_ctrl - n_r - n_n, tr_neg$peps),
+                      draw_negatives(neg_r, n_r, tr_neg$peps),
+                      if (n_n > 0) draw_negatives(near_va, n_n, tr_neg$peps))
   list(train = bind_rows(k[sp$train, ], tr_neg),
        val   = bind_rows(k[sp$val, ],   va_neg),
        ## every candidate window of the terminus, knowns first so a candidate
@@ -347,6 +413,7 @@ for (t in names(nn_input)) for (s in c("train", "val", "all")) {
 saveRDS(list(nn_input = nn_input, all_params3 = all_params3, class_names = LF_PEPEND_CLASSES,
              knowns = knowns,
              params = list(n_ctrl = n_ctrl, random_frac = random_frac, val_frac = val_frac,
+                           swap_splits = swap_splits,
                            sim_h = sim_h, seed = seed, banned = banned, built = Sys.time())),
         out_path)
 message("wrote ", out_path)
