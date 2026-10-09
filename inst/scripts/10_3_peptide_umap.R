@@ -38,20 +38,68 @@ library(tidyverse)
 
 ## ---- options ---------------------------------------------------------------
 out_csv       <- path.expand("~/AF2_analysis/peptide_umap_full.csv")     # the one output table
+## Cold-start inputs. Building `params` needs a training session (nn_input +
+## all_params3); re-PLOTTING it does not. These are the saved equivalents, used
+## when the session is empty -- see the fast path under "setup / guards".
+comb_rds      <- path.expand("~/AF2_analysis/nn_input_comb_ensemble.rds")
 load_csv      <- path.expand("~/AF2_analysis/peptide_pca_loadings.csv")  # PCA loadings (feature x PC)
 svg_stem      <- path.expand("~/AF2_analysis/peptide_umap")              # <stem>_<metric>.svg
-html_name     <- "ligandFinder_v4.html"  # fixed filename for the interactive page, written
+html_name     <- "ligandFinder_v5.html"  # fixed filename for the interactive page, written
                                          # beside svg_stem. Only used when a single layout is
                                          # plotted -- with more than one it would collide, so
                                          # the <stem>_<layout>.html form takes over. NULL = always
                                          # use the stem form. The svg is unaffected.
+## ---- linked side panels ----------------------------------------------------
+## Extra panels drawn in the SAME girafe as the UMAP and keyed on the same window
+## id, so hovering a window in one panel highlights it in all of them. Two
+## separate girafe objects would not link, however they are laid out.
+panel_score   <- TRUE                    # panel 1: score by stratum (beeswarm), beside the UMAP
+panel_celltype <- TRUE                   # panel 2: score by the gene's top cell type (see
+                                         # celltype_ref), full width UNDER the top row --
+                                         # ~80 columns need the whole width
+panel_ct_rel_h <- 0.8                    # its height relative to the top row
+umap_rel_w    <- 1.15                    # UMAP width relative to one side panel
+panel_rel_w   <- 1                       # ... shrinking the UMAP is just this ratio
+panel_all     <- TRUE                    # panels cover EVERY window, not only the
+                                         # gated ones the UMAP draws. The score
+                                         # distribution is the point of panel 1, and
+                                         # the gate removes 56% of the windows.
+set_cols      <- c(train = "#1b7837", val = "#2166ac", none = "grey75")
+## Hover styling, shared by every interactive layer in the girafe. The hovered
+## window (in BOTH panels, since they share data_id) gets the first rule; every
+## other interactive mark gets the second, which is what makes the highlight
+## read against 85k neighbours -- a thicker stroke alone disappears in the bulk.
+hover_css     <- "stroke:#FF6600;stroke-width:3.5;fill:#FF6600;fill-opacity:1;opacity:1;cursor:pointer;"
+hover_inv_css <- "opacity:0.3;"
+## Windows scoring ABOVE this are interactive -- hover text, click-through to
+## the per-gene page, and the gene-search highlight -- and so is every known
+## peptide end whatever it scores: the knowns are few and are exactly the points
+## one wants to read, so a low-scoring one must still be hoverable. Only the
+## UNKNOWN windows at or below the threshold are drawn static, in the UMAP and
+## in the score panel alike: 54k of the 59k windows sit there, and giving each
+## of them a tooltip, an id and an onclick made the page heavy and put the whole
+## cloud under the hover dimming. NULL = every window interactive.
+interactive_min <- 0.1
+panel_unk_split <- 0.1                   # the unknown column splits at this score:
+                                         # nearly all 59k unknowns sit at ~0 and
+                                         # would otherwise bury the few that score
+panel_pt_size <- 2.2                     # panel marks are the whole panel now (no
+                                         # violin behind them), so they carry the
+                                         # distribution and need to be readable
+panel_swarm_w <- 0.42                    # swarm half-width; wider than it could be
+                                         # with a violin outline to respect
+
 point_size    <- 1.2                     # data-mark size, shared by the static and the
                                          # interactive layer so the two cannot drift apart
 term_shapes   <- c(C = 16, N = 17)       # C-terminal windows draw as points, N-terminal as
                                          # triangles: terminus is categorical and the colour
                                          # aesthetic is already spent on the score
 
-feature_set   <- all_params3        # the per-residue features
+## The per-residue features -- only the UMAP/PCA build reads this, so on the
+## replot path (no training session) it is simply absent. The build branch keeps
+## its own stopifnot(exists("all_params3")), so a genuinely missing feature set
+## still stops the run rather than producing an empty layout.
+feature_set   <- if (exists("all_params3")) all_params3 else NULL
 standardize   <- TRUE               # center/scale each column so continuous feats don't dominate
 seed          <- 42
 
@@ -79,7 +127,17 @@ embed_umap    <- FALSE              # off for the final figure: the gate below i
 embed_metric  <- "cosine"
 
 make_plot     <- TRUE               # write a coloured UMAP svg per metric
-score_col     <- "pred_raw"         # continuous colour scale (uncalibrated model score)
+## Which score the UMAP is coloured by and the score panel plots. "pred_raw" is
+## nn_input_comb$pred_raw -- the uncalibrated ensemble mean of the 5 seeds'
+## sigmoid outputs, the number ensemble_global_predictions_*.csv reports as
+## score_mean. "pred_nn" is nn_input_comb$pred, the pooled-Platt calibrated
+## version, which the per-gene pages show. Calibration pulls the mid range down
+## hard (4.5k windows sit above 0.1 raw, 700 calibrated), so the threshold
+## options below (interactive_min, panel_unk_split) are read on THIS scale.
+score_col     <- "pred_raw"
+## Axis/legend text, so the reader is not left to interpret a column name.
+score_label   <- c(pred_raw = "prediction",
+                   pred_nn  = "calibrated prediction")
 density_bins  <- 8                  # number of 2-D density contour levels (NULL = no contours)
 contour_col   <- "black"             # contour line colour
 contour_lw    <- 0.35               # contour line width
@@ -94,6 +152,10 @@ contour_dpi   <- 300                # resolution the contour layer is rasterised
 raster_points <- TRUE               # rasterise the point layer of the static svg (needs ggrastr);
                                     # the html is all-vector by necessity -- see note below
 known_col     <- "red"              # known uniprot peptides: ring colour
+known_rings   <- FALSE              # draw those rings at all. Off: the known ends
+                                    # are now a column of their own in the score
+                                    # panel, and the rings were punching holes in
+                                    # the densest part of the cloud
                                     # Amidation is NOT a mark -- it reads out in the hover
                                     # text instead, so it can coexist with the known ring on
                                     # the same window without one obscuring the other.
@@ -102,7 +164,7 @@ known_col     <- "red"              # known uniprot peptides: ring colour
 ## motif windows sit, which a free scale would destroy. Note the contours become
 ## a density per panel rather than of everything, which is the point: it shows
 ## whether motif windows concentrate somewhere or track the bulk.
-facet_amidation <- TRUE
+facet_amidation <- FALSE            # one panel; the motif still reads out on hover
 ## No printed labels: which peptide a known ring belongs to reads out in the
 ## hover text instead. Labels could only ever name the top few dozen without
 ## colliding, and they punched opaque holes in the densest part of the cloud --
@@ -142,6 +204,23 @@ known_end_len <- 100                # max reference peptide length (see the audi
                                     # ligand_type is NA for most rows and unusable)
 known_end_gap <- 5                  # anchor-to-boundary distance to accept; matches
                                     # 9.2's own db_spacer < 6 rule
+## How each GPCR peptide's terminus sits in its receptor, read off the docked
+## receptor-ligand models the training set was built from. 9.2's rule: the
+## pocket-inserting residue's distance from the peptide terminus (lig1_end) is
+## < 3 for a clean END insertion, 3-15 for a LOOP insertion, >= 16 for a middle
+## insertion. It is directional -- a peptide has two ends and both windows
+## count as known ends, but only one terminus inserts -- so the class is
+## assigned per WINDOW, against the terminus that window sits at. NULL skips
+## it and the score panel keeps a single "GPCR peptide" column.
+docked_ref    <- path.expand("~/AF2_analysis/knowns.rds")
+## Where each gene peaks in the HPA v23 single-cell consensus (top_celltype,
+## its nTPM), written by inst/scripts/hpa_top_celltype.R -- the same table the
+## eec_* columns of the predictions CSV come from. Read out on hover and in the
+## gene-search summary. NULL skips it.
+celltype_ref  <- path.expand("~/AF2_analysis/hpa_top_celltype.csv")
+docked_tol    <- 2                  # residues by which the docked peptide's end may
+                                    # differ from the reference boundary and still
+                                    # count as the same terminus
 
 ## Gene search box in the html: type a symbol, its best windows light up in the
 ## layout and are listed underneath. Needs jsonlite.
@@ -153,6 +232,31 @@ subset_peps   <- NULL               # NULL = all windows; or a character vector 
 knowns_only   <- FALSE              # TRUE = only known peptides (fast sanity run)
 
 ## ---- setup / guards --------------------------------------------------------
+## Everything from here to the PCA block rebuilds `params` from the session --
+## the expensive half of this script, and the only half that needs nn_input +
+## all_params3. The annotation and plotting sections below only ever READ
+## `params`, so when the training session is gone but the saved table is there,
+## reload it and skip straight to them. Set reuse_csv explicitly to force a path.
+.from_csv <- if (exists("reuse_csv")) isTRUE(reuse_csv) else
+             (!exists("nn_input") && file.exists(out_csv))
+
+if (.from_csv) {
+  message("reuse: loading params from ", out_csv, " (skipping the UMAP/PCA rebuild)")
+  ## Only the label/coord columns -- the ~1,000 per-position columns are input to
+  ## the UMAP, which is not being recomputed, and reading them costs minutes.
+  params <- readr::read_csv(
+    out_csv,
+    col_select = c(peps, gene, terminus, target, win_type, end_type, known, set,
+                   pad_frac, dplyr::starts_with("UMAP"), dplyr::num_range("PC", 1:5)),
+    show_col_types = FALSE, progress = FALSE)
+  ## Drop any stale scores/annotations so the sections below re-derive them from
+  ## the CURRENT nn_input_comb, instead of silently keeping older values under
+  ## the same column names.
+  params <- dplyr::select(params, -dplyr::any_of(
+    c("pred_nn", "pred_raw", "pred_april17", "amidation",
+      "known_end", "known_end_name", "uniprot_known")))
+  message(sprintf("  %d windows x %d columns", nrow(params), ncol(params)))
+} else {
 stopifnot(exists("nn_input"), exists("all_params3"))
 if (!exists("seq_len")) seq_len <- nrow(nn_input[[1]]$all$data[[1]])
 if (!requireNamespace("uwot", quietly = TRUE))
@@ -309,6 +413,8 @@ if (add_pca) {
                   k, 100 * sum(ve), load_csv))
 }
 
+}  # end of the session-only build (see .from_csv above)
+
 ## ---- embedding UMAP --------------------------------------------------------
 ## Same points, laid out by the model's 16-d "embed" representation rather than
 ## by the input features. Lands in UMAP1_embed / UMAP2_embed, so the plot loop
@@ -368,9 +474,15 @@ if (add_scores) {
   ## nn_input_comb is the only score source, so a missing object stops the run
   ## rather than being skipped with a message: an unscored table would otherwise
   ## only announce itself much later, as a UMAP silently coloured by win_type.
+  ## Cold start: the saved ensemble table IS the object 10_1dcnn_new6.R leaves
+  ## in the session, so load it rather than demanding a training session.
+  if (!exists("nn_input_comb") && file.exists(comb_rds)) {
+    message("loading nn_input_comb from ", comb_rds)
+    nn_input_comb <- readRDS(comb_rds)
+  }
   if (!exists("nn_input_comb"))
-    stop("nn_input_comb not in session -- run 10_1dcnn_new6.R first, ",
-         "or set add_scores <- FALSE")
+    stop("nn_input_comb not in session and ", comb_rds, " does not exist -- ",
+         "run 10_1dcnn_new6.R first, or set add_scores <- FALSE")
   sc <- intersect(c("pred", "pred_raw", "pred_cal"), names(nn_input_comb))[1]
   if (is.na(sc))
     stop("nn_input_comb has no pred/pred_raw/pred_cal column")
@@ -405,8 +517,50 @@ if (add_scores) {
     message(sprintf("amidation: %d of %d windows carry the motif",
                     sum(params$amidation), nrow(params)))
   } else {
-    message("nn_input_comb has no amidation column -- no amidation rings ",
-            "(add it by re-running the amidation block in 10_1dcnn_new6.R)")
+    ## Recompute rather than skip. The motif is a fixed-position lookup, not a
+    ## search: 9.2 anchors every db window on db_ind, so the dibasic pair always
+    ## lands at the same local index -- 31 (2nd basic) for C-target windows, 6
+    ## (1st basic) for N-target ones -- with the glycine immediately 5' of it.
+    ## Same rule as the amidation block in 10_1dcnn_new6.R; kept here so a cold
+    ## start off the saved table is not silently missing the flag.
+    .ws <- if (exists("win_size")) c(N = win_size$N$start, C = win_size$C$start)
+           else c(N = -5L, C = -30L)                          # 9.2 defaults
+    .mpos <- function(tg) if (tg %in% c("C", "loop_C")) {
+        a <- 1L - .ws[["C"]]; c(g = a - 2L, b1 = a - 1L, b2 = a)
+      } else { a <- 1L - .ws[["N"]]; c(g = a - 1L, b1 = a, b2 = a + 1L) }
+    .aa <- function(md, i) { v <- as.character(md[["AA"]])
+                             if (i < 1L || i > length(v)) NA_character_ else v[[i]] }
+    .amid <- vapply(seq_len(nrow(nn_input_comb)), function(i) {
+      tg <- as.character(nn_input_comb$target[[i]])
+      if (!identical(as.character(nn_input_comb$win_type[[i]]), "db")) return(FALSE)
+      if (!tg %in% c("N", "loop_N", "C", "loop_C")) return(FALSE)
+      q <- .mpos(tg); md <- nn_input_comb$meta_data[[i]]
+      isTRUE(identical(.aa(md, q[["g"]]), "G") &&
+             .aa(md, q[["b1"]]) %in% c("K", "R") && .aa(md, q[["b2"]]) %in% c("K", "R"))
+    }, logical(1))
+    ## Guard: a wrong offset makes every window come back FALSE, which reads as
+    ## "no motifs found" rather than as a bug. Confirm the anchor really is basic.
+    .chk <- vapply(utils::head(which(nn_input_comb$win_type == "db"), 2000), function(i) {
+      q <- .mpos(as.character(nn_input_comb$target[[i]])); md <- nn_input_comb$meta_data[[i]]
+      isTRUE(.aa(md, q[["b1"]]) %in% c("K", "R") && .aa(md, q[["b2"]]) %in% c("K", "R"))
+    }, logical(1))
+    message(sprintf("amidation: recomputed; dibasic anchor confirmed in %.1f%% of sampled db windows",
+                    100 * mean(.chk)))
+    if (mean(.chk) < 0.9)
+      warning("amidation: the dibasic anchor is often NOT at the expected local ",
+              "position -- check win_size against 9.2", immediate. = TRUE)
+    nn_input_comb$amidation <- .amid
+    params <- dplyr::left_join(
+      params,
+      nn_input_comb %>%
+        dplyr::select(dplyr::all_of(c(key, "amidation"))) %>%
+        dplyr::group_by(dplyr::across(dplyr::all_of(key))) %>%
+        dplyr::summarise(amidation = any(amidation, na.rm = TRUE), .groups = "drop"),
+      by = key)
+    params$amidation[is.na(params$amidation)] <- FALSE
+    message(sprintf("amidation: %d of %d windows carry the motif",
+                    sum(params$amidation), nrow(params)))
+    rm(.ws, .mpos, .aa, .amid, .chk)
   }
 }
 
@@ -475,6 +629,78 @@ if (file.exists(known_end_ref)) {
 
   params$known_end      <- !is.na(hit)
   params$known_end_name <- hit
+
+  ## Three strata for the score panel. "GPCR peptide" is a matched reference
+  ## ligand that has a receptor annotated (GtoPdb / GPCRdb); "peptide" is a
+  ## matched ligand with none. The distinction is a property of the LIGAND, so
+  ## it is joined on known_end_name rather than recomputed per window.
+  .rcpt <- readRDS(known_end_ref) %>%
+    dplyr::transmute(name = dplyr::coalesce(as.character(final_name), "unnamed"),
+                     has_receptor = !is.na(receptor)) %>%
+    dplyr::group_by(name) %>%
+    dplyr::summarise(has_receptor = any(has_receptor), .groups = "drop")
+  params <- dplyr::left_join(params, .rcpt, by = c("known_end_name" = "name"))
+  params$stratum <- factor(
+    dplyr::case_when(!params$known_end              ~ "unknown",
+                     params$has_receptor %in% TRUE  ~ "GPCR peptide",
+                     TRUE                           ~ "peptide"),
+    levels = c("unknown", "peptide", "GPCR peptide"))
+  message("stratum: ", paste(sprintf("%s=%d", names(table(params$stratum)),
+                                     table(params$stratum)), collapse = "  "))
+  rm(.rcpt)
+
+  ## Insertion type of the GPCR-peptide windows, from the docked models. Same
+  ## funnel 9.2 applied before it labelled targets: relevant site, rank-1 model,
+  ## and per docked peptide the model whose inserting residue sits closest to a
+  ## terminus (ties by iptm). A window then looks for docked peptides of its
+  ## gene that share ITS boundary (within docked_tol) and reads their lig1_end:
+  ## same terminus as the window -> end / loop / middle by 9.2's cut-offs; the
+  ## other terminus -> that end does not insert. Several docked forms can share
+  ## a boundary (CCK-8 and CCK-33 end alike), so the best class wins.
+  params$insertion <- NA_character_
+  if (!is.null(docked_ref) && file.exists(docked_ref) &&
+      any(params$stratum == "GPCR peptide")) {
+    .dk <- readRDS(docked_ref) %>%
+      dplyr::filter(location == "relevant", rank == 1) %>%
+      dplyr::transmute(gene = .e2s[p2_name],
+                       ps   = as.integer(stringr::str_extract(p2_range, "^\\d+")),
+                       pe   = as.integer(stringr::str_extract(p2_range, "\\d+$")),
+                       ind  = as.integer(stringr::str_extract(lig1_end, "\\d+")),
+                       tt   = stringr::str_remove(lig1_end, "\\d+"),
+                       iptm) %>%
+      dplyr::filter(!is.na(gene), !is.na(ind)) %>%
+      dplyr::group_by(gene, ps, pe) %>%
+      dplyr::arrange(ind, dplyr::desc(iptm), .by_group = TRUE) %>%
+      dplyr::slice(1) %>% dplyr::ungroup()
+    .dkl <- split(.dk, .dk$gene)
+    ## the matched reference ligand's boundary on the window's side
+    .lb <- dplyr::bind_rows(ref %>% dplyr::transmute(name, gene, side = "C", pos = end),
+                            ref %>% dplyr::transmute(name, gene, side = "N", pos = start)) %>%
+      dplyr::distinct(name, gene, side, .keep_all = TRUE)
+    .side <- ifelse(.isC, "C", "N")
+    .pos  <- .lb$pos[match(paste(params$known_end_name, params$gene, .side),
+                           paste(.lb$name, .lb$gene, .lb$side))]
+    .cls  <- c(end = "end insertion", loop = "loop insertion",
+               middle = "non-inserting end", other = "non-inserting end")
+    .gi <- which(params$stratum == "GPCR peptide" & !is.na(.pos))
+    params$insertion[.gi] <- vapply(.gi, function(i) {
+      d <- .dkl[[params$gene[i]]]
+      if (is.null(d)) return("no model")
+      d <- d[abs((if (.side[i] == "C") d$pe else d$ps) - .pos[i]) <= docked_tol, , drop = FALSE]
+      if (!nrow(d)) return("no model")
+      k <- ifelse(d$tt != .side[i], "other",
+                  ifelse(d$ind < 3, "end", ifelse(d$ind < 16, "loop", "middle")))
+      ## end beats loop beats middle beats other-end, when forms disagree
+      unname(.cls[[names(.cls)[min(match(k, names(.cls)))]]])
+    }, character(1))
+    params$insertion[params$stratum == "GPCR peptide" & is.na(params$insertion)] <- "no model"
+    message("GPCR peptide insertion: ",
+            paste(sprintf("%s=%d", names(table(params$insertion)), table(params$insertion)),
+                  collapse = "  "))
+    rm(.dk, .dkl, .lb, .side, .pos, .cls, .gi)
+  } else if (!is.null(docked_ref)) {
+    message("no ", docked_ref, " -- GPCR peptides not split by insertion type")
+  }
   message(sprintf("known peptide ends: %d windows across %d genes (%d also in the training set)",
                   sum(params$known_end), dplyr::n_distinct(params$gene[params$known_end]),
                   sum(params$known_end & params$known == 1)))
@@ -491,6 +717,24 @@ if (file.exists(known_end_ref)) {
   message("no ", known_end_ref, " -- skipping the known-peptide-end annotation")
 }
 
+## ---- top cell type per gene (HPA v23 single-cell) --------------------------
+## Joined on the gene symbol as-is; the ~2% of symbols HPA knows under another
+## name are left blank here (the predictions CSV rescues them via synonyms).
+if (!is.null(celltype_ref) && file.exists(celltype_ref)) {
+  .ct <- readr::read_csv(celltype_ref, show_col_types = FALSE, progress = FALSE) %>%
+    dplyr::distinct(gene, .keep_all = TRUE) %>%
+    dplyr::transmute(gene, top_celltype,
+                     top_celltype_ntpm = as.numeric(top_celltype_ntpm))
+  params <- dplyr::left_join(params, .ct, by = "gene")
+  message(sprintf("top cell type: %d of %d genes annotated (%d peak in enteroendocrine cells)",
+                  dplyr::n_distinct(params$gene[!is.na(params$top_celltype)]),
+                  dplyr::n_distinct(params$gene),
+                  dplyr::n_distinct(params$gene[params$top_celltype %in% "Enteroendocrine cells"])))
+  rm(.ct)
+} else if (!is.null(celltype_ref)) {
+  message("no ", celltype_ref, " -- run inst/scripts/hpa_top_celltype.R for the top-cell-type hover line")
+}
+
 ## ---- final column order + write --------------------------------------------
 ## labels, then scores, then reduced-dim coords, then summaries, positions last.
 params <- params %>%
@@ -502,8 +746,15 @@ params <- params %>%
                   dplyr::matches("^PC[0-9]+$"),
                   .after = terminus)
 
-write_csv_fast(params, out_csv)
-message("wrote ", out_csv, "  (", nrow(params), " x ", ncol(params), ")")
+## Only on the full build. On the fast path `params` is a column subset of this
+## very file, so writing it back would silently discard the ~1,000 per-position
+## columns that the UMAP is built from.
+if (!.from_csv) {
+  write_csv_fast(params, out_csv)
+  message("wrote ", out_csv, "  (", nrow(params), " x ", ncol(params), ")")
+} else {
+  message("replot: leaving ", out_csv, " alone")
+}
 
 ## ---- UMAP plot per metric: 2-D density + model score ------------------------
 ## Points are coloured by the model score, with 2-D density contours over the top
@@ -537,22 +788,40 @@ gene_intro_html <- '
     So two points sit close together when their residue-level biophysical
     profiles are alike.</p>
 
-    <p><b>Colour</b> is the model&rsquo;s window-level prediction score &mdash; the
-    1D-CNN&rsquo;s global ranking output. Dark = high.</p>
+    <p><b>Colour</b> is the model&rsquo;s prediction &mdash; the 1D-CNN
+    ensemble&rsquo;s window-level output, averaged over 5 seeds. Dark = high.
+    Circles are C-terminal windows, triangles N-terminal.</p>
 
-    <p><b>Panels</b> split on the amidation motif: a glycine immediately 5&prime;
-    of the dibasic pair (&hellip;X-G | K/R-K/R), the signal for a C-terminally
-    amidated peptide.</p>
-
-    <p><b>Red rings</b> mark known peptides annotated in UniProt, GPCRdb or Guide
-    to Pharmacology. Read this as a floor, not a census: the scored set is
+    <p><b>Prediction panel</b> (right) shows the same prediction for <i>every</i>
+    scored window, including those outside the gated UMAP, split by what is
+    known about the window: unknown (divided at 0.1 so the few that score are not
+    buried under the bulk that do not), a known peptide end, or a known
+    GPCR-peptide end. The GPCR peptides are further split by how the terminus
+    the window sits at engages the receptor in the docked receptor&ndash;ligand
+    model: <i>end insertion</i> (the pocket-contacting residue is within 2 of the
+    terminus), <i>loop insertion</i> (3&ndash;15 residues in), <i>non-inserting
+    end</i> (the peptide binds by its other terminus, or its middle), or
+    <i>no model</i>. Known ends come from UniProt, GPCRdb and Guide to
+    Pharmacology; read them as a floor, not a census &mdash; the scored set is
     restricted to dibasic-anchored windows, so the chemokine family, ADM, AVP,
-    APLN and other peptides lacking dibasic sites are not highlighted in this
-    figure.</p>
+    APLN and other peptides lacking dibasic sites are absent. Colour there marks
+    the training/validation set. The full-width panel below it stratifies the
+    same prediction by the cell type in which each window&rsquo;s gene peaks
+    (Human Protein Atlas single-cell consensus, v23); columns run from the cell
+    type with the largest share of windows above 0.1 to the smallest, with
+    &ldquo;not detected&rdquo; and &ldquo;no HPA record&rdquo; last.</p>
 
-    <p><b>Interaction.</b> Hover any point for its window id, score, peptide name
-    if known, and amidation status. Click to open that protein&rsquo;s per-residue
-    page at the window. The search box takes a gene symbol and highlights its 5
+    <p><b>Interaction.</b> Windows scoring above 0.1, and every known peptide
+    end whatever it scores, are live, in both panels:
+    hover one for its window id, score, peptide name if known, amidation
+    status (a glycine immediately 5&prime; of the dibasic pair, &hellip;X-G |
+    K/R-K/R, the signal for a C-terminally amidated peptide), and the cell type
+    in which the gene peaks in the Human Protein Atlas single-cell consensus
+    (v23, the last release with a standalone enteroendocrine cluster); the UMAP and the
+    score panel are linked, so hovering a window in one highlights it in the
+    other; click to open that protein&rsquo;s per-residue page at the window.
+    Unknown windows at or below 0.1 &mdash; the great majority &mdash; are drawn
+    but static. The search box takes a gene symbol and highlights its 5
     best-scoring windows in cyan, listing them below; windows that rank in the top
     5 but fall outside the gate are listed greyed rather than dropped. Once in the
     per-window page, click &ldquo;Visualize in ChimeraX&rdquo; to view predictions
@@ -562,7 +831,9 @@ gene_intro_html <- '
 
 ## ---- gene search widget template -------------------------------------------
 ## sprintf slots, in order: 1 datalist <option>s, 2 lookup JSON, 3 link base,
-## 4 score column name, 5 top-N, 6 highlight colour.
+## 4 score label (as shown on the axes), 5 top-N, 6 highlight colour, 7 interactive threshold
+## (text only -- it labels the static entries in the result list), 8 gene ->
+## top-cell-type text JSON, shown once on the summary line ({} when absent).
 ##
 ## Highlighting draws an OVERLAY circle into the same parent <g> as the matched
 ## point rather than restyling the point itself. Same parent means the same
@@ -585,7 +856,7 @@ gene_search_template <- '
 </div>
 <script>
 (function(){
-  var LUT = %s, BASE = "%s", SCORE = "%s", TOPN = %d, HIT = "%s";
+  var LUT = %s, BASE = "%s", SCORE = "%s", TOPN = %d, HIT = "%s", MIN = "%s", CT = %s;
   var IDX = null;
 
   // Built lazily, not at parse time: this script runs before girafe has
@@ -610,8 +881,30 @@ gene_search_template <- '
     document.querySelectorAll("circle.gene-hit").forEach(function(e){ e.remove(); });
   }
 
+  // Bring a window to the front. SVG paints in document order, so a point that
+  // sits under its neighbours stays under them however it is styled; moving
+  // the node to the end of its parent <g> puts it on top of that layer, and
+  // the parent is unchanged so its transform still applies. Raises the window
+  // in EVERY panel that draws it (they share the data-id). Listeners travel
+  // with the node, so ggiraph hover/click keep working on it afterwards.
+  function raise(peps){
+    (index().get(peps) || []).forEach(function(c){
+      if (c.parentNode && c.parentNode.lastChild !== c) c.parentNode.appendChild(c);
+    });
+  }
+  // ...on hover: bubbling phase, so ggiraph has already applied its hover
+  // class by the time the node moves. A moved node stays the one under the
+  // cursor, so this does not re-fire mouseover on itself.
+  document.addEventListener("mouseover", function(ev){
+    var t = ev.target;
+    if (!t || !(t.tagName === "circle" || t.tagName === "polygon")) return;
+    var k = t.getAttribute("data-id");
+    if (k) raise(k);
+  });
+
   function light(peps){
     var els = index().get(peps) || [], n = 0;
+    raise(peps);                     // the hit itself on top, then its ring above it
     els.forEach(function(c){
       var o = document.createElementNS("http://www.w3.org/2000/svg","circle");
       o.setAttribute("class","gene-hit");
@@ -643,9 +936,9 @@ gene_search_template <- '
     if (!rows){ msg.textContent = "no windows for " + g; return; }
     if (!Array.isArray(rows)) rows = [rows];
 
-    var lit = 0, hidden = 0;
+    var lit = 0, gated = 0, stat = 0;
     rows.forEach(function(r){
-      if (r.o) { hidden++; } else { lit += light(r.p); }
+      if (r.o === 1) { gated++; } else if (r.o === 2) { stat++; } else { lit += light(r.p); }
       var li = document.createElement("li");
       var a  = document.createElement("a");
       // gene taken from the window id, not from what was typed: a lowercase or
@@ -660,13 +953,18 @@ gene_search_template <- '
       li.appendChild(document.createTextNode(tail));
       if (r.o){
         li.style.color = "#999";
-        li.appendChild(document.createTextNode("  (outside gate - not drawn)"));
+        li.appendChild(document.createTextNode(
+          r.o === 2 ? "  (score <= " + MIN + " - drawn static, not highlightable)"
+                    : "  (outside gate - not drawn)"));
       }
       out.appendChild(li);
     });
+    var ct = CT[g] || CT[g.toUpperCase()];
     msg.textContent = "top " + rows.length + " of " + g +
                       " by " + SCORE + " - " + lit + " highlighted" +
-                      (hidden ? ", " + hidden + " outside the gate" : "");
+                      (gated ? ", " + gated + " outside the gate" : "") +
+                      (stat  ? ", " + stat  + " static (score <= " + MIN + ")" : "") +
+                      (ct ? "  |  top cell type: " + ct : "");
   }
 
   inp.addEventListener("input", run);
@@ -678,7 +976,23 @@ gene_search_template <- '
 </script>'
 
 if (make_plot) {
-  sc <- intersect(c(score_col, "pred_nn"), names(params))[1]
+  sc <- intersect(c(score_col, "pred_nn", "pred_raw"), names(params))[1]
+  ## readable name for whichever column won
+  .sc_lab <- function(x) if (!is.na(x) && x %in% names(score_label))
+                           unname(score_label[[x]]) else x
+  ## hover line for the gene's peak cell type; blank where HPA has no record
+  .ct_line <- function(d) ifelse(
+    is.na(d$top_celltype), "",
+    ifelse(d$top_celltype == "not_detected",
+           "\ntop cell type: not detected in any (HPA single-cell)",
+           paste0("\ntop cell type: ", d$top_celltype,
+                  " (nTPM ", round(d$top_celltype_ntpm), ")")))
+  ## which rows of a window table get the interactive layer (see interactive_min)
+  .is_live <- function(d) {
+    if (is.na(sc) || is.null(interactive_min)) return(rep(TRUE, nrow(d)))
+    hi <- !is.na(d[[sc]]) & d[[sc]] > interactive_min
+    if ("stratum" %in% names(d)) hi | (!is.na(d$stratum) & d$stratum != "unknown") else hi
+  }
 
   if (is.na(sc) || all(is.na(params[[sc]]))) {
     message("no usable score column (", score_col, ") -- colouring by win_type instead")
@@ -788,7 +1102,7 @@ if (make_plot) {
 
       if (!is.na(sc))
         p <- p + scale_color_viridis_c(option = "magma", direction = -1,
-                                       na.value = "grey88", name = sc)
+                                       na.value = "grey88", name = .sc_lab(sc))
 
       ## Annotation rings stay a fixed open circle rather than following this
       ## scale: one shape scale cannot serve both solid data marks (16/17) and
@@ -811,13 +1125,14 @@ if (make_plot) {
         g
       }
 
+      if (isTRUE(known_rings)) p <- p + ring_layer(knowns, known_col, 2.4)
       p <- p +
-        ring_layer(knowns, known_col, 2.4) +
         theme_bw() +
         labs(title = paste0("Peptide-window UMAP -- ", space_lab),
-             subtitle = paste0(if (is.na(sc)) "coloured by win_type" else paste0("coloured by ", sc),
-                               "; contours = 2-D density of the plotted windows; ",
-                               known_col, " rings = known peptide ends (named on hover)",
+             subtitle = paste0(if (is.na(sc)) "coloured by win_type" else paste0("coloured by ", .sc_lab(sc)),
+                               "; contours = 2-D density of the plotted windows",
+                               if (isTRUE(known_rings))
+                                 paste0("; ", known_col, " rings = known peptide ends (named on hover)") else "",
                                "; points = C-terminal, triangles = N-terminal",
                                if ("amidation" %in% names(pdat))
                                  "; amidation motif shown on hover" else "",
@@ -842,7 +1157,7 @@ if (make_plot) {
 
     ## a 12x10 canvas split in two gives tall narrow panels; shorten it so each
     ## panel stays roughly square and the layout is still readable
-    fig_h    <- if (faceted) 7 else 10
+    fig_h    <- if (faceted) 4.7 else 6.7      # was 7 / 10; the row is a third shorter
     svg_path <- paste0(svg_stem, "_", mt, ".svg")
     ggsave(svg_path, decorate(pt), width = 12, height = fig_h)
     message("wrote ", svg_path)
@@ -869,7 +1184,7 @@ if (make_plot) {
       pdat$.did <- ifelse(is.na(pdat$peps),
                           paste0("row", seq_len(nrow(pdat))), pdat$peps)
       pdat$.tip <- if (is.na(sc)) pdat$.lab else
-        paste0(pdat$.lab, "\n", sc, ": ", round(pdat[[sc]], 3))
+        paste0(pdat$.lab, "\n", .sc_lab(sc), ": ", round(pdat[[sc]], 3))
       if ("terminus" %in% names(pdat))
         pdat$.tip <- paste0(pdat$.tip, "\nterminus: ", pdat$terminus)
       ## Both of these are called out only where they apply. A "no" on each of
@@ -889,6 +1204,8 @@ if (make_plot) {
       if ("amidation" %in% names(pdat))
         pdat$.tip <- paste0(pdat$.tip,
                             ifelse(pdat$amidation, "\namidation motif (G | dibasic)", ""))
+      if ("top_celltype" %in% names(pdat))
+        pdat$.tip <- paste0(pdat$.tip, .ct_line(pdat))
 
       ## Plain double quotes, NOT &quot;. ggiraph HTML-escapes the attribute
       ## value itself, so a pre-escaped &quot; comes out as &amp;quot; and the
@@ -900,23 +1217,203 @@ if (make_plot) {
       pdat$.click <- ifelse(linkable,
                             sprintf('window.open("%s","_blank")', pdat$.url), "")
 
+      ## Two point layers: the static bulk (unknown windows at or below
+      ## interactive_min), then the interactive windows. Both map the same colour and shape, so
+      ## they share one scale and look identical; the static layer goes first
+      ## so the interactive (higher-scoring) marks land on top of it, which is
+      ## the order the ascending sort already gave the single layer.
+      is_int <- .is_live(pdat)
+      pdat_int <- pdat[is_int, , drop = FALSE]
+      pdat_stc <- pdat[!is_int, , drop = FALSE]
+      if (!is.na(sc))
+        message(sprintf("  [%s] interactive: %d of %d plotted windows (%s > %s, or a known peptide end); %d static",
+                        mt, nrow(pdat_int), nrow(pdat), sc, format(interactive_min),
+                        nrow(pdat_stc)))
+
       pt_int <- if (is.na(sc))
                   ggiraph::geom_point_interactive(
+                    data = pdat_int,
                     aes(color = win_type, shape = terminus, tooltip = .data[[".tip"]],
                         data_id = .data[[".did"]], onclick = .data[[".click"]]),
                     size = point_size, alpha = 0.55)
                 else
                   ggiraph::geom_point_interactive(
+                    data = pdat_int,
                     aes(color = .data[[sc]], shape = terminus, tooltip = .data[[".tip"]],
                         data_id = .data[[".did"]], onclick = .data[[".click"]]),
                     size = point_size, alpha = 0.75)
+      if (nrow(pdat_stc)) {
+        pt_stc <- if (is.na(sc))
+                    geom_point(data = pdat_stc, aes(color = win_type, shape = terminus),
+                               size = point_size, alpha = 0.55)
+                  else
+                    geom_point(data = pdat_stc, aes(color = .data[[sc]], shape = terminus),
+                               size = point_size, alpha = 0.75)
+        pt_int <- list(pt_stc, pt_int)
+      }
 
+      ## ---- panel 1: score by stratum ---------------------------------------
+      ## data_id is the window id, identical to the UMAP layer's, and both go into
+      ## ONE girafe below -- that pairing is what links the panels. Drawn over
+      ## every scored window rather than the gated subset (see panel_all).
+      p_panels <- list()
+      if (isTRUE(panel_score) && !is.na(sc) && "stratum" %in% names(params)) {
+        sdat <- if (isTRUE(panel_all)) params else pdat
+        sdat <- sdat[!is.na(sdat[[sc]]) & !is.na(sdat$stratum), , drop = FALSE]
+        ## none first so the 59k grey bulk cannot bury the 1.6k train/val marks
+        sdat <- sdat[order(!is.na(sdat$set) & sdat$set != "none"), , drop = FALSE]
+        sdat$.did <- ifelse(is.na(sdat$peps),
+                            paste0("row", seq_len(nrow(sdat))), sdat$peps)
+        sdat$.set <- factor(ifelse(is.na(sdat$set), "none", as.character(sdat$set)),
+                            levels = c("train", "val", "none"))
+        ## panel-local strata: the unknowns split at panel_unk_split so the handful
+        ## that score are not lost in the 59k that do not, and the GPCR peptides
+        ## split by how the window's terminus sits in the receptor (see
+        ## docked_ref). `stratum` itself stays the three-level biological label.
+        .has_ins <- "insertion" %in% names(sdat) && any(!is.na(sdat$insertion))
+        .ins_lv  <- c("end insertion", "loop insertion", "non-inserting end", "no model")
+        .lv <- c(paste0("unknown <", panel_unk_split), paste0("unknown >=", panel_unk_split),
+                 "peptide",
+                 if (.has_ins) paste0("GPCR peptide\n", .ins_lv) else "GPCR peptide")
+        sdat$.strat <- factor(dplyr::case_when(
+          sdat$stratum == "unknown" & sdat[[sc]] <  panel_unk_split ~ .lv[1],
+          sdat$stratum == "unknown"                                  ~ .lv[2],
+          sdat$stratum == "GPCR peptide" & .has_ins                  ~ paste0("GPCR peptide\n", sdat$insertion),
+          TRUE                                                       ~ as.character(sdat$stratum)),
+          levels = .lv)
+        sdat$.tip <- paste0(
+          ifelse(is.na(sdat$peps), "(unlabelled window)", sdat$peps),
+          "\n", .sc_lab(sc), ": ", round(sdat[[sc]], 3),
+          "\n", ifelse(sdat$terminus %in% "C", "C-terminal window",
+                                                "N-terminal window"),
+          "\namidation motif: ",
+          if ("amidation" %in% names(sdat)) ifelse(sdat$amidation, "yes", "no") else "unknown",
+          "\nset: ", as.character(sdat$.set),
+          "\nstratum: ", sub("\n", ", ", as.character(sdat$.strat), fixed = TRUE),
+          if ("top_celltype" %in% names(sdat)) .ct_line(sdat) else "")
+
+        ## Same deep link as the UMAP points: <link_base>/<gene>.html#<peps>,
+        ## which the per-gene page matches against its panels' data-peps and
+        ## centres. Plain double quotes, NOT &quot; -- ggiraph escapes the
+        ## attribute itself, so a pre-escaped entity reaches JavaScript as
+        ## literal text and the click dies with a syntax error.
+        .plink <- !is.na(sdat$peps) & !is.na(sdat$gene)
+        sdat$.click <- ifelse(
+          .plink,
+          sprintf('window.open("%s/%s.html#%s","_blank")',
+                  sub("/+$", "", link_base), sdat$gene, sdat$peps),
+          "")
+
+        ## One beeswarm panel: prediction by a categorical column. The swarm
+        ## offsets are computed ONCE here, per column over every window in it,
+        ## and the points are then drawn at fixed x. Going through
+        ## position_quasirandom() instead would hand the column to ggplot2's
+        ## collide(), which re-sorts it by group and so put the 1.5k train/val
+        ## marks under the 57k grey ones however the rows were ordered above.
+        ## With the x fixed, paint order is data order: none first, train/val
+        ## last, on top. vipor::offsetX is the function ggbeeswarm itself calls
+        ## (adjust = its bandwidth default); without it, a plain jitter.
+        ## Points only -- no violin outline. data_id is the window id, shared
+        ## with the UMAP layer, so ggiraph highlights the same window in every
+        ## panel on hover; that only works because all go into ONE girafe.
+        ## Same static/interactive split as the UMAP (see .is_live); the row
+        ## order survives the split, so train/val end each layer.
+        swarm_panel <- function(d, strat, label_size = 8, angle = 0, legend = TRUE) {
+          lv <- levels(strat)
+          d$.xc <- as.integer(strat)
+          d$.xs <- d$.xc +
+            if (requireNamespace("vipor", quietly = TRUE))
+              vipor::offsetX(d[[sc]], x = d$.xc, width = panel_swarm_w, adjust = 0.5)
+            else stats::runif(nrow(d), -panel_swarm_w * 0.8, panel_swarm_w * 0.8)
+          n_col <- tabulate(strat, length(lv))
+          live  <- .is_live(d)
+          ggplot(d, aes(x = .xs, y = .data[[sc]])) +
+            geom_point(data = d[!live, , drop = FALSE], aes(colour = .set),
+                       size = panel_pt_size, alpha = 0.7) +
+            ggiraph::geom_point_interactive(
+              data = d[live, , drop = FALSE],
+              aes(colour = .set, tooltip = .tip, data_id = .did, onclick = .click),
+              size = panel_pt_size, alpha = 0.7) +
+            scale_colour_manual(values = set_cols, name = "set", drop = FALSE) +
+            ## a continuous axis dressed as the discrete one: one tick per column,
+            ## the same 0.6 of padding a discrete scale adds at each end, and no
+            ## dependence on which levels a layer happens to use
+            scale_x_continuous(breaks = seq_along(lv),
+                               labels = function(b) paste0(lv[b], "\n(n=", n_col[b], ")"),
+                               limits = c(0.4, length(lv) + 0.6), expand = expansion(0)) +
+            labs(x = NULL, y = .sc_lab(sc)) +
+            theme_bw() +
+            theme(legend.position = if (legend) "bottom" else "none",
+                  panel.grid.minor = element_blank(),
+                  axis.text.x = if (angle == 0) element_text(size = label_size)
+                                else element_text(size = label_size, angle = angle,
+                                                  hjust = 1, vjust = 0.5)) +
+            guides(colour = guide_legend(override.aes = list(size = 2.5, alpha = 1)))
+        }
+
+        ## seven columns share the panel once the GPCR peptides split
+        p_panels$score <- swarm_panel(sdat, sdat$.strat,
+                                      label_size = if (.has_ins) 6.5 else 8)
+        message(sprintf("  [%s] score panel: %d windows  (%s)", mt, nrow(sdat),
+                        paste(sprintf("%s=%d", gsub("\n", " ", levels(sdat$.strat), fixed = TRUE),
+                                      tabulate(sdat$.strat, nlevels(sdat$.strat))),
+                              collapse = "  ")))
+
+        ## ---- panel 2: score by the gene's top cell type ---------------------
+        ## Columns ordered by the share of windows above panel_unk_split, so the
+        ## cell types whose genes yield candidate windows read from the left;
+        ## "not detected" (HPA measured nothing) and "no HPA record" close the
+        ## axis. The label carries n so a high share on 20 windows is not read
+        ## like one on 2,000.
+        if (isTRUE(panel_celltype) && "top_celltype" %in% names(sdat)) {
+          .ct <- dplyr::case_when(is.na(sdat$top_celltype)             ~ "no HPA record",
+                                  sdat$top_celltype == "not_detected" ~ "not detected",
+                                  TRUE                                ~ sdat$top_celltype)
+          .ord <- tapply(sdat[[sc]] >= panel_unk_split, .ct, mean)
+          .ord <- names(sort(.ord, decreasing = TRUE))
+          .ord <- c(setdiff(.ord, c("not detected", "no HPA record")),
+                    intersect(c("not detected", "no HPA record"), .ord))
+          sdat$.ctf <- factor(.ct, levels = .ord)
+          p_panels$celltype <- swarm_panel(sdat, sdat$.ctf, label_size = 5.5,
+                                           angle = 90, legend = FALSE)
+          message(sprintf("  [%s] cell-type panel: %d columns; top 5 by share >= %s: %s",
+                          mt, length(.ord), format(panel_unk_split),
+                          paste(head(.ord, 5), collapse = ", ")))
+        }
+      }
+
+      ## One girafe over the whole patchwork. width_svg grows with the panel count
+      ## so adding a panel makes the UMAP smaller rather than squeezing everything.
+      gob <- decorate(pt_int)
+      if (length(p_panels)) {
+        ## `ggplot + ggplot` only composes once patchwork's namespace is loaded
+        ## (it registers the ggplot_add method). The `::` on plot_layout() below
+        ## does load it -- but R evaluates the Reduce() on its left first, so in
+        ## a session where nothing else has loaded patchwork yet the Reduce()
+        ## fails with "Can't add `x[[i]]` to a <ggplot> object".
+        if (!requireNamespace("patchwork", quietly = TRUE))
+          stop("install.packages('patchwork') to draw the side panels")
+        ## top row: the UMAP beside the score panel; the cell-type panel, when
+        ## drawn, takes the whole width of a second row (see panel_celltype)
+        top <- Reduce(`+`, p_panels[setdiff(names(p_panels), "celltype")], init = gob) +
+               patchwork::plot_layout(widths = c(umap_rel_w,
+                                                 rep(panel_rel_w, length(p_panels) -
+                                                       ("celltype" %in% names(p_panels)))))
+        gob <- if ("celltype" %in% names(p_panels))
+                 patchwork::wrap_plots(top, p_panels$celltype, ncol = 1,
+                                       heights = c(1, panel_ct_rel_h))
+               else top
+      }
+      n_side <- length(p_panels) - ("celltype" %in% names(p_panels))
       gir <- ggiraph::girafe(
-        ggobj = decorate(pt_int), width_svg = 12, height_svg = fig_h,
+        ggobj = gob,
+        width_svg = 12 + 4 * n_side,
+        height_svg = fig_h * (1 + if ("celltype" %in% names(p_panels)) panel_ct_rel_h else 0),
         options = list(
           ggiraph::opts_sizing(rescale = TRUE),
           ggiraph::opts_selection(type = "none"),
-          ggiraph::opts_hover(css = "stroke:#FF6600;stroke-width:2;cursor:pointer;")
+          ggiraph::opts_hover(css = hover_css),
+          ggiraph::opts_hover_inv(css = hover_inv_css)
         ))
 
       ## ---- gene search UI --------------------------------------------------
@@ -935,7 +1432,12 @@ if (make_plot) {
                        !is.na(params[[sc]]), , drop = FALSE]
         pool <- pool[!duplicated(pool$peps), , drop = FALSE]   # peps repeat across targets
         pool <- pool[order(-pool[[sc]]), , drop = FALSE]
-        pool$.out <- as.integer(!pool$peps %in% pdat$peps)     # not drawn (gated out)
+        ## why a listed window cannot be lit: 0 = drawn and interactive,
+        ## 1 = outside the gate (not drawn), 2 = drawn but static (no data-id
+        ## to find, so nothing to overlay the highlight on)
+        pool$.out <- dplyr::case_when(!pool$peps %in% pdat$peps     ~ 1L,
+                                      !pool$peps %in% pdat_int$peps ~ 2L,
+                                      TRUE                          ~ 0L)
         pool$.pan <- if (faceted && "amidation" %in% names(pool))
                        ifelse(pool$amidation, "motif", "no motif") else ""
 
@@ -949,6 +1451,15 @@ if (make_plot) {
         genes_sorted <- sort(unique(top$gene))
         message(sprintf("  [%s] gene search: %d genes indexed, %d windows",
                         mt, length(lut), nrow(top)))
+        ## one line per gene for the summary: "Leydig cells (nTPM 1159)"
+        ct_json <- if ("top_celltype" %in% names(params)) {
+          .g <- params[!is.na(params$top_celltype) & params$gene %in% genes_sorted, , drop = FALSE]
+          .g <- .g[!duplicated(.g$gene), , drop = FALSE]
+          as.character(jsonlite::toJSON(as.list(setNames(
+            ifelse(.g$top_celltype == "not_detected", "not detected in any",
+                   paste0(.g$top_celltype, " (nTPM ", round(.g$top_celltype_ntpm), ")")),
+            .g$gene)), auto_unbox = TRUE))
+        } else "{}"
 
         search_ui <- htmltools::HTML(sprintf(
           gene_search_template,
@@ -956,7 +1467,9 @@ if (make_plot) {
                          htmltools::htmlEscape(genes_sorted, attribute = TRUE)),
                  collapse = ""),
           as.character(jsonlite::toJSON(lut, dataframe = "rows", auto_unbox = TRUE)),
-          sub("/+$", "", link_base), sc, gene_search_n, gene_hit_col))
+          sub("/+$", "", link_base), .sc_lab(sc), gene_search_n, gene_hit_col,
+          if (is.null(interactive_min)) "" else format(interactive_min),
+          ct_json))
       }
 
       html_path <- if (!is.null(html_name) && length(plot_layouts) == 1) {
@@ -970,8 +1483,8 @@ if (make_plot) {
       ## same inlining the per-gene pages use, so the file stands alone
       if (exists("nn_inline_deps", mode = "function"))
         nn_inline_deps(html_path, file.path(dirname(html_path), "dependency_files"))
-      message("wrote ", html_path, "  (", nrow(pdat), " interactive windows, ",
-              sum(linkable), " clickable)")
+      message("wrote ", html_path, "  (", nrow(pdat), " windows drawn, ",
+              nrow(pdat_int), " interactive, ", sum(linkable & is_int), " clickable)")
     }
   }
 }
