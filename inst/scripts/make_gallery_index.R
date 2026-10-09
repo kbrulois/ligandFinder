@@ -24,6 +24,12 @@ cache_p <- path.expand(.opt("--feature-cache", "~/AF2_analysis/lf_pepend_residue
 ## trained on is not interchangeable with one where none were, and that belongs
 ## on the card rather than in a readme.
 note_p  <- .opt("--notes", NA_character_)
+## optional HTML for the header blurb and the footer, for a gallery whose pages
+## are not drawn by the default trunks -- the stock footer names the near-end
+## trunks, which would misdescribe a cross-validated set
+blurb_p  <- .opt("--blurb", NA_character_)
+footer_p <- .opt("--footer", NA_character_)
+.read_html_opt <- function(p, d) if (is.na(p)) d else paste(readLines(path.expand(p), warn = FALSE), collapse = "\n")
 
 files <- sort(list.files(dir_p, pattern = "\\.html$", full.names = TRUE))
 files <- files[basename(files) != basename(out_p)]
@@ -35,7 +41,8 @@ genes <- sub("\\.html$", "", basename(files))
 acc <- len <- rep(NA_character_, length(genes))
 if (file.exists(cache_p)) {
   fc <- readRDS(cache_p)
-  i <- match(genes, fc$prec$gene)
+  ## a page can be one of several for a gene (CXCL14_foldA, CXCL14_foldB)
+  i <- match(sub("_fold[AB]$", "", genes), fc$prec$gene)
   acc <- fc$prec$accession[i]
   len <- ifelse(is.na(i), NA_character_, as.character(nchar(fc$prec$seq[i])))
 }
@@ -92,7 +99,7 @@ html <- sprintf('<!doctype html>
 <body>
 <header>
   <h1>%s</h1>
-  <div class="sub">%d genes. Each page carries the per-residue class tracks
+  <div class="sub">%d pages. %sEach page carries the per-residue class tracks
     (<b>peptide (inserting)</b>, <b>peptide (non-inserting)</b>, CT- and NT-context),
     the CNN attention head and the xgboost window head for both termini, and the
     window-free MLP and XGB residue models.
@@ -108,8 +115,7 @@ html <- sprintf('<!doctype html>
   </div>
   <div class="none" id="none">no match</div>
 </div>
-<footer>Trunks: <code>lf_pepend_run_N_near</code> / <code>lf_pepend_run_C_near</code>,
-  20 members each. Built %s.</footer>
+<footer>%s Built %s.</footer>
 <script>
  var q = document.getElementById("q"), cards = [].slice.call(document.querySelectorAll(".card"));
  q.addEventListener("input", function () {
@@ -123,7 +129,11 @@ html <- sprintf('<!doctype html>
  q.focus();
 </script>
 </body></html>
-', esc(ttl), esc(ttl), length(files), rows, format(Sys.Date(), "%e %B %Y"))
+', esc(ttl), esc(ttl), length(files),
+  .read_html_opt(blurb_p, ""), rows,
+  .read_html_opt(footer_p, paste("Trunks: <code>lf_pepend_run_N_near</code> /",
+                                 "<code>lf_pepend_run_C_near</code>, 20 members each.")),
+  format(Sys.Date(), "%e %B %Y"))
 
 writeLines(html, out_p)
 message(sprintf("%d page(s) -> %s (%.1f KB)", length(files), out_p, file.size(out_p) / 1024))
