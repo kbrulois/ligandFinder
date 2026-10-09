@@ -11,11 +11,8 @@ uniprot_t <- readRDS(paste0(s_localDir, "/processed/uniprot_4.rds"))
 
 
 
-library(reticulate)
-
-reticulate::py_install("iPython")
-
-source_python(file = "~/Python_scripts/cap_peptides.py")
+library(ligandFinder)  # provides compute_cap_features() (pure-R port of
+                        # ~/Python_scripts/cap_peptides.py)
 
 
 
