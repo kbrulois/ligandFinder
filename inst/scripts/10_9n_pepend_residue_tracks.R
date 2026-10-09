@@ -94,11 +94,16 @@ if (file.exists(wx_path)) {
 }
 
 ## ---- the window-free residue scores, loaded once -------------------------------
+## lf_resid's binary target names -> the per-index class each one is asking
+## about, so the two panels can share `nn_class_cols`.
+RP_CLASS <- c(pep_pocket = "pep_pocket", pep_other = "pep_other",
+              ct_context = "CT_cleavage_context", nt_context = "NT_cleavage_context")
 RP <- NULL
 if (file.exists(rp_path)) {
   .z <- np$load(rp_path, allow_pickle = TRUE)
   .have <- as.character(reticulate::py_to_r(.z$files))
-  .cols <- grep("^(pep_pocket|ct_context)__(mlp|xgb)$", .have, value = TRUE)
+  .cols <- grep("^(pep_pocket|pep_other|ct_context|nt_context)__(mlp|xgb)$",
+                .have, value = TRUE)
   if (length(.cols)) {
     RP <- list(cols = .cols,
                prot = as.integer(reticulate::py_to_r(.z[["prot_idx"]])),
@@ -310,10 +315,12 @@ make_one <- function(gene) {
         }) %>% bind_rows() %>%
           filter(residue >= p$n_prot, residue <= p$c_prot) %>%
           ## colour by the CLASS so it reads against the per-index panel above,
-          ## linetype by the model: same colour means the same thing predicted
-          mutate(class = factor(ifelse(target == "pep_pocket", "pep_pocket",
-                                       "CT_cleavage_context"),
-                                levels = c("pep_pocket", "CT_cleavage_context")),
+          ## one panel per model: same colour means the same thing predicted.
+          ## These binary targets are the per-index vocabulary under another
+          ## name, so they are mapped onto it rather than given a palette of
+          ## their own -- `pep_pocket` here and `pep_pocket` above are the same
+          ## claim about the same residue, from two model families.
+          mutate(class = factor(RP_CLASS[target], levels = names(nn_class_cols)),
                  model = factor(model, levels = c("xgb", "mlp")))
       }
     }
@@ -369,7 +376,7 @@ make_one <- function(gene) {
       scale_x_continuous(limits = c(0.5, L + 0.5), expand = c(0, 0),
                          breaks = scales::breaks_width(BRK_W)) +
       scale_y_continuous(limits = c(0, 1.02), breaks = seq(0, 1, 0.25), expand = c(0, 0)) +
-      labs(x = NULL, y = sprintf("p(%s)", cl)) +
+      labs(x = NULL, y = sprintf("p(%s)", nn_class_labels[[cl]])) +
       lf_viz_theme() +
       theme(axis.text.x = element_blank(), panel.grid.major.x = element_blank())
   }
@@ -385,14 +392,26 @@ make_one <- function(gene) {
            "TOP, a residue property: each mature residue is seen by up to %d windows (median %d ",
            "here) -- a window anchored at a covers\na-%d..a+%d, so residue r sits at window position ",
            "r - a + %d. Members averaged first, then mean and +/- 1 sd ACROSS WINDOWS.%s",
-           "\nDashed line: a known peptide end.%s"),
+           ## Which trunk drew this. Three C runs differ only in whether the
+           ## insertion head is on and whether the positives were filtered, and
+           ## a figure that does not say which one it came from has twice been
+           ## read as a statement about a different model.
+           "\nDashed line: a known peptide end.   |   trunk: %s (%d members, ins_head %s)%s"),
            SEQ_LEN, as.integer(median(tracks$n_windows)), ANCHOR - 1L, SEQ_LEN - ANCHOR, ANCHOR,
+           ## this %s closes the TOP paragraph and comes BEFORE the trunk stamp
+           ## in the format string -- the arguments are positional, so it has to
+           ## come before them here too
            if (combined)
              paste0("\nBELOW, window properties on the anchor axis: each value belongs to a whole ",
                     "36-residue window and to the hypothesis\n\"the peptide ends at this anchor\", ",
                     "and its band is +/- 1 sd ACROSS THE ", length(models), " SEEDS. The two kinds ",
                     "of band are not comparable.")
            else "",
+           basename(tools::file_path_sans_ext(run_p)), length(models),
+           ## INS, not `ins_names`: the posinserting config still CARRIES the
+           ## class names with the head switched off, so the names prove nothing
+           ## -- only an `ins_class` output in the loaded model does.
+           if (!is.null(INS)) "on" else "off",
            if (!is.na(grp <- tryCatch(paste(sort(unique(as.character(kn$split))), collapse = "/"),
                                       error = function(e) NA_character_)) && nzchar(grp))
              sprintf("  This gene's known end is in the %s split.", toupper(grp)) else "")) +
@@ -452,13 +471,13 @@ make_one <- function(gene) {
           aes(xintercept = anchor), colour = LF_VIZ$ink, linewidth = 0.5, linetype = "22") } +
       geom_ribbon(aes(ymin = pmax(mean - sd, 0), ymax = pmin(mean + sd, 1), fill = class),
                   alpha = 0.20, colour = NA, na.rm = TRUE) +
-      scale_fill_manual(values = nn_class_cols, guide = "none") +
+      scale_fill_manual(values = nn_class_cols, labels = nn_class_label_fn, guide = "none") +
       geom_line(linewidth = 0.6, na.rm = TRUE) +
       ## the per-residue dot the detail panels carry; dropped on a long precursor,
       ## where one dot per residue is a smear rather than a mark
       {if (L <= 300) geom_point(pch = 21, stroke = 0.6, size = 1.6,
                                 fill = LF_VIZ$surface, na.rm = TRUE) } +
-      scale_colour_manual(values = nn_class_cols) +
+      scale_colour_manual(values = nn_class_cols, labels = nn_class_label_fn) +
       scale_x_continuous(limits = c(0.5, L + 0.5), expand = c(0, 0),
                          breaks = scales::breaks_width(BRK_W)) +
       scale_y_continuous(limits = c(0, 1.02), breaks = seq(0, 1, 0.25), expand = c(0, 0)) +
@@ -513,7 +532,7 @@ make_one <- function(gene) {
       geom_rect(data = truth_seg,
                 aes(xmin = start - 0.5, xmax = end + 0.5, ymin = 0.62, ymax = 1.18, fill = class),
                 colour = "white", linewidth = 0.15) +
-      scale_fill_manual(values = nn_class_cols, name = NULL,
+      scale_fill_manual(values = nn_class_cols, labels = nn_class_label_fn, name = NULL,
                         breaks = levels(droplevels(truth_seg$class))) +
       geom_segment(data = truth_pep, aes(x = start, xend = end, y = 1.72, yend = 1.72),
                    colour = LF_VIZ$ink2, linewidth = 1.8, lineend = "butt") +
@@ -546,11 +565,11 @@ make_one <- function(gene) {
           aes(xintercept = anchor), colour = LF_VIZ$ink, linewidth = 0.5, linetype = "22") } +
       geom_ribbon(aes(ymin = pmax(mean - sd, 0), ymax = pmin(mean + sd, 1), fill = class),
                   alpha = 0.20, colour = NA, na.rm = TRUE) +
-      scale_fill_manual(values = nn_class_cols, guide = "none") +
+      scale_fill_manual(values = nn_class_cols, labels = nn_class_label_fn, guide = "none") +
       geom_line(linewidth = 0.6, na.rm = TRUE) +
       {if (L <= 300) geom_point(pch = 21, stroke = 0.6, size = 1.6,
                                 fill = LF_VIZ$surface, na.rm = TRUE) } +
-      scale_colour_manual(values = nn_class_cols, guide = "none") +
+      scale_colour_manual(values = nn_class_cols, labels = nn_class_label_fn, guide = "none") +
       scale_x_continuous(limits = c(0.5, L + 0.5), expand = c(0, 0),
                          breaks = scales::breaks_width(BRK_W)) +
       scale_y_continuous(limits = c(0, 1.02), breaks = seq(0, 1, 0.5), expand = c(0, 0)) +
@@ -576,9 +595,9 @@ make_one <- function(gene) {
       {if (any(!is.na(d$sd))) geom_ribbon(
           aes(ymin = pmax(mean - sd, 0), ymax = pmin(mean + sd, 1), fill = class),
           alpha = 0.18, colour = NA, na.rm = TRUE) } +
-      scale_fill_manual(values = nn_class_cols, guide = "none") +
+      scale_fill_manual(values = nn_class_cols, labels = nn_class_label_fn, guide = "none") +
       geom_line(linewidth = 0.6, na.rm = TRUE) +
-      scale_colour_manual(values = nn_class_cols, name = NULL,
+      scale_colour_manual(values = nn_class_cols, labels = nn_class_label_fn, name = NULL,
                           guide = if (legend) "legend" else "none") +
       scale_x_continuous(limits = c(0.5, L + 0.5), expand = c(0, 0),
                          breaks = scales::breaks_width(BRK_W)) +

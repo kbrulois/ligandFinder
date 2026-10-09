@@ -36,6 +36,8 @@ id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 if (!exists("species_dat") || is.null(species_dat))
   species_dat <- readRDS(system.file("extdata/species_dat.rds", package = "ligandFinder"))
 source("~/R_projects/ligandFinder/R/plot_proteins_win_new.R")
+source(sub("plot_proteins_win_new\\.R$", "pepend_tracks.R",
+           "~/R_projects/ligandFinder/R/plot_proteins_win_new.R"))
 dir.create(path.expand(plot_dir), showWarnings = FALSE, recursive = TRUE)
 
 want <- commandArgs(trailingOnly = TRUE)

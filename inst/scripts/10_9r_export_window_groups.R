@@ -13,10 +13,30 @@ suppressMessages(library(dplyr))
 .opt <- function(f, d) { i <- match(f, .args); if (is.na(i) || i == length(.args)) d else .args[[i + 1L]] }
 term   <- toupper(.opt("--term", "C"))
 in_p   <- path.expand(.opt("--input", "~/AF2_analysis/lf_pepend_nn_input.rds"))
-out_p  <- path.expand(.opt("--out", sprintf("~/AF2_analysis/lf_pepend_window_groups_%s.npz", term)))
+## A run trained with 10_8 --positives has FEWER rows than the full nn_input
+## (inserting-only drops train 457 -> 429, val 429 -> 414), so its arrays.npz and
+## this table only line up if the same filter is applied here. Mismatched lengths
+## are an error downstream rather than a silent misalignment, but only because
+## something checks -- so pass the same --positives you trained with.
+pos_cls <- .opt("--positives", NA_character_)
+out_p  <- path.expand(.opt("--out",
+  sprintf("~/AF2_analysis/lf_pepend_window_groups_%s%s.npz", term,
+          if (!is.na(pos_cls)) paste0("_pos", pos_cls) else "")))
 np <- reticulate::import("numpy", convert = FALSE)
 
 x <- readRDS(in_p)$nn_input[[term]]
+if (!is.na(pos_cls)) {
+  source(file.path(dirname(sub("^--file=", "",
+    grep("^--file=", commandArgs(FALSE), value = TRUE)[[1]])), "..", "..",
+    "R", "pepend_windows.R"))
+  for (s_ in c("train", "val")) {
+    d <- x[[s_]]; pos <- which(d$known == 1L)
+    cls <- lf_pepend_insertion_class(d$known_idx[pos], d$term[pos], d$len[pos])
+    drop <- pos[cls != pos_cls]
+    if (length(drop)) x[[s_]] <- d[-drop, ]
+  }
+  message("filtered positives to '", pos_cls, "'")
+}
 args <- list(out_p)
 for (s in c("train", "val", "all")) {
   d <- x[[s]]

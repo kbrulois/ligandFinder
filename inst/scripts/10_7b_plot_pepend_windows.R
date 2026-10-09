@@ -29,6 +29,8 @@ stamp   <- format(Sys.time(), "%Y%m%d_%H%M%S")
 .this <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
 ROOT  <- if (length(.this)) normalizePath(file.path(dirname(.this[[1]]), "..", "..")) else getwd()
 source(file.path(ROOT, "R", "pepend_windows.R"))
+## nn_class_cols / nn_class_labels: the shared class palette and figure names
+source(file.path(ROOT, "R", "plot_proteins_win_new.R"))
 TOL <- as.integer(.opt("--tol", "2"))
 
 k <- readRDS(in_path)$knowns
@@ -36,9 +38,12 @@ k <- readRDS(in_path)$knowns
 k <- dplyr::bind_cols(k, lf_pepend_insertion_class(k$known_idx, k$term, k$len,
                                                    tol = TOL, detail = TRUE))
 
-class_cols <- c(NT_cleavage_context = "#D2AF81FF", pep_other = "#D5E4A2FF",
-                pep_pocket = "#197EC0FF", CT_cleavage_context = "#FED439FF",
-                padding = "grey85")
+## the five classes this figure draws, taking colour AND label from the shared
+## table rather than restating either -- a second copy of the palette here is
+## how a class ends up a different colour on two pages of the same report
+class_cols <- nn_class_cols[c("NT_cleavage_context", "pep_other", "pep_pocket",
+                              "CT_cleavage_context", "padding")]
+class_labs <- nn_class_labels[names(class_cols)]
 motif_lv <- c("dibasic", "G + dibasic", "monobasic", "terminus", "other")
 cls_lv   <- c("inserting", "loop", "non_inserting")
 cls_lab  <- c(inserting = "INSERTING\npocket at\nthis end",
@@ -87,7 +92,8 @@ mk <- function(t) {
     geom_hline(yintercept = head(sort(g$hi), -1) + 0.5, linewidth = 0.4, colour = "grey30") +
     annotate("text", x = 37, y = (g$lo + g$hi) / 2, label = sprintf("%s\n(%d)", cls_lab[as.character(g$ins_class)], g$n),
              hjust = 0, size = 2.6, lineheight = 0.9) +
-    scale_fill_manual(values = class_cols, name = "label", drop = FALSE) +
+    scale_fill_manual(values = class_cols, labels = class_labs, name = "label",
+                      drop = FALSE) +
     scale_colour_manual(values = split_cols, name = "split") +
     scale_x_continuous(breaks = c(1, 8, 15, 22, 28, 36), expand = expansion(add = c(0.3, 6))) +
     scale_y_continuous(breaks = k$y[k$term == t], labels = k$row[k$term == t],
