@@ -209,7 +209,7 @@ runs_m <- runs_m %>%
 
 out_dir <- "/oak/stanford/groups/ebutcher/kevin"
 local_dir <- "~/AF2_analysis"
-file_name <- "igtest"
+file_name <- "bdkrb2"
 
 test <- data.table::fread(paste0(out_dir, "/", "Aug7_all", ".csv"))
 
