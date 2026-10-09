@@ -9,6 +9,13 @@
 ##
 ## Run AFTER 10_1dcnn_new6.R, in the same session. Needs: models, nn_input,
 ## nn_input_comb, known_dat, c_dat, all_params3, seq_len, n_channels.
+##
+## Session overrides (set before sourcing; defaults below otherwise):
+##   targs         list of target vectors, e.g. list(c("C", "loop_C")) for C only
+##   met_it_extra  named list of extra channel groups, e.g. the plm_* channels
+##   out_prefix    file stem under ~/AF2_analysis
+##   extra_peps    non-known windows to add to the sequence track
+## 10_2b_saliency_bench_arm.R uses these to run this on a benchmark arm.
 ## =============================================================================
 
 library(keras3); library(tensorflow); library(tidyverse)
@@ -27,13 +34,13 @@ if (length(.miss_pkg))
        paste(.miss_pkg, collapse = "','"), "'))")
 
 ## output naming. Stamped so successive runs don't overwrite each other.
-out_prefix <- "model_importance"
+if (!exists("out_prefix")) out_prefix <- "model_importance"
 stamped <- function(..., ext = ".svg", dir = "~/AF2_analysis")
   file.path(dir, paste0(paste0(...), "_", format(Sys.time(), "%Y%m%d_%H%M%S"), ext))
 
 ## extra (non-known) windows to show in the sequence track alongside the knowns;
 ## character(0) for knowns only. Ids exactly as they appear in nn_input_comb$peps.
-extra_peps <- c("NUCB1_w45-80", "NUCB2_w48-83")
+if (!exists("extra_peps")) extra_peps <- c("NUCB1_w45-80", "NUCB2_w48-83")
 
 ## rebuild the (n, seq_len, n_channels) input array from a dataset list-column.
 ## Replaces the per-model nn_in_* objects that 10_1dcnn_new6.R no longer creates.
@@ -78,7 +85,7 @@ saliency_fn <- function(model, x_batch, use_logit = TRUE) {
 }
 
 
-targs <- list(
+if (!exists("targs")) targs <- list(
   c("C", "loop_C"),
   c("N", "loop_N")
 )
@@ -95,6 +102,7 @@ met_it <- list(
   energy = c("NH->O_1_energy", "O->NH_1_energy", "NH->O_2_energy", "O->NH_2_energy"),
   SS     = c("SS_G", "SS_B", "SS_H")
 )
+if (exists("met_it_extra")) met_it <- c(met_it, met_it_extra)
 met_it <- lapply(met_it, intersect, all_params3)
 if (any(lengths(met_it) == 0))
   message("10_2_model_importance: dropping group(s) absent from all_params3: ",
@@ -299,13 +307,16 @@ for(y in seq_along(met_it)) {
 
   }
 
+  n_term  <- length(p_final)                     # one column per terminus plotted
   p_final <- unlist(p_final, recursive = FALSE)
 
-  p_final2 <- Reduce(`+`, p_final) +  patchwork::plot_layout(ncol = 2, nrow = 3, byrow = FALSE, heights = c(1.4,1,1),
+  p_final2 <- Reduce(`+`, p_final) +  patchwork::plot_layout(ncol = n_term, nrow = 3, byrow = FALSE, heights = c(1.4,1,1),
                                                              guides = "collect") &
     theme(legend.position = "top", legend.title = element_blank())
 
-  ggsave(filename = stamped(out_prefix, "_", names(met_it)[y]), p_final2, width = 16, height = 16)
+  ## taller when a group has many channels (the plm_* groups): ~0.45 in per facet row
+  ggsave(filename = stamped(out_prefix, "_", names(met_it)[y]), p_final2,
+         width = 8 * n_term, height = max(16, 6 + 0.45 * length(met_it[[y]]) * 2))
 
 
 }

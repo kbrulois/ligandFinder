@@ -65,15 +65,27 @@ lf_dcnn_utf8_streams <- function() {
 #' Build an lf_dcnn Config
 #'
 #' @param channel_names input channel order, i.e. `all_params3`.
-#' @param r_exact reproduce 10_1dcnn_new6.R exactly, including its DB-mask
+#' @param r_exact the flat trunk with the position ramp and `none` masked. NO
+#'   LONGER reproduces 10_1dcnn_new6.R: that model carried the DB and gap
+#'   classes, which were removed with the dibasic-anchored set. Kept as an
+#'   architecture preset only. Formerly reproduced its DB-mask
 #'   overwrite and its non-functional per-epoch resample. See the package README.
 #' @param ... any other Config field (`epochs`, `seed`, `noise_frac`, ...).
 #' @export
-lf_dcnn_config <- function(channel_names, r_exact = FALSE, ..., mod = NULL) {
+lf_dcnn_config <- function(channel_names, r_exact = FALSE, pepend = NULL, ...,
+                           mod = NULL) {
   mod <- mod %||% lf_dcnn_python()
   args <- list(channel_names = as.character(channel_names),
                n_channels    = length(channel_names), ...)
   ctor <- if (isTRUE(r_exact)) mod$Config$r_exact else mod$Config
+  if (!is.null(pepend)) {
+    if (isTRUE(r_exact))
+      stop("r_exact and pepend are different presets; pass one", call. = FALSE)
+    ## Config.pepend() carries the peptide-end class vocabulary AND re-derives
+    ## the position masks from the anchor; both are wrong if set by hand here.
+    ctor <- mod$Config$pepend
+    args <- c(list(term = as.character(pepend)), args)
+  }
   do.call(ctor, args)
 }
 
@@ -112,9 +124,43 @@ lf_dcnn_split_arrays <- function(input, bk) {
   y_per_index_cat[, , seq_len(bk$K_cat)] <- onehot[, , bk$cat_cols, drop = FALSE]
   y_per_index_cat[, , bk$K_pi]           <- onehot[, , bk$padding_col]
 
-  list(x               = x,
-       y_global        = matrix(as.numeric(input[["known"]]), ncol = 1),
-       y_per_index_cat = y_per_index_cat)
+  out <- list(x               = x,
+              y_global        = matrix(as.numeric(input[["known"]]), ncol = 1),
+              y_per_index_cat = y_per_index_cat)
+
+  ## y_ins: the insertion class of each KNOWN peptide end, one-hot.
+  ##
+  ## A negative is not a peptide end, so it has no insertion class and gets an
+  ## ALL-ZERO row -- that is the mask MaskedWindowCatLoss keys on, the same
+  ## convention an unlabelled POSITION uses in the per-index loss. It is not a
+  ## fourth class and it is not a missing value.
+  ##
+  ## Derived here rather than stored in nn_input, so the rule lives in exactly
+  ## one place (lf_pepend_insertion_class) and the 88 MB rds need not be rebuilt
+  ## when the tolerance changes.
+  if (!is.null(bk$ins_names)) {
+    if (!exists("lf_pepend_insertion_class"))
+      stop("ins_head needs lf_pepend_insertion_class(); source R/pepend_windows.R ",
+           "alongside this file", call. = FALSE)
+    if (!all(c("known_idx", "term", "len", "known") %in% names(input)))
+      stop("ins_head needs known_idx/term/len/known on the split; this looks ",
+           "like a contract from before the peptide-end set", call. = FALSE)
+    y_ins <- matrix(0, n, length(bk$ins_names))
+    kn <- which(as.numeric(input[["known"]]) == 1)
+    if (length(kn)) {
+      cls <- lf_pepend_insertion_class(input[["known_idx"]][kn],
+                                       input[["term"]][kn], input[["len"]][kn])
+      j <- match(cls, bk$ins_names)
+      if (anyNA(j))
+        stop("insertion class(es) not in the Config vocabulary: ",
+             paste(unique(cls[is.na(j)]), collapse = ", "), call. = FALSE)
+      y_ins[cbind(kn, j)] <- 1
+    }
+    ## every labelled row sums to 1, every other to 0 -- the loss masks on this
+    stopifnot(all(rowSums(y_ins) == as.numeric(input[["known"]])))
+    out$y_ins <- y_ins
+  }
+  out
 }
 
 #' Read the class bookkeeping out of a Python Config
@@ -133,7 +179,9 @@ lf_dcnn_bookkeeping <- function(cfg) {
     ## Python indices are 0-based; R needs them 1-based
     cat_cols    = as.integer(cfg$cat_cols) + 1L,
     padding_col = as.integer(cfg$padding_col) + 1L,
-    pi_names    = as.character(cfg$pi_names)
+    pi_names    = as.character(cfg$pi_names),
+    ## NULL unless the insertion head is on
+    ins_names   = if (isTRUE(as.logical(cfg$ins_head))) as.character(cfg$ins_class_names) else NULL
   )
 }
 
@@ -174,6 +222,14 @@ lf_dcnn_arrays <- function(nn_input, cfg, splits = c("train", "val", "all")) {
 #' @param keep_arrays return the built contract arrays as `$arrays`, which
 #'   10_1dcnn_new6.R re-exposes as `nn_in_all` for the plotting scripts. Set
 #'   FALSE to drop them once scoring is done (they are the bulk of the memory).
+#' @param isolated TRUE (default) trains every (member, terminus) model in its
+#'   own python process through the standalone CLI (`python -m lf_dcnn train
+#'   --isolated`) and reads the outputs back; `models` are rebuilt from the
+#'   first member's saved weights. The second model trained in one Keras/TF
+#'   process dies intermittently in a retraced tf.function, and an ensemble
+#'   trains ten, so in-process (`FALSE`) is only for tiny runs and tests. The
+#'   arrays and outputs live beside `cache` (`<cache>_isolated/`), or in a
+#'   tempdir when there is no cache.
 #' @param ... further Config fields (`epochs`, `seed`, ...).
 #' @return list with `pred`, `pred_raw`, `pred_sd`, `per_index`, `per_index_sd`,
 #'   `per_index_tbl`, `per_index_sd_tbl`, `emb`,
@@ -182,7 +238,7 @@ lf_dcnn_arrays <- function(nn_input, cfg, splits = c("train", "val", "all")) {
 #' @export
 lf_dcnn_run <- function(nn_input, channel_names, r_exact = FALSE,
                         verbose = 1L, keep_arrays = TRUE, n_seeds = 5L,
-                        cache = NULL, refresh = FALSE, ...,
+                        cache = NULL, refresh = FALSE, isolated = TRUE, ...,
                         venv = "r-tensorflow", path = NULL) {
   mod <- lf_dcnn_python(venv = venv, path = path)
   cfg <- lf_dcnn_config(channel_names, r_exact = r_exact, ..., mod = mod)
@@ -217,9 +273,17 @@ lf_dcnn_run <- function(nn_input, channel_names, r_exact = FALSE,
   }
 
   data <- lf_dcnn_arrays(nn_input, cfg)
-  res  <- mod$run(data, cfg, verbose = as.integer(verbose),
-                  n_seeds = as.integer(n_seeds))
-  out  <- res$to_dict()
+  if (isTRUE(isolated)) {
+    out <- lf_dcnn_run_isolated(data, cfg, n_seeds = n_seeds, verbose = verbose,
+                                work = if (!is.null(.cp)) paste0(tools::file_path_sans_ext(.cp), "_isolated")
+                                       else tempfile("lf_dcnn_"),
+                                refresh = refresh, mod = mod, path = path)
+    res <- list(models = out$models)
+  } else {
+    res <- mod$run(data, cfg, verbose = as.integer(verbose),
+                   n_seeds = as.integer(n_seeds))
+    out <- res$to_dict()
+  }
 
   out$per_index_tbl <- lf_dcnn_per_index_tibbles(out$per_index, out$pi_names)
   ## sd across ensemble members, same shape and column names as the mean, so the
@@ -257,10 +321,63 @@ lf_dcnn_run <- function(nn_input, channel_names, r_exact = FALSE,
   out
 }
 
+#' The isolated trainer: export, `python -m lf_dcnn train --isolated`, import
+#'
+#' Returns the same list `Result.to_dict()` gives in-process, plus `models`
+#' rebuilt from the first member's weights. Models already under
+#' `<work>/out/members/` are reused unless `refresh`.
+#' @keywords internal
+lf_dcnn_run_isolated <- function(data, cfg, n_seeds, verbose, work, refresh = FALSE,
+                                 mod = NULL, path = NULL) {
+  mod <- mod %||% lf_dcnn_python(path = path)
+  in_dir <- file.path(work, "in"); out_dir <- file.path(work, "out")
+  if (isTRUE(refresh)) unlink(out_dir, recursive = TRUE)
+  dir.create(in_dir, showWarnings = FALSE, recursive = TRUE)
+  mod$io$save_inputs(in_dir, data, cfg)                 # arrays.npz + config.json (all overrides)
+
+  py   <- file.path(dirname(reticulate::py_config()$python), "python")
+  ## the subprocess must run the SAME tree this session imported -- not
+  ## whatever lf_dcnn_path() would pick (it prefers the installed package)
+  py_path <- dirname(dirname(reticulate::py_to_r(reticulate::py_get_attr(mod, "__file__"))))
+  argv <- c("-u", "-m", "lf_dcnn", "train", "--isolated",
+            "--input-dir", in_dir, "--output-dir", out_dir,
+            "--n-seeds", as.integer(n_seeds), "--verbose", as.integer(verbose))
+  message("lf_dcnn_run: training ", n_seeds, " member(s) x ", length(cfg$term_order),
+          " termini, one process each; log: ", file.path(work, "train.log"))
+  rc <- system2(py, argv, env = paste0("PYTHONPATH=", py_path),
+                stdout = file.path(work, "train.log"), stderr = file.path(work, "train.log"))
+  if (rc != 0 || !file.exists(file.path(out_dir, "outputs.npz")))
+    stop("lf_dcnn_run: `python -m lf_dcnn train --isolated` failed (rc=", rc,
+         "); see ", file.path(work, "train.log"), ". Re-running resumes from the members on disk.")
+
+  out <- mod$io$load_outputs(out_dir)
+  out$predictions <- NULL
+  out$term_order  <- as.character(unlist(out$term_order))
+  out$pi_names    <- as.character(unlist(out$pi_names))
+  out$n_seeds     <- as.integer(out$n_seeds)
+  out$models <- stats::setNames(lapply(out$term_order, function(tm) {
+    w <- file.path(out_dir, "members", sprintf("member_000_%s.weights.h5", tm))
+    m <- mod$build_model(cfg); m$load_weights(normalizePath(w)); m
+  }), out$term_order)
+  out
+}
+
 #' Keep Config$term_order in step with names(nn_input)
 #' @keywords internal
 lf_dcnn_align_terms <- function(cfg, terms) {
   if (identical(as.character(cfg$term_order), as.character(terms))) return(cfg)
+  ## Position masks are term-SPECIFIC -- the peptide's own terminal residue sits
+  ## at window position 28 for C and 8 for N -- while `mask_matrix_cat` is not,
+  ## so widening term_order here would score one terminus through the other's
+  ## mask and silently zero true classes. This used to be gated on the
+  ## vocabulary carrying no "DB", i.e. on the config being a peptide-end one;
+  ## with the dibasic-anchored set retired there is no other kind, so the rule
+  ## is unconditional.
+  if (length(terms) > 1L)
+    stop("a Config is per-terminus (term_order ",
+         paste(as.character(cfg$term_order), collapse = "/"), "), but ",
+         length(terms), " termini were given: ", paste(terms, collapse = ", "),
+         ". Train one terminus at a time, with its own Config.", call. = FALSE)
   cfg$evolve(term_order = as.character(terms))
 }
 
@@ -280,6 +397,52 @@ lf_dcnn_per_index_tibbles <- function(arr, class_names) {
     names(cols) <- col_names
     tibble::new_tibble(cols, nrow = seq_n)     # skip as_tibble/dplyr validation
   })
+}
+
+#' Pack per-precursor residue features into one array for `lf_dcnn.scan`
+#'
+#' The exhaustive scan (every mature residue of every precursor, ~3M windows for
+#' one terminus) cannot take the window contract -- as a list of 36-row tibbles
+#' it is tens of GB -- so it builds its windows python-side from the residue
+#' features instead. This writes those: one float32 `(total_residues,
+#' n_channels)` array plus, per precursor, the row its residue 1 lives at and
+#' its mature range.
+#'
+#' Row order is `prec`'s row order, which is what the scan's `prot_idx` indexes.
+#'
+#' @param prec one row per precursor, with `accession`, `n_prot`, `c_prot`.
+#' @param feats list of `(nchar(seq), n_channels)` matrices, parallel to `prec`.
+#' @param channel_names the channel order, i.e. `all_params3`.
+#' @param path destination `.npz`.
+#' @return `path`, invisibly.
+#' @export
+lf_dcnn_pack_residues <- function(prec, feats, channel_names, path,
+                                  venv = "r-tensorflow", py_path = NULL) {
+  stopifnot(length(feats) == nrow(prec))
+  if (!identical(colnames(feats[[1]]), as.character(channel_names)))
+    stop("feats columns are not channel_names, in order", call. = FALSE)
+  lf_dcnn_python(venv = venv, path = py_path)
+  np <- reticulate::import("numpy", convert = FALSE)
+
+  L <- vapply(feats, nrow, integer(1))
+  if (any(L != prec$c_prot))
+    stop("nrow(feats[[i]]) must equal c_prot (the precursor's last residue)",
+         call. = FALSE)
+  off <- c(0L, cumsum(L)[-length(L)])              # 0-based row of residue 1
+  tot <- sum(L)
+
+  ## Build CHANNEL-major (n_channels, total): R fills column-major, so this same
+  ## memory read as numpy row-major is already the (total, n_channels) we want --
+  ## the transpose is then a numpy view, never a second 600 MB R copy.
+  M <- matrix(0, length(channel_names), tot)
+  for (i in seq_along(feats)) M[, (off[i] + 1L):(off[i] + L[i])] <- t(feats[[i]])
+  np$savez(path.expand(path),
+           feat   = np$ascontiguousarray(np$asarray(M, dtype = "float32")$T),
+           offset = np$asarray(off, dtype = "int64"),
+           n_prot = np$asarray(as.integer(prec$n_prot), dtype = "int64"),
+           c_prot = np$asarray(as.integer(prec$c_prot), dtype = "int64"))
+  rm(M); invisible(gc())
+  invisible(path)
 }
 
 ## ---- entry point 2: standalone, via disk ------------------------------------

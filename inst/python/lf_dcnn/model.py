@@ -7,7 +7,13 @@ import numpy as np
 from keras import layers, ops
 
 from .config import Config
-from .losses import PerIndexCatLoss, WeightedBinaryCrossentropy, make_masked_cat_accuracy
+from .losses import (
+    MaskedWindowCatLoss,
+    PerIndexCatLoss,
+    WeightedBinaryCrossentropy,
+    make_masked_cat_accuracy,
+    make_masked_window_accuracy,
+)
 
 
 @keras.saving.register_keras_serializable(package="lf_dcnn")
@@ -171,8 +177,11 @@ def build_model(cfg: Config | None = None, clear_session: bool = True) -> keras.
     inputs = layers.Input(shape=(cfg.seq_len, cfg.n_channels), name="window")
     reg = keras.regularizers.l2(cfg.l2)
 
-    pos_channel = PositionRamp(cfg.seq_len, name="pos_ramp")(inputs)
-    conv_in = layers.Concatenate(name="conv_in")([inputs, pos_channel])
+    if cfg.position_ramp:
+        pos_channel = PositionRamp(cfg.seq_len, name="pos_ramp")(inputs)
+        conv_in = layers.Concatenate(name="conv_in")([inputs, pos_channel])
+    else:
+        conv_in = inputs
 
     shared, bottleneck = (_unet_trunk if cfg.trunk == "unet" else _flat_trunk)(
         conv_in, cfg, reg
@@ -186,7 +195,7 @@ def build_model(cfg: Config | None = None, clear_session: bool = True) -> keras.
     per_index_cat = layers.Activation("softmax", name="per_index_cat")(per_index_logits)
 
     pooled = []
-    if cfg.global_head in ("attn", "both"):
+    if cfg.global_head in ("attn", "gap", "both"):
         # Masked softmax over the [6 real + none] logits, so the ranking head's
         # class view includes background/none but not padding.
         masked_sum = ClassPositionMask(cfg.mask_matrix_cat, name="class_position_mask")(
@@ -194,15 +203,21 @@ def build_model(cfg: Config | None = None, clear_session: bool = True) -> keras.
         )
         masked_sum = layers.Activation("softmax", name="masked_sum")(masked_sum)
 
-        # A SMALL multi-head attention over the masked class softmax, then pool.
-        # A plain GAP of the softmax washed out all positional signal and tanked
-        # global AUC; the attention restores it at ~1/6 the cost of the old
-        # 4-head/key_dim-32 version.
-        attn = layers.MultiHeadAttention(
-            num_heads=cfg.attention_heads, key_dim=cfg.attention_key_dim, name="attn"
-        )(masked_sum, masked_sum)
-        a = layers.LayerNormalization(name="attn_norm")(attn)
-        pooled.append(layers.GlobalAveragePooling1D(name="gap")(a))
+        if cfg.global_head == "gap":
+            # The ablation: pool the class softmax straight, no attention. On the
+            # DIBASIC-anchored set this washed out the positional signal and
+            # tanked global AUC, which is why `attn` is the default -- but that
+            # was a different training set and a different window geometry, so
+            # the arm is kept runnable rather than only remembered.
+            pooled.append(layers.GlobalAveragePooling1D(name="gap")(masked_sum))
+        else:
+            # A SMALL multi-head attention over the masked class softmax, then
+            # pool, at ~1/6 the cost of the old 4-head/key_dim-32 version.
+            attn = layers.MultiHeadAttention(
+                num_heads=cfg.attention_heads, key_dim=cfg.attention_key_dim, name="attn"
+            )(masked_sum, masked_sum)
+            a = layers.LayerNormalization(name="attn_norm")(attn)
+            pooled.append(layers.GlobalAveragePooling1D(name="gap")(a))
 
     if cfg.global_head in ("bottleneck", "both"):
         # Straight off the U-Net bottleneck: the score sees the pooled
@@ -216,11 +231,15 @@ def build_model(cfg: Config | None = None, clear_session: bool = True) -> keras.
     g = layers.Dropout(cfg.embed_dropout, name="embed_drop")(g)
     global_output = layers.Dense(1, activation="sigmoid", name="global")(g)
 
-    return keras.Model(
-        inputs=inputs,
-        outputs={"global": global_output, "per_index_cat": per_index_cat},
-        name="lf_dcnn",
-    )
+    outputs = {"global": global_output, "per_index_cat": per_index_cat}
+    if cfg.ins_head:
+        # Reads the SAME pooled embedding the window score does: "is this an end"
+        # and "what kind of end" share a representation and differ only in head.
+        outputs["ins_class"] = layers.Dense(
+            cfg.K_ins, activation="softmax", name="ins_class"
+        )(g)
+
+    return keras.Model(inputs=inputs, outputs=outputs, name="lf_dcnn")
 
 
 def compile_model(model: keras.Model, cfg: Config, term: str) -> keras.Model:
@@ -238,13 +257,16 @@ def compile_model(model: keras.Model, cfg: Config, term: str) -> keras.Model:
             "per_index_cat": PerIndexCatLoss(
                 class_weights=cfg.pi_weights(term),
                 none_index=cfg.none_index,
+                mask_none=not cfg.none_in_loss,
                 gamma=cfg.gamma,
                 smoothness_weight=cfg.smoothness_weight,
             ),
+            **({"ins_class": MaskedWindowCatLoss()} if cfg.ins_head else {}),
         },
         loss_weights={
             "global": cfg.loss_weight_global,
             "per_index_cat": cfg.loss_weight_per_index,
+            **({"ins_class": cfg.loss_weight_ins} if cfg.ins_head else {}),
         },
         metrics={
             "global": [
@@ -254,6 +276,7 @@ def compile_model(model: keras.Model, cfg: Config, term: str) -> keras.Model:
             "per_index_cat": [
                 make_masked_cat_accuracy(cfg.none_index, cfg.padding_index)
             ],
+            **({"ins_class": [make_masked_window_accuracy()]} if cfg.ins_head else {}),
         },
     )
     return model

@@ -18,6 +18,39 @@ nn_class_cols <- setNames(
     "pep_other", "pep_pocket", "padding", "none")
 )
 
+#' What each class is CALLED on a figure
+#'
+#' The names above are identifiers, not labels: they are the softmax column
+#' order of every trained member (`class_names` in each saved config.json), the
+#' key prefixes in `lf_resid_preds.npz`, and the factor levels everything joins
+#' on. They cannot be renamed without desynchronising the saved ensembles from
+#' the code that loads them, so the figure-facing names live here instead and
+#' are applied with `labels =` at the point of drawing.
+#'
+#' `pep_pocket`/`pep_other` say where the residue is (in the receptor pocket or
+#' not); the labels say what that MEANS for the peptide end a window is scoring
+#' -- whether the peptide inserts. Same distinction, read from the other side.
+#' Kept next to the palette so a class cannot gain a colour without a label.
+nn_class_labels <- c(
+  CT_cleavage_context = "CT-context",
+  NT_cleavage_context = "NT-context",
+  pep_other           = "peptide (non-inserting)",
+  pep_pocket          = "peptide (inserting)",
+  DB                  = "DB",
+  gap                 = "gap",
+  padding             = "padding",
+  none                = "none"
+)
+stopifnot(setequal(names(nn_class_labels), names(nn_class_cols)))
+
+#' Label whatever breaks a scale actually draws
+#'
+#' A named vector passed as `labels =` has to match the breaks one for one, and
+#' a panel that draws 4 of the 8 classes does not -- ggplot then stops with
+#' "`breaks` and `labels` must have the same length" and the figure is lost.
+#' A function is called WITH the breaks, so it works for any subset.
+nn_class_label_fn <- function(x) unname(nn_class_labels[as.character(x)])
+
 nn_win_target_cols <- c(
   "db_N"       = "#197EC0FF",
   "db_C"       = "#C80813FF",
@@ -172,6 +205,32 @@ assign_overlap_layers <- function(start, end, gap = 0) {
   out
 }
 
+## ---- per-peptide pocket residues, loaded once per session -------------------
+## Written by 10_9u_export_pocket_cache.R. Absent file -> NULL, and the peptide
+## lines fall back to their single source colour, which is what every precursor
+## with no docked model gets anyway.
+.lf_pocket_env <- new.env(parent = emptyenv())
+lf_pocket_lookup <- function(path = "~/AF2_analysis/lf_pocket_by_peptide.rds") {
+  if (!is.null(.lf_pocket_env$tbl)) return(.lf_pocket_env$tbl)
+  p <- path.expand(path)
+  .lf_pocket_env$tbl <- if (file.exists(p)) readRDS(p) else NA
+  .lf_pocket_env$tbl
+}
+
+#' Split one peptide span into runs of inserting / non-inserting residues
+#'
+#' A span with pocket residues 81-90 inside 81-107 becomes two segments rather
+#' than 27 one-residue ones, so the line stays a line.
+lf_pocket_runs <- function(start, end, pocket) {
+  r <- seq.int(start, end)
+  cls <- ifelse(r %in% pocket, "pep_pocket", "pep_other")
+  rle_ <- rle(cls)
+  ends <- cumsum(rle_$lengths)
+  tibble::tibble(start = r[c(1L, head(ends, -1L) + 1L)],
+                 end   = r[ends],
+                 feature = rle_$values)
+}
+
 make_detail_panel <- function(per_index, meta_data, title = NULL,
                               x_range = NULL, seq_offset = -0.45,
                               win_start = NULL, win_end = NULL,
@@ -224,7 +283,7 @@ make_detail_panel <- function(per_index, meta_data, title = NULL,
       ggplot2::geom_ribbon(
         ggplot2::aes(ymin = pmax(value - sd, 0), ymax = pmin(value + sd, 1),
                      fill = class), alpha = 0.20, colour = NA, na.rm = TRUE) +
-      ggplot2::scale_fill_manual(values = nn_class_cols, guide = "none") +
+      ggplot2::scale_fill_manual(values = nn_class_cols, labels = nn_class_label_fn, guide = "none") +
       ggplot2::geom_line(linewidth = 0.6, na.rm = TRUE)
   } else {
     p <- p + ggplot2::geom_smooth(method = "loess", span = 0.6, se = FALSE,
@@ -241,7 +300,7 @@ make_detail_panel <- function(per_index, meta_data, title = NULL,
                    data_id = as.character(index_og)),
       pch = 21, stroke = 0.6, size = 1.6
     ) +
-    ggplot2::scale_color_manual(values = nn_class_cols) +
+    ggplot2::scale_color_manual(values = nn_class_cols, labels = nn_class_label_fn) +
     ggplot2::scale_x_continuous(
       limits = x_range,
       expand = ggplot2::expansion(add = c(seq_offset, -0.4)),
@@ -315,6 +374,12 @@ make_protein_plot_win <- function(old_nn_input,
     # ----- prepare NN windows for this protein -----
     gene_tp <- old_nn_input[["gene"]]
 
+    ## The dibasic-anchored window strip and its pre-rendered detail panels are
+    ## OFF. Every residue is now a window anchor on the prediction tracks and its
+    ## frame opens on click, so a hand-picked dibasic subset is both redundant
+    ## and the dominant cost of the page (one ggplot per window; hundreds on a
+    ## polyprotein). getOption("lf.nn_windows", FALSE) brings them back.
+    draw_nn_windows <- isTRUE(getOption("lf.nn_windows", FALSE))
     nn_anno <- NULL
     if (!is.null(new_nn_input) && nrow(new_nn_input) > 0) {
       nn_w <- new_nn_input %>%
@@ -369,6 +434,49 @@ make_protein_plot_win <- function(old_nn_input,
                                      dplyr::coalesce(as.character(end_type), "NA"),
                                      target_short)
             )
+
+          ## ---- insertion head (optional) ------------------------------------
+          ## The peptide-end model's masked 3-way head: where the pocket sits in
+          ## the window relative to the peptide's own end. Purely additive -- an
+          ## input without these columns renders exactly as before. Join them on
+          ## `peps` upstream (see inst/scripts/10_9m_plot_protein_ins.R).
+          ## Suppress with options(lf.nn_show_ins = FALSE).
+          .ins_cols <- c("ins_class", "ins_p_inserting", "ins_p_loop",
+                         "ins_p_non_inserting")
+          .has_ins <- isTRUE(getOption("lf.nn_show_ins", TRUE)) &&
+            all(.ins_cols %in% names(nn_w)) && !all(is.na(nn_w$ins_class))
+          if (.has_ins) {
+            ## top probability is the argmax one; recompute rather than trust a
+            ## column that may not have travelled with the rest.
+            nn_w$ins_p_top <- pmax(nn_w$ins_p_inserting, nn_w$ins_p_loop,
+                                   nn_w$ins_p_non_inserting)
+            .seeds <- if ("ins_n_seeds_agree" %in% names(nn_w))
+              sprintf("  %s/20 seeds", nn_w$ins_n_seeds_agree) else ""
+            nn_w <- nn_w %>%
+              dplyr::mutate(
+                ## Only the windows that matched. A page mixes window sets --
+                ## NPY has 2 windows here and only w37-72 exists in the
+                ## peptide-end candidate set -- and an unconditional paste0
+                ## writes a literal "NA NA" onto every window that did not.
+                ##
+                ## Same line, not a new one: the label box is already as tall as
+                ## the layer spacing allows. ASCII separator -- a U+00B7 did not
+                ## survive the svg round-trip.
+                label_txt = dplyr::if_else(
+                  is.na(ins_class), label_txt,
+                  paste0(label_txt, "  | ", ins_class, " ",
+                         sprintf("%.2f", ins_p_top))),
+                tooltip = dplyr::if_else(
+                  is.na(ins_class), tooltip,
+                  paste0(tooltip, sprintf(
+                    "\ninsertion: %s  (inserting %.2f / loop %.2f / non_inserting %.2f)%s",
+                    ins_class, ins_p_inserting, ins_p_loop, ins_p_non_inserting,
+                    .seeds)))
+              )
+            message("plot_proteins_win_new: insertion head on ",
+                    sum(!is.na(nn_w$ins_class)), " of ", nrow(nn_w),
+                    " window(s) for ", gene_tp)
+          }
           nn_anno <- nn_w
         }
       }
@@ -794,7 +902,10 @@ make_protein_plot_win <- function(old_nn_input,
       ## FULL colour vector and draws keys only for the features its own layers
       ## contain -- which is also what makes the disulfide legend appear only
       ## when the protein actually has disulfides.
-      scale_color_manual(values = setNames(anno_feats$color, anno_feats$feature),
+      scale_color_manual(values = c(setNames(anno_feats$color, anno_feats$feature),
+                                    nn_class_cols[c("pep_pocket", "pep_other")]),
+                         labels = function(x) ifelse(x %in% names(nn_class_labels),
+                                                     nn_class_labels[x], x),
                          name = "motif: ",
                          guide = ggplot2::guide_legend(order = 1))
 
@@ -806,6 +917,76 @@ make_protein_plot_win <- function(old_nn_input,
       mutate(metric_type = factor(metric_type, levels = c("", "discrete", "blosum62\n-------------\ngrantham"))) %>%
       mutate(nudge = unname(pep_nudges[feature]))
 
+    ## ---- gpcrdb_gtp: one line per OVERLAP LAYER, not one line for all --------
+    ## That track used to collapse every GPCRdb peptide onto a single rule, so
+    ## two peptides sharing a span (VIP's PHM 81-107 and PHV 81-122 start on the
+    ## same residue) drew over each other and read as one annotation. Each is now
+    ## given its own line, and the features stacked above it are pushed up by as
+    ## many lines as the layering needed -- `sven` sits only 0.25 above, so
+    ## without the shift the second layer would land on top of it.
+    GTP_STEP <- 0.22
+    ## declared out here: a precursor with no GPCRdb peptides (BRINP3) never
+    ## enters the block below, and the overlay layer still references it
+    pep_over_dat <- NULL
+    .gtp <- h_rec_dat$feature == "gpcrdb_gtp"
+    if (any(.gtp)) {
+      lay <- assign_overlap_layers(h_rec_dat$start[.gtp], h_rec_dat$end[.gtp], gap = 1)
+      h_rec_dat$nudge[.gtp] <- pep_nudges[["gpcrdb_gtp"]] + (lay - 1L) * GTP_STEP
+
+      ## Where a docked model gives this peptide a pocket, recolour its span by
+      ## the two classes the window models predict -- `peptide (inserting)` for
+      ## the residues in the receptor pocket, `peptide (non-inserting)` for the
+      ## rest -- so the annotation and the prediction tracks speak the same
+      ## vocabulary. A peptide with no docked model keeps its source colour.
+      ## Non-inserting IS the background: the whole peptide is drawn as
+      ## `peptide (non-inserting)` and the pocket runs are overlaid on top, so
+      ## the span reads as one continuous object and the inserting part as a
+      ## marking on it. Two layers rather than abutting runs, which also removes
+      ## any seam at the join.
+      .pk <- lf_pocket_lookup()
+      if (is.data.frame(.pk)) {
+        .pk <- .pk %>% filter(accession == p_title$accession)
+        if (nrow(.pk)) {
+          .rows <- which(.gtp)
+          .new <- lapply(.rows, function(ri) {
+            hit <- which(.pk$pep_start <= h_rec_dat$end[ri] &
+                         .pk$pep_end   >= h_rec_dat$start[ri] &
+                         lengths(.pk$pocket) > 0)
+            if (!length(hit)) return(h_rec_dat[ri, ])
+            ## the docked peptide whose span overlaps this annotation most
+            ov <- vapply(hit, function(j) min(.pk$pep_end[j], h_rec_dat$end[ri]) -
+                                          max(.pk$pep_start[j], h_rec_dat$start[ri]), numeric(1))
+            j <- hit[which.max(ov)]
+            runs <- lf_pocket_runs(h_rec_dat$start[ri], h_rec_dat$end[ri], .pk$pocket[[j]])
+            ## the base: the entire peptide, as non-inserting
+            base <- h_rec_dat[ri, ]
+            base$feature <- "pep_other"
+            base$tooltip <- sprintf("%s  %s", .pk$pep_id[j], nn_class_labels[["pep_other"]])
+            ## the overlay: only the pocket runs, drawn in a later layer
+            ins <- runs[runs$feature == "pep_pocket", , drop = FALSE]
+            if (nrow(ins)) {
+              ov <- h_rec_dat[rep(ri, nrow(ins)), ]
+              ov$start <- ins$start; ov$end <- ins$end; ov$feature <- "pep_pocket"
+              ov$tooltip <- sprintf("%s  %d-%d  %s", .pk$pep_id[j], ins$start, ins$end,
+                                    nn_class_labels[["pep_pocket"]])
+              pep_over_dat <<- dplyr::bind_rows(pep_over_dat, ov)
+            }
+            base
+          })
+          h_rec_dat <- dplyr::bind_rows(h_rec_dat[!.gtp, ], dplyr::bind_rows(.new))
+          .gtp <- h_rec_dat$feature %in% c("pep_pocket", "pep_other", "gpcrdb_gtp")
+          .step(sprintf("peptide spans recoloured by pocket: %d segment(s)",
+                        sum(h_rec_dat$feature %in% c("pep_pocket", "pep_other"))))
+        }
+      }
+      .lift <- (max(lay) - 1L) * GTP_STEP
+      if (.lift > 0) {
+        .above <- !.gtp & h_rec_dat$nudge > pep_nudges[["gpcrdb_gtp"]]
+        h_rec_dat$nudge[.above] <- h_rec_dat$nudge[.above] + .lift
+      }
+      .step(sprintf("gpcrdb_gtp: %d peptide(s) on %d line(s)", sum(.gtp), max(lay)))
+    }
+
     if (!"tooltip" %in% names(h_rec_dat)) h_rec_dat$tooltip <- NA_character_
     if (!"onclick" %in% names(h_rec_dat)) h_rec_dat$onclick <- NA_character_
     if (!"data_id" %in% names(h_rec_dat)) h_rec_dat$data_id <- NA_character_
@@ -815,6 +996,14 @@ make_protein_plot_win <- function(old_nn_input,
       mutate(tt_value = dplyr::coalesce(tooltip, paste0(feature)),
              click_id = dplyr::coalesce(data_id,
                                         paste0("hrec_", feature, "_", row_id)))
+
+    ## the inserting overlay is built before these columns exist, so give it the
+    ## same two here rather than duplicating the coalesce above
+    if (!is.null(pep_over_dat) && nrow(pep_over_dat))
+      pep_over_dat <- pep_over_dat %>%
+        mutate(row_id = dplyr::row_number(),
+               tt_value = dplyr::coalesce(tooltip, paste0(feature)),
+               click_id = paste0("hrec_ins_", row_id))
 
     top_y <- df %>% filter(metric_type == "") %>% mutate(metric = droplevels(metric)) %>% pull(metric) %>% levels %>% length
 
@@ -829,10 +1018,24 @@ make_protein_plot_win <- function(old_nn_input,
           tooltip = tt_value),
       inherit.aes = FALSE,
       linewidth = 1.2,
-      lineend = "round") +
+      ## butt, not round: rounded caps make a span bulge past its own residues,
+      ## which puts the inserting overlay a residue or two off its true extent
+      lineend = "butt") +
+
+      ## the inserting part, ON TOP of the peptide it belongs to
+      {if (!is.null(pep_over_dat) && nrow(pep_over_dat))
+         ggiraph::geom_segment_interactive(
+           data = pep_over_dat,
+           aes(x = start - 0.3, xend = end + 0.3,
+               y = top_y + nudge, yend = top_y + nudge,
+               color = feature, tooltip = tt_value),
+           inherit.aes = FALSE, linewidth = 1.2, lineend = "butt")} +
 
       ## Legend 2 of 3 -- the horizontal peptide-track lines.
-      scale_color_manual(values = setNames(anno_feats$color, anno_feats$feature),
+      scale_color_manual(values = c(setNames(anno_feats$color, anno_feats$feature),
+                                    nn_class_cols[c("pep_pocket", "pep_other")]),
+                         labels = function(x) ifelse(x %in% names(nn_class_labels),
+                                                     nn_class_labels[x], x),
                          name = "peptide source: ",
                          guide = ggplot2::guide_legend(order = 2)) +
 
@@ -851,7 +1054,8 @@ make_protein_plot_win <- function(old_nn_input,
       ## afdsb / unidsb / both, so relabel them to the sources they stand for.
       ## With no arch rows there are no keys and ggplot drops the legend, which
       ## is the "if present" behaviour.
-      scale_color_manual(values = setNames(anno_feats$color, anno_feats$feature),
+      scale_color_manual(values = c(setNames(anno_feats$color, anno_feats$feature),
+                                    nn_class_cols[c("pep_pocket", "pep_other")]),
                          name = "disulfide bond source: ",
                          labels = function(x) {
                            m <- c(afdsb = "AlphaFold DB", unidsb = "UniProt", both = "both")
@@ -912,6 +1116,65 @@ make_protein_plot_win <- function(old_nn_input,
                    theme(plot.margin = margin(t = 0, r = 10, b = 10, l = 80)))
     bottom_p <- bottom_p + patchwork::plot_layout(heights = c(0.7, p_height)) &
       theme(panel.spacing = unit(0, "pt"))
+
+    ## ---- peptide-end tracks, above the sequence track -----------------------
+    ## Separate girafe widgets rather than more panels in bottom_p: ggplot2 4.x +
+    ## patchwork 1.3.1 + ggiraph 0.8.13 truncate a patchwork of more than two
+    ## panels inside dsvg with no error, and bottom_p is already at two. Each is
+    ## padded to bottom_p's measured panel edges so the residue axes line up.
+    pep_wgts <- list()
+    pep_popup <- NULL
+    if (isTRUE(getOption("lf.pepend_tracks", TRUE))) {
+      .ptd <- tryCatch(
+        lf_pepend_track_data(gene = as.character(old_nn_input[["gene"]])[1],
+                             accession = p_title$accession,
+                             n_prot = 1L, c_prot = max_index,
+                             want_per_index = isTRUE(getOption("lf.pepend_per_index", TRUE))),
+        error = function(e) { .step(paste0("pepend tracks SKIPPED: ", conditionMessage(e))); NULL })
+      if (!is.null(.ptd)) {
+        ## same x_range AND same seq_offset as seq_p / the detail panels, or the
+        ## tracks drift from the residue axis toward the C-terminus
+        .mk <- lf_pepend_track_plots(.ptd, x_range = c(0, max_index + 1),
+                                     aa = AA_sequence,
+                                     gene = as.character(old_nn_input[["gene"]])[1],
+                                     seq_offset = seq_offset)
+        if (length(.mk)) {
+          .ml <- tryCatch(panel_left_in(bottom_p),  error = function(e) NA_real_)
+          .mr <- tryCatch(panel_right_in(bottom_p), error = function(e) NA_real_)
+          pep_wgts <- lapply(.mk, function(el) {
+            pp <- el$p
+            if (is.finite(.ml) && is.finite(.mr)) {
+              d0 <- tryCatch(panel_left_in(pp + theme(plot.margin = margin(0,0,0,0))),
+                             error = function(e) NA_real_)
+              d1 <- tryCatch(panel_right_in(pp + theme(plot.margin = margin(0,0,0,0))),
+                             error = function(e) NA_real_)
+              if (is.finite(d0) && is.finite(d1))
+                pp <- pp + theme(plot.margin = margin(t = 1, b = 1,
+                                                      l = max(0, (.ml - d0)) * 72,
+                                                      r = max(0, (.mr - d1)) * 72, unit = "pt"))
+            }
+            ggiraph::girafe_options(
+              ggiraph::girafe(ggobj = pp, width_svg = p_width, height_svg = el$h),
+              ggiraph::opts_sizing(rescale = FALSE),
+              ggiraph::opts_selection(type = "none"),
+              ggiraph::opts_hover(css = "stroke:#000;stroke-width:1.2px;"),
+              ggiraph::opts_hover_inv(css = "opacity:0.35;"),
+              ggiraph::opts_toolbar(saveaspng = FALSE))
+          })
+          .step(sprintf("pepend tracks: %d", length(pep_wgts)))
+          ## every anchor's per-index surface travels with the page so a click
+          ## can draw its window without a round trip
+          pep_popup <- tryCatch(
+            lf_pepend_popup_tag(.ptd$pix, aa = AA_sequence,
+                                gene = as.character(old_nn_input[["gene"]])[1],
+                                accession = p_title$accession),
+            error = function(e) { .step(paste0("popup SKIPPED: ", conditionMessage(e))); NULL })
+          if (!is.null(pep_popup))
+            .step(sprintf("popup: %d anchor(s) per terminus carried",
+                          length(.ptd$pix$anchors)))
+        }
+      }
+    }
 
     n_subtitle_lines <- length(stringr::str_split(subtitle_text, "\n",
                                                   simplify = TRUE))
@@ -1482,6 +1745,46 @@ make_protein_plot_win <- function(old_nn_input,
                       nrow(db_marks)))
       }
 
+      ## ---- insertion-head probability bars ---------------------------------
+      ## One bar per window, under its rect: the three class probabilities laid
+      ## end to end across the window's own x span, so width IS probability. The
+      ## argmax alone would hide that most windows are a confident
+      ## `non_inserting` while a few are genuinely split.
+      ##
+      ## Drawn as thick geom_segment with `colour`, NOT geom_rect with `fill`:
+      ## fill is already bound to the continuous viridis scale for pred_raw, and
+      ## a second fill scale would need ggnewscale. colour is unmapped here.
+      ins_bars <- NULL
+      if (isTRUE(getOption("lf.nn_show_ins", TRUE)) &&
+          all(c("ins_p_inserting", "ins_p_loop", "ins_p_non_inserting") %in%
+              names(nn_anno))) {
+        .ib <- nn_anno %>%
+          dplyr::select(layer, start, end, panel_id,
+                        inserting = ins_p_inserting, loop = ins_p_loop,
+                        non_inserting = ins_p_non_inserting) %>%
+          dplyr::filter(!is.na(inserting)) %>%
+          tidyr::pivot_longer(c(inserting, loop, non_inserting),
+                              names_to = "ins_class", values_to = "p") %>%
+          ## fixed class order so the bar reads the same way on every window
+          dplyr::mutate(ins_class = factor(ins_class,
+                          levels = c("inserting", "loop", "non_inserting"))) %>%
+          dplyr::arrange(panel_id, ins_class) %>%
+          dplyr::group_by(panel_id) %>%
+          ## normalise within the window: the three means are an average of 20
+          ## softmaxes, so they sum to 1 only up to rounding.
+          dplyr::mutate(
+            frac = p / sum(p),
+            x1   = (start - 0.3) + (end - start + 0.6) * (cumsum(frac) - frac),
+            x2   = (start - 0.3) + (end - start + 0.6) * cumsum(frac)
+          ) %>%
+          dplyr::ungroup()
+        if (nrow(.ib)) {
+          ins_bars <- .ib
+          .step(sprintf("insertion bars: %d window(s)",
+                        dplyr::n_distinct(ins_bars$panel_id)))
+        }
+      }
+
       .step("building nn strip")
       nn_strip_p <- ggplot2::ggplot(nn_anno) +
         ## drawn as rects (not thick segments) so each window can carry a thin
@@ -1579,8 +1882,31 @@ make_protein_plot_win <- function(old_nn_input,
             label.padding = grid::unit(0.10, "lines"))
       }
 
+      ## Sits just below each window rect. layer + 0.17 + 0.09 = layer + 0.26,
+      ## inside the scale_y_reverse limit of max_layer + 0.5, so no window is
+      ## clipped and nothing else moves.
+      if (!is.null(ins_bars)) {
+        nn_strip_p <- nn_strip_p +
+          ggplot2::geom_segment(
+            data = ins_bars,
+            ggplot2::aes(x = x1, xend = x2,
+                         y = layer + nn_win_half_h + 0.09,
+                         yend = layer + nn_win_half_h + 0.09,
+                         colour = ins_class),
+            inherit.aes = FALSE, linewidth = 1.6, lineend = "butt") +
+          ggplot2::scale_colour_manual(
+            values = c(inserting = "#1b7837", loop = "#f1a340",
+                       non_inserting = "#bdbdbd"),
+            drop = FALSE, name = "insertion head",
+            guide = ggplot2::guide_legend(
+              order = 2, title.position = "left", title.vjust = 1,
+              keywidth = grid::unit(1.1, "lines"),
+              keyheight = grid::unit(0.4, "lines"),
+              override.aes = list(linewidth = 2.2)))
+      }
+
       .step("girafe: nn strip")
-      nn_wgt <- ggiraph::girafe(
+      nn_wgt <- if (!draw_nn_windows) NULL else ggiraph::girafe(
         ggobj = nn_strip_p,
         width_svg = p_width,
         height_svg = max(2.5, 0.42 * max_layer + 1.0),   # taller: the label is now 2 lines
@@ -1596,8 +1922,10 @@ make_protein_plot_win <- function(old_nn_input,
         )
       )
 
-      .step(sprintf("building %d detail panels ...", nrow(nn_anno)))
-      detail_widgets <- purrr::map(seq_len(nrow(nn_anno)), function(i) {
+      .step(if (draw_nn_windows) sprintf("building %d detail panels ...", nrow(nn_anno))
+            else "detail panels SKIPPED (lf.nn_windows is off)")
+      detail_widgets <- if (!draw_nn_windows) list() else
+        purrr::map(seq_len(nrow(nn_anno)), function(i) {
         if (i %% 10 == 1) .step(sprintf("  detail panel %d/%d", i, nrow(nn_anno)))
         detail_p <- make_detail_panel(
           per_index = nn_anno$per_index[[i]],
@@ -1635,7 +1963,9 @@ make_protein_plot_win <- function(old_nn_input,
         )
       })
 
-      detail_panel_tags <- purrr::pmap(
+      ## pmap needs equal lengths, and detail_widgets is empty when the panels
+      ## are off -- so there is nothing to pair and nothing to emit
+      detail_panel_tags <- if (!length(detail_widgets)) list() else purrr::pmap(
         list(detail_widgets, nn_anno$panel_id, nn_anno$start, nn_anno$end,
              nn_anno$peps),
         function(w, id, s, e, pp) {
@@ -2143,8 +2473,10 @@ make_protein_plot_win <- function(old_nn_input,
         top_meta_pin_js,
         top_wgt_fixed,
         top_meta_spacer,
-        nn_wgt,
-        detail_container,
+        nn_wgt,            # NULL unless lf.nn_windows is on
+        detail_container,  # ditto
+        pep_popup,         # payload + click handler for the window popups
+        pep_wgts,          # the peptide-end tracks, above the sequence track
         wgt
       )
 
@@ -2168,7 +2500,7 @@ make_protein_plot_win <- function(old_nn_input,
                       n, file.size(out_file) / 2^20))
       }
     } else {
-      page <- htmltools::tagList(nn_base_cxc_js, top_wgt, wgt)
+      page <- htmltools::tagList(nn_base_cxc_js, top_wgt, pep_popup, pep_wgts, wgt)
       ## Gene symbols can contain "/" (UNQ6190/PRO20217, UNQ6494/PRO21346),
       ## which fs::path reads as a directory separator: the write then fails on a
       ## missing subdirectory, the tryCatch below logs it and the run carries on

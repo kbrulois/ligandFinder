@@ -29,3 +29,6 @@ __pycache__/
 # stray R graphics device output (created by Rscript when a plot is drawn
 # with no explicit device open)
 Rplots.pdf
+
+# Claude Code local settings
+.claude/settings.local.json

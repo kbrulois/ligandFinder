@@ -18,24 +18,32 @@ from .calibrate import PlattCalibrator
 from .config import Config
 from .data import OversampledWindows, TermArrays
 from .losses import PerIndexCatLoss, WeightedBinaryCrossentropy, make_masked_cat_accuracy
+from keras import ops
+
 from .model import build_model
 from .synthetic import make_data
 
-#: parameter count of the default architecture; must equal the R model's
-EXPECTED_PARAMS = 2438
+#: parameter count of the default architecture (U-Net 16-32-64, no position ramp)
+EXPECTED_PARAMS = 21206
+#: the flat trunk with the position ramp. This is NO LONGER the pre-port R
+#: model: that one carried DB and gap, and with those classes gone its 2,438
+#: parameters cannot be rebuilt. The flat trunk remains as an architecture
+#: option, not as a reproduction.
+FLAT_PARAMS = 2254
 
 
 def check_class_indices():
     cfg = Config()
-    assert cfg.K_cat == 7 and cfg.K_pi == 8, (cfg.K_cat, cfg.K_pi)
+    assert cfg.K_cat == 5 and cfg.K_pi == 6, (cfg.K_cat, cfg.K_pi)
     assert cfg.pi_names == (
-        "CT_cleavage_context", "DB", "gap", "NT_cleavage_context",
+        "CT_cleavage_context", "NT_cleavage_context",
         "pep_other", "pep_pocket", "none", "padding",
     ), cfg.pi_names
+    assert "DB" not in cfg.pi_names and "gap" not in cfg.pi_names
     # `none` sits at K_cat - 1, `padding` last -- the loss masks none and keeps
     # padding, the metric masks both.
-    assert cfg.none_index == cfg.K_cat - 1 == 6
-    assert cfg.padding_index == cfg.K_pi - 1 == 7
+    assert cfg.none_index == cfg.K_cat - 1 == 4
+    assert cfg.padding_index == cfg.K_pi - 1 == 5
     assert cfg.pad_channel_id == cfg.n_channels - 1 == 25
     assert cfg.cont_channel_ids == (0, 1, 2, 3)
 
@@ -43,29 +51,55 @@ def check_class_indices():
 def check_position_masks():
     cfg = Config()
     m = cfg.mask_matrix_cat
-    assert m.shape == (36, 7), m.shape
+    assert m.shape == (36, 5), m.shape
     names = [cfg.class_names[c] for c in cfg.cat_cols]
     col = {n: m[:, i] for i, n in enumerate(names)}
     assert np.array_equal(np.flatnonzero(col["NT_cleavage_context"]), np.arange(0, 5))
     assert np.array_equal(np.flatnonzero(col["CT_cleavage_context"]), np.arange(30, 36))
-    assert np.array_equal(np.flatnonzero(col["gap"]), np.arange(5, 30))
+    assert np.array_equal(np.flatnonzero(col["pep_other"]), np.arange(5, 30))
+    assert np.array_equal(col["pep_other"], col["pep_pocket"])
     assert col["none"].sum() == 36
-    # documented intent: DB at both termini
-    assert col["DB"].sum() == 11, col["DB"].sum()
-    # r_exact reproduces the R script's overwrite: DB gets the CT mask alone
-    r_col = Config.r_exact().mask_matrix_cat[:, names.index("DB")]
-    assert np.array_equal(np.flatnonzero(r_col), np.arange(30, 36))
+
+    # a vocabulary that still carries DB or gap has no position rule for them,
+    # and must be refused rather than handed all-zero columns
+    stale = Config(class_names=("CT_cleavage_context", "DB", "gap",
+                                "NT_cleavage_context", "pep_other", "pep_pocket",
+                                "padding", "none"))
+    try:
+        stale.mask_matrix_cat
+    except ValueError as e:
+        assert "DB" in str(e) and "gap" in str(e), e
+    else:
+        raise AssertionError("accepted a vocabulary with no rule for DB/gap")
 
 
 def check_pi_weights():
-    cfg = Config()
+    masked = Config(none_in_loss=False)      # what r_exact and the pre-9/25 model use
+    trained = Config()                       # the default: `none` trained, weighted down
     for term, anchor in (("C", "CT_cleavage_context"), ("N", "NT_cleavage_context")):
-        w = cfg.pi_weights(term)
+        w = masked.pi_weights(term)
+        # with `none` at its nominal 1, the vector is normalised to mean 1
         assert abs(w.mean() - 1.0) < 1e-6, w.mean()
-        d = dict(zip(cfg.pi_names, w))
-        assert d[anchor] > d["DB"] > d["gap"]
-        assert abs(d[anchor] / d["gap"] - 3.0) < 1e-5
-        assert abs(d["DB"] / d["gap"] - 2.0) < 1e-5
+        d = dict(zip(masked.pi_names, w))
+        # the anchor-side context is the only class still carrying a hand-set
+        # prior; DB's boost went with the class
+        other = [v for n, v in d.items() if n != anchor]
+        assert all(d[anchor] > o for o in other), d
+        assert abs(d[anchor] / d["pep_other"] - 3.0) < 1e-5
+
+        # pi_weight_none is applied AFTER that normalisation, so below 1 the
+        # mean is no longer 1 -- deliberately: what must hold is that every
+        # other class keeps EXACTLY the weight the masked model trains with, so
+        # the two differ by the `none` positions alone and not by a shifted
+        # loss scale. (The default weight is 1.0, which leaves the vector
+        # unchanged, so the down-weighted case is checked explicitly.)
+        for cfg in (trained, trained.evolve(pi_weight_none=0.1)):
+            t = cfg.pi_weights(term)
+            keep = [i for i, n in enumerate(cfg.pi_names) if n != "none"]
+            assert np.allclose(t[keep], w[keep]), (t, w)
+            i_none = cfg.pi_names.index("none")
+            assert np.isclose(t[i_none], w[i_none] * cfg.pi_weight_none)
+        assert t.mean() < 1.0
 
 
 def check_losses():
@@ -132,15 +166,392 @@ def check_model_shapes():
     assert model.get_layer("embed").output.shape[-1] == cfg.embed_units
 
 
+def check_include_none():
+    """Dropping the `none` column must change only the softmax, not the masking.
+
+    Uses ``none_in_loss = False`` throughout: with `none` masked out of the
+    loss it is never a training target either way, so the set of scored
+    positions and the loss on them must be identical and only the column count
+    moves.
+    """
+    from .losses import PerIndexCatLoss, make_masked_cat_accuracy
+
+    on, off = Config(none_in_loss=False), Config(include_none=False, none_in_loss=False)
+    assert (on.K_cat, on.K_pi, on.none_index) == (5, 6, 4)
+    assert (off.K_cat, off.K_pi, off.none_index) == (4, 5, -1)
+    assert "none" not in off.pi_names and off.pi_names[-1] == "padding"
+    assert off.mask_matrix_cat.shape == (off.seq_len, off.K_cat)
+    # the first conv loses the dropped column's weights and nothing else moves
+    assert build_model(off).count_params() < build_model(on).count_params()
+    assert Config.r_exact().none_in_loss is False        # the R model masked `none`
+
+    # same windows, the two label layouts: with-none one-hot vs an all-zero row
+    rng = np.random.default_rng(3)
+    n, seq = 4, on.seq_len
+    cls = rng.integers(0, on.K_pi, size=(n, seq))
+    y_on = np.eye(on.K_pi, dtype="float32")[cls]
+    y_off = np.delete(y_on, on.none_index, axis=-1)          # none rows -> all zero
+    assert np.allclose(y_off.sum(-1), (cls != on.none_index).astype("float32"))
+
+    # A prediction that never puts its argmax on `none`, so the only thing left
+    # that could differ between the two layouts is WHICH POSITIONS are scored.
+    # (With mass on the `none` column the two genuinely differ, and in the
+    # dropped-column model's favour: a scored position can no longer lose its
+    # argmax to a class it is never trained to emit. That difference is the
+    # point of the ablation, not an invariant.)
+    p_on = np.asarray(rng.random((n, seq, on.K_pi)), dtype="float32")
+    p_on[:, :, on.none_index] = 0.0
+    p_on /= p_on.sum(-1, keepdims=True)
+    p_off = np.delete(p_on, on.none_index, axis=-1)
+    p_off /= p_off.sum(-1, keepdims=True)
+
+    acc_on = make_masked_cat_accuracy(on.none_index, on.padding_index)
+    acc_off = make_masked_cat_accuracy(off.none_index, off.padding_index)
+    keep = (cls != on.none_index) & (cls != on.padding_index)
+    assert keep.sum() > 0
+    assert abs(float(acc_on(y_on, p_on)) - float(acc_off(y_off, p_off))) < 1e-5, (
+        float(acc_on(y_on, p_on)), float(acc_off(y_off, p_off)))
+
+    # and the loss masks the same positions: a loss with every `none` position
+    # removed from the mask is unchanged when those rows go all-zero
+    l_off = PerIndexCatLoss(off.pi_weights("C"), off.none_index, off.gamma, 0.0)
+    v_all = float(ops.mean(l_off(y_off, p_off)))
+    y_zero = y_off.copy(); y_zero[cls == on.none_index] = 0.0
+    assert abs(v_all - float(ops.mean(l_off(y_zero, p_off)))) < 1e-6
+
+
+def check_none_in_loss():
+    """Training on `none` must add those positions and change nothing else."""
+    from .losses import PerIndexCatLoss
+
+    base, on = Config(none_in_loss=False), Config()      # `none` trained by default
+    # the real classes keep exactly the weights the default trains with; only
+    # `none` moves, so the two arms differ by the `none` positions alone
+    wb, wo = base.pi_weights("C"), on.pi_weights("C")
+    keep = [i for i, n in enumerate(base.pi_names) if n != "none"]
+    assert np.allclose(wb[keep], wo[keep]), (wb, wo)
+    assert np.isclose(wo[on.none_index], wb[on.none_index] * on.pi_weight_none)
+    # 1.0 since 2026-09-25: at 20 seeds it did not swamp the real classes (the
+    # oversampler and the focal term hold `none` back), but >1 has never been run
+    assert 0.0 < on.pi_weight_none <= 1.0, on.pi_weight_none
+
+    rng = np.random.default_rng(11)
+    n, seq = 6, base.seq_len
+    cls = rng.integers(0, base.K_pi, size=(n, seq))
+    y = np.eye(base.K_pi, dtype="float32")[cls]
+    p_ = np.asarray(rng.random((n, seq, base.K_pi)), dtype="float32")
+    p_ /= p_.sum(-1, keepdims=True)
+
+    masked = PerIndexCatLoss(wb, base.none_index, base.gamma, 0.0, mask_none=True)
+    trained = PerIndexCatLoss(wo, on.none_index, on.gamma, 0.0, mask_none=False)
+    # with no `none` position at all the two must agree; introduce some and they
+    # must not (the whole point), and the trained one must stay finite
+    no_none = cls.copy(); no_none[no_none == base.none_index] = 0
+    y2 = np.eye(base.K_pi, dtype="float32")[no_none]
+    assert np.allclose(float(ops.mean(masked(y2, p_))), float(ops.mean(trained(y2, p_))), atol=1e-5)
+    assert not np.isclose(float(ops.mean(masked(y, p_))), float(ops.mean(trained(y, p_))))
+    assert np.isfinite(float(ops.mean(trained(y, p_))))
+
+
+def check_pepend_config():
+    """The peptide-END preset: no DB/gap, and masks re-derived from the anchor.
+
+    The stock spans encode the dibasic layout (NT 1-5, CT 31-36) and are wrong
+    for a set anchored on the peptide's own terminal residue, so the preset
+    re-derives them. The expected spans below are read off ``lf_pepend_labels``
+    in R/pepend_windows.R, and verified against the built set: 0 of the 1,778
+    labelled windows in lf_pepend_nn_input.rds put a class outside them.
+    """
+    from .config import PEPEND_ANCHOR, PEPEND_CLASS_NAMES
+
+    c = Config.pepend("C")
+    assert c.class_names == PEPEND_CLASS_NAMES
+    assert "DB" not in c.pi_names and "gap" not in c.pi_names
+    # 4 real + none = 5 cat, + padding = 6 per-index columns
+    assert (c.K_cat, c.K_pi, c.none_index, c.padding_index) == (5, 6, 4, 5)
+    assert c.pi_names[-2:] == ("none", "padding")
+    # the C peptide ENDS at 28: CT strictly after it, the peptide up to it, and
+    # NT only where a peptide short enough to start inside the window leaves room
+    assert (c.nt_span, c.mid_span, c.ct_span) == ((1, 27), (1, 28), (29, 36))
+    n = Config.pepend("N")
+    # the N peptide STARTS at 8: mirror image
+    assert (n.nt_span, n.mid_span, n.ct_span) == ((1, 7), (8, 36), (9, 36))
+
+    for cfg, term in ((c, "C"), (n, "N")):
+        a = PEPEND_ANCHOR[term]
+        m = cfg.mask_matrix_cat
+        assert m.shape == (cfg.seq_len, cfg.K_cat)
+        col = {cfg.class_names[k]: m[:, j] for j, k in enumerate(cfg.cat_cols)}
+        assert col["none"].all(), "`none` is allowed everywhere"
+        far = "CT_cleavage_context" if term == "C" else "NT_cleavage_context"
+        near = "NT_cleavage_context" if term == "C" else "CT_cleavage_context"
+        # the anchor position itself is the peptide terminus: peptide yes, and
+        # neither context may claim it
+        assert col["pep_other"][a - 1] == 1.0 and col["pep_pocket"][a - 1] == 1.0
+        assert col[far][a - 1] == 0.0 and col[near][a - 1] == 0.0
+        assert np.array_equal(col["pep_other"], col["pep_pocket"])
+        # the anchor-side weight goes to that terminus' context, as for the
+        # dibasic set; DB/gap simply never match, so they cost nothing
+        w = cfg.pi_weights(term)
+        d = dict(zip(cfg.pi_names, w))
+        assert d[f"{term}T_cleavage_context"] == max(w)
+        assert abs(w.mean() - 1.0) < 1e-6 or cfg.pi_weight_none != 1.0
+
+    # the per-index head really narrows to 6 columns, and the trunk still builds
+    assert build_model(c).get_layer("per_index_cat").output.shape[1:] == (c.seq_len, 6)
+    # one terminus per Config, since mask_matrix_cat is not term-aware
+    assert c.term_order == ("C",) and n.term_order == ("N",)
+    try:
+        Config.pepend("X")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Config.pepend must reject a term that is not N or C")
+
+
+def check_scan_windows():
+    """Exhaustive-scan window geometry, and that chunking cannot change a score.
+
+    ``build_windows`` is the python twin of R's ``lf_pepend_slice``; the two are
+    checked against each other on real data by
+    inst/scripts/10_8b_pepend_scan.R's caller. Here: the geometry on a synthetic
+    precursor whose residue *r* carries the value *r*, so a misplaced residue is
+    visible, plus the invariant that the chunk size is a memory knob only.
+    """
+    from .scan import Residues, build_windows, scan
+
+    cfg = Config.pepend("C", n_channels=3, channel_names=("a", "b", "padding"))
+    pad_col = cfg.channel_names.index("padding")
+    # two precursors, 50 and 9 residues; the second is shorter than the window
+    lens = [50, 9]
+    feat = np.zeros((sum(lens), 3), dtype="float32")
+    off = np.array([0, 50], dtype="int64")
+    for i, L in enumerate(lens):
+        feat[off[i]:off[i] + L, 0] = np.arange(1, L + 1)      # channel a = residue no.
+        feat[off[i]:off[i] + L, 1] = i + 1                    # channel b = which protein
+    # precursor 0 has a 5-residue signal peptide: mature range 6..50
+    res = Residues(feat=feat, offset=off, n_prot=np.array([6, 1], dtype="int64"),
+                   c_prot=np.array([50, 9], dtype="int64")).validate(cfg)
+    assert list(res.n_anchors) == [45, 9]
+
+    # anchor 40 of precursor 0: position 28 must be residue 40, and the window
+    # runs 13..48 (a + p - 28), all inside the mature range -- no padding
+    w = build_windows(res, 0, [40], cfg, 28, pad_col)
+    assert w.shape == (1, 36, 3)
+    assert w[0, 27, 0] == 40.0, w[0, 27, 0]
+    assert np.array_equal(w[0, :, 0], np.arange(13, 49))
+    assert (w[0, :, 1] == 1).all() and (w[0, :, 2] == 0).all()
+
+    # anchor 8 of precursor 0: the window starts at residue -19, so everything
+    # before the mature start (6) is padding -- and padding means every channel
+    # 0 with `padding` 1, exactly as lf_pepend_slice writes it
+    w = build_windows(res, 0, [8], cfg, 28, pad_col)
+    # coord = a + p - 28 = p - 20, so p = 1..36 spans residues -19..16 and only
+    # p >= 26 reaches the mature start at 6
+    pad = w[0, :, 2] == 1
+    assert pad.sum() == 25, pad.sum()
+    assert np.array_equal(np.flatnonzero(~pad) + 1, np.arange(26, 37))
+    assert (w[0, pad, 0] == 0).all() and (w[0, pad, 1] == 0).all()
+    assert np.array_equal(w[0, ~pad, 0], np.arange(6, 17))
+    # the anchor itself is residue 8, at position 28
+    assert w[0, 27, 0] == 8.0
+
+    # precursor 1 is 9 long: its last anchor pads on BOTH sides of the peptide
+    w = build_windows(res, 1, [9], cfg, 28, pad_col)
+    assert w[0, 27, 0] == 9.0 and (w[0, 28:, 2] == 1).all()
+    assert np.array_equal(w[0, 19:28, 0], np.arange(1, 10))
+
+    # --- chunking is a memory knob, not a numerical one -----------------------
+    model = build_model(cfg)
+    a = scan(res, [model], cfg, "C", chunk_windows=10_000, batch_size=64)
+    b = scan(res, [model], cfg, "C", chunk_windows=1, batch_size=64)
+    assert a["score"].shape == (54,)
+    assert np.array_equal(a["prot_idx"], b["prot_idx"])
+    assert np.array_equal(a["anchor"], b["anchor"])
+    assert np.allclose(a["score"], b["score"], atol=1e-6), np.abs(a["score"] - b["score"]).max()
+    # row order: precursor 0's anchors 6..50, then precursor 1's 1..9
+    assert a["anchor"][0] == 6 and a["anchor"][44] == 50 and a["anchor"][45] == 1
+    assert (a["sd"] == 0).all(), "one member cannot disagree with itself"
+
+    # two members: the mean and the ddof=1 sd must be the real ones
+    m2 = build_model(cfg)
+    two = scan(res, [model, m2], cfg, "C", chunk_windows=10_000, batch_size=64)
+    s1 = scan(res, [model], cfg, "C", chunk_windows=10_000, batch_size=64)["score"]
+    s2 = scan(res, [m2], cfg, "C", chunk_windows=10_000, batch_size=64)["score"]
+    assert np.allclose(two["score"], (s1 + s2) / 2, atol=1e-6)
+    assert np.allclose(two["sd"], np.stack([s1, s2]).std(0, ddof=1), atol=1e-5)
+
+    # --- the order statistics and threshold counts, against the members --------
+    # These cannot come from a running sum/sum-of-squares, so they are the part
+    # most likely to go wrong silently; check them against the members directly.
+    S = np.stack([s1, s2])
+    k1 = scan(res, [model, m2], cfg, "C", chunk_windows=10_000, batch_size=64,
+              top_k=1, thresholds=(0.2, 0.5))
+    # top-1 of 2 members is the per-window MAX, not the better member overall
+    assert np.allclose(k1["score_top1"], S.max(0), atol=1e-6)
+    # top_k clamped to n_members degenerates to the plain mean
+    assert np.allclose(two["score_top2"], S.mean(0), atol=1e-6)
+    assert np.allclose(a["score_top1"], a["score"], atol=1e-6)     # one member
+    for t in (0.2, 0.5):
+        assert np.array_equal(k1[f"n_seeds_gt_{t:g}"], (S > t).sum(0)), t
+        assert k1[f"n_seeds_gt_{t:g}"].max() <= 2
+    # and chunking must not move them either
+    k1b = scan(res, [model, m2], cfg, "C", chunk_windows=1, batch_size=64,
+               top_k=1, thresholds=(0.2,))
+    assert np.allclose(k1b["score_top1"], k1["score_top1"], atol=1e-6)
+    assert np.array_equal(k1b["n_seeds_gt_0.2"], k1["n_seeds_gt_0.2"])
+
+
+def check_ins_head():
+    """The insertion head: 3-way softmax, negatives masked out of its loss.
+
+    The label exists only for KNOWN peptide ends. A negative is not a peptide
+    end, so it has no insertion class and carries an all-zero row -- the same
+    convention an unlabelled POSITION uses in the per-index loss. What must hold
+    is that such a row contributes nothing whatever the model predicts for it.
+    """
+    from .data import OversampledWindows, TermArrays
+    from .losses import MaskedWindowCatLoss, make_masked_window_accuracy
+    from .model import compile_model
+
+    off, on = Config.pepend("C"), Config.pepend("C", ins_head=True)
+    assert "ins_class" not in build_model(off).output          # off by default
+    m = build_model(on)
+    assert tuple(m.get_layer("ins_class").output.shape) == (None, on.K_ins)
+    assert on.K_ins == 3 and on.ins_class_names[0] == "inserting"
+    # it reads the same pooled embedding the window score does
+    assert m.get_layer("ins_class").input is m.get_layer("global").input
+
+    # --- the mask, against a hand-computed value -------------------------------
+    y = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 0], [0, 0, 0]], "float32")
+    p = np.array([[.7, .2, .1], [.2, .6, .2], [.9, .05, .05], [.1, .1, .8]], "float32")
+    L = MaskedWindowCatLoss()
+    got = float(ops.mean(L(y, p)))
+    want = float(-(np.log(.7) + np.log(.6)) / 2)      # mean over the LABELLED two
+    assert abs(got - want) < 1e-5, (got, want)
+    # whatever the masked rows predict must not move it
+    p2 = p.copy(); p2[2:] = [[.01, .01, .98]]
+    assert abs(float(ops.mean(L(y, p2))) - got) < 1e-6
+    # and the normalisation is over labelled rows, not the batch: doubling the
+    # masked rows leaves the loss alone
+    y3 = np.concatenate([y, np.zeros((4, 3), "float32")])
+    p3 = np.concatenate([p, np.full((4, 3), 1 / 3, "float32")])
+    assert abs(float(ops.mean(L(y3, p3))) - got) < 1e-5
+    assert abs(float(make_masked_window_accuracy()(y, p)) - 1.0) < 1e-6
+
+    # --- it reaches training, with the negatives masked ------------------------
+    ## synthetic.make_data builds the DIBASIC vocabulary (it indexes a "DB"
+    ## class), so the training leg runs on that one. The insertion head is
+    ## orthogonal to the per-index classes and does not care which vocabulary
+    ## sits beside it -- the pepend-specific parts are checked above.
+    cfg = Config(ins_head=True, epochs=2, patience=5, start_from_epoch=1, seed=3)
+    d = make_data(cfg, seed=5)["C"]["train"]
+    n = d["x"].shape[0]
+    gl = np.asarray(d["y_global"]).reshape(-1)
+    ins = np.zeros((n, cfg.K_ins), "float32")
+    rows = np.flatnonzero(gl == 1)                      # only the positives labelled
+    ins[rows, np.arange(len(rows)) % cfg.K_ins] = 1.0
+    arrays = TermArrays.from_mapping({**d, "y_ins": ins}).validate(cfg)
+    assert arrays.y_ins is not None and "ins_class" in arrays.targets()
+    ds = OversampledWindows(arrays, cfg, rng=np.random.default_rng(0))
+    xb, yb = ds[0]
+    assert "ins_class" in yb and yb["ins_class"].shape[1:] == (cfg.K_ins,)
+    # every unlabelled row in the batch is all-zero, i.e. masked
+    lab = yb["ins_class"].sum(-1)
+    assert np.all((lab == 0) | (lab == 1)), np.unique(lab)
+    assert np.allclose(lab, yb["global"].reshape(-1))   # labelled exactly where positive
+    h = compile_model(build_model(cfg), cfg, "C").fit(ds, epochs=2, verbose=0)
+    assert "ins_class_masked_window_accuracy" in h.history, list(h.history)
+
+    # --- the head's predictions must reach disk and come back ------------------
+    import tempfile
+    from .io import load_members, save_member
+    from .pipeline import run_member
+
+    data = make_data(cfg, seed=7)
+    for t in data:
+        for sp in data[t]:
+            g = np.asarray(data[t][sp]["y_global"]).reshape(-1)
+            yi = np.zeros((g.size, cfg.K_ins), "float32")
+            r = np.flatnonzero(g == 1)
+            yi[r, np.arange(len(r)) % cfg.K_ins] = 1.0
+            data[t][sp]["y_ins"] = yi
+    mem = run_member(data, cfg, k=0, n_seeds=1, verbose=0, keep_models=False)
+    assert mem.ins_all and mem.ins_val, "the head ran but its predictions were dropped"
+    for t in mem.terms:
+        assert mem.ins_all[t].shape[1] == cfg.K_ins
+        assert np.allclose(mem.ins_all[t].sum(-1), 1.0, atol=1e-5)   # a softmax
+    with tempfile.TemporaryDirectory() as dd:
+        save_member(dd, mem)
+        back = load_members(dd, term_order=cfg.term_order)[0]
+    for t in mem.terms:
+        assert np.allclose(back.ins_all[t], mem.ins_all[t], atol=1e-6)
+        assert np.allclose(back.ins_val[t], mem.ins_val[t], atol=1e-6)
+
+    # a missing y_ins with the head on is an error, not a silent skip
+    try:
+        TermArrays.from_mapping(d).validate(cfg)
+    except ValueError as e:
+        assert "y_ins" in str(e)
+    else:
+        raise AssertionError("accepted ins_head with no y_ins")
+
+
 def check_position_ramp():
     import keras
 
-    cfg = Config()
+    cfg = Config(position_ramp=True)
     model = build_model(cfg)
     ramp = keras.Model(model.input, model.get_layer("pos_ramp").output)
     got = np.asarray(ramp.predict(np.zeros((2, cfg.seq_len, cfg.n_channels), "float32"), verbose=0))
     want = np.linspace(0.0, 1.0, cfg.seq_len)
     assert np.allclose(got[0, :, 0], want, atol=1e-6), got[0, :3, 0]
+
+    # position_ramp=False (the default): no ramp layer, and the first conv loses
+    # exactly the ramp's kernel_size x filters weights -- nothing else moves
+    off = build_model(cfg.evolve(position_ramp=False))
+    assert "pos_ramp" not in [l.name for l in off.layers]
+    first = cfg.unet_filters[0] if cfg.trunk == "unet" else cfg.conv_filters[0]
+    assert model.count_params() - off.count_params() == cfg.conv_kernel * first, (
+        model.count_params(), off.count_params())
+    assert off.count_params() == EXPECTED_PARAMS
+    assert off.get_layer("per_index_cat").output.shape[1:] == (cfg.seq_len, cfg.K_pi)
+    # the R model: flat trunk, ramp on
+    assert build_model(Config.r_exact()).count_params() == FLAT_PARAMS
+
+
+def check_resample_reaches_training():
+    """The per-epoch redraw must actually reach fit(), not just exist.
+
+    This is the failure the port was written to fix: the R script's
+    `on_epoch_begin` callback rebound its own `train_ds` variable, which `fit`
+    no longer read, so the redraw never happened and every epoch trained on one
+    fixed draw. A test that calls `_resample()` by hand would pass even if
+    Keras never invoked it, so drive a real `fit()` and fingerprint the draw
+    ORDER-INDEPENDENTLY -- `resample_each_epoch = False` still reshuffles, so a
+    per-batch fingerprint cannot tell the two apart.
+    """
+    import keras
+
+    from .data import OversampledWindows, TermArrays
+    from .model import compile_model
+
+    for flag, want in ((True, 4), (False, 1)):
+        cfg = Config(epochs=4, patience=3, start_from_epoch=1, seed=42,
+                     resample_each_epoch=flag)
+        arrays = TermArrays.from_mapping(make_data(cfg, seed=5)["C"]["train"]).validate(cfg)
+        ds = OversampledWindows(arrays, cfg, rng=np.random.default_rng(0))
+        seen = []
+
+        class Probe(keras.callbacks.Callback):
+            def on_epoch_begin(self, epoch, logs=None):
+                seen.append((round(float(ds._x.sum()), 2), float(ds._yg.sum())))
+
+        compile_model(build_model(cfg), cfg, "C").fit(ds, epochs=4, verbose=0, callbacks=[Probe()])
+        draws = {x for x, _ in seen}
+        assert len(draws) == want, (flag, len(draws), want)
+        # every positive is in every draw either way; only the negatives move
+        assert len({p for _, p in seen}) == 1, seen
 
 
 def check_oversampler():
@@ -280,6 +691,69 @@ def check_end_to_end():
     assert res.term_index("N").size == res.n_by_term["N"]
     for term in res.term_order:
         assert "val_global_pr_auc" in res.histories[term], list(res.histories[term])
+    # single member: the member rows ARE the means
+    assert res.val_scores_members.shape == (1, res.val_scores.size)
+    assert np.allclose(res.val_scores_members[0], res.val_scores)
+    assert np.allclose(res.pred_raw_members[0], res.pred_raw)
+
+    # ensemble: mean/sd over the member rows must reproduce pred_raw / pred_sd,
+    # and the members must actually differ (different seeds)
+    res3 = run(data, cfg, verbose=0, n_seeds=3)
+    assert res3.pred_raw_members.shape == (3, n)
+    assert res3.val_scores_members.shape == (3, res3.val_scores.size)
+    assert np.allclose(res3.pred_raw_members.mean(0), res3.pred_raw, atol=1e-6)
+    assert np.allclose(res3.pred_raw_members.std(0, ddof=1), res3.pred_sd, atol=1e-5)
+    assert np.allclose(res3.val_scores_members.mean(0), res3.val_scores, atol=1e-6)
+    assert not np.allclose(res3.pred_raw_members[0], res3.pred_raw_members[1])
+    assert res3.params == {t: res3.models[t].count_params() for t in res3.term_order}
+
+
+def check_members_roundtrip():
+    """run() == run_member() x n + combine(), also through the on-disk member files."""
+    import tempfile
+
+    from .io import load_members, save_member
+    from .pipeline import combine, run, run_member, set_seed
+
+    cfg = _tiny_cfg()
+    data = make_data(cfg, seed=17)
+    ref = run(data, cfg, verbose=0, n_seeds=2)
+
+    set_seed(cfg.seed)
+    members = [run_member(data, cfg, k=k, n_seeds=2, verbose=0, keep_models=False) for k in range(2)]
+    assert [m.seed for m in members] == [cfg.seed, cfg.seed + 1]
+    with tempfile.TemporaryDirectory() as d:
+        for m in members:
+            assert len(save_member(d, m)) == len(m.terms)     # one file pair per terminus
+        back = load_members(d, term_order=cfg.term_order)
+    assert [m.k for m in back] == [0, 1]
+    assert back[0].terms == ref.term_order
+
+    # a terminus trained on its own (one model per process, the CLI's
+    # --isolated unit) reproduces the same terminus of the full member: the
+    # per-term rng offset keys on the FULL term order, not on what is trained
+    set_seed(cfg.seed)
+    solo = run_member(data, cfg, k=1, n_seeds=2, verbose=0, keep_models=False, terms=["C"])
+    assert solo.terms == ("C",)
+    assert np.allclose(solo.global_all["C"], members[1].global_all["C"], atol=1e-6)
+    with tempfile.TemporaryDirectory() as d:
+        save_member(d, run_member(data, cfg, k=0, n_seeds=2, verbose=0, keep_models=False, terms=["N"]))
+        save_member(d, run_member(data, cfg, k=0, n_seeds=2, verbose=0, keep_models=False, terms=["C"]))
+        merged = load_members(d, term_order=cfg.term_order)
+    assert len(merged) == 1 and merged[0].terms == ref.term_order
+    assert not back[0].models                                   # nothing live survives disk
+    res = combine(back, cfg)
+    # numerics through combine must match run()'s -- same seeds, same reduction
+    assert res.n_seeds == 2 and res.term_order == ref.term_order
+    assert np.allclose(res.pred_raw, ref.pred_raw, atol=1e-6)
+    assert np.allclose(res.pred_sd, ref.pred_sd, atol=1e-6)
+    assert np.allclose(res.per_index, ref.per_index, atol=1e-6)
+    assert np.allclose(res.val_scores_members, ref.val_scores_members, atol=1e-6)
+    assert np.allclose(res.emb, ref.emb, atol=1e-6)
+    assert res.params == ref.params
+    assert res.histories.keys() == ref.histories.keys()
+    # members in any order combine the same
+    assert np.allclose(combine(back[::-1], cfg).pred_raw, res.pred_raw)
     return res
 
 
@@ -350,7 +824,7 @@ def check_unet_trunk():
     assert model.get_layer("embed").output.shape[-1] == cfg.embed_units
 
     # the flat trunk must be untouched by any of this
-    assert build_model(Config(trunk="flat")).count_params() == EXPECTED_PARAMS
+    assert build_model(Config.r_exact()).count_params() == FLAT_PARAMS
 
     # a depth that does not divide the window is rejected up front, not at build
     try:
@@ -363,28 +837,40 @@ def check_unet_trunk():
 
 def check_global_head_variants():
     """The window score can read the class softmax, the bottleneck, or both."""
-    flat = build_model(Config(trunk="flat"))
-    assert flat.count_params() == EXPECTED_PARAMS      # default is untouched
+    flat = build_model(Config.r_exact())
+    assert flat.count_params() == FLAT_PARAMS          # the R model is untouched
     assert "gap_bneck" not in {l.name for l in flat.layers}
 
     seen = {}
-    for head, has_attn, embed_in in [
-        ("attn", True, 7),          # masked class softmax -> attention -> pool
-        ("bottleneck", False, 64),  # straight off the U-Net bottleneck
-        ("both", True, 71),         # concatenation of the two
+    for head, has_attn, has_bneck, embed_in in [
+        ("attn", True, False, 5),          # masked class softmax -> attention -> pool
+        ("gap", False, False, 5),          # the SAME softmax, pooled with no attention
+        ("bottleneck", False, True, 64),   # straight off the U-Net bottleneck
+        ("both", True, True, 69),          # concatenation of attn and bottleneck
     ]:
         cfg = Config(trunk="unet", global_head=head)
         m = build_model(cfg)
         names = {l.name for l in m.layers}
         assert ("attn" in names) is has_attn, (head, names & {"attn"})
-        assert ("gap_bneck" in names) is (head != "attn"), head
+        assert ("gap_bneck" in names) is has_bneck, head
         assert m.get_layer("embed").input.shape[-1] == embed_in, (head, m.get_layer("embed").input.shape)
         # the per-residue head is unaffected by where the score reads from
         out = m.predict(np.zeros((2, cfg.seq_len, cfg.n_channels), "float32"), verbose=0)
         assert out["per_index_cat"].shape == (2, cfg.seq_len, cfg.K_pi)
         assert out["global"].shape == (2, 1)
         seen[head] = m.count_params()
-    assert seen["both"] > seen["bottleneck"] > seen["attn"], seen
+    assert seen["both"] > seen["bottleneck"] > seen["attn"] > seen["gap"], seen
+    # `gap` differs from `attn` by the attention block alone: same pooled width,
+    # so the whole parameter gap is the MultiHeadAttention plus its LayerNorm.
+    # Derived from the layers, not hardcoded -- it scales with K_cat, so the
+    # peptide-end vocabulary (5 classes) and the dibasic one (7) differ.
+    m_attn = build_model(Config(trunk="unet", global_head="attn"))
+    extra = sum(l.count_params() for l in m_attn.layers if l.name in ("attn", "attn_norm"))
+    assert extra > 0
+    assert seen["attn"] - seen["gap"] == extra, (seen, extra)
+
+    # `gap` reads the class softmax, so unlike `bottleneck` it needs no U-Net
+    assert build_model(Config(trunk="flat", global_head="gap")).count_params() > 0
 
     # a bottleneck head needs a trunk that has one
     try:
@@ -417,10 +903,17 @@ CHECKS = [
     check_global_head_variants,
     check_unet_trains,
     check_position_ramp,
+    check_include_none,
+    check_none_in_loss,
+    check_pepend_config,
+    check_scan_windows,
+    check_ins_head,
     check_oversampler,
+    check_resample_reaches_training,
     check_noise_only_on_continuous_channels,
     check_validate_catches_transpose,
     check_calibrator,
+    check_members_roundtrip,
 ]
 
 

@@ -11,12 +11,15 @@ from .config import CLASS_NAMES, DEFAULT_CHANNEL_NAMES, Config
 from .calibrate import PlattCalibrator, calibrate
 from .data import OversampledWindows, TermArrays, build_dataset
 from .model import build_model, compile_model, embed_model
-from .pipeline import Result, embed, predict_all, run, set_seed, train
+from .pipeline import Member, Result, combine, embed, predict_all, run, run_member, set_seed, train
 
 __all__ = [
     "CLASS_NAMES",
     "DEFAULT_CHANNEL_NAMES",
     "Config",
+    "Member",
+    "combine",
+    "run_member",
     "OversampledWindows",
     "PlattCalibrator",
     "Result",

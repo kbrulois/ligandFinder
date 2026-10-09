@@ -29,6 +29,12 @@
 ##               aws-cli processes (~120 MB each) without filling the pipe
 ##               any faster.
 ##   GZIP_LEVEL=6
+##   PREFIX=     key prefix inside the bucket, no leading or trailing slash.
+##               Empty (the default) puts <gene>.html at the bucket root, which
+##               is where the full 5,177-gene set lives. Set it to publish a
+##               separate set alongside without colliding, e.g. PREFIX=v2_test
+##               gives v2_test/<gene>.html -- and lets a CloudFront behaviour
+##               match /v2_test/* so that set alone can be gated.
 ##   DRYRUN=1    compress and resolve every key, but do not PUT anything
 ##
 ## Progress prints on one live line: pages done, GB read, GB sent, current
@@ -67,9 +73,13 @@ trap 'rm -rf "$TMP"' EXIT
 ## One file: compress to scratch, PUT, record the key.  Kept as a function so
 ## the same code path serves the dry run.
 upload_one() {
-  local f="$1" key rc raw gzb
-  key="$(basename "$f")"
-  local gz="$TMP/$key.gz"
+  local f="$1" key base rc raw gzb
+  ## `key` is the DESTINATION (may carry a prefix); `base` names the scratch
+  ## file. Using the key for both put the prefix into $TMP as a directory that
+  ## was never created, and every gzip failed.
+  base="$(basename "$f")"
+  key="${PREFIX:+$PREFIX/}$base"
+  local gz="$TMP/$base.gz"
 
   raw=$(stat -f %z "$f")
   gzip -"$GZIP_LEVEL" -c "$f" > "$gz" || { echo "gzip failed: $key" >&2; return 1; }
@@ -111,7 +121,7 @@ fi
 
 n=$(wc -l < "$todo" | tr -d ' ')
 echo "source      : $SRC"
-echo "bucket      : s3://$BUCKET"
+echo "bucket      : s3://$BUCKET${PREFIX:+/$PREFIX}"
 echo "pages       : $n to upload ($total total, $((total - n)) already logged)"
 echo "parallelism : $JOBS"
 [ "$DRYRUN" = "1" ] && echo "MODE        : dry run, nothing will be written"

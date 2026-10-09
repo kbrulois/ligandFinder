@@ -190,6 +190,9 @@ local({
     message("sourced ", .hit[[1]], "  (", what, ")")
   }
   .get("R/plot_proteins_win_new.R", "make_protein_plot_win")
+  ## the peptide-end tracks live beside it and are sourced the same way,
+  ## so a worktree copy wins over an installed one here too
+  .get("R/pepend_tracks.R", "lf_pepend_track_data")
   ## make_cm_script_text() embeds the per-gene ChimeraX script -- thousands of
   ## setattr lines -- into each page. make_protein_plot_win looks for it on the
   ## search path and, if it is absent, falls back to `close` + `open <AF url>`
