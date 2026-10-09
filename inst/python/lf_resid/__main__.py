@@ -80,7 +80,8 @@ def cmd_train(a):
           f"({'no context' if a.no_context else 'with +/-2 context'})", flush=True)
 
     rows, lab_prot, ctrl = D.training_rows(d, n_ctrl=a.n_ctrl, seed=a.seed)
-    tr, va = D.split_by_precursor(d, rows, val_frac=a.val_frac, seed=a.seed)
+    tr, va = D.split_by_precursor(d, rows, val_frac=a.val_frac, seed=a.seed,
+                                  swap=a.swap_splits)
     print(f"training rows {len(rows):,} over {lab_prot.size} labelled + {ctrl.size} control "
           f"precursors -> train {len(tr):,}, val {len(va):,} "
           f"(split on whole precursors)", flush=True)
@@ -99,8 +100,11 @@ def cmd_train(a):
     if a.refresh or not os.path.exists(mat):
         D.cache_matrix(d, mat)
     idx_p = os.path.join(work, "index.npz")
+    # every target the labels npz carries, under the `y_<target>` name the
+    # member subprocess looks up -- not a fixed pair, or a new target trains
+    # against whatever happened to be written here
     np.savez_compressed(idx_p, tr=tr, va=va, mature=mature,
-                        y_pep_pocket=d.y["pep_pocket"], y_ct_context=d.y["ct_context"],
+                        **{f"y_{k}": v for k, v in d.y.items()},
                         feat_names=np.asarray(d.feat_names))
     print(f"isolated work dir: {work}", flush=True)
 
@@ -131,10 +135,24 @@ def cmd_train(a):
                            "--nrounds", str(a.nrounds), "--monitor", a.monitor]
                     if a.verbose:
                         cmd.append("--verbose")
-                    rc = subprocess.call(cmd, env={**os.environ,
-                                                   "PYTHONPATH": _pythonpath()})
+                    # Members fail INTERMITTENTLY: a run died at pep_pocket/mlp/43
+                    # with "condition [1,43], then [0] ... must be broadcastable"
+                    # inside the AUC metric, and that exact seed then passed twice
+                    # on its own. Same class of keras-state flakiness this module
+                    # already answers with one process per member -- it just is not
+                    # fully cured by that. One transient failure should not cost a
+                    # 160-member run, so retry before giving up.
+                    rc, tries = 1, 0
+                    while tries < a.member_retries and (rc != 0 or not os.path.exists(mp)):
+                        tries += 1
+                        if tries > 1:
+                            print(f"  retry {tries-1}/{a.member_retries-1}: "
+                                  f"{target}/{kind}/{a.seed+s}", flush=True)
+                        rc = subprocess.call(cmd, env={**os.environ,
+                                                       "PYTHONPATH": _pythonpath()})
                     if rc != 0 or not os.path.exists(mp):
-                        raise SystemExit(f"member {target}/{kind}/{a.seed+s} failed (rc={rc})")
+                        raise SystemExit(f"member {target}/{kind}/{a.seed+s} failed "
+                                         f"after {tries} attempt(s) (rc={rc})")
                 else:
                     print(f"  {kind} seed {s}: reusing {os.path.basename(mp)}", flush=True)
                 z = np.load(mp, allow_pickle=True)
@@ -161,7 +179,7 @@ def cmd_train(a):
     np.savez_compressed(os.path.expanduser(a.out), **out,
                         prot_idx=d.prot_idx, resno=d.resno, mature=d.mature,
                         accession=d.accession, gene=d.gene,
-                        y_pocket=d.y["pep_pocket"], y_ct=d.y["ct_context"],
+                        **{f"y_{k}": v for k, v in d.y.items()},
                         in_train=tr_mask, in_val=val_mask,
                         report=np.asarray(json.dumps(report)))
     print(f"\npredictions -> {a.out}", flush=True)
@@ -175,13 +193,20 @@ def main(argv=None):
     t.add_argument("--residues-npz", default="~/AF2_analysis/lf_pepend_residues.npz")
     t.add_argument("--labels-npz", default="~/AF2_analysis/lf_resid_labels.npz")
     t.add_argument("--out", default="~/AF2_analysis/lf_resid_preds.npz")
-    t.add_argument("--targets", default="pep_pocket,ct_context")
+    t.add_argument("--targets",
+                   default="pep_pocket,pep_other,ct_context,nt_context")
     t.add_argument("--models", default="mlp,xgb")
     t.add_argument("--seeds", type=int, default=5)
     t.add_argument("--epochs", type=int, default=100)
     t.add_argument("--nrounds", type=int, default=500)
     t.add_argument("--n-ctrl", type=int, default=100)
     t.add_argument("--val-frac", type=float, default=0.4)
+    t.add_argument("--member-retries", type=int, default=3,
+                   help="attempts per member before giving up; members fail\n"
+                        "intermittently inside the keras AUC metric")
+    t.add_argument("--swap-splits", action="store_true",
+                   help="exchange train and val; with --val-frac 0.5 this is the "
+                        "second fold of a 2-fold cross-validation")
     t.add_argument("--seed", type=int, default=42)
     t.add_argument("--monitor", default=M.MONITOR_DEFAULT,
                    help="MLP early-stopping monitor; the R used val_binary_accuracy")

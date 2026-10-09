@@ -14,10 +14,18 @@
 ##
 ##   pep_pocket  residue is in the pocket of ANY docked peptide of this precursor
 ##               (9.2's clean_contacts: area > 1, dist < 6, then in_pocket)
+##   pep_other   residue is INSIDE a docked peptide but not in its pocket, which
+##               is exactly how `lf_pepend_labels()` splits the peptide's own
+##               span. Pocket wins where two peptides overlap, as it does there.
 ##   ct_context  residue lies 1..CTX downstream of ANY peptide's C terminus.
 ##               CTX defaults to 8, which is exactly the span a C-anchored window
 ##               labels CT_cleavage_context: the anchor sits at window position
 ##               28 of 36, so positions 29..36 are anchor+1..anchor+8.
+##   nt_context  residue lies 1..CTX_N UPSTREAM of ANY peptide's N terminus.
+##               CTX_N is 7, NOT 8, and the asymmetry is real: an N-anchored
+##               window puts its anchor at position 8 of 36, so the residues
+##               before the peptide are positions 1..7 = anchor-7..anchor-1.
+##               Using 8 here would label one residue the window never sees.
 ##
 ## Rows are emitted in the row order of lf_pepend_residues.npz -- row
 ## `offset[i] + r - 1` is residue r of precursor i -- so python can use the
@@ -40,6 +48,7 @@ cache_p  <- path.expand(.opt("--feature-cache", "~/AF2_analysis/lf_pepend_residu
 res_npz  <- path.expand(.opt("--residues-npz", "~/AF2_analysis/lf_pepend_residues.npz"))
 out_p    <- path.expand(.opt("--out", "~/AF2_analysis/lf_resid_labels.npz"))
 CTX      <- as.integer(.opt("--ctx", "8"))
+CTX_N    <- as.integer(.opt("--ctx-n", "7"))
 
 .this <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
 ROOT  <- if (length(.this)) normalizePath(file.path(dirname(.this[[1]]), "..", "..")) else getwd()
@@ -87,7 +96,7 @@ lens <- nchar(fc$prec$seq)
 stopifnot(identical(as.integer(c(offset[-1], n_rows) - offset), as.integer(lens)))
 message("npz row blocks match the cache's precursor lengths")
 
-y_pocket <- integer(n_rows); y_ct <- integer(n_rows)
+y_pocket <- integer(n_rows); y_ct <- integer(n_rows); y_nt <- integer(n_rows)
 in_pep   <- integer(n_rows); prot_idx <- integer(n_rows); resno <- integer(n_rows)
 for (i in seq_len(nrow(fc$prec))) {
   rows <- offset[i] + seq_len(lens[i])
@@ -109,12 +118,21 @@ for (acc in names(by_acc)) {
     ct <- (con$pep_end[j] + 1L):(con$pep_end[j] + CTX)
     ct <- ct[ct >= 1L & ct <= Lp]
     if (length(ct)) y_ct[base + ct] <- 1L
+    ## and the mirror on the N side, CTX_N wide rather than CTX -- see the header
+    nt <- (con$pep_start[j] - CTX_N):(con$pep_start[j] - 1L)
+    nt <- nt[nt >= 1L & nt <= Lp]
+    if (length(nt)) y_nt[base + nt] <- 1L
     ps <- con$pep_start[j]:con$pep_end[j]
     ps <- ps[ps >= 1L & ps <= Lp]
     if (length(ps)) in_pep[base + ps] <- 1L
   }
 }
 message(sprintf("precursors with docked peptides: %d of %d", hit, nrow(fc$prec)))
+
+## The peptide's own span minus its pocket. Derived rather than accumulated in
+## the loop because the pocket of ONE peptide must suppress pep_other for every
+## overlapping peptide too, which a per-peptide write cannot see.
+y_pep_other <- as.integer(in_pep == 1L & y_pocket == 0L)
 
 ## A residue outside the mature range is signal peptide or past the end; the
 ## window model calls it `padding` and never scores it, so mark it and let the
@@ -130,16 +148,19 @@ labelled[match(intersect(names(by_acc), fc$prec$accession), fc$prec$accession)] 
 
 message(sprintf("\nresidues: %s total, %s mature", format(n_rows, big.mark = ","),
                 format(sum(mature), big.mark = ",")))
-for (nm in c("pep_pocket", "ct_context", "in_peptide")) {
-  v <- switch(nm, pep_pocket = y_pocket, ct_context = y_ct, in_peptide = in_pep)
+for (nm in c("pep_pocket", "pep_other", "ct_context", "nt_context", "in_peptide")) {
+  v <- switch(nm, pep_pocket = y_pocket, pep_other = y_pep_other, ct_context = y_ct,
+              nt_context = y_nt, in_peptide = in_pep)
   message(sprintf("  %-11s positives %6s  (%.3f%% of mature, %.2f%% of labelled precursors' mature)",
                   nm, format(sum(v), big.mark = ","), 100 * sum(v) / sum(mature),
                   100 * sum(v) / sum(mature[labelled[prot_idx + 1L] == 1L])))
 }
 
 np$savez_compressed(out_p,
-  y_pocket = np$asarray(y_pocket, dtype = "int8"),
-  y_ct     = np$asarray(y_ct,     dtype = "int8"),
+  y_pocket    = np$asarray(y_pocket,     dtype = "int8"),
+  y_pep_other = np$asarray(y_pep_other,  dtype = "int8"),
+  y_ct        = np$asarray(y_ct,         dtype = "int8"),
+  y_nt        = np$asarray(y_nt,         dtype = "int8"),
   in_pep   = np$asarray(in_pep,   dtype = "int8"),
   mature   = np$asarray(mature,   dtype = "int8"),
   prot_idx = np$asarray(prot_idx, dtype = "int32"),
@@ -150,5 +171,6 @@ np$savez_compressed(out_p,
   channel_names = np$asarray(fc$all_params3),
   accession = np$asarray(fc$prec$accession),
   gene      = np$asarray(fc$prec$gene),
-  ctx       = np$asarray(CTX))
+  ctx       = np$asarray(CTX),
+  ctx_n     = np$asarray(CTX_N))
 message("\nlabels -> ", out_p)

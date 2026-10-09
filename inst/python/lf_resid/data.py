@@ -97,10 +97,18 @@ def load(residues_npz, labels_npz, context=DEFAULT_CONTEXT,
             x = x[:, keep]
             out_names = [n for n, k in zip(out_names, keep) if k]
 
+    ## target name -> the array 10_9p writes it under. `pep_other` and
+    ## `nt_context` were added after the first labels npz was written, so a
+    ## target is included only when its array is actually there: an older npz
+    ## still loads, and `train --targets` then fails naming the missing one
+    ## rather than silently training something else.
+    y = {k: lab[v].astype("int8")
+         for k, v in (("pep_pocket", "y_pocket"), ("pep_other", "y_pep_other"),
+                      ("ct_context", "y_ct"), ("nt_context", "y_nt"))
+         if v in lab}
+
     return Residues(
-        x=x, feat_names=out_names,
-        y={"pep_pocket": lab["y_pocket"].astype("int8"),
-           "ct_context": lab["y_ct"].astype("int8")},
+        x=x, feat_names=out_names, y=y,
         prot_idx=prot_idx, resno=lab["resno"].astype("int32"),
         mature=lab["mature"].astype("int8"), labelled=lab["labelled"].astype("int8"),
         accession=np.asarray(lab["accession"]), gene=np.asarray(lab["gene"]),
@@ -125,7 +133,7 @@ def training_rows(d: Residues, n_ctrl: int = 100, seed: int = 42):
 
 
 def split_by_precursor(d: Residues, rows: np.ndarray, val_frac: float = 0.4,
-                       seed: int = 42):
+                       seed: int = 42, swap: bool = False):
     """Train/val split on WHOLE precursors.
 
     Splitting on rows would put residues of one protein on both sides, and
@@ -138,6 +146,10 @@ def split_by_precursor(d: Residues, rows: np.ndarray, val_frac: float = 0.4,
     n_val = max(1, int(round(val_frac * prots.size)))
     val_prot = set(prots[:n_val].tolist())
     is_val = np.array([p in val_prot for p in d.prot_idx[rows]])
+    # `swap` is the second fold: with val_frac 0.5 the two sides exchange, so
+    # every precursor is held out in exactly one of the two runs
+    if swap:
+        is_val = ~is_val
     return rows[~is_val], rows[is_val]
 
 
