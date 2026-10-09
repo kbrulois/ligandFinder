@@ -45,6 +45,17 @@ def main(argv=None):
     ap.add_argument("--near", type=int, default=2)
     ap.add_argument("--stack-seeds", type=int, default=20,
                     help="how many stacked fits to KEEP")
+    ap.add_argument("--skip-stacked", action="store_true",
+                    help="fit only the per-member heads and omit xgb_st from the "
+                         "output. The stacked head needs `stack_seeds` fits above "
+                         "`min_rounds`; on a flat surface it cannot get them and "
+                         "raises rather than return a head that never learned. "
+                         "Use this when only xgb_pm is being drawn")
+    ap.add_argument("--pm-rounds", type=int, default=0,
+                    help="train the PER-MEMBER heads this many rounds with no "
+                         "early stopping (0 = early-stop on the inner split). "
+                         "Use when the stop set holds too few positives to rank "
+                         "anything -- see the comment above the fit")
     ap.add_argument("--min-rounds", type=int, default=100,
                     help="a stacked fit whose best_iteration is below this is "
                          "discarded and another seed drawn")
@@ -100,16 +111,42 @@ def main(argv=None):
     def _spw(y):
         return float((y == 0).sum()) / max(1.0, float((y == 1).sum()))
 
+    # The stacked head already refuses a fit that stopped in a handful of rounds
+    # (`--min-rounds`): the stop set is small and its curve nearly flat, so the
+    # minimum is noise, and a head truncated there has landed in the flat part
+    # rather than learned the surface. The per-member path had no such guard,
+    # and on a trunk whose positives were filtered it collapsed -- 8 positives
+    # in the stop set, median best_iteration 4, ~5 trees per member, every gene
+    # squeezed into a 0.32-0.68 band. `--pm-rounds N` trains a fixed N rounds
+    # with no early stopping at all and predicts with the whole booster, which
+    # is the honest option when the stop set is too small to rank anything.
     boosters_pm = []
     for mi in range(len(models)):
         p = dict(base, seed=mi, scale_pos_weight=_spw(yc["train"][itr]))
         d1 = xgb.DMatrix(F["train"][mi][itr], label=yc["train"][itr], feature_names=names)
         d2 = xgb.DMatrix(F["train"][mi][ist], label=yc["train"][ist], feature_names=names)
-        b = xgb.train(p, d1, num_boost_round=a.nrounds, evals=[(d2, "stop")],
-                      early_stopping_rounds=100, verbose_eval=False)
+        if a.pm_rounds:
+            b = xgb.train(p, d1, num_boost_round=a.pm_rounds, verbose_eval=False)
+        else:
+            b = xgb.train(p, d1, num_boost_round=a.nrounds, evals=[(d2, "stop")],
+                          early_stopping_rounds=100, verbose_eval=False)
         boosters_pm.append(b)
-    print(f"per-member heads: {len(boosters_pm)}, median best_iter "
-          f"{np.median([b.best_iteration for b in boosters_pm]):.0f}", flush=True)
+    if a.pm_rounds:
+        print(f"per-member heads: {len(boosters_pm)}, fixed {a.pm_rounds} rounds "
+              f"(no early stopping)", flush=True)
+    else:
+        print(f"per-member heads: {len(boosters_pm)}, median best_iter "
+              f"{np.median([b.best_iteration for b in boosters_pm]):.0f}", flush=True)
+
+    def _pm_predict(mi, dm):
+        """Score with the trees the member actually earned.
+
+        With early stopping that is 0..best_iteration; with `--pm-rounds` the
+        booster has no best_iteration and the whole thing is used.
+        """
+        b = boosters_pm[mi]
+        rng = None if a.pm_rounds else (0, b.best_iteration + 1)
+        return b.predict(dm, iteration_range=rng) if rng else b.predict(dm)
 
     # ---- the stacked head, now an ensemble of its own -------------------------
     # One fit was a single draw, and its stopping point swung 5 -> 182 on the
@@ -123,10 +160,14 @@ def main(argv=None):
     ds = xgb.DMatrix(Xs, label=ys, feature_names=names)
     dstop = xgb.DMatrix(np.vstack([F["train"][mi][ist] for mi in range(len(models))]),
                         label=np.tile(yc["train"][ist], len(models)), feature_names=names)
-    boosters_st = fit_stacked(ds, dstop, base, _spw(ys),
-                              n_keep=a.stack_seeds, min_rounds=a.min_rounds,
-                              nrounds=a.nrounds, max_attempts=a.max_attempts)
-    print(f"stacked head: {Xs.shape[0]:,} rows, {len(boosters_st)} kept fits", flush=True)
+    boosters_st = None
+    if not a.skip_stacked:
+        boosters_st = fit_stacked(ds, dstop, base, _spw(ys),
+                                  n_keep=a.stack_seeds, min_rounds=a.min_rounds,
+                                  nrounds=a.nrounds, max_attempts=a.max_attempts)
+        print(f"stacked head: {Xs.shape[0]:,} rows, {len(boosters_st)} kept fits", flush=True)
+    else:
+        print("stacked head: skipped (--skip-stacked)", flush=True)
 
     def _pred_st(dm):
         return predict_stacked(boosters_st, dm)
@@ -134,13 +175,14 @@ def main(argv=None):
     # sanity: the heads reproduce the comparison's val numbers
     pv_cnn = np.mean([np.asarray(predict_all(m, Xc["val"])["global"]).reshape(-1)
                       for m in models], axis=0)
-    pv_pm = np.mean([boosters_pm[mi].predict(
-        xgb.DMatrix(F["val"][mi], feature_names=names),
-        iteration_range=(0, boosters_pm[mi].best_iteration + 1))
-        for mi in range(len(models))], axis=0)
-    pv_st = np.mean([_pred_st(xgb.DMatrix(F["val"][mi], feature_names=names))
+    pv_pm = np.mean([_pm_predict(mi, xgb.DMatrix(F["val"][mi], feature_names=names))
                      for mi in range(len(models))], axis=0)
-    for nm, p in (("cnn", pv_cnn), ("xgb_pm", pv_pm), ("xgb_st", pv_st)):
+    heads = [("cnn", pv_cnn), ("xgb_pm", pv_pm)]
+    if boosters_st is not None:
+        heads.append(("xgb_st", np.mean(
+            [_pred_st(xgb.DMatrix(F["val"][mi], feature_names=names))
+             for mi in range(len(models))], axis=0)))
+    for nm, p in heads:
         print(f"  val {nm:6s} " + json.dumps({k: round(v, 4)
                                               for k, v in _metrics(yc["val"], p).items()}),
               flush=True)
@@ -167,17 +209,20 @@ def main(argv=None):
                                   anchor, pi_names, near=a.near)
             dm = xgb.DMatrix(pf, feature_names=names)
             cn.append(np.asarray(o["global"], dtype="float32").reshape(-1))
-            pm.append(boosters_pm[mi].predict(
-                dm, iteration_range=(0, boosters_pm[mi].best_iteration + 1)))
-            st.append(_pred_st(dm))
+            pm.append(_pm_predict(mi, dm))
+            if boosters_st is not None:
+                st.append(_pred_st(dm))
         out[f"{g}__anchor"] = anchors.astype("int32")
         out[f"{g}__accession"] = np.asarray(accs_all[i])
-        for nm, v in (("cnn", cn), ("xgb_pm", pm), ("xgb_st", st)):
+        for nm, v in ([("cnn", cn), ("xgb_pm", pm)] +
+                      ([("xgb_st", st)] if boosters_st is not None else [])):
             out[f"{g}__{nm}"] = np.mean(v, axis=0).astype("float32")
             out[f"{g}__{nm}__sd"] = np.std(v, axis=0, ddof=1).astype("float32")
-        print(f"  {g}: {anchors.size} anchors | best cnn {out[f'{g}__cnn'].max():.3f} "
-              f"| xgb_pm {out[f'{g}__xgb_pm'].max():.3f} "
-              f"| xgb_st {out[f'{g}__xgb_st'].max():.3f}", flush=True)
+        line = (f"  {g}: {anchors.size} anchors | best cnn {out[f'{g}__cnn'].max():.3f} "
+                f"| xgb_pm {out[f'{g}__xgb_pm'].max():.3f}")
+        if boosters_st is not None:
+            line += f" | xgb_st {out[f'{g}__xgb_st'].max():.3f}"
+        print(line, flush=True)
 
     np.savez_compressed(os.path.expanduser(a.out), **out,
                         genes=np.asarray([k.split("__")[0] for k in out
