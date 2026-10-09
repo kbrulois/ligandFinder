@@ -29,3 +29,25 @@ variable "use_cloudfront" {
   type        = bool
   default     = true
 }
+
+variable "gated_prefix" {
+  description = <<-D
+    Key prefix served behind HTTP basic auth, with no slashes, e.g. "v2_test".
+    Empty (the default) adds no function and no extra cache behaviour, which is
+    the pre-existing arrangement: everything open.
+  D
+  type        = string
+  default     = ""
+}
+
+variable "gated_auth" {
+  description = <<-D
+    "user:password" for the gated prefix. Supply it OUT OF BAND -- export
+    TF_VAR_gated_auth in the shell that runs apply -- so it is never written to
+    a file in this repository. It IS compiled into the CloudFront function and
+    stored in terraform state; see the comment on aws_cloudfront_function.
+  D
+  type        = string
+  default     = ""
+  sensitive   = true
+}

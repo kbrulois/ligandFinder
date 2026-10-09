@@ -86,6 +86,30 @@ resource "aws_cloudfront_distribution" "plots" {
     compress = false
   }
 
+  # Everything under the gated prefix goes through a viewer-request function
+  # that demands HTTP basic auth. The rest of the bucket -- the full per-gene
+  # set at the root -- keeps the open default behaviour above, so existing
+  # links are unaffected. One prompt covers the whole prefix: browsers cache
+  # basic credentials per origin and realm, so the gallery and every gene page
+  # under it are a single login.
+  dynamic "ordered_cache_behavior" {
+    for_each = var.gated_prefix == "" ? [] : [1]
+    content {
+      path_pattern           = "${var.gated_prefix}/*"
+      target_origin_id       = "s3-${var.bucket_name}"
+      viewer_protocol_policy = "redirect-to-https"
+      allowed_methods        = ["GET", "HEAD"]
+      cached_methods         = ["GET", "HEAD"]
+      cache_policy_id        = data.aws_cloudfront_cache_policy.optimized.id
+      compress               = false
+
+      function_association {
+        event_type   = "viewer-request"
+        function_arn = aws_cloudfront_function.basic_auth[0].arn
+      }
+    }
+  }
+
   restrictions {
     geo_restriction {
       restriction_type = "none"
@@ -143,4 +167,43 @@ data "aws_iam_policy_document" "public_read" {
 resource "aws_s3_bucket_policy" "plots" {
   bucket = aws_s3_bucket.plots.id
   policy = var.use_cloudfront ? data.aws_iam_policy_document.cloudfront_only[0].json : data.aws_iam_policy_document.public_read[0].json
+}
+
+
+# ---------------------------------------------------------------------------
+# HTTP basic auth at the edge, for the gated prefix only.
+#
+# A CloudFront Function cannot read a secret at runtime -- there is no
+# environment, no KMS, no network. The credential is therefore COMPILED INTO
+# the function source below and is visible to anyone who can read this AWS
+# account or the terraform state. That is inherent to edge basic auth; it is a
+# gate against casual access, not a secret-bearing auth system. Rotate it by
+# changing var.gated_auth and re-applying.
+#
+# `authorization` is one of the few headers CloudFront Functions see on a
+# viewer request, which is what makes this work without Lambda@Edge (and
+# without its cold starts or its us-east-1 requirement).
+# ---------------------------------------------------------------------------
+resource "aws_cloudfront_function" "basic_auth" {
+  count   = (var.use_cloudfront && var.gated_prefix != "") ? 1 : 0
+  name    = "${var.bucket_name}-basic-auth"
+  runtime = "cloudfront-js-2.0"
+  comment = "HTTP basic auth for /${var.gated_prefix}/*"
+  publish = true
+
+  code = <<-JS
+    function handler(event) {
+      var want = "Basic ${base64encode(var.gated_auth)}";
+      var got  = event.request.headers.authorization;
+      if (got && got.value === want) return event.request;
+      return {
+        statusCode: 401,
+        statusDescription: "Unauthorized",
+        headers: {
+          "www-authenticate": { value: "Basic realm=\"LigandFinder\", charset=\"UTF-8\"" },
+          "cache-control":    { value: "no-store" }
+        }
+      };
+    }
+  JS
 }
