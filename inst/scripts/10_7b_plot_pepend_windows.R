@@ -33,7 +33,11 @@ source(file.path(ROOT, "R", "pepend_windows.R"))
 source(file.path(ROOT, "R", "plot_proteins_win_new.R"))
 TOL <- as.integer(.opt("--tol", "2"))
 
-k <- readRDS(in_path)$knowns
+.x <- readRDS(in_path)
+k <- .x$knowns
+## a --ct-pad set (10_7) cuts every C window at its anchor; say so on the figure
+ct_pad <- isTRUE(.x$params$ct_pad)
+rm(.x)
 ## where the pocket sits relative to THIS end -- the classification under review
 k <- dplyr::bind_cols(k, lf_pepend_insertion_class(k$known_idx, k$term, k$len,
                                                    tol = TOL, detail = TRUE))
@@ -85,7 +89,9 @@ mk <- function(t) {
   d <- tiles %>% filter(term == t)
   g <- grp %>% filter(term == t)
   ggplot(d, aes(pos, y)) +
-    geom_tile(aes(fill = known_idx), colour = "white", linewidth = 0.15) +
+    ## show.legend = TRUE draws a key for a class the panel lacks (CT context in
+    ## a --ct-pad C panel), so both panels' legends match and collect into one
+    geom_tile(aes(fill = known_idx), colour = "white", linewidth = 0.15, show.legend = TRUE) +
     geom_text(aes(label = AA), size = 1.7, na.rm = TRUE) +
     geom_point(data = k %>% filter(term == t), aes(x = -0.2, y = y, colour = split), size = 1.1) +
     geom_vline(data = cut %>% filter(term == t), aes(xintercept = x), linewidth = 0.6) +
@@ -95,6 +101,8 @@ mk <- function(t) {
     scale_fill_manual(values = class_cols, labels = class_labs, name = "label",
                       drop = FALSE) +
     scale_colour_manual(values = split_cols, name = "split") +
+    ## ...but that also paints a tile behind the split dots; clear it there
+    guides(colour = guide_legend(override.aes = list(fill = NA))) +
     scale_x_continuous(breaks = c(1, 8, 15, 22, 28, 36), expand = expansion(add = c(0.3, 6))) +
     scale_y_continuous(breaks = k$y[k$term == t], labels = k$row[k$term == t],
                        expand = expansion(add = 0.6)) +
@@ -112,7 +120,8 @@ p <- patchwork::wrap_plots(lapply(levels(k$term), mk), nrow = 1, guides = "colle
     title = sprintf("Peptide-end training windows: %d N and %d C, from %d docked peptides (chemokines excluded)",
                     sum(k$term == levels(k$term)[1]), sum(k$term == levels(k$term)[2]),
                     length(unique(unlist(strsplit(k$pep_ids, ";"))))),
-    subtitle = paste0("Labels: before the peptide = NT context, after it = CT context (DB and gap merged in); ",
+    subtitle = paste0(if (ct_pad) "CT-PADDED: every C window is cut at its anchor, so positions 29-36 are padding whatever follows the peptide.\n" else "",
+                      "Labels: before the peptide = NT context, after it = CT context (DB and gap merged in); ",
                       "pocket = in the receptor pocket in the docked model. Groups: what flanks this end.\n",
                       "Row: gene, peptide, range (length) | how this end sits in the docked model ",
                       "(end/loop insertion or non-inserting) | shared = end shared by several peptides, ",
@@ -126,6 +135,6 @@ p <- patchwork::wrap_plots(lapply(levels(k$term), mk), nrow = 1, guides = "colle
   theme(legend.position = "bottom")
 
 n_rows <- max(table(k$term))
-f <- file.path(out_dir, sprintf("pepend_windows_aligned_%s.svg", stamp))
+f <- file.path(out_dir, sprintf("pepend_windows_aligned_%s%s.svg", if (ct_pad) "ctpad_" else "", stamp))
 ggsave(f, p, width = 20, height = 2 + 0.115 * n_rows, limitsize = FALSE)
 message("wrote ", f)
