@@ -248,7 +248,10 @@ lf_track_per_index <- function(accession, n_prot, c_prot, terms = c("N", "C")) {
 #'
 #' `ct_pad = TRUE` cuts every C window at its own anchor, as the run was trained
 #' (10_7 --ct-pad); scoring a padded model on unpadded windows would show it
-#' inputs it has never seen. `winxgb` (optional) adds the same series to the xgb
+#' inputs it has never seen. `per_residue = TRUE` also pools that run's
+#' per-index class probabilities onto residues, for a class-probability track of
+#' its own; each window counts only for residues it saw, so a padded window says
+#' nothing about the residues under its padding. `winxgb` (optional) adds the same series to the xgb
 #' window-head track from a `lf_winxgb.scan_genes` npz -- which has to be built
 #' from the same run, with `--ct-pad` for a padded one.
 #' @keywords internal
@@ -284,10 +287,21 @@ lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
       X[k, , ] <- as.matrix(lf_pepend_slice(feat, w_start[k], n_prot, cut[k])[, fc$all_params3])
     xp <- np$ascontiguousarray(np$asarray(X, dtype = "float32"))
     G <- matrix(0, length(models), length(anchors))
-    for (m in seq_along(models))
-      G[m, ] <- as.numeric(reticulate::py_to_r(mod$pipeline$predict_all(models[[m]], xp)[["global"]]))
-    tibble::tibble(residue = anchors, mean = colMeans(G), sd = apply(G, 2, stats::sd),
-                   term = spec$name, head = "CNN attention head")
+    pin <- as.character(cfg$pi_names)
+    PI <- if (isTRUE(spec$per_residue))
+      array(0, c(length(anchors), LF_PEPEND$seq_len, length(pin))) else NULL
+    for (m in seq_along(models)) {
+      o <- mod$pipeline$predict_all(models[[m]], xp)
+      G[m, ] <- as.numeric(reticulate::py_to_r(o[["global"]]))
+      ## members averaged first, as on the page's own class track
+      if (!is.null(PI)) PI <- PI + reticulate::py_to_r(o[["per_index_cat"]]) / length(models)
+    }
+    resid <- if (is.null(PI)) NULL else
+      lf_track_pool_residues(list(pi = PI, pi_names = pin, w_start = w_start),
+                             anchors, n_prot, c_prot, term, cut = cut)
+    list(win = tibble::tibble(residue = anchors, mean = colMeans(G), sd = apply(G, 2, stats::sd),
+                              term = spec$name, head = "CNN attention head"),
+         resid = resid)
   }, error = function(e) { message("  extra series '", spec$name, "' failed: ",
                                    conditionMessage(e)); NULL })
 }
@@ -300,13 +314,16 @@ lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
 #' @keywords internal
 lf_track_pool_residues <- function(S, anchors, n_prot, c_prot, term,
                                    classes = c("pep_pocket", "pep_other",
-                                               "CT_cleavage_context", "NT_cleavage_context")) {
+                                               "CT_cleavage_context", "NT_cleavage_context"),
+                                   cut = NULL) {
   idx <- which(S$pi_names %in% classes)
   if (!length(idx)) return(NULL)
   res <- lapply(idx, function(k) {
     acc <- lapply(seq_along(anchors), function(i) {
       r <- S$w_start[i] + seq_len(LF_PEPEND$seq_len) - 1L
-      ok <- r >= n_prot & r <= c_prot
+      ## `cut`: where THIS window's input ends (its anchor, for a CT-padded
+      ## window) -- it has no opinion about residues under its padding
+      ok <- r >= n_prot & r <= (if (is.null(cut)) c_prot else cut[i])
       tibble::tibble(residue = r[ok], v = S$pi[i, ok, k])
     })
     d <- dplyr::bind_rows(acc)
@@ -338,8 +355,11 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
     lf_track_window_head(gene, "N"), lf_track_window_head(gene, "C"),
     lf_track_xgb_head(gene, "N"),    lf_track_xgb_head(gene, "C"))
   ## extra series (another trunk's window head), after the bridge is up
+  extra_resid <- list()
   for (spec in getOption("lf.track_extra_win", list())) {
-    win <- dplyr::bind_rows(win, lf_track_extra_head(spec, accession, n_prot, c_prot))
+    ex <- lf_track_extra_head(spec, accession, n_prot, c_prot)
+    win <- dplyr::bind_rows(win, ex$win)
+    if (!is.null(ex$resid) && nrow(ex$resid)) extra_resid[[spec$name]] <- ex$resid
     if (!is.null(spec$winxgb)) {
       xh <- lf_track_xgb_head(gene, spec$term, spec$winxgb)
       if (!is.null(xh)) { xh$term <- spec$name; win <- dplyr::bind_rows(win, xh) }
@@ -356,7 +376,7 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
     if (!nrow(resid)) resid <- NULL
   }
   if (is.null(win) && is.null(rp) && is.null(resid)) return(NULL)
-  list(win = win, rp = rp, resid = resid, pix = pix,
+  list(win = win, rp = rp, resid = resid, extra_resid = extra_resid, pix = pix,
        anchors = if (is.null(pix)) NULL else pix$anchors)
 }
 
@@ -425,14 +445,16 @@ lf_track_x <- function(x_range, seq_offset = -0.45) {
 #' within a terminus, not the spread of the average.
 #' @keywords internal
 lf_plot_class_track <- function(d, x_range, aa, gene, legend = FALSE,
-                                seq_offset = -0.45) {
+                                seq_offset = -0.45, ylab = NULL,
+                                note = "mean of N and C") {
   if (is.null(d) || !nrow(d)) return(NULL)
   n_terms <- length(unique(d$term))
   d <- dplyr::summarise(dplyr::group_by(d, residue, class),
                         mean = mean(mean), sd = mean(sd), n_win = sum(n_win),
                         .groups = "drop")
   d <- droplevels(d)
-  lab <- if (n_terms > 1) "N+C per-residue\nclass probability" else "per-residue\nclass probability"
+  lab <- if (!is.null(ylab)) ylab else
+    if (n_terms > 1) "N+C per-residue\nclass probability" else "per-residue\nclass probability"
   ggplot2::ggplot(d, ggplot2::aes(residue, mean, colour = class)) +
     ggplot2::geom_ribbon(ggplot2::aes(ymin = pmax(mean - sd, 0),
                                       ymax = pmin(mean + sd, 1), fill = class),
@@ -440,9 +462,9 @@ lf_plot_class_track <- function(d, x_range, aa, gene, legend = FALSE,
     ggplot2::geom_line(linewidth = 0.45, na.rm = TRUE) +
     ggiraph::geom_point_interactive(
       ggplot2::aes(data_id = residue,
-                   tooltip = sprintf("%s  residue %d (%s)\n%s %.3f +/- %.3f  (mean of N and C)",
+                   tooltip = sprintf("%s  residue %d (%s)\n%s %.3f +/- %.3f  (%s)",
                                      gene, residue, aa[residue],
-                                     nn_class_labels[as.character(class)], mean, sd)),
+                                     nn_class_labels[as.character(class)], mean, sd, note)),
       size = 0.9, na.rm = TRUE) +
     ggplot2::scale_colour_manual(values = nn_class_cols, labels = nn_class_label_fn,
                                  name = NULL) +
@@ -526,6 +548,10 @@ lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
   mk <- list()
   add <- function(p, h) if (!is.null(p)) mk[[length(mk) + 1L]] <<- list(p = p, h = h)
   add(lf_plot_class_track(dat$resid, x_range, aa, gene, TRUE, seq_offset), 1.7)
+  for (nm in names(dat$extra_resid))
+    add(lf_plot_class_track(dat$extra_resid[[nm]], x_range, aa, gene, FALSE, seq_offset,
+                            ylab = paste0(nm, "\nper-residue\nclass probability"),
+                            note = paste(nm, "windows only")), 1.7)
   if (!is.null(dat$win)) {
     add(lf_plot_win_track(dat$win, "CNN attention head", x_range, aa, gene, TRUE, seq_offset), 1.15)
     add(lf_plot_win_track(dat$win, "xgb window head",    x_range, aa, gene, FALSE, seq_offset), 1.15)
