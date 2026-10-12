@@ -328,7 +328,7 @@ class Config:
         return len(self.ins_class_names)
 
     @classmethod
-    def pepend(cls, term: str, **kwargs) -> "Config":
+    def pepend(cls, term: str, slack: int = 0, **kwargs) -> "Config":
         """Config for the peptide-END set of ``inst/scripts/10_7_pepend_windows.R``.
 
         That set anchors on the peptide's own terminal residue -- its last
@@ -346,16 +346,32 @@ class Config:
         The spans are term-specific but :attr:`mask_matrix_cat` is not, so this
         pins ``term_order`` to the single terminus asked for; build a second
         Config for the other one rather than training both from this.
+
+        ``slack`` widens every span by that many positions toward the other
+        side, clipped to the window. Those spans assume the peptide terminus
+        sits exactly at the anchor, which a NEAR-END negative breaks on
+        purpose: one shifted by ``d`` carries its real labels ``d`` positions
+        off, so a C window at +4 has CT context at 25-28 and one at -4 has
+        peptide at 29-32 -- both outside the unslacked spans, where the mask
+        pins those classes' logits at zero. Pass the largest ``|d|`` in the set
+        (10_8 derives it from the data); 0 keeps the exact-anchor spans.
         """
         if term not in PEPEND_ANCHOR:
             raise ValueError(
                 f"term must be one of {sorted(PEPEND_ANCHOR)}, got {term!r}")
         a = PEPEND_ANCHOR[term]
         seq_len = int(kwargs.get("seq_len", cls.seq_len))
+        slack = int(slack)
+        if slack < 0:
+            raise ValueError(f"slack must be >= 0, got {slack}")
+        lo = lambda v: max(1, v - slack)        # widen a lower bound
+        hi = lambda v: min(seq_len, v + slack)  # widen an upper bound
         if term == "C":
-            spans = dict(mid_span=(1, a), ct_span=(a + 1, seq_len), nt_span=(1, a - 1))
+            spans = dict(mid_span=(1, hi(a)), ct_span=(lo(a + 1), seq_len),
+                         nt_span=(1, hi(a - 1)))
         else:
-            spans = dict(mid_span=(a, seq_len), nt_span=(1, a - 1), ct_span=(a + 1, seq_len))
+            spans = dict(mid_span=(lo(a), seq_len), nt_span=(1, hi(a - 1)),
+                         ct_span=(lo(a + 1), seq_len))
         for k, v in spans.items():
             kwargs.setdefault(k, v)
         kwargs.setdefault("class_names", PEPEND_CLASS_NAMES)

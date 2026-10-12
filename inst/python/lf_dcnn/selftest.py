@@ -276,6 +276,12 @@ def check_pepend_config():
     n = Config.pepend("N")
     # the N peptide STARTS at 8: mirror image
     assert (n.nt_span, n.mid_span, n.ct_span) == ((1, 7), (8, 36), (9, 36))
+    # slack widens each span toward the other side by that many positions,
+    # clipped to the window: what a near-end negative shifted by up to 8 needs
+    c8, n8 = Config.pepend("C", slack=8), Config.pepend("N", slack=8)
+    assert (c8.nt_span, c8.mid_span, c8.ct_span) == ((1, 35), (1, 36), (21, 36))
+    assert (n8.nt_span, n8.mid_span, n8.ct_span) == ((1, 15), (1, 36), (1, 36))
+    assert Config.pepend("C", slack=0).ct_span == c.ct_span
 
     for cfg, term in ((c, "C"), (n, "N")):
         a = PEPEND_ANCHOR[term]
