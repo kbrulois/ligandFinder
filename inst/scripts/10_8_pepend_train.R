@@ -247,7 +247,10 @@ rank_among_unknown <- function(p) vapply(p, function(v) sum(unk > v) + 1L, integ
 ## train/val split has to come from the knowns table
 kn <- all_t %>% filter(known == 1) %>%
   mutate(rank_cand = rank_among_unknown(pred)) %>%
-  left_join(x$knowns %>% select(peps, split), by = "peps")
+  ## THIS terminus only: a short peptide's N and C windows can span the same
+  ## residues and so share a `peps` name (EDN1_w46-81, EDN2_w42-77), and joining
+  ## on both termini counted those ends twice -- 31 held out instead of 29
+  left_join(x$knowns %>% filter(term == !!term) %>% select(peps, split), by = "peps")
 
 held <- kn %>% filter(split == "val")
 message(sprintf("\nheld-out known %s ends (n = %d of %d candidate windows):",
