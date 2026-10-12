@@ -251,7 +251,8 @@ lf_track_per_index <- function(accession, n_prot, c_prot, terms = c("N", "C")) {
 #' inputs it has never seen. `per_residue = TRUE` also pools that run's
 #' per-index class probabilities onto residues, for a class-probability track of
 #' its own; each window counts only for residues it saw, so a padded window says
-#' nothing about the residues under its padding. `winxgb` (optional) adds the same series to the xgb
+#' nothing about the residues under its padding. `popup = TRUE` puts its windows
+#' in the click popup: a click on that series opens that run's window. `winxgb` (optional) adds the same series to the xgb
 #' window-head track from a `lf_winxgb.scan_genes` npz -- which has to be built
 #' from the same run, with `--ct-pad` for a padded one.
 #' @keywords internal
@@ -288,20 +289,38 @@ lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
     xp <- np$ascontiguousarray(np$asarray(X, dtype = "float32"))
     G <- matrix(0, length(models), length(anchors))
     pin <- as.character(cfg$pi_names)
-    PI <- if (isTRUE(spec$per_residue))
+    want_pi <- isTRUE(spec$per_residue) || isTRUE(spec$popup)
+    PI <- PI2 <- if (want_pi)
       array(0, c(length(anchors), LF_PEPEND$seq_len, length(pin))) else NULL
     for (m in seq_along(models)) {
       o <- mod$pipeline$predict_all(models[[m]], xp)
       G[m, ] <- as.numeric(reticulate::py_to_r(o[["global"]]))
-      ## members averaged first, as on the page's own class track
-      if (!is.null(PI)) PI <- PI + reticulate::py_to_r(o[["per_index_cat"]]) / length(models)
+      if (want_pi) {
+        p <- reticulate::py_to_r(o[["per_index_cat"]])
+        PI <- PI + p; PI2 <- PI2 + p^2
+      }
     }
-    resid <- if (is.null(PI)) NULL else
+    PSD <- NULL
+    if (want_pi) {
+      ## members averaged first, as on the page's own class track; the sd is
+      ## across members, as in the page's own popup
+      nm <- length(models)
+      PSD <- sqrt(pmax(PI2 - PI^2 / nm, 0) / max(nm - 1, 1))
+      PI <- PI / nm
+    }
+    resid <- if (isTRUE(spec$per_residue))
       lf_track_pool_residues(list(pi = PI, pi_names = pin, w_start = w_start),
-                             anchors, n_prot, c_prot, term, cut = cut)
+                             anchors, n_prot, c_prot, term, cut = cut) else NULL
+    ## for the click popup: the same shape as lf_track_per_index() returns, plus
+    ## `npos`, the window positions the model actually saw (1-28 when padded)
+    pix <- if (isTRUE(spec$popup))
+      list(pi = PI, pi_sd = PSD, g = colMeans(G), pi_names = pin,
+           pos = LF_PEPEND$anchor[[term]], w_start = w_start, anchors = anchors,
+           npos = if (isTRUE(spec$ct_pad) && term == "C") LF_PEPEND$anchor[["C"]]
+                  else LF_PEPEND$seq_len) else NULL
     list(win = tibble::tibble(residue = anchors, mean = colMeans(G), sd = apply(G, 2, stats::sd),
                               term = spec$name, head = "CNN attention head"),
-         resid = resid)
+         resid = resid, pix = pix)
   }, error = function(e) { message("  extra series '", spec$name, "' failed: ",
                                    conditionMessage(e)); NULL })
 }
@@ -355,11 +374,12 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
     lf_track_window_head(gene, "N"), lf_track_window_head(gene, "C"),
     lf_track_xgb_head(gene, "N"),    lf_track_xgb_head(gene, "C"))
   ## extra series (another trunk's window head), after the bridge is up
-  extra_resid <- list()
+  extra_resid <- list(); extra_pix <- list()
   for (spec in getOption("lf.track_extra_win", list())) {
     ex <- lf_track_extra_head(spec, accession, n_prot, c_prot)
     win <- dplyr::bind_rows(win, ex$win)
     if (!is.null(ex$resid) && nrow(ex$resid)) extra_resid[[spec$name]] <- ex$resid
+    if (!is.null(ex$pix)) extra_pix[[spec$name]] <- ex$pix
     if (!is.null(spec$winxgb)) {
       xh <- lf_track_xgb_head(gene, spec$term, spec$winxgb)
       if (!is.null(xh)) { xh$term <- spec$name; win <- dplyr::bind_rows(win, xh) }
@@ -376,6 +396,7 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
     if (!nrow(resid)) resid <- NULL
   }
   if (is.null(win) && is.null(rp) && is.null(resid)) return(NULL)
+  if (!is.null(pix) && length(extra_pix)) pix$extra <- extra_pix
   list(win = win, rp = rp, resid = resid, extra_resid = extra_resid, pix = pix,
        anchors = if (is.null(pix)) NULL else pix$anchors)
 }
@@ -600,12 +621,16 @@ lf_pepend_popup_tag <- function(pix, aa, gene, accession,
   terms <- intersect(c("N", "C"), names(pix))
   if (!length(terms)) return(NULL)
 
-  pack <- function(S) {
-    keep <- seq_along(pix$anchors)
+  ## `label` is how the series is named in the head tracks' tooltips, which is
+  ## how a click finds it; `title` heads the opened panel
+  pack <- function(S, anchors, label, title) {
+    keep <- seq_along(anchors)
     if (length(keep) > max_anchors)
       keep <- sort(utils::head(order(S$g, decreasing = TRUE), max_anchors))
-    list(anchor = as.integer(pix$anchors[keep]),
+    list(label = label, title = title,
+         anchor = as.integer(anchors[keep]),
          pos = as.integer(S$pos),
+         npos = as.integer(if (is.null(S$npos)) LF_PEPEND$seq_len else S$npos),
          g = round(S$g[keep], 4),
          pi = lapply(keep, function(i) round(S$pi[i, , ], 3)),
          sd = lapply(keep, function(i) round(S$pi_sd[i, , ], 3)))
@@ -615,7 +640,15 @@ lf_pepend_popup_tag <- function(pix, aa, gene, accession,
                   classes = pix[[terms[1]]]$pi_names,
                   labels = unname(nn_class_labels[pix[[terms[1]]]$pi_names]),
                   cols = unname(nn_class_cols[pix[[terms[1]]]$pi_names]))
-  for (t in terms) payload[[t]] <- pack(pix[[t]])
+  series <- list()
+  for (t in terms)
+    series[[t]] <- pack(pix[[t]], pix$anchors, paste0(t, " terminus"), paste0(t, " window"))
+  for (nm in names(pix$extra)) {
+    S <- pix$extra[[nm]]
+    if (!identical(as.character(S$pi_names), as.character(pix[[terms[1]]]$pi_names))) next
+    series[[nm]] <- pack(S, S$anchors, nm, sub("^([NC]) terminus", "\\1 window", nm))
+  }
+  payload$series <- series
 
   htmltools::tags$script(htmltools::HTML(sprintf(
     "window.LF_PEP = %s;\n%s",
@@ -671,8 +704,8 @@ lf_pepend_popup_js <- function() '
     host.remove(); host = null;
   }
 
-  function open(term, res, svg) {
-    var S = d[term];
+  function open(key, res, svg) {
+    var S = d.series && d.series[key];
     if (!S) return;
     var i = S.anchor.indexOf(res);
     if (i < 0) return;
@@ -705,6 +738,8 @@ lf_pepend_popup_js <- function() '
     if (Math.abs(dx) > 0.5) host.style.marginLeft = dx.toFixed(1) + "px";
     var hostRect = host.getBoundingClientRect();
     var N = d.seq_len, w0 = res - S.pos + 1, K = d.classes.length;
+    /* positions the model saw: all 36, or 1-28 for a CT-padded window */
+    var NP = S.npos || N;
     var X = function (r) { return sc.x(r) - hostRect.left; };
     var Y = function (v) { return PANEL_H - 26 - v * (PANEL_H - 44); };
 
@@ -716,18 +751,27 @@ lf_pepend_popup_js <- function() '
     g += "<rect x=" + X(w0 - 0.5).toFixed(1) + " y=6 width=" +
          Math.max(1, (X(w0 + N - 0.5) - X(w0 - 0.5))).toFixed(1) +
          " height=" + (PANEL_H - 32) + " fill=#ffffff stroke=#d9d8d3 />";
+    /* a padded window never saw positions past NP -- say so, rather than draw
+       predictions about residues it was not shown */
+    if (NP < N) {
+      var px0 = X(w0 + NP - 0.5), px1 = X(w0 + N - 0.5);
+      g += "<rect x=" + px0.toFixed(1) + " y=6 width=" + Math.max(1, px1 - px0).toFixed(1) +
+           " height=" + (PANEL_H - 32) + " fill=#ecebe6 />";
+      g += "<text x=" + ((px0 + px1) / 2).toFixed(1) + " y=" + (PANEL_H / 2).toFixed(0) +
+           " text-anchor=middle font-size=10 fill=#8a8a8a>padding</text>";
+    }
     /* the anchor: the residue this window is ABOUT */
     g += "<rect x=" + (X(res) - 1).toFixed(1) + " y=6 width=2 height=" +
          (PANEL_H - 32) + " fill=#000 opacity=0.35 />";
     for (var k = 0; k < K; k++) {
       if (d.classes[k] === "none" || d.classes[k] === "padding") continue;
       var pts = [];
-      for (var j = 0; j < N; j++)
+      for (var j = 0; j < NP; j++)
         pts.push(X(w0 + j).toFixed(1) + "," + Y(S.pi[i][j][k]).toFixed(1));
       /* +/- 1 sd across the members, as a band under the line */
       if (S.sd) {
         var up = [], dn = [];
-        for (var j3 = 0; j3 < N; j3++) {
+        for (var j3 = 0; j3 < NP; j3++) {
           var m3 = S.pi[i][j3][k], e3 = S.sd[i][j3][k];
           up.push(X(w0 + j3).toFixed(1) + "," + Y(Math.min(1, m3 + e3)).toFixed(1));
           dn.push(X(w0 + j3).toFixed(1) + "," + Y(Math.max(0, m3 - e3)).toFixed(1));
@@ -740,7 +784,7 @@ lf_pepend_popup_js <- function() '
            d.cols[k] + "\\" stroke-width=1.6 />";
       /* a point per residue per class, carrying the residue it belongs to so a
          hover can light that column up on every other track */
-      for (var j2 = 0; j2 < N; j2++) {
+      for (var j2 = 0; j2 < NP; j2++) {
         var rr = w0 + j2, vv = S.pi[i][j2][k];
         g += "<circle cx=" + X(rr).toFixed(1) + " cy=" + Y(vv).toFixed(1) +
              " r=2 fill=\\"" + d.cols[k] + "\\" data-res=" + rr +
@@ -758,8 +802,8 @@ lf_pepend_popup_js <- function() '
     var cx = (X(w0) + X(w0 + N - 1)) / 2;
     var hdr = "<div id=\\"lf-pep-hdr\\" style=\\"position:absolute;top:4px;left:" +
       cx.toFixed(0) + "px;transform:translateX(-50%);white-space:nowrap;text-align:center;" +
-      "font:11px ui-sans-serif,system-ui;color:#52514e\\"><b>" + term +
-      " window</b> anchored at residue " + res +
+      "font:11px ui-sans-serif,system-ui;color:#52514e\\"><b>" + S.title +
+      "</b> anchored at residue " + res +
       " (" + (d.aa[res - 1] || "?") + ") &middot; covers " + w0 + "&ndash;" + (w0 + N - 1) +
       " &middot; score " + S.g[i].toFixed(3) + "</div>";
     var btn = "<div id=\\"lf-pep-close\\" title=\\"close\\" style=\\"position:absolute;right:10px;top:2px;" +
@@ -827,10 +871,15 @@ lf_pepend_popup_js <- function() '
       n.style.cursor = "pointer";
       n.addEventListener("click", function (ev) {
         ev.stopPropagation();
-        /* which series was clicked -- the tooltip says which terminus */
-        var t = n.getAttribute("title") || "";
-        var term = /N terminus/.test(t) ? "N" : (/C terminus/.test(t) ? "C" : null);
-        if (term) open(term, parseInt(v, 10), svg);
+        /* which series was clicked -- the tooltip names it. Longest matching
+           label wins, so a click on "C terminus, CT-padded" opens that run and
+           not the plain C window its label also contains */
+        var t = n.getAttribute("title") || "", key = null, best = -1;
+        Object.keys(d.series || {}).forEach(function (k2) {
+          var lab = d.series[k2].label;
+          if (lab && t.indexOf(lab) >= 0 && lab.length > best) { key = k2; best = lab.length; }
+        });
+        if (key) open(key, parseInt(v, 10), svg);
       });
     });
   }
