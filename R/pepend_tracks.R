@@ -232,6 +232,63 @@ lf_track_per_index <- function(accession, n_prot, c_prot, terms = c("N", "C")) {
   out
 }
 
+#' An extra window-head series from another trunk, scored on the fly
+#'
+#' For putting a second model's window score beside the page's own -- e.g. the
+#' CT-padded C model -- without a precomputed scan. Every mature residue is an
+#' anchor; each of the run's members scores every window and the series is the
+#' member mean with the member sd as its band, as on the scan-backed series.
+#'
+#' Set through an option, so the page code needs no new argument:
+#'
+#'   options(lf.track_extra_win = list(list(
+#'     name = "C, CT-padded", term = "C", ct_pad = TRUE, colour = "#FF9900",
+#'     run = "~/AF2_analysis/lf_pepend_run_C_near_ctpad_slack8.rds")))
+#'
+#' `ct_pad = TRUE` cuts every C window at its own anchor, as the run was trained
+#' (10_7 --ct-pad); scoring a padded model on unpadded windows would show it
+#' inputs it has never seen.
+#' @keywords internal
+lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
+  if (!requireNamespace("reticulate", quietly = TRUE)) return(NULL)
+  fc <- .lf_once("feat_cache", function() readRDS(path.expand(LF_TRACK_PATHS$cache)))
+  if (!is.list(fc)) return(NULL)
+  i <- match(accession, fc$prec$accession)
+  if (is.na(i)) return(NULL)
+  ## The mature range the models were TRAINED with, not the caller's: the page
+  ## passes n_prot = 1, and a window over the signal peptide would show the
+  ## model residues it only ever saw as padding. The scan-backed series start
+  ## at this same n_prot, so the extra series lines up with them.
+  n_prot <- as.integer(fc$prec$n_prot[i]); c_prot <- as.integer(fc$prec$c_prot[i])
+  .pp <- lf_tracks_python_path()
+  mod <- tryCatch(if (is.null(.pp)) lf_dcnn_python() else lf_dcnn_python(path = .pp),
+                  error = function(e) NULL)
+  if (is.null(mod)) return(NULL)
+  np <- reticulate::import("numpy", convert = FALSE)
+  term <- spec$term
+  iso <- paste0(tools::file_path_sans_ext(path.expand(spec$run)), "_isolated")
+  if (!dir.exists(iso)) { message("  extra series '", spec$name, "': no ", iso); return(NULL) }
+  tryCatch({
+    cfg <- mod$Config$from_json(file.path(iso, "in", "config.json"))
+    models <- mod$scan$load_member_models(file.path(iso, "out"), cfg, term)
+    feat <- fc$feats[[i]]
+    anchors <- seq.int(n_prot, c_prot)
+    w_start <- anchors - LF_PEPEND$anchor[[term]] + 1L
+    ## the window's own end: the precursor's, or under ct_pad the C anchor
+    cut <- if (isTRUE(spec$ct_pad) && term == "C") pmin(c_prot, anchors) else rep(c_prot, length(anchors))
+    X <- array(0, c(length(anchors), LF_PEPEND$seq_len, ncol(feat)))
+    for (k in seq_along(anchors))
+      X[k, , ] <- as.matrix(lf_pepend_slice(feat, w_start[k], n_prot, cut[k])[, fc$all_params3])
+    xp <- np$ascontiguousarray(np$asarray(X, dtype = "float32"))
+    G <- matrix(0, length(models), length(anchors))
+    for (m in seq_along(models))
+      G[m, ] <- as.numeric(reticulate::py_to_r(mod$pipeline$predict_all(models[[m]], xp)[["global"]]))
+    tibble::tibble(residue = anchors, mean = colMeans(G), sd = apply(G, 2, stats::sd),
+                   term = spec$name, head = "CNN attention head")
+  }, error = function(e) { message("  extra series '", spec$name, "' failed: ",
+                                   conditionMessage(e)); NULL })
+}
+
 #' Pool each window's opinion onto the residues it covers
 #'
 #' Members are averaged first -- the ensemble mean is the prediction -- then mean
@@ -277,6 +334,9 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
   win <- dplyr::bind_rows(
     lf_track_window_head(gene, "N"), lf_track_window_head(gene, "C"),
     lf_track_xgb_head(gene, "N"),    lf_track_xgb_head(gene, "C"))
+  ## extra series (another trunk's window head), after the bridge is up
+  for (spec in getOption("lf.track_extra_win", list()))
+    win <- dplyr::bind_rows(win, lf_track_extra_head(spec, accession, n_prot, c_prot))
   if (!nrow(win)) win <- NULL
   rp <- lf_track_resid_models(accession, n_prot, c_prot)
   resid <- NULL
@@ -308,6 +368,16 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
 #' one, well clear of `pep_other`'s pale #D5E4A2 without going neon.
 #' @export
 LF_TERM_COLS <- c(N = "#2BA84A", C = "#D95F0E")
+
+#' The series colours a head track uses: the terminus colours (overridable per
+#' page with `options(lf.term_cols = )`) plus one per extra series
+#' @keywords internal
+lf_series_cols <- function() {
+  cols <- getOption("lf.term_cols", LF_TERM_COLS)
+  for (spec in getOption("lf.track_extra_win", list()))
+    cols[[spec$name]] <- spec$colour
+  cols
+}
 
 #' @keywords internal
 lf_track_theme <- function() {
@@ -390,19 +460,23 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
                               seq_offset = -0.45) {
   d <- d[d$head == head_nm, , drop = FALSE]
   if (!nrow(d)) return(NULL)
-  d$term <- factor(d$term, levels = names(LF_TERM_COLS))
+  cols <- lf_series_cols()
+  d$term <- factor(d$term, levels = names(cols))
+  d <- droplevels(d)
+  ## "N terminus" / "C terminus" for the page's own series; an extra one by name
+  lab <- function(x) ifelse(x %in% c("N", "C"), paste0(x, " terminus"), x)
   ggplot2::ggplot(d, ggplot2::aes(residue, mean, colour = term, fill = term)) +
     ggplot2::geom_ribbon(ggplot2::aes(ymin = pmax(mean - sd, 0), ymax = pmin(mean + sd, 1)),
                          alpha = 0.14, colour = NA, na.rm = TRUE) +
     ggplot2::geom_line(linewidth = 0.45, na.rm = TRUE) +
     ggiraph::geom_point_interactive(
       ggplot2::aes(data_id = residue,
-                   tooltip = sprintf("%s  anchor %d (%s)\n%s terminus, %s: %.3f +/- %.3f",
-                                     gene, residue, aa[residue], term, head_nm, mean, sd)),
+                   tooltip = sprintf("%s  anchor %d (%s)\n%s, %s: %.3f +/- %.3f",
+                                     gene, residue, aa[residue], lab(as.character(term)),
+                                     head_nm, mean, sd)),
       size = 0.9, na.rm = TRUE) +
-    ggplot2::scale_colour_manual(values = LF_TERM_COLS, name = NULL,
-                                 labels = function(x) paste0(x, " terminus")) +
-    ggplot2::scale_fill_manual(values = LF_TERM_COLS, guide = "none") +
+    ggplot2::scale_colour_manual(values = cols, name = NULL, labels = lab) +
+    ggplot2::scale_fill_manual(values = cols, guide = "none") +
     lf_track_x(x_range, seq_offset) +
     ggplot2::scale_y_continuous(limits = c(0, 1.02), breaks = c(0, 0.5, 1), expand = c(0, 0)) +
     ggplot2::labs(y = sub(" head", "\nhead", head_nm)) +
