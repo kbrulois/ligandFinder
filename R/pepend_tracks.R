@@ -547,7 +547,20 @@ lf_plot_resid_track <- function(d, mdl, x_range, aa, gene, seq_offset = -0.45) {
 lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
   mk <- list()
   add <- function(p, h) if (!is.null(p)) mk[[length(mk) + 1L]] <<- list(p = p, h = h)
-  add(lf_plot_class_track(dat$resid, x_range, aa, gene, TRUE, seq_offset), 1.7)
+  ## options(lf.class_tracks_by_term = TRUE): one class track per terminus
+  ## instead of their average -- the N and C windows mostly agree about what a
+  ## residue IS, but where they disagree is exactly what the average hides
+  terms <- if (is.null(dat$resid)) character(0) else
+    intersect(c("N", "C"), unique(as.character(dat$resid$term)))
+  if (isTRUE(getOption("lf.class_tracks_by_term", FALSE)) && length(terms)) {
+    for (k in seq_along(terms))
+      add(lf_plot_class_track(dat$resid[dat$resid$term == terms[k], , drop = FALSE],
+                              x_range, aa, gene, k == 1L, seq_offset,
+                              ylab = sprintf("%s terminus windows\nper-residue\nclass probability", terms[k]),
+                              note = sprintf("%s terminus windows only", terms[k])), 1.7)
+  } else {
+    add(lf_plot_class_track(dat$resid, x_range, aa, gene, TRUE, seq_offset), 1.7)
+  }
   for (nm in names(dat$extra_resid))
     add(lf_plot_class_track(dat$extra_resid[[nm]], x_range, aa, gene, FALSE, seq_offset,
                             ylab = paste0(nm, "\nper-residue\nclass probability"),
@@ -683,14 +696,22 @@ lf_pepend_popup_js <- function() '
     host.style.cssText = "position:relative;margin:0;width:" +
       svgRect.width.toFixed(0) + "px;";
     svg.parentNode.insertBefore(host, svg.nextSibling);
-
+    /* ggiraph CENTRES a chart narrower than the page (.girafe_container_std is
+       text-align:center), but this block div sits at the left of the container.
+       On a short protein the panel then started left of its track and was cut
+       off on the right -- most of a C window near the C-terminus disappeared.
+       Line the panel up with the svg itself. */
+    var dx = svgRect.left - host.getBoundingClientRect().left;
+    if (Math.abs(dx) > 0.5) host.style.marginLeft = dx.toFixed(1) + "px";
     var hostRect = host.getBoundingClientRect();
     var N = d.seq_len, w0 = res - S.pos + 1, K = d.classes.length;
     var X = function (r) { return sc.x(r) - hostRect.left; };
     var Y = function (v) { return PANEL_H - 26 - v * (PANEL_H - 44); };
 
+    /* overflow visible: a window anchored near either end of the protein runs
+       past the track axis, and those positions should show, not be clipped */
     var g = "<svg width=\\"" + svgRect.width.toFixed(0) + "\\" height=\\"" + PANEL_H +
-            "\\" style=\\"display:block\\">";
+            "\\" style=\\"display:block;overflow:visible\\">";
     /* the window frame, on the residue axis */
     g += "<rect x=" + X(w0 - 0.5).toFixed(1) + " y=6 width=" +
          Math.max(1, (X(w0 + N - 0.5) - X(w0 - 0.5))).toFixed(1) +
