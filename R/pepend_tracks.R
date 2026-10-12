@@ -243,11 +243,14 @@ lf_track_per_index <- function(accession, n_prot, c_prot, terms = c("N", "C")) {
 #'
 #'   options(lf.track_extra_win = list(list(
 #'     name = "C, CT-padded", term = "C", ct_pad = TRUE, colour = "#FF9900",
-#'     run = "~/AF2_analysis/lf_pepend_run_C_near_ctpad_slack8.rds")))
+#'     run = "~/AF2_analysis/lf_pepend_run_C_near_ctpad_slack8.rds",
+#'     winxgb = "~/AF2_analysis/lf_winxgb_scan_C_near_ctpad_slack8.npz")))
 #'
 #' `ct_pad = TRUE` cuts every C window at its own anchor, as the run was trained
 #' (10_7 --ct-pad); scoring a padded model on unpadded windows would show it
-#' inputs it has never seen.
+#' inputs it has never seen. `winxgb` (optional) adds the same series to the xgb
+#' window-head track from a `lf_winxgb.scan_genes` npz -- which has to be built
+#' from the same run, with `--ct-pad` for a padded one.
 #' @keywords internal
 lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
   if (!requireNamespace("reticulate", quietly = TRUE)) return(NULL)
@@ -335,8 +338,13 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
     lf_track_window_head(gene, "N"), lf_track_window_head(gene, "C"),
     lf_track_xgb_head(gene, "N"),    lf_track_xgb_head(gene, "C"))
   ## extra series (another trunk's window head), after the bridge is up
-  for (spec in getOption("lf.track_extra_win", list()))
+  for (spec in getOption("lf.track_extra_win", list())) {
     win <- dplyr::bind_rows(win, lf_track_extra_head(spec, accession, n_prot, c_prot))
+    if (!is.null(spec$winxgb)) {
+      xh <- lf_track_xgb_head(gene, spec$term, spec$winxgb)
+      if (!is.null(xh)) { xh$term <- spec$name; win <- dplyr::bind_rows(win, xh) }
+    }
+  }
   if (!nrow(win)) win <- NULL
   rp <- lf_track_resid_models(accession, n_prot, c_prot)
   resid <- NULL
