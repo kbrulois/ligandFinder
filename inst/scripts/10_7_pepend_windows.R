@@ -23,6 +23,15 @@
 ##
 ##   /usr/local/bin/Rscript inst/scripts/10_7_pepend_windows.R
 ##   ... --n-ctrl 400 --random-frac 0.25 --seed 42
+##   ... --near-n 100 --ct-pad --out ~/AF2_analysis/lf_pepend_nn_input_near_ctpad.rds
+##
+## --ct-pad: every C window is cut at its own anchor, as if the precursor ended
+## there -- positions 29-36 become padding in the inputs AND the labels, so no
+## C window shows what follows its end, internal peptides included. It applies
+## to EVERY C window, not only the knowns: padding only the positives would make
+## "padding after 28" itself the answer. The split is still computed from the
+## unpadded sequence, so the set holds the same windows in the same splits as
+## the build without the flag and the padding is the only difference.
 ##
 ## Output: ~/AF2_analysis/lf_pepend_nn_input.rds
 ##   nn_input     list(N, C) of list(train, val, all), the 9.2 contract
@@ -55,6 +64,7 @@ near_n      <- as.integer(.opt("--near-n", "0"))          # 0 = off, the old set
 near_lo     <- as.integer(.opt("--near-lo", "2"))         # |offset| range, inclusive
 near_hi     <- as.integer(.opt("--near-hi", "8"))
 val_frac    <- as.numeric(.opt("--val-frac", "0.34"))
+ct_pad      <- "--ct-pad" %in% .args
 ## Swap the two sides after splitting. With --val-frac 0.5 this is the second
 ## fold of a 2-fold cross-validation: every known that was TRAIN in the first
 ## build is VAL here and vice versa, so training both gives each known one
@@ -72,6 +82,11 @@ feat_cache  <- path.expand(.opt("--feature-cache", "~/AF2_analysis/lf_pepend_res
 ROOT  <- if (length(.this)) normalizePath(file.path(dirname(.this[[1]]), "..", "..")) else getwd()
 source(file.path(ROOT, "R", "pepend_windows.R"))
 set.seed(seed)
+
+## where a window's protein "ends" for padding: the real last residue, or under
+## --ct-pad a C window's own anchor (never later than the real end)
+ct_cut <- function(term, anchor, c_prot)
+  if (ct_pad) as.integer(ifelse(term == "C", pmin(c_prot, anchor), c_prot)) else c_prot
 
 id_map <- readRDS(file.path(ROOT, "data", "id_mapping.rds"))
 e2s <- setNames(id_map[["Gene Names (primary)"]], id_map[["Entry Name"]])
@@ -235,7 +250,8 @@ ends <- bind_rows(con %>% mutate(term = "N", anchor = pep_start),
                                ins_term == term & ins_ind < 16 ~ "loop insertion",
                                TRUE                            ~ "non-inserting end"))
 ends$known_idx <- pmap(list(ends$w_start, ends$pep_start, ends$pep_end, ends$n_prot,
-                            ends$c_prot, ends$pocket), lf_pepend_labels)
+                            ct_cut(ends$term, ends$anchor, ends$c_prot), ends$pocket),
+                       lf_pepend_labels)
 message(sprintf("known windows: %d N, %d C (from %d peptides; %d ends shared by >1 peptide)",
                 sum(ends$term == "N"), sum(ends$term == "C"), nrow(con), sum(ends$n_sharing > 1)))
 print(table(term = ends$term, motif = ends$motif))
@@ -287,7 +303,8 @@ if (near_n > 0) {
   ## cover peptide residues, unlike every other negative, so labelling them
   ## "none" would teach the per-index head to deny a peptide it can see.
   near$known_idx <- pmap(list(near$w_start, near$pep_start, near$pep_end,
-                              near$n_prot, near$c_prot, near$pocket), lf_pepend_labels)
+                              near$n_prot, ct_cut(near$term, near$anchor, near$c_prot),
+                              near$pocket), lf_pepend_labels)
   message(sprintf("near-end anchors: %d (|offset| %d-%d, %d dropped as other known ends)",
                   nrow(near), near_lo, near_hi,
                   sum(duplicated(rbind(near[, c("accession","term","anchor")],
@@ -316,9 +333,10 @@ make_windows <- function(w) {
     f  <- feats[[acc]]
     aa <- strsplit(prec_seq[[acc]], "")[[1]]
     for (i in by_acc[[acc]]) {
-      data[[i]] <- lf_pepend_slice(f, w$w_start[i], w$n_prot[i], w$c_prot[i])
+      cc <- ct_cut(w$term[i], w$anchor[i], w$c_prot[i])
+      data[[i]] <- lf_pepend_slice(f, w$w_start[i], w$n_prot[i], cc)
       r  <- w$w_start[i] + 0:35
-      ok <- r >= w$n_prot[i] & r <= w$c_prot[i]
+      ok <- r >= w$n_prot[i] & r <= cc
       meta[[i]] <- tibble(AA = ifelse(ok, aa[pmax(pmin(r, length(aa)), 1)], NA_character_),
                           index = ifelse(ok, r, NA_integer_))
     }
@@ -346,7 +364,13 @@ near_w  <- if (near_n > 0) make_windows(
 ## dendrogram order) to val
 split_knowns <- function(k_sub) {
   n  <- nrow(k_sub)
-  aa <- do.call(rbind, lapply(k_sub$meta_data, function(m) { a <- m$AA; a[is.na(a)] <- "X"; a }))
+  ## from the UNPADDED sequence, so --ct-pad clusters (and therefore splits)
+  ## exactly as the build without it -- this equals meta_data$AA when unpadded
+  aa <- do.call(rbind, lapply(seq_len(n), function(i) {
+    s <- strsplit(prec_seq[[k_sub$accession[i]]], "")[[1]]
+    r <- k_sub$w_start[i] + 0:35
+    ifelse(r >= k_sub$n_prot[i] & r <= k_sub$c_prot[i], s[pmax(pmin(r, length(s)), 1)], "X")
+  }))
   hc <- hclust(as.dist(ape::dist.aa(aa, scaled = TRUE)), method = "average")
   cl <- cutree(hc, h = sim_h)
   ord <- unique(cl[hc$order])
@@ -413,7 +437,8 @@ for (t in names(nn_input)) for (s in c("train", "val", "all")) {
 saveRDS(list(nn_input = nn_input, all_params3 = all_params3, class_names = LF_PEPEND_CLASSES,
              knowns = knowns,
              params = list(n_ctrl = n_ctrl, random_frac = random_frac, val_frac = val_frac,
-                           swap_splits = swap_splits,
+                           swap_splits = swap_splits, ct_pad = ct_pad,
+                           near_n = near_n, near_lo = near_lo, near_hi = near_hi,
                            sim_h = sim_h, seed = seed, banned = banned, built = Sys.time())),
         out_path)
 message("wrote ", out_path)

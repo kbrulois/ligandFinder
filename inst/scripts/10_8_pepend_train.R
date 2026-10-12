@@ -13,6 +13,7 @@
 ##
 ##   Rscript inst/scripts/10_8_pepend_train.R --term C
 ##   ... --n-seeds 20 --refresh
+##   ... --mask-slack 8     (default: the largest near-end offset in the set)
 ##
 ## Reports, for the held-out (validation) known peptide ends, where they rank
 ## among the candidate windows the set scores -- the same currency as
@@ -92,6 +93,48 @@ stopifnot(identical(as.character(x$class_names),
 
 ## ONE terminus: the Config's masks are specific to it (see the header)
 nn_input <- x$nn_input[term]
+
+## ---- position-mask slack -------------------------------------------------------
+## The class-position masks assume the peptide terminus sits exactly at the
+## anchor. A near-end negative breaks that on purpose: shifted by d, it carries
+## its REAL labels d positions off (a C window at +4 has CT context at 25-28, one
+## at -4 has peptide at 29-32), outside the exact-anchor spans, where the mask
+## pins those classes' logits at zero. Widen every span by the largest |d| in the
+## set -- read from the data, so a set without near-end windows keeps slack 0 and
+## the exact-anchor masks. --mask-slack overrides.
+near_d <- unlist(lapply(nn_input[[term]][c("train", "val")], function(d)
+  if ("d" %in% names(d)) abs(d$d[d$win_type %in% "near_end"]) else integer(0)))
+slack <- as.integer(.opt("--mask-slack", if (length(near_d)) max(near_d) else 0L))
+## A different mask is a different model, and lf_dcnn_run_isolated reuses any
+## member already in <cache>_isolated on presence alone -- so a slack run always
+## gets its own cache, even under an explicit --out.
+if (slack > 0 && !grepl(sprintf("_slack%d\\.rds$", slack), out_p)) {
+  out_p <- sub("\\.rds$", sprintf("_slack%d.rds", slack), out_p)
+  message(sprintf("mask slack %d -> cache %s", slack, basename(out_p)))
+}
+
+## every per-index label must sit where the mask allows its class, or training
+## quietly fights the mask at those positions -- check before spending the run
+.cfg_chk <- lf_dcnn_config(x$all_params3, pepend = term, slack = slack,
+                           mod = lf_dcnn_python(path = file.path(ROOT, "inst", "python")))
+.span <- list(NT_cleavage_context = .cfg_chk$nt_span, CT_cleavage_context = .cfg_chk$ct_span,
+              pep_other = .cfg_chk$mid_span, pep_pocket = .cfg_chk$mid_span)
+.viol <- vapply(names(.span), function(cl) {
+  sp <- as.integer(unlist(.span[[cl]]))
+  sum(vapply(c("train", "val"), function(s) {
+    lab <- do.call(rbind, nn_input[[term]][[s]]$known_idx)
+    pos <- col(lab)[lab == cl]
+    sum(pos < sp[1] | pos > sp[2])
+  }, numeric(1)))
+}, numeric(1))
+message(sprintf("mask slack %d: nt %s  mid %s  ct %s | labels outside their span: %d",
+                slack, paste(unlist(.cfg_chk$nt_span), collapse = "-"),
+                paste(unlist(.cfg_chk$mid_span), collapse = "-"),
+                paste(unlist(.cfg_chk$ct_span), collapse = "-"), sum(.viol)))
+if (sum(.viol) > 0) {
+  print(.viol[.viol > 0])
+  stop("per-index labels fall outside the position masks; raise --mask-slack", call. = FALSE)
+}
 message(sprintf("terminus %s: train %d, val %d, all %d windows; %d channels",
                 term, nrow(nn_input[[term]]$train), nrow(nn_input[[term]]$val),
                 nrow(nn_input[[term]]$all), length(x$all_params3)))
@@ -163,7 +206,7 @@ if (!is.na(pos_cls)) {
 ## tree this script came from, or Config.pepend() is simply not there.
 .extra <- if (ins_head && !is.na(ins_w)) list(loss_weight_ins = ins_w) else list()
 run <- do.call(lf_dcnn_run, c(list(nn_input, channel_names = x$all_params3,
-                   pepend = term, ins_head = ins_head),
+                   pepend = term, slack = slack, ins_head = ins_head),
                    .extra, list(
                    n_seeds = n_seeds, isolated = TRUE,
                    verbose = verbose, cache = out_p, refresh = .flag("--refresh"),
@@ -204,7 +247,10 @@ rank_among_unknown <- function(p) vapply(p, function(v) sum(unk > v) + 1L, integ
 ## train/val split has to come from the knowns table
 kn <- all_t %>% filter(known == 1) %>%
   mutate(rank_cand = rank_among_unknown(pred)) %>%
-  left_join(x$knowns %>% select(peps, split), by = "peps")
+  ## THIS terminus only: a short peptide's N and C windows can span the same
+  ## residues and so share a `peps` name (EDN1_w46-81, EDN2_w42-77), and joining
+  ## on both termini counted those ends twice -- 31 held out instead of 29
+  left_join(x$knowns %>% filter(term == !!term) %>% select(peps, split), by = "peps")
 
 held <- kn %>% filter(split == "val")
 message(sprintf("\nheld-out known %s ends (n = %d of %d candidate windows):",

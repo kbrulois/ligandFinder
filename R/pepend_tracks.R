@@ -232,6 +232,99 @@ lf_track_per_index <- function(accession, n_prot, c_prot, terms = c("N", "C")) {
   out
 }
 
+#' An extra window-head series from another trunk, scored on the fly
+#'
+#' For putting a second model's window score beside the page's own -- e.g. the
+#' CT-padded C model -- without a precomputed scan. Every mature residue is an
+#' anchor; each of the run's members scores every window and the series is the
+#' member mean with the member sd as its band, as on the scan-backed series.
+#'
+#' Set through an option, so the page code needs no new argument:
+#'
+#'   options(lf.track_extra_win = list(list(
+#'     name = "C, CT-padded", term = "C", ct_pad = TRUE, colour = "#FF9900",
+#'     run = "~/AF2_analysis/lf_pepend_run_C_near_ctpad_slack8.rds",
+#'     winxgb = "~/AF2_analysis/lf_winxgb_scan_C_near_ctpad_slack8.npz")))
+#'
+#' `ct_pad = TRUE` cuts every C window at its own anchor, as the run was trained
+#' (10_7 --ct-pad); scoring a padded model on unpadded windows would show it
+#' inputs it has never seen. `per_residue = TRUE` also pools that run's
+#' per-index class probabilities onto residues, for a class-probability track of
+#' its own; each window counts only for residues it saw, so a padded window says
+#' nothing about the residues under its padding. `popup = TRUE` puts its windows
+#' in the click popup: a click on that series opens that run's window. `winxgb` (optional) adds the same series to the xgb
+#' window-head track from a `lf_winxgb.scan_genes` npz -- which has to be built
+#' from the same run, with `--ct-pad` for a padded one.
+#' @keywords internal
+lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
+  if (!requireNamespace("reticulate", quietly = TRUE)) return(NULL)
+  fc <- .lf_once("feat_cache", function() readRDS(path.expand(LF_TRACK_PATHS$cache)))
+  if (!is.list(fc)) return(NULL)
+  i <- match(accession, fc$prec$accession)
+  if (is.na(i)) return(NULL)
+  ## The mature range the models were TRAINED with, not the caller's: the page
+  ## passes n_prot = 1, and a window over the signal peptide would show the
+  ## model residues it only ever saw as padding. The scan-backed series start
+  ## at this same n_prot, so the extra series lines up with them.
+  n_prot <- as.integer(fc$prec$n_prot[i]); c_prot <- as.integer(fc$prec$c_prot[i])
+  .pp <- lf_tracks_python_path()
+  mod <- tryCatch(if (is.null(.pp)) lf_dcnn_python() else lf_dcnn_python(path = .pp),
+                  error = function(e) NULL)
+  if (is.null(mod)) return(NULL)
+  np <- reticulate::import("numpy", convert = FALSE)
+  term <- spec$term
+  iso <- paste0(tools::file_path_sans_ext(path.expand(spec$run)), "_isolated")
+  if (!dir.exists(iso)) { message("  extra series '", spec$name, "': no ", iso); return(NULL) }
+  tryCatch({
+    cfg <- mod$Config$from_json(file.path(iso, "in", "config.json"))
+    models <- mod$scan$load_member_models(file.path(iso, "out"), cfg, term)
+    feat <- fc$feats[[i]]
+    anchors <- seq.int(n_prot, c_prot)
+    w_start <- anchors - LF_PEPEND$anchor[[term]] + 1L
+    ## the window's own end: the precursor's, or under ct_pad the C anchor
+    cut <- if (isTRUE(spec$ct_pad) && term == "C") pmin(c_prot, anchors) else rep(c_prot, length(anchors))
+    X <- array(0, c(length(anchors), LF_PEPEND$seq_len, ncol(feat)))
+    for (k in seq_along(anchors))
+      X[k, , ] <- as.matrix(lf_pepend_slice(feat, w_start[k], n_prot, cut[k])[, fc$all_params3])
+    xp <- np$ascontiguousarray(np$asarray(X, dtype = "float32"))
+    G <- matrix(0, length(models), length(anchors))
+    pin <- as.character(cfg$pi_names)
+    want_pi <- isTRUE(spec$per_residue) || isTRUE(spec$popup)
+    PI <- PI2 <- if (want_pi)
+      array(0, c(length(anchors), LF_PEPEND$seq_len, length(pin))) else NULL
+    for (m in seq_along(models)) {
+      o <- mod$pipeline$predict_all(models[[m]], xp)
+      G[m, ] <- as.numeric(reticulate::py_to_r(o[["global"]]))
+      if (want_pi) {
+        p <- reticulate::py_to_r(o[["per_index_cat"]])
+        PI <- PI + p; PI2 <- PI2 + p^2
+      }
+    }
+    PSD <- NULL
+    if (want_pi) {
+      ## members averaged first, as on the page's own class track; the sd is
+      ## across members, as in the page's own popup
+      nm <- length(models)
+      PSD <- sqrt(pmax(PI2 - PI^2 / nm, 0) / max(nm - 1, 1))
+      PI <- PI / nm
+    }
+    resid <- if (isTRUE(spec$per_residue))
+      lf_track_pool_residues(list(pi = PI, pi_names = pin, w_start = w_start),
+                             anchors, n_prot, c_prot, term, cut = cut) else NULL
+    ## for the click popup: the same shape as lf_track_per_index() returns, plus
+    ## `npos`, the window positions the model actually saw (1-28 when padded)
+    pix <- if (isTRUE(spec$popup))
+      list(pi = PI, pi_sd = PSD, g = colMeans(G), pi_names = pin,
+           pos = LF_PEPEND$anchor[[term]], w_start = w_start, anchors = anchors,
+           npos = if (isTRUE(spec$ct_pad) && term == "C") LF_PEPEND$anchor[["C"]]
+                  else LF_PEPEND$seq_len) else NULL
+    list(win = tibble::tibble(residue = anchors, mean = colMeans(G), sd = apply(G, 2, stats::sd),
+                              term = spec$name, head = "CNN attention head"),
+         resid = resid, pix = pix)
+  }, error = function(e) { message("  extra series '", spec$name, "' failed: ",
+                                   conditionMessage(e)); NULL })
+}
+
 #' Pool each window's opinion onto the residues it covers
 #'
 #' Members are averaged first -- the ensemble mean is the prediction -- then mean
@@ -240,13 +333,16 @@ lf_track_per_index <- function(accession, n_prot, c_prot, terms = c("N", "C")) {
 #' @keywords internal
 lf_track_pool_residues <- function(S, anchors, n_prot, c_prot, term,
                                    classes = c("pep_pocket", "pep_other",
-                                               "CT_cleavage_context", "NT_cleavage_context")) {
+                                               "CT_cleavage_context", "NT_cleavage_context"),
+                                   cut = NULL) {
   idx <- which(S$pi_names %in% classes)
   if (!length(idx)) return(NULL)
   res <- lapply(idx, function(k) {
     acc <- lapply(seq_along(anchors), function(i) {
       r <- S$w_start[i] + seq_len(LF_PEPEND$seq_len) - 1L
-      ok <- r >= n_prot & r <= c_prot
+      ## `cut`: where THIS window's input ends (its anchor, for a CT-padded
+      ## window) -- it has no opinion about residues under its padding
+      ok <- r >= n_prot & r <= (if (is.null(cut)) c_prot else cut[i])
       tibble::tibble(residue = r[ok], v = S$pi[i, ok, k])
     })
     d <- dplyr::bind_rows(acc)
@@ -277,6 +373,18 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
   win <- dplyr::bind_rows(
     lf_track_window_head(gene, "N"), lf_track_window_head(gene, "C"),
     lf_track_xgb_head(gene, "N"),    lf_track_xgb_head(gene, "C"))
+  ## extra series (another trunk's window head), after the bridge is up
+  extra_resid <- list(); extra_pix <- list()
+  for (spec in getOption("lf.track_extra_win", list())) {
+    ex <- lf_track_extra_head(spec, accession, n_prot, c_prot)
+    win <- dplyr::bind_rows(win, ex$win)
+    if (!is.null(ex$resid) && nrow(ex$resid)) extra_resid[[spec$name]] <- ex$resid
+    if (!is.null(ex$pix)) extra_pix[[spec$name]] <- ex$pix
+    if (!is.null(spec$winxgb)) {
+      xh <- lf_track_xgb_head(gene, spec$term, spec$winxgb)
+      if (!is.null(xh)) { xh$term <- spec$name; win <- dplyr::bind_rows(win, xh) }
+    }
+  }
   if (!nrow(win)) win <- NULL
   rp <- lf_track_resid_models(accession, n_prot, c_prot)
   resid <- NULL
@@ -288,7 +396,8 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
     if (!nrow(resid)) resid <- NULL
   }
   if (is.null(win) && is.null(rp) && is.null(resid)) return(NULL)
-  list(win = win, rp = rp, resid = resid, pix = pix,
+  if (!is.null(pix) && length(extra_pix)) pix$extra <- extra_pix
+  list(win = win, rp = rp, resid = resid, extra_resid = extra_resid, pix = pix,
        anchors = if (is.null(pix)) NULL else pix$anchors)
 }
 
@@ -308,6 +417,16 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
 #' one, well clear of `pep_other`'s pale #D5E4A2 without going neon.
 #' @export
 LF_TERM_COLS <- c(N = "#2BA84A", C = "#D95F0E")
+
+#' The series colours a head track uses: the terminus colours (overridable per
+#' page with `options(lf.term_cols = )`) plus one per extra series
+#' @keywords internal
+lf_series_cols <- function() {
+  cols <- getOption("lf.term_cols", LF_TERM_COLS)
+  for (spec in getOption("lf.track_extra_win", list()))
+    cols[[spec$name]] <- spec$colour
+  cols
+}
 
 #' @keywords internal
 lf_track_theme <- function() {
@@ -347,14 +466,16 @@ lf_track_x <- function(x_range, seq_offset = -0.45) {
 #' within a terminus, not the spread of the average.
 #' @keywords internal
 lf_plot_class_track <- function(d, x_range, aa, gene, legend = FALSE,
-                                seq_offset = -0.45) {
+                                seq_offset = -0.45, ylab = NULL,
+                                note = "mean of N and C") {
   if (is.null(d) || !nrow(d)) return(NULL)
   n_terms <- length(unique(d$term))
   d <- dplyr::summarise(dplyr::group_by(d, residue, class),
                         mean = mean(mean), sd = mean(sd), n_win = sum(n_win),
                         .groups = "drop")
   d <- droplevels(d)
-  lab <- if (n_terms > 1) "N+C per-residue\nclass probability" else "per-residue\nclass probability"
+  lab <- if (!is.null(ylab)) ylab else
+    if (n_terms > 1) "N+C per-residue\nclass probability" else "per-residue\nclass probability"
   ggplot2::ggplot(d, ggplot2::aes(residue, mean, colour = class)) +
     ggplot2::geom_ribbon(ggplot2::aes(ymin = pmax(mean - sd, 0),
                                       ymax = pmin(mean + sd, 1), fill = class),
@@ -362,9 +483,9 @@ lf_plot_class_track <- function(d, x_range, aa, gene, legend = FALSE,
     ggplot2::geom_line(linewidth = 0.45, na.rm = TRUE) +
     ggiraph::geom_point_interactive(
       ggplot2::aes(data_id = residue,
-                   tooltip = sprintf("%s  residue %d (%s)\n%s %.3f +/- %.3f  (mean of N and C)",
+                   tooltip = sprintf("%s  residue %d (%s)\n%s %.3f +/- %.3f  (%s)",
                                      gene, residue, aa[residue],
-                                     nn_class_labels[as.character(class)], mean, sd)),
+                                     nn_class_labels[as.character(class)], mean, sd, note)),
       size = 0.9, na.rm = TRUE) +
     ggplot2::scale_colour_manual(values = nn_class_cols, labels = nn_class_label_fn,
                                  name = NULL) +
@@ -390,19 +511,23 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
                               seq_offset = -0.45) {
   d <- d[d$head == head_nm, , drop = FALSE]
   if (!nrow(d)) return(NULL)
-  d$term <- factor(d$term, levels = names(LF_TERM_COLS))
+  cols <- lf_series_cols()
+  d$term <- factor(d$term, levels = names(cols))
+  d <- droplevels(d)
+  ## "N terminus" / "C terminus" for the page's own series; an extra one by name
+  lab <- function(x) ifelse(x %in% c("N", "C"), paste0(x, " terminus"), x)
   ggplot2::ggplot(d, ggplot2::aes(residue, mean, colour = term, fill = term)) +
     ggplot2::geom_ribbon(ggplot2::aes(ymin = pmax(mean - sd, 0), ymax = pmin(mean + sd, 1)),
                          alpha = 0.14, colour = NA, na.rm = TRUE) +
     ggplot2::geom_line(linewidth = 0.45, na.rm = TRUE) +
     ggiraph::geom_point_interactive(
       ggplot2::aes(data_id = residue,
-                   tooltip = sprintf("%s  anchor %d (%s)\n%s terminus, %s: %.3f +/- %.3f",
-                                     gene, residue, aa[residue], term, head_nm, mean, sd)),
+                   tooltip = sprintf("%s  anchor %d (%s)\n%s, %s: %.3f +/- %.3f",
+                                     gene, residue, aa[residue], lab(as.character(term)),
+                                     head_nm, mean, sd)),
       size = 0.9, na.rm = TRUE) +
-    ggplot2::scale_colour_manual(values = LF_TERM_COLS, name = NULL,
-                                 labels = function(x) paste0(x, " terminus")) +
-    ggplot2::scale_fill_manual(values = LF_TERM_COLS, guide = "none") +
+    ggplot2::scale_colour_manual(values = cols, name = NULL, labels = lab) +
+    ggplot2::scale_fill_manual(values = cols, guide = "none") +
     lf_track_x(x_range, seq_offset) +
     ggplot2::scale_y_continuous(limits = c(0, 1.02), breaks = c(0, 0.5, 1), expand = c(0, 0)) +
     ggplot2::labs(y = sub(" head", "\nhead", head_nm)) +
@@ -443,7 +568,24 @@ lf_plot_resid_track <- function(d, mdl, x_range, aa, gene, seq_offset = -0.45) {
 lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
   mk <- list()
   add <- function(p, h) if (!is.null(p)) mk[[length(mk) + 1L]] <<- list(p = p, h = h)
-  add(lf_plot_class_track(dat$resid, x_range, aa, gene, TRUE, seq_offset), 1.7)
+  ## options(lf.class_tracks_by_term = TRUE): one class track per terminus
+  ## instead of their average -- the N and C windows mostly agree about what a
+  ## residue IS, but where they disagree is exactly what the average hides
+  terms <- if (is.null(dat$resid)) character(0) else
+    intersect(c("N", "C"), unique(as.character(dat$resid$term)))
+  if (isTRUE(getOption("lf.class_tracks_by_term", FALSE)) && length(terms)) {
+    for (k in seq_along(terms))
+      add(lf_plot_class_track(dat$resid[dat$resid$term == terms[k], , drop = FALSE],
+                              x_range, aa, gene, k == 1L, seq_offset,
+                              ylab = sprintf("%s terminus windows\nper-residue\nclass probability", terms[k]),
+                              note = sprintf("%s terminus windows only", terms[k])), 1.7)
+  } else {
+    add(lf_plot_class_track(dat$resid, x_range, aa, gene, TRUE, seq_offset), 1.7)
+  }
+  for (nm in names(dat$extra_resid))
+    add(lf_plot_class_track(dat$extra_resid[[nm]], x_range, aa, gene, FALSE, seq_offset,
+                            ylab = paste0(nm, "\nper-residue\nclass probability"),
+                            note = paste(nm, "windows only")), 1.7)
   if (!is.null(dat$win)) {
     add(lf_plot_win_track(dat$win, "CNN attention head", x_range, aa, gene, TRUE, seq_offset), 1.15)
     add(lf_plot_win_track(dat$win, "xgb window head",    x_range, aa, gene, FALSE, seq_offset), 1.15)
@@ -479,12 +621,16 @@ lf_pepend_popup_tag <- function(pix, aa, gene, accession,
   terms <- intersect(c("N", "C"), names(pix))
   if (!length(terms)) return(NULL)
 
-  pack <- function(S) {
-    keep <- seq_along(pix$anchors)
+  ## `label` is how the series is named in the head tracks' tooltips, which is
+  ## how a click finds it; `title` heads the opened panel
+  pack <- function(S, anchors, label, title) {
+    keep <- seq_along(anchors)
     if (length(keep) > max_anchors)
       keep <- sort(utils::head(order(S$g, decreasing = TRUE), max_anchors))
-    list(anchor = as.integer(pix$anchors[keep]),
+    list(label = label, title = title,
+         anchor = as.integer(anchors[keep]),
          pos = as.integer(S$pos),
+         npos = as.integer(if (is.null(S$npos)) LF_PEPEND$seq_len else S$npos),
          g = round(S$g[keep], 4),
          pi = lapply(keep, function(i) round(S$pi[i, , ], 3)),
          sd = lapply(keep, function(i) round(S$pi_sd[i, , ], 3)))
@@ -494,7 +640,15 @@ lf_pepend_popup_tag <- function(pix, aa, gene, accession,
                   classes = pix[[terms[1]]]$pi_names,
                   labels = unname(nn_class_labels[pix[[terms[1]]]$pi_names]),
                   cols = unname(nn_class_cols[pix[[terms[1]]]$pi_names]))
-  for (t in terms) payload[[t]] <- pack(pix[[t]])
+  series <- list()
+  for (t in terms)
+    series[[t]] <- pack(pix[[t]], pix$anchors, paste0(t, " terminus"), paste0(t, " window"))
+  for (nm in names(pix$extra)) {
+    S <- pix$extra[[nm]]
+    if (!identical(as.character(S$pi_names), as.character(pix[[terms[1]]]$pi_names))) next
+    series[[nm]] <- pack(S, S$anchors, nm, sub("^([NC]) terminus", "\\1 window", nm))
+  }
+  payload$series <- series
 
   htmltools::tags$script(htmltools::HTML(sprintf(
     "window.LF_PEP = %s;\n%s",
@@ -550,8 +704,8 @@ lf_pepend_popup_js <- function() '
     host.remove(); host = null;
   }
 
-  function open(term, res, svg) {
-    var S = d[term];
+  function open(key, res, svg) {
+    var S = d.series && d.series[key];
     if (!S) return;
     var i = S.anchor.indexOf(res);
     if (i < 0) return;
@@ -575,30 +729,49 @@ lf_pepend_popup_js <- function() '
     host.style.cssText = "position:relative;margin:0;width:" +
       svgRect.width.toFixed(0) + "px;";
     svg.parentNode.insertBefore(host, svg.nextSibling);
-
+    /* ggiraph CENTRES a chart narrower than the page (.girafe_container_std is
+       text-align:center), but this block div sits at the left of the container.
+       On a short protein the panel then started left of its track and was cut
+       off on the right -- most of a C window near the C-terminus disappeared.
+       Line the panel up with the svg itself. */
+    var dx = svgRect.left - host.getBoundingClientRect().left;
+    if (Math.abs(dx) > 0.5) host.style.marginLeft = dx.toFixed(1) + "px";
     var hostRect = host.getBoundingClientRect();
     var N = d.seq_len, w0 = res - S.pos + 1, K = d.classes.length;
+    /* positions the model saw: all 36, or 1-28 for a CT-padded window */
+    var NP = S.npos || N;
     var X = function (r) { return sc.x(r) - hostRect.left; };
     var Y = function (v) { return PANEL_H - 26 - v * (PANEL_H - 44); };
 
+    /* overflow visible: a window anchored near either end of the protein runs
+       past the track axis, and those positions should show, not be clipped */
     var g = "<svg width=\\"" + svgRect.width.toFixed(0) + "\\" height=\\"" + PANEL_H +
-            "\\" style=\\"display:block\\">";
+            "\\" style=\\"display:block;overflow:visible\\">";
     /* the window frame, on the residue axis */
     g += "<rect x=" + X(w0 - 0.5).toFixed(1) + " y=6 width=" +
          Math.max(1, (X(w0 + N - 0.5) - X(w0 - 0.5))).toFixed(1) +
          " height=" + (PANEL_H - 32) + " fill=#ffffff stroke=#d9d8d3 />";
+    /* a padded window never saw positions past NP -- say so, rather than draw
+       predictions about residues it was not shown */
+    if (NP < N) {
+      var px0 = X(w0 + NP - 0.5), px1 = X(w0 + N - 0.5);
+      g += "<rect x=" + px0.toFixed(1) + " y=6 width=" + Math.max(1, px1 - px0).toFixed(1) +
+           " height=" + (PANEL_H - 32) + " fill=#ecebe6 />";
+      g += "<text x=" + ((px0 + px1) / 2).toFixed(1) + " y=" + (PANEL_H / 2).toFixed(0) +
+           " text-anchor=middle font-size=10 fill=#8a8a8a>padding</text>";
+    }
     /* the anchor: the residue this window is ABOUT */
     g += "<rect x=" + (X(res) - 1).toFixed(1) + " y=6 width=2 height=" +
          (PANEL_H - 32) + " fill=#000 opacity=0.35 />";
     for (var k = 0; k < K; k++) {
       if (d.classes[k] === "none" || d.classes[k] === "padding") continue;
       var pts = [];
-      for (var j = 0; j < N; j++)
+      for (var j = 0; j < NP; j++)
         pts.push(X(w0 + j).toFixed(1) + "," + Y(S.pi[i][j][k]).toFixed(1));
       /* +/- 1 sd across the members, as a band under the line */
       if (S.sd) {
         var up = [], dn = [];
-        for (var j3 = 0; j3 < N; j3++) {
+        for (var j3 = 0; j3 < NP; j3++) {
           var m3 = S.pi[i][j3][k], e3 = S.sd[i][j3][k];
           up.push(X(w0 + j3).toFixed(1) + "," + Y(Math.min(1, m3 + e3)).toFixed(1));
           dn.push(X(w0 + j3).toFixed(1) + "," + Y(Math.max(0, m3 - e3)).toFixed(1));
@@ -611,7 +784,7 @@ lf_pepend_popup_js <- function() '
            d.cols[k] + "\\" stroke-width=1.6 />";
       /* a point per residue per class, carrying the residue it belongs to so a
          hover can light that column up on every other track */
-      for (var j2 = 0; j2 < N; j2++) {
+      for (var j2 = 0; j2 < NP; j2++) {
         var rr = w0 + j2, vv = S.pi[i][j2][k];
         g += "<circle cx=" + X(rr).toFixed(1) + " cy=" + Y(vv).toFixed(1) +
              " r=2 fill=\\"" + d.cols[k] + "\\" data-res=" + rr +
@@ -629,8 +802,8 @@ lf_pepend_popup_js <- function() '
     var cx = (X(w0) + X(w0 + N - 1)) / 2;
     var hdr = "<div id=\\"lf-pep-hdr\\" style=\\"position:absolute;top:4px;left:" +
       cx.toFixed(0) + "px;transform:translateX(-50%);white-space:nowrap;text-align:center;" +
-      "font:11px ui-sans-serif,system-ui;color:#52514e\\"><b>" + term +
-      " window</b> anchored at residue " + res +
+      "font:11px ui-sans-serif,system-ui;color:#52514e\\"><b>" + S.title +
+      "</b> anchored at residue " + res +
       " (" + (d.aa[res - 1] || "?") + ") &middot; covers " + w0 + "&ndash;" + (w0 + N - 1) +
       " &middot; score " + S.g[i].toFixed(3) + "</div>";
     var btn = "<div id=\\"lf-pep-close\\" title=\\"close\\" style=\\"position:absolute;right:10px;top:2px;" +
@@ -698,10 +871,15 @@ lf_pepend_popup_js <- function() '
       n.style.cursor = "pointer";
       n.addEventListener("click", function (ev) {
         ev.stopPropagation();
-        /* which series was clicked -- the tooltip says which terminus */
-        var t = n.getAttribute("title") || "";
-        var term = /N terminus/.test(t) ? "N" : (/C terminus/.test(t) ? "C" : null);
-        if (term) open(term, parseInt(v, 10), svg);
+        /* which series was clicked -- the tooltip names it. Longest matching
+           label wins, so a click on "C terminus, CT-padded" opens that run and
+           not the plain C window its label also contains */
+        var t = n.getAttribute("title") || "", key = null, best = -1;
+        Object.keys(d.series || {}).forEach(function (k2) {
+          var lab = d.series[k2].label;
+          if (lab && t.indexOf(lab) >= 0 && lab.length > best) { key = k2; best = lab.length; }
+        });
+        if (key) open(key, parseInt(v, 10), svg);
       });
     });
   }
