@@ -318,7 +318,7 @@ lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
     ## `npos`, the window positions the model actually saw (1-28 when padded)
     pix <- if (isTRUE(spec$popup))
       list(pi = PI, pi_sd = PSD, g = colMeans(G), pi_names = pin,
-           pos = LF_PEPEND$anchor[[term]], w_start = w_start, anchors = anchors,
+           pos = LF_PEPEND$anchor[[term]], w_start = w_start, anchors = anchors, term = term,
            npos = if (isTRUE(spec$ct_pad) && term == "C") LF_PEPEND$anchor[["C"]]
                   else LF_PEPEND$seq_len) else NULL
     list(win = tibble::tibble(residue = anchors, mean = colMeans(G), sd = apply(G, 2, stats::sd),
@@ -644,11 +644,11 @@ lf_pepend_popup_tag <- function(pix, aa, gene, accession,
 
   ## `label` is how the series is named in the head tracks' tooltips, which is
   ## how a click finds it; `title` heads the opened panel
-  pack <- function(S, anchors, label, title) {
+  pack <- function(S, anchors, label, title, term) {
     keep <- seq_along(anchors)
     if (length(keep) > max_anchors)
       keep <- sort(utils::head(order(S$g, decreasing = TRUE), max_anchors))
-    list(label = label, title = title,
+    list(label = label, title = title, term = term,
          anchor = as.integer(anchors[keep]),
          pos = as.integer(S$pos),
          npos = as.integer(if (is.null(S$npos)) LF_PEPEND$seq_len else S$npos),
@@ -663,11 +663,11 @@ lf_pepend_popup_tag <- function(pix, aa, gene, accession,
                   cols = unname(nn_class_cols[pix[[terms[1]]]$pi_names]))
   series <- list()
   for (t in terms)
-    series[[t]] <- pack(pix[[t]], pix$anchors, paste0(t, " terminus"), paste0(t, " window"))
+    series[[t]] <- pack(pix[[t]], pix$anchors, paste0(t, " terminus"), paste0(t, " window"), t)
   for (nm in names(pix$extra)) {
     S <- pix$extra[[nm]]
     if (!identical(as.character(S$pi_names), as.character(pix[[terms[1]]]$pi_names))) next
-    series[[nm]] <- pack(S, S$anchors, nm, sub("^([NC]) terminus", "\\1 window", nm))
+    series[[nm]] <- pack(S, S$anchors, nm, sub("^([NC]) terminus", "\\1 window", nm), S$term)
   }
   payload$series <- series
 
@@ -682,7 +682,8 @@ lf_pepend_popup_js <- function() '
 (function () {
   var d = window.LF_PEP;
   if (!d) return;
-  var PANEL_H = 150, host = null, track = null;
+  /* one open window per track per terminus, keyed track id + "|" + N or C */
+  var PANEL_H = 150, slots = {};
 
   /* The clickable track is the xgb window head, and only that one: it is the
      head that actually localises a boundary, so it is the one worth opening a
@@ -718,13 +719,46 @@ lf_pepend_popup_js <- function() '
     return { x: function (r) { return ax + (r - lo.r) * b; }, step: b };
   }
 
-  function close() {
-    if (!host) return;
+  function slotKey(svg, term) { return (svg.id || "svg") + "|" + term; }
+
+  function closeSlot(k) {
+    var o = slots[k];
+    if (!o) return;
+    var wrap = o.host.parentNode;
+    o.host.remove(); delete slots[k];
+    if (wrap && !wrap.children.length) wrap.remove();
     /* a highlight left on another track would survive the panel */
     document.querySelectorAll("svg.ggiraph-svg [data-id]").forEach(function (n) {
       if (n.__lfhl) { n.removeAttribute("stroke"); delete n.__lfhl; }
     });
-    host.remove(); host = null;
+  }
+  function closeAll() { Object.keys(slots).forEach(closeSlot); }
+
+  /* Every window opened from one track sits in one stack directly under it.
+     The panel must live in the SAME coordinate space as the track, not the
+     page. These svgs are drawn at natural size -- NTN1 is about 86 inches --
+     so the girafe container scrolls horizontally. A width:100% div outside it
+     takes the PAGE width: every x computed from the track then lands past its
+     right edge and is clipped. So the stack goes INSIDE the container,
+     directly after the svg, at exactly the width of that svg. And ggiraph
+     CENTRES a chart narrower than the page (.girafe_container_std is
+     text-align:center) while a block div sits at the left, so on a short
+     protein the panel started left of its track and was cut off on the right;
+     the stack is lined up with the svg itself.
+     NOTE: no apostrophes anywhere in this handler -- it is an R single-quoted
+     string, and one would end it. */
+  function stackFor(svg) {
+    var nx = svg.nextSibling;
+    if (nx && nx.classList && nx.classList.contains("lf-pep-stack")) return nx;
+    var svgRect = svg.getBoundingClientRect();
+    var w = document.createElement("div");
+    w.className = "lf-pep-stack";
+    w.style.cssText = "position:relative;margin:0;text-align:left;width:" +
+      svgRect.width.toFixed(0) + "px;";
+    svg.parentNode.insertBefore(w, svg.nextSibling);
+    var dx = svgRect.left - w.getBoundingClientRect().left;
+    if (Math.abs(dx) > 0.5) w.style.marginLeft = dx.toFixed(1) + "px";
+    return w;
   }
 
   function open(key, res, svg) {
@@ -734,31 +768,23 @@ lf_pepend_popup_js <- function() '
     if (i < 0) return;
     var sc = residueScale(svg);
     if (!sc) return;
-    close();
+    var term = S.term || key, k = slotKey(svg, term);
+    closeSlot(k);
 
-    /* The panel must live in the SAME coordinate space as the track, not the
-       page. These svgs are drawn at natural size -- NTN1 is about 86 inches --
-       so the girafe container scrolls horizontally. A width:100% div outside it
-       takes the PAGE width: every x computed from the track then lands past its
-       right edge and is clipped, which shows up as a window stuck at the left
-       with the points missing. So it goes INSIDE the container, directly after
-       the svg, at exactly the width of that svg.
-       NOTE: no apostrophes anywhere in this block -- the whole handler is an R
-       single-quoted string, and one would end it. */
     var svgRect = svg.getBoundingClientRect();
-    var cont = svg.closest(".girafe_container_std") || svg.parentElement;
-    host = document.createElement("div");
-    host.id = "lf-pep-window";
-    host.style.cssText = "position:relative;margin:0;width:" +
-      svgRect.width.toFixed(0) + "px;";
-    svg.parentNode.insertBefore(host, svg.nextSibling);
-    /* ggiraph CENTRES a chart narrower than the page (.girafe_container_std is
-       text-align:center), but this block div sits at the left of the container.
-       On a short protein the panel then started left of its track and was cut
-       off on the right -- most of a C window near the C-terminus disappeared.
-       Line the panel up with the svg itself. */
-    var dx = svgRect.left - host.getBoundingClientRect().left;
-    if (Math.abs(dx) > 0.5) host.style.marginLeft = dx.toFixed(1) + "px";
+    var stack = stackFor(svg);
+    var host = document.createElement("div");
+    host.className = "lf-pep-window";
+    host.setAttribute("data-term", term);
+    host.style.cssText = "position:relative;margin:0;width:100%;";
+    /* N above C, whichever was opened first */
+    var before = null;
+    if (term === "N")
+      [].slice.call(stack.children).forEach(function (c) {
+        if (!before && c.getAttribute("data-term") === "C") before = c;
+      });
+    stack.insertBefore(host, before);
+    slots[k] = { host: host, key: key, res: res };
     var hostRect = host.getBoundingClientRect();
     var N = d.seq_len, w0 = res - S.pos + 1, K = d.classes.length;
     /* positions the model saw: all 36, or 1-28 for a CT-padded window */
@@ -823,22 +849,22 @@ lf_pepend_popup_js <- function() '
     /* centred over the window it describes, not pinned to the left margin --
        the title belongs to the 36-mer, which can sit anywhere along the protein */
     var cx = (X(w0) + X(w0 + N - 1)) / 2;
-    var hdr = "<div id=\\"lf-pep-hdr\\" style=\\"position:absolute;top:4px;left:" +
+    var hdr = "<div class=\\"lf-pep-hdr\\" style=\\"position:absolute;top:4px;left:" +
       cx.toFixed(0) + "px;transform:translateX(-50%);white-space:nowrap;text-align:center;" +
       "font:11px ui-sans-serif,system-ui;color:#52514e\\"><b>" + S.title +
       "</b> anchored at residue " + res +
       " (" + (d.aa[res - 1] || "?") + ") &middot; covers " + w0 + "&ndash;" + (w0 + N - 1) +
       " &middot; score " + S.g[i].toFixed(3) + "</div>";
-    var btn = "<div id=\\"lf-pep-close\\" title=\\"close\\" style=\\"position:absolute;right:10px;top:2px;" +
+    var btn = "<div class=\\"lf-pep-close\\" title=\\"close\\" style=\\"position:absolute;right:10px;top:2px;" +
       "cursor:pointer;font:16px ui-sans-serif,system-ui;color:#8a8a8a;padding:0 5px\\">&times;</div>";
-    g += "<line id=\\"lf-pep-guide\\" x1=0 y1=6 x2=0 y2=" + (PANEL_H - 26) +
+    g += "<line class=\\"lf-pep-guide\\" x1=0 y1=6 x2=0 y2=" + (PANEL_H - 26) +
          " stroke=#000 stroke-width=1 opacity=0 />";
     host.innerHTML = g + hdr + btn;
-    host.querySelector("#lf-pep-close").addEventListener("click", close);
+    host.querySelector(".lf-pep-close").addEventListener("click", function () { closeSlot(k); });
 
     /* a window near either terminus would push the centred title off the panel,
        so nudge it back inside once its width is known */
-    var hd = host.querySelector("#lf-pep-hdr");
+    var hd = host.querySelector(".lf-pep-hdr");
     if (hd) {
       var hb = hd.getBoundingClientRect(), pb = host.getBoundingClientRect();
       var shift = 0;
@@ -850,7 +876,7 @@ lf_pepend_popup_js <- function() '
     /* Hovering a point in the opened window marks that residue on every track
        on the page -- the same data_id linking the tracks use between
        themselves, done by hand because this panel is not a girafe widget. */
-    var guide = host.querySelector("#lf-pep-guide"), held = [];
+    var guide = host.querySelector(".lf-pep-guide"), held = [];
     function clearHl() {
       held.forEach(function (o) {
         if (o[1] === null) o[0].removeAttribute("stroke"); else o[0].setAttribute("stroke", o[1]);
@@ -903,13 +929,18 @@ lf_pepend_popup_js <- function() '
           var lab = d.series[k2].label;
           if (lab && t.indexOf(lab) >= 0 && lab.length > best) { key = k2; best = lab.length; }
         });
-        if (key) open(key, parseInt(v, 10), svg);
+        if (!key) return;
+        /* the same point again closes its window; another point of that
+           terminus replaces it; the other terminus opens beside it */
+        var r = parseInt(v, 10), sk = slotKey(svg, d.series[key].term || key), cur = slots[sk];
+        if (cur && cur.key === key && cur.res === r) closeSlot(sk);
+        else open(key, r, svg);
       });
     });
   }
   if (document.readyState === "complete") setTimeout(wire, 400);
   else window.addEventListener("load", function () { setTimeout(wire, 400); });
   setTimeout(wire, 1500); setTimeout(wire, 4000);
-  window.addEventListener("resize", close);
+  window.addEventListener("resize", closeAll);
 })();
 '
