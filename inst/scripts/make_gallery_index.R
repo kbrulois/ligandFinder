@@ -109,7 +109,7 @@ html <- sprintf('<!doctype html>
     Hovering marks that residue on every track.</div>
 </header>
 <div class="wrap">
-  <input type="search" id="q" placeholder="filter by gene or accession…" autocomplete="off">
+  <input type="search" id="q" placeholder="filter by gene or accession, or GENEx90x116 + Enter" autocomplete="off">
   <div class="grid" id="grid">
 %s
   </div>
@@ -120,11 +120,27 @@ html <- sprintf('<!doctype html>
  var q = document.getElementById("q"), cards = [].slice.call(document.querySelectorAll(".card"));
  q.addEventListener("input", function () {
    var v = q.value.trim().toUpperCase(), n = 0;
+   /* a peptide (GENExNxC) filters to its gene */
+   var pm = /^(.+?)X[0-9]+X[0-9]+$/.exec(v);
+   if (pm) v = pm[1];
    cards.forEach(function (c) {
      var hit = !v || c.getAttribute("data-gene").indexOf(v) !== -1;
      c.style.display = hit ? "" : "none"; if (hit) n++;
    });
    document.getElementById("none").style.display = n ? "none" : "block";
+ });
+ /* Enter on a peptide opens its page there: N window at the first position,
+    C window at the second, centred between them */
+ q.addEventListener("keydown", function (ev) {
+   if (ev.key !== "Enter") return;
+   var v = q.value.trim(), m = /^(.+?)x([0-9]+)x([0-9]+)$/i.exec(v);
+   if (!m) return;
+   for (var i = 0; i < cards.length; i++) {
+     var h = cards[i].getAttribute("href");
+     if (h.replace(/[.]html$/, "").toUpperCase() === m[1].toUpperCase()) {
+       location.href = h + "#" + encodeURIComponent(v); return;
+     }
+   }
  });
  q.focus();
 </script>

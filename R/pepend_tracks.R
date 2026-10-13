@@ -491,7 +491,8 @@ lf_plot_class_track <- function(d, x_range, aa, gene, legend = FALSE,
                    tooltip = sprintf("%s  residue %d (%s)\n%s %.3f +/- %.3f  (%s)",
                                      gene, residue, aa[residue],
                                      nn_class_labels[as.character(class)], mean, sd, note)),
-      size = 0.9, na.rm = TRUE) +
+      ## hollow, the same as the head tracks
+      shape = 21, fill = "white", size = 1.7, stroke = 0.6, na.rm = TRUE) +
     ggplot2::scale_colour_manual(values = nn_class_cols, labels = nn_class_label_fn,
                                  name = NULL) +
     ggplot2::scale_fill_manual(values = nn_class_cols, guide = "none") +
@@ -937,8 +938,90 @@ lf_pepend_popup_js <- function() '
     host.addEventListener("mouseleave", clearHl);
   }
 
+  /* which series a dot belongs to -- its tooltip names it. Longest matching
+     label wins, so a dot of "C terminus, CT-padded" is that run and not the
+     plain C series its label also contains */
+  function seriesOf(n) {
+    var t = n.getAttribute("title") || "", key = null, best = -1;
+    Object.keys(d.series || {}).forEach(function (k2) {
+      var lab = d.series[k2].label;
+      if (lab && t.indexOf(lab) >= 0 && lab.length > best) { key = k2; best = lab.length; }
+    });
+    return key;
+  }
+
   function wire() {
     xgbSvgs().forEach(wireOne);
+  }
+
+  /* ---- a peptide in the URL fragment ---------------------------------------
+     #CREG2x90x116 (or #90x116) opens the N window at 90 and the C window at
+     116 on every xgb track carrying those series, and centres the view on the
+     residue nearest their average; #103 just centres on residue 103. */
+  function openAt(svg, term, r) {
+    [].slice.call(svg.querySelectorAll("circle[data-id=\\"" + r + "\\"]")).forEach(function (n) {
+      var key = seriesOf(n);
+      if (!key || (d.series[key].term || key) !== term) return;
+      var cur = slots[slotKey(svg, term)];
+      if (cur && cur.key === key && cur.res === r) return;
+      open(key, r, svg, n);
+    });
+  }
+  function centreOn(r, svg) {
+    var sc = residueScale(svg);
+    if (!sc) return;
+    /* the visible area starts right of the fixed annotation box, when it is open */
+    var left = 0, box = document.getElementById("annotation-box");
+    if (box) {
+      var b = box.getBoundingClientRect();
+      if (b.right > 0 && b.right < window.innerWidth / 2) left = b.right;
+    }
+    var top = 0, bar = document.getElementById("top-meta-fixed");
+    if (bar) top = bar.getBoundingClientRect().bottom;
+    var dx = sc.x(r) - (left + window.innerWidth) / 2;
+    var dy = svg.getBoundingClientRect().top - top - 12;
+    window.scrollTo({ left: window.scrollX + dx, top: window.scrollY + dy });
+  }
+  function fromHash(tries) {
+    var h = decodeURIComponent((location.hash || "").replace(/^#/, "")).trim();
+    if (!h) return;
+    var svgs = xgbSvgs();
+    /* the widgets draw asynchronously; wait for a track with its dots */
+    if (!svgs.length || !residueScale(svgs[0])) {
+      if ((tries || 0) < 20) setTimeout(function () { fromHash((tries || 0) + 1); }, 500);
+      return;
+    }
+    var m = /^(?:(.+?)x)?([0-9]+)x([0-9]+)$/.exec(h);
+    if (m) {
+      if (m[1] && d.gene && m[1].toUpperCase() !== String(d.gene).toUpperCase()) {
+        console.warn("peptide " + h + " names " + m[1] + ", this page is " + d.gene);
+        return;
+      }
+      var nr = parseInt(m[2], 10), cr = parseInt(m[3], 10);
+      svgs.forEach(function (svg) { openAt(svg, "N", nr); openAt(svg, "C", cr); });
+      centreOn(Math.round((nr + cr) / 2), svgs[0]);
+      return;
+    }
+    var one = /^([0-9]+)$/.exec(h);
+    if (one) centreOn(parseInt(one[1], 10), svgs[0]);
+  }
+  /* a small box to type one in: GENExNxC, NxC or a residue */
+  function inputBox() {
+    if (document.getElementById("lf-pep-goto")) return;
+    var w = document.createElement("div");
+    w.id = "lf-pep-goto";
+    w.style.cssText = "position:fixed;top:6px;right:10px;z-index:10001;background:#fff;" +
+      "border:1px solid #d9d8d3;border-radius:5px;padding:3px 6px;font:11px ui-sans-serif,system-ui;";
+    w.innerHTML = "<input type=\\"text\\" placeholder=\\"" + (d.gene || "GENE") +
+      "x90x116 or 103\\" style=\\"width:150px;font:11px ui-monospace,monospace;border:0;outline:0\\">";
+    document.body.appendChild(w);
+    var inp = w.querySelector("input");
+    inp.addEventListener("keydown", function (ev) {
+      if (ev.key !== "Enter") return;
+      var v = inp.value.trim();
+      if (!v) return;
+      if (location.hash === "#" + v) fromHash(0); else location.hash = v;
+    });
   }
   function wireOne(svg) {
     [].slice.call(svg.querySelectorAll("circle[data-id]")).forEach(function (n) {
@@ -949,14 +1032,7 @@ lf_pepend_popup_js <- function() '
       n.style.cursor = "pointer";
       n.addEventListener("click", function (ev) {
         ev.stopPropagation();
-        /* which series was clicked -- the tooltip names it. Longest matching
-           label wins, so a click on "C terminus, CT-padded" opens that run and
-           not the plain C window its label also contains */
-        var t = n.getAttribute("title") || "", key = null, best = -1;
-        Object.keys(d.series || {}).forEach(function (k2) {
-          var lab = d.series[k2].label;
-          if (lab && t.indexOf(lab) >= 0 && lab.length > best) { key = k2; best = lab.length; }
-        });
+        var key = seriesOf(n);
         if (!key) return;
         /* the same point again closes its window; another point of that
            terminus replaces it; the other terminus opens beside it */
@@ -966,9 +1042,11 @@ lf_pepend_popup_js <- function() '
       });
     });
   }
-  if (document.readyState === "complete") setTimeout(wire, 400);
-  else window.addEventListener("load", function () { setTimeout(wire, 400); });
-  setTimeout(wire, 1500); setTimeout(wire, 4000);
+  function start() { setTimeout(wire, 400); setTimeout(function () { wire(); inputBox(); fromHash(0); }, 1500); }
+  if (document.readyState === "complete") start();
+  else window.addEventListener("load", start);
+  setTimeout(wire, 4000);
+  window.addEventListener("hashchange", function () { wire(); fromHash(0); });
   window.addEventListener("resize", closeAll);
 })();
 '
