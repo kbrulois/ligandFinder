@@ -797,6 +797,15 @@ lf_pepend_popup_js <- function() '
     return w;
   }
 
+  /* the head and value the clicked dot carries, from its own tooltip: a click
+     comes from an xgb track, while the payload score is the CNN global head,
+     so a header naming only one of them reads as wrong on the other track */
+  function clickedScore(dot) {
+    var t = dot && dot.getAttribute("title");
+    var m = t && /([A-Za-z]+ [A-Za-z]+ head): ([0-9.]+)/.exec(t.replace(/&[a-z]+;/g, " "));
+    return m ? { head: m[1], val: m[2] } : null;
+  }
+
   function open(key, res, svg, dot) {
     var S = d.series && d.series[key];
     if (!S) return;
@@ -888,12 +897,14 @@ lf_pepend_popup_js <- function() '
     /* centred over the window it describes, not pinned to the left margin --
        the title belongs to the 36-mer, which can sit anywhere along the protein */
     var cx = (X(w0) + X(w0 + N - 1)) / 2;
+    var cs = clickedScore(dot);
     var hdr = "<div class=\\"lf-pep-hdr\\" style=\\"position:absolute;top:4px;left:" +
       cx.toFixed(0) + "px;transform:translateX(-50%);white-space:nowrap;text-align:center;" +
       "font:11px ui-sans-serif,system-ui;color:#52514e\\"><b>" + S.title +
       "</b> anchored at residue " + res +
       " (" + (d.aa[res - 1] || "?") + ") &middot; covers " + w0 + "&ndash;" + (w0 + N - 1) +
-      " &middot; score " + S.g[i].toFixed(3) + "</div>";
+      (cs && cs.head !== "CNN attention head" ? " &middot; " + cs.head + " " + cs.val : "") +
+      " &middot; CNN attention head " + S.g[i].toFixed(3) + "</div>";
     var btn = "<div class=\\"lf-pep-close\\" title=\\"close\\" style=\\"position:absolute;right:10px;top:2px;" +
       "cursor:pointer;font:16px ui-sans-serif,system-ui;color:#8a8a8a;padding:0 5px\\">&times;</div>";
     g += "<line class=\\"lf-pep-guide\\" x1=0 y1=6 x2=0 y2=" + (PANEL_H - 26) +
