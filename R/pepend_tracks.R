@@ -540,7 +540,9 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
                    tooltip = sprintf("%s  anchor %d (%s)\n%s, %s: %.3f +/- %.3f",
                                      gene, residue, aa[residue], lab(as.character(term)),
                                      head_nm, mean, sd)),
-      size = 0.9, na.rm = TRUE) +
+      ## hollow (a ring in the series colour, white inside) and big enough to
+      ## click; the popup fills the clicked one while its window is open
+      shape = 21, fill = "white", size = 1.7, stroke = 0.6, na.rm = TRUE) +
     ggplot2::scale_colour_manual(values = cols, name = NULL, labels = lab) +
     ggplot2::scale_fill_manual(values = cols, guide = "none") +
     lf_track_x(x_range, seq_offset) +
@@ -721,10 +723,36 @@ lf_pepend_popup_js <- function() '
 
   function slotKey(svg, term) { return (svg.id || "svg") + "|" + term; }
 
+  /* scale an SVG radius, keeping its unit -- ggiraph writes r as e.g. 0.99pt,
+     and a bare number would be read as px */
+  function scaleR(r, f) {
+    var m = /^([0-9.]+)([a-z%]*)$/.exec(String(r || "2"));
+    return m ? (parseFloat(m[1]) * f).toFixed(2) + m[2] : r;
+  }
+
+  /* the clicked dot stays filled and enlarged while its window is open */
+  function selectDot(el) {
+    var keep = { el: el, fill: el.getAttribute("fill"), r: el.getAttribute("r"),
+                 sw: el.getAttribute("stroke-width") };
+    el.setAttribute("fill", el.getAttribute("stroke") || "#000");
+    el.setAttribute("r", scaleR(keep.r, 1.6));
+    el.setAttribute("stroke-width", "1.4");
+    if (el.parentNode) el.parentNode.appendChild(el);   /* draw it on top */
+    return keep;
+  }
+  function unselectDot(keep) {
+    if (!keep) return;
+    ["fill", "r", "stroke-width"].forEach(function (a, i) {
+      var v = [keep.fill, keep.r, keep.sw][i];
+      if (v === null) keep.el.removeAttribute(a); else keep.el.setAttribute(a, v);
+    });
+  }
+
   function closeSlot(k) {
     var o = slots[k];
     if (!o) return;
     var wrap = o.host.parentNode;
+    unselectDot(o.dot);
     o.host.remove(); delete slots[k];
     if (wrap && !wrap.children.length) wrap.remove();
     /* a highlight left on another track would survive the panel */
@@ -761,7 +789,7 @@ lf_pepend_popup_js <- function() '
     return w;
   }
 
-  function open(key, res, svg) {
+  function open(key, res, svg, dot) {
     var S = d.series && d.series[key];
     if (!S) return;
     var i = S.anchor.indexOf(res);
@@ -784,7 +812,7 @@ lf_pepend_popup_js <- function() '
         if (!before && c.getAttribute("data-term") === "C") before = c;
       });
     stack.insertBefore(host, before);
-    slots[k] = { host: host, key: key, res: res };
+    slots[k] = { host: host, key: key, res: res, dot: dot ? selectDot(dot) : null };
     var hostRect = host.getBoundingClientRect();
     var N = d.seq_len, w0 = res - S.pos + 1, K = d.classes.length;
     /* positions the model saw: all 36, or 1-28 for a CT-padded window */
@@ -894,7 +922,7 @@ lf_pepend_popup_js <- function() '
         n.setAttribute("stroke", "#000");
         n.setAttribute("stroke-width", "1.4");
         if (n.tagName.toLowerCase() === "circle")
-          n.setAttribute("r", (parseFloat(n.getAttribute("r") || 2) + 1.2).toFixed(1));
+          n.setAttribute("r", scaleR(n.getAttribute("r"), 1.5));
       });
       if (guide) {
         guide.setAttribute("x1", X(r).toFixed(1));
@@ -934,7 +962,7 @@ lf_pepend_popup_js <- function() '
            terminus replaces it; the other terminus opens beside it */
         var r = parseInt(v, 10), sk = slotKey(svg, d.series[key].term || key), cur = slots[sk];
         if (cur && cur.key === key && cur.res === r) closeSlot(sk);
-        else open(key, r, svg);
+        else open(key, r, svg, n);
       });
     });
   }
