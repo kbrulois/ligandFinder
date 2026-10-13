@@ -241,8 +241,11 @@ lf_track_per_index <- function(accession, n_prot, c_prot, terms = c("N", "C")) {
 #'
 #' Set through an option, so the page code needs no new argument:
 #'
+#' Extra series are drawn on a track of their own beside each head -- one per
+#' `group` (default "extra") -- coloured by terminus like the page's own.
+#'
 #'   options(lf.track_extra_win = list(list(
-#'     name = "C, CT-padded", term = "C", ct_pad = TRUE, colour = "#FF9900",
+#'     name = "C terminus, CT-padded", term = "C", ct_pad = TRUE, group = "padded",
 #'     run = "~/AF2_analysis/lf_pepend_run_C_near_ctpad_slack8.rds",
 #'     winxgb = "~/AF2_analysis/lf_winxgb_scan_C_near_ctpad_slack8.npz")))
 #'
@@ -319,11 +322,18 @@ lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
            npos = if (isTRUE(spec$ct_pad) && term == "C") LF_PEPEND$anchor[["C"]]
                   else LF_PEPEND$seq_len) else NULL
     list(win = tibble::tibble(residue = anchors, mean = colMeans(G), sd = apply(G, 2, stats::sd),
-                              term = spec$name, head = "CNN attention head"),
+                              term = spec$name, head = "CNN attention head",
+                              ## spec$term, not `term`: inside tibble() that
+                              ## name is the column just defined above
+                              terminus = spec$term, group = lf_extra_group(spec)),
          resid = resid, pix = pix)
   }, error = function(e) { message("  extra series '", spec$name, "' failed: ",
                                    conditionMessage(e)); NULL })
 }
+
+#' The track group an extra series is drawn in
+#' @keywords internal
+lf_extra_group <- function(spec) if (is.null(spec$group)) "extra" else as.character(spec$group)
 
 #' Pool each window's opinion onto the residues it covers
 #'
@@ -382,7 +392,10 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
     if (!is.null(ex$pix)) extra_pix[[spec$name]] <- ex$pix
     if (!is.null(spec$winxgb)) {
       xh <- lf_track_xgb_head(gene, spec$term, spec$winxgb)
-      if (!is.null(xh)) { xh$term <- spec$name; win <- dplyr::bind_rows(win, xh) }
+      if (!is.null(xh)) {
+        xh$term <- spec$name; xh$terminus <- spec$term; xh$group <- lf_extra_group(spec)
+        win <- dplyr::bind_rows(win, xh)
+      }
     }
   }
   if (!nrow(win)) win <- NULL
@@ -418,15 +431,7 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
 #' @export
 LF_TERM_COLS <- c(N = "#2BA84A", C = "#D95F0E")
 
-#' The series colours a head track uses: the terminus colours (overridable per
-#' page with `options(lf.term_cols = )`) plus one per extra series
-#' @keywords internal
-lf_series_cols <- function() {
-  cols <- getOption("lf.term_cols", LF_TERM_COLS)
-  for (spec in getOption("lf.track_extra_win", list()))
-    cols[[spec$name]] <- spec$colour
-  cols
-}
+
 
 #' @keywords internal
 lf_track_theme <- function() {
@@ -508,12 +513,22 @@ lf_plot_class_track <- function(d, x_range, aa, gene, legend = FALSE,
 #' which.
 #' @keywords internal
 lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
-                              seq_offset = -0.45) {
-  d <- d[d$head == head_nm, , drop = FALSE]
+                              seq_offset = -0.45, group = NA_character_, ylab = NULL) {
+  ## the page's own series have no group; an extra run's carry one, and each
+  ## group gets a track of its own
+  if (is.null(d$group)) d$group <- NA_character_
+  if (is.null(d$terminus)) d$terminus <- d$term
+  d$terminus[is.na(d$terminus)] <- d$term[is.na(d$terminus)]
+  keep <- d$head == head_nm & (if (is.na(group)) is.na(d$group) else d$group %in% group)
+  d <- d[keep, , drop = FALSE]
   if (!nrow(d)) return(NULL)
-  cols <- lf_series_cols()
-  d$term <- factor(d$term, levels = names(cols))
-  d <- droplevels(d)
+  ## colour says WHICH TERMINUS, on every head track alike
+  tc <- getOption("lf.term_cols", LF_TERM_COLS)
+  series <- unique(as.character(d$term))
+  term_of <- d$terminus[match(series, d$term)]
+  series <- series[order(match(term_of, names(tc)))]
+  cols <- stats::setNames(unname(tc[d$terminus[match(series, d$term)]]), series)
+  d$term <- factor(d$term, levels = series)
   ## "N terminus" / "C terminus" for the page's own series; an extra one by name
   lab <- function(x) ifelse(x %in% c("N", "C"), paste0(x, " terminus"), x)
   ggplot2::ggplot(d, ggplot2::aes(residue, mean, colour = term, fill = term)) +
@@ -530,7 +545,7 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
     ggplot2::scale_fill_manual(values = cols, guide = "none") +
     lf_track_x(x_range, seq_offset) +
     ggplot2::scale_y_continuous(limits = c(0, 1.02), breaks = c(0, 0.5, 1), expand = c(0, 0)) +
-    ggplot2::labs(y = sub(" head", "\nhead", head_nm)) +
+    ggplot2::labs(y = if (!is.null(ylab)) ylab else sub(" head", "\nhead", head_nm)) +
     lf_track_theme() +
     ggplot2::theme(legend.position = if (legend) "top" else "none",
                    legend.direction = "horizontal",
@@ -587,8 +602,14 @@ lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
                             ylab = paste0(nm, "\nper-residue\nclass probability"),
                             note = paste(nm, "windows only")), 1.7)
   if (!is.null(dat$win)) {
-    add(lf_plot_win_track(dat$win, "CNN attention head", x_range, aa, gene, TRUE, seq_offset), 1.15)
-    add(lf_plot_win_track(dat$win, "xgb window head",    x_range, aa, gene, FALSE, seq_offset), 1.15)
+    ## each head as the page's own track, then one per extra group (e.g. padded)
+    grp <- if (is.null(dat$win$group)) character(0) else unique(stats::na.omit(dat$win$group))
+    for (hd in c("CNN attention head", "xgb window head")) {
+      add(lf_plot_win_track(dat$win, hd, x_range, aa, gene, hd == "CNN attention head", seq_offset), 1.15)
+      for (g in grp)
+        add(lf_plot_win_track(dat$win, hd, x_range, aa, gene, hd == "CNN attention head", seq_offset,
+                              group = g, ylab = sprintf("%s\n(%s)", sub(" head", "\nhead", hd), g)), 1.15)
+    }
   }
   if (!is.null(dat$rp)) {
     add(lf_plot_resid_track(dat$rp, "MLP", x_range, aa, gene, seq_offset), 1.1)
@@ -667,14 +688,16 @@ lf_pepend_popup_js <- function() '
      head that actually localises a boundary, so it is the one worth opening a
      window from. Found by its y-axis label rather than by index, since a track
      is dropped when its input is missing. */
-  function xgbSvg() {
-    var all = [].slice.call(document.querySelectorAll("svg.ggiraph-svg"));
+  /* every xgb track -- the page own one and any extra run (padded) -- since
+     each opens the windows of the series drawn on it */
+  function xgbSvgs() {
+    var all = [].slice.call(document.querySelectorAll("svg.ggiraph-svg")), out = [];
     for (var i = 0; i < all.length; i++) {
       var t = all[i].querySelectorAll("text");
       for (var j = 0; j < t.length; j++)
-        if (/xgb window/.test(t[j].textContent)) return all[i];
+        if (/xgb window/.test(t[j].textContent)) { out.push(all[i]); break; }
     }
-    return null;
+    return out;
   }
 
   /* residue -> client x, read off the track itself. Two points far apart give
@@ -861,8 +884,9 @@ lf_pepend_popup_js <- function() '
   }
 
   function wire() {
-    var svg = xgbSvg();
-    if (!svg) return;
+    xgbSvgs().forEach(wireOne);
+  }
+  function wireOne(svg) {
     [].slice.call(svg.querySelectorAll("circle[data-id]")).forEach(function (n) {
       if (n.__lfpep) return;
       var v = n.getAttribute("data-id");
