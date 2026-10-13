@@ -89,7 +89,8 @@ class Residues:
 
 
 def build_windows(res: Residues, i: int, anchors: np.ndarray, cfg: Config,
-                  anchor_pos: int, pad_col: int, ct_pad: bool = False) -> np.ndarray:
+                  anchor_pos: int, pad_col: int, ct_pad: bool = False,
+                  nt_pad: bool = False) -> np.ndarray:
     """The ``(len(anchors), seq_len, n_channels)`` windows of precursor ``i``.
 
     Mirrors ``lf_pepend_slice``: a position outside ``[n_prot, c_prot]`` is
@@ -98,13 +99,16 @@ def build_windows(res: Residues, i: int, anchors: np.ndarray, cfg: Config,
     ``ct_pad`` cuts each window at its own anchor, as ``10_7 --ct-pad`` built
     the training set for C: everything after the anchor is padding, as if the
     precursor ended there. A CT-padded model must be scored this way -- on
-    unpadded windows it sees inputs it was never trained on.
+    unpadded windows it sees inputs it was never trained on. ``nt_pad`` is the
+    N mirror (``10_7 --nt-pad``): each window starts at its own anchor, as if
+    the precursor began there.
     """
     a = np.asarray(anchors, dtype="int64")
     p = np.arange(1, cfg.seq_len + 1, dtype="int64")
     coord = a[:, None] + p[None, :] - anchor_pos            # (A, seq_len)
     lo, hi = int(res.n_prot[i]), int(res.c_prot[i])
     hi = np.minimum(hi, a)[:, None] if ct_pad else hi
+    lo = np.maximum(lo, a)[:, None] if nt_pad else lo
     ok = (coord >= lo) & (coord <= hi)
     x = np.zeros((a.size, cfg.seq_len, cfg.n_channels), dtype="float32")
     rows = int(res.offset[i]) + coord - 1

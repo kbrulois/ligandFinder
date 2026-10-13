@@ -250,7 +250,8 @@ lf_track_per_index <- function(accession, n_prot, c_prot, terms = c("N", "C")) {
 #'     winxgb = "~/AF2_analysis/lf_winxgb_scan_C_near_ctpad_slack8.npz")))
 #'
 #' `ct_pad = TRUE` cuts every C window at its own anchor, as the run was trained
-#' (10_7 --ct-pad); scoring a padded model on unpadded windows would show it
+#' (10_7 --ct-pad), and `nt_pad = TRUE` starts every N window at its anchor
+#' (10_7 --nt-pad); scoring a padded model on unpadded windows would show it
 #' inputs it has never seen. `per_residue = TRUE` also pools that run's
 #' per-index class probabilities onto residues, for a class-probability track of
 #' its own; each window counts only for residues it saw, so a padded window says
@@ -284,11 +285,13 @@ lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
     feat <- fc$feats[[i]]
     anchors <- seq.int(n_prot, c_prot)
     w_start <- anchors - LF_PEPEND$anchor[[term]] + 1L
-    ## the window's own end: the precursor's, or under ct_pad the C anchor
+    ## the window's own end and start: the precursor's, or under ct_pad the C
+    ## anchor / under nt_pad the N anchor
     cut <- if (isTRUE(spec$ct_pad) && term == "C") pmin(c_prot, anchors) else rep(c_prot, length(anchors))
+    cut_lo <- if (isTRUE(spec$nt_pad) && term == "N") pmax(n_prot, anchors) else rep(n_prot, length(anchors))
     X <- array(0, c(length(anchors), LF_PEPEND$seq_len, ncol(feat)))
     for (k in seq_along(anchors))
-      X[k, , ] <- as.matrix(lf_pepend_slice(feat, w_start[k], n_prot, cut[k])[, fc$all_params3])
+      X[k, , ] <- as.matrix(lf_pepend_slice(feat, w_start[k], cut_lo[k], cut[k])[, fc$all_params3])
     xp <- np$ascontiguousarray(np$asarray(X, dtype = "float32"))
     G <- matrix(0, length(models), length(anchors))
     pin <- as.character(cfg$pi_names)
@@ -313,14 +316,16 @@ lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
     }
     resid <- if (isTRUE(spec$per_residue))
       lf_track_pool_residues(list(pi = PI, pi_names = pin, w_start = w_start),
-                             anchors, n_prot, c_prot, term, cut = cut) else NULL
+                             anchors, n_prot, c_prot, term, cut = cut, cut_lo = cut_lo) else NULL
     ## for the click popup: the same shape as lf_track_per_index() returns, plus
-    ## `npos`, the window positions the model actually saw (1-28 when padded)
+    ## `vis`, the window positions the model actually saw -- 1-28 for a
+    ## CT-padded window, 8-36 for an NT-padded one
     pix <- if (isTRUE(spec$popup))
       list(pi = PI, pi_sd = PSD, g = colMeans(G), pi_names = pin,
            pos = LF_PEPEND$anchor[[term]], w_start = w_start, anchors = anchors, term = term,
-           npos = if (isTRUE(spec$ct_pad) && term == "C") LF_PEPEND$anchor[["C"]]
-                  else LF_PEPEND$seq_len) else NULL
+           vis = c(if (isTRUE(spec$nt_pad) && term == "N") LF_PEPEND$anchor[["N"]] else 1L,
+                   if (isTRUE(spec$ct_pad) && term == "C") LF_PEPEND$anchor[["C"]]
+                   else LF_PEPEND$seq_len)) else NULL
     list(win = tibble::tibble(residue = anchors, mean = colMeans(G), sd = apply(G, 2, stats::sd),
                               term = spec$name, head = "CNN attention head",
                               ## spec$term, not `term`: inside tibble() that
@@ -344,7 +349,7 @@ lf_extra_group <- function(spec) if (is.null(spec$group)) "extra" else as.charac
 lf_track_pool_residues <- function(S, anchors, n_prot, c_prot, term,
                                    classes = c("pep_pocket", "pep_other",
                                                "CT_cleavage_context", "NT_cleavage_context"),
-                                   cut = NULL) {
+                                   cut = NULL, cut_lo = NULL) {
   idx <- which(S$pi_names %in% classes)
   if (!length(idx)) return(NULL)
   res <- lapply(idx, function(k) {
@@ -352,7 +357,8 @@ lf_track_pool_residues <- function(S, anchors, n_prot, c_prot, term,
       r <- S$w_start[i] + seq_len(LF_PEPEND$seq_len) - 1L
       ## `cut`: where THIS window's input ends (its anchor, for a CT-padded
       ## window) -- it has no opinion about residues under its padding
-      ok <- r >= n_prot & r <= (if (is.null(cut)) c_prot else cut[i])
+      ok <- r >= (if (is.null(cut_lo)) n_prot else max(n_prot, cut_lo[i])) &
+            r <= (if (is.null(cut)) c_prot else cut[i])
       tibble::tibble(residue = r[ok], v = S$pi[i, ok, k])
     })
     d <- dplyr::bind_rows(acc)
@@ -654,7 +660,7 @@ lf_pepend_popup_tag <- function(pix, aa, gene, accession,
     list(label = label, title = title, term = term,
          anchor = as.integer(anchors[keep]),
          pos = as.integer(S$pos),
-         npos = as.integer(if (is.null(S$npos)) LF_PEPEND$seq_len else S$npos),
+         vis = as.integer(if (is.null(S$vis)) c(1L, LF_PEPEND$seq_len) else S$vis),
          g = round(S$g[keep], 4),
          pi = lapply(keep, function(i) round(S$pi[i, , ], 3)),
          sd = lapply(keep, function(i) round(S$pi_sd[i, , ], 3)))
@@ -816,8 +822,9 @@ lf_pepend_popup_js <- function() '
     slots[k] = { host: host, key: key, res: res, dot: dot ? selectDot(dot) : null };
     var hostRect = host.getBoundingClientRect();
     var N = d.seq_len, w0 = res - S.pos + 1, K = d.classes.length;
-    /* positions the model saw: all 36, or 1-28 for a CT-padded window */
-    var NP = S.npos || N;
+    /* positions the model saw (1-based, inclusive): all 36, 1-28 for a
+       CT-padded window, 8-36 for an NT-padded one */
+    var V0 = (S.vis && S.vis[0]) || 1, V1 = (S.vis && S.vis[1]) || N;
     var X = function (r) { return sc.x(r) - hostRect.left; };
     var Y = function (v) { return PANEL_H - 26 - v * (PANEL_H - 44); };
 
@@ -829,27 +836,29 @@ lf_pepend_popup_js <- function() '
     g += "<rect x=" + X(w0 - 0.5).toFixed(1) + " y=6 width=" +
          Math.max(1, (X(w0 + N - 0.5) - X(w0 - 0.5))).toFixed(1) +
          " height=" + (PANEL_H - 32) + " fill=#ffffff stroke=#d9d8d3 />";
-    /* a padded window never saw positions past NP -- say so, rather than draw
-       predictions about residues it was not shown */
-    if (NP < N) {
-      var px0 = X(w0 + NP - 0.5), px1 = X(w0 + N - 0.5);
+    /* a padded window never saw positions outside V0-V1 -- say so, rather
+       than draw predictions about residues it was not shown */
+    function padBlock(p0, p1) {
+      var px0 = X(w0 + p0 - 1.5), px1 = X(w0 + p1 - 0.5);
       g += "<rect x=" + px0.toFixed(1) + " y=6 width=" + Math.max(1, px1 - px0).toFixed(1) +
            " height=" + (PANEL_H - 32) + " fill=#ecebe6 />";
       g += "<text x=" + ((px0 + px1) / 2).toFixed(1) + " y=" + (PANEL_H / 2).toFixed(0) +
            " text-anchor=middle font-size=10 fill=#8a8a8a>padding</text>";
     }
+    if (V0 > 1) padBlock(1, V0 - 1);
+    if (V1 < N) padBlock(V1 + 1, N);
     /* the anchor: the residue this window is ABOUT */
     g += "<rect x=" + (X(res) - 1).toFixed(1) + " y=6 width=2 height=" +
          (PANEL_H - 32) + " fill=#000 opacity=0.35 />";
     for (var k = 0; k < K; k++) {
       if (d.classes[k] === "none" || d.classes[k] === "padding") continue;
       var pts = [];
-      for (var j = 0; j < NP; j++)
+      for (var j = V0 - 1; j < V1; j++)
         pts.push(X(w0 + j).toFixed(1) + "," + Y(S.pi[i][j][k]).toFixed(1));
       /* +/- 1 sd across the members, as a band under the line */
       if (S.sd) {
         var up = [], dn = [];
-        for (var j3 = 0; j3 < NP; j3++) {
+        for (var j3 = V0 - 1; j3 < V1; j3++) {
           var m3 = S.pi[i][j3][k], e3 = S.sd[i][j3][k];
           up.push(X(w0 + j3).toFixed(1) + "," + Y(Math.min(1, m3 + e3)).toFixed(1));
           dn.push(X(w0 + j3).toFixed(1) + "," + Y(Math.max(0, m3 - e3)).toFixed(1));
@@ -862,7 +871,7 @@ lf_pepend_popup_js <- function() '
            d.cols[k] + "\\" stroke-width=1.6 />";
       /* a point per residue per class, carrying the residue it belongs to so a
          hover can light that column up on every other track */
-      for (var j2 = 0; j2 < NP; j2++) {
+      for (var j2 = V0 - 1; j2 < V1; j2++) {
         var rr = w0 + j2, vv = S.pi[i][j2][k];
         g += "<circle cx=" + X(rr).toFixed(1) + " cy=" + Y(vv).toFixed(1) +
              " r=2 fill=\\"" + d.cols[k] + "\\" data-res=" + rr +

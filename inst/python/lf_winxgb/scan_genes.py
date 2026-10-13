@@ -64,9 +64,14 @@ def main(argv=None):
                     help="cut every scanned C window at its anchor, for a run trained "
                          "on a 10_7 --ct-pad set. The heads need no change: they are "
                          "fitted on the run's own exported windows, already padded")
+    ap.add_argument("--nt-pad", action="store_true",
+                    help="start every scanned N window at its anchor, for a run trained "
+                         "on a 10_7 --nt-pad set")
     a = ap.parse_args(argv)
     if a.ct_pad and a.term != "C":
         ap.error("--ct-pad applies to C windows only")
+    if a.nt_pad and a.term != "N":
+        ap.error("--nt-pad applies to N windows only")
 
     import xgboost as xgb
     from lf_dcnn.config import Config
@@ -207,7 +212,8 @@ def main(argv=None):
             continue
         i = int(hits[0])
         anchors = np.arange(int(res.n_prot[i]), int(res.c_prot[i]) + 1)
-        x = build_windows(res, i, anchors, cfg, anchor, pad_col, ct_pad=a.ct_pad)
+        x = build_windows(res, i, anchors, cfg, anchor, pad_col, ct_pad=a.ct_pad,
+                          nt_pad=a.nt_pad)
         pm, st, cn = [], [], []
         for mi, m in enumerate(models):
             o = predict_all(m, x)
