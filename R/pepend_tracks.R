@@ -578,7 +578,8 @@ lf_plot_resid_track <- function(d, mdl, x_range, aa, gene, seq_offset = -0.45) {
                    tooltip = sprintf("%s  residue %d (%s)\n%s %s %.3f",
                                      gene, residue, aa[residue], mdl,
                                      nn_class_labels[as.character(class)], mean)),
-      size = 0.9, na.rm = TRUE) +
+      ## hollow, the same as the other tracks
+      shape = 21, fill = "white", size = 1.7, stroke = 0.6, na.rm = TRUE) +
     ggplot2::scale_colour_manual(values = nn_class_cols, guide = "none") +
     ggplot2::scale_fill_manual(values = nn_class_cols, guide = "none") +
     lf_track_x(x_range, seq_offset) +
