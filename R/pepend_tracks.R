@@ -80,6 +80,19 @@ lf_tracks_python_path <- function() {
   NULL
 }
 
+#' The 20 member models of one run, built once per process
+#'
+#' A bulk render calls this once per gene per series; rebuilding 20 Keras models
+#' each time is the bulk of the per-page cost, and they are only ever used for
+#' prediction, so they are cached on (weights dir, terminus).
+#' @keywords internal
+lf_track_models <- function(mod, iso, term) {
+  cfg <- .lf_once(paste0("cfg_", iso), function() mod$Config$from_json(file.path(iso, "in", "config.json")))
+  list(cfg = cfg,
+       models = .lf_once(paste0("members_", iso, "_", term),
+                         function() mod$scan$load_member_models(file.path(iso, "out"), cfg, term)))
+}
+
 #' @keywords internal
 .lf_once <- function(key, f) {
   if (!is.null(.lf_tracks_env[[key]])) return(.lf_tracks_env[[key]])
@@ -199,8 +212,8 @@ lf_track_per_index <- function(accession, n_prot, c_prot, terms = c("N", "C")) {
     iso <- paste0(tools::file_path_sans_ext(run_p), "_isolated")
     if (!dir.exists(iso)) next
     got <- tryCatch({
-      cfg <- mod$Config$from_json(file.path(iso, "in", "config.json"))
-      models <- mod$scan$load_member_models(file.path(iso, "out"), cfg, term)
+      .m <- lf_track_models(mod, iso, term)
+      cfg <- .m$cfg; models <- .m$models
       pin <- as.character(cfg$pi_names)
       A <- LF_PEPEND$anchor[[term]]
       w_start <- anchors - A + 1L
@@ -280,8 +293,8 @@ lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
   iso <- paste0(tools::file_path_sans_ext(path.expand(spec$run)), "_isolated")
   if (!dir.exists(iso)) { message("  extra series '", spec$name, "': no ", iso); return(NULL) }
   tryCatch({
-    cfg <- mod$Config$from_json(file.path(iso, "in", "config.json"))
-    models <- mod$scan$load_member_models(file.path(iso, "out"), cfg, term)
+    .m <- lf_track_models(mod, iso, term)
+    cfg <- .m$cfg; models <- .m$models
     feat <- fc$feats[[i]]
     anchors <- seq.int(n_prot, c_prot)
     w_start <- anchors - LF_PEPEND$anchor[[term]] + 1L
