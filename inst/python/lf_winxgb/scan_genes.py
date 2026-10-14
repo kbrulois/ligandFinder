@@ -64,6 +64,9 @@ def main(argv=None):
                     help="cut every scanned C window at its anchor, for a run trained "
                          "on a 10_7 --ct-pad set. The heads need no change: they are "
                          "fitted on the run's own exported windows, already padded")
+    ap.add_argument("--save-val", action="store_true",
+                    help="also write the validation labels and each head's validation "
+                         "predictions (_val__y, _val__cnn, _val__xgb_pm), for AUC curves")
     ap.add_argument("--nt-pad", action="store_true",
                     help="start every scanned N window at its anchor, for a run trained "
                          "on a 10_7 --nt-pad set")
@@ -197,6 +200,11 @@ def main(argv=None):
         print(f"  val {nm:6s} " + json.dumps({k: round(v, 4)
                                               for k, v in _metrics(yc["val"], p).items()}),
               flush=True)
+    val_out = {}
+    if a.save_val:
+        val_out["_val__y"] = yc["val"].astype("int8")
+        for nm, p in heads:
+            val_out[f"_val__{nm}"] = np.asarray(p, dtype="float32")
 
     # ---- now the scan anchors, gene by gene -----------------------------------
     res = Residues.from_npz(os.path.expanduser(a.residues_npz))
@@ -236,7 +244,7 @@ def main(argv=None):
             line += f" | xgb_st {out[f'{g}__xgb_st'].max():.3f}"
         print(line, flush=True)
 
-    np.savez_compressed(os.path.expanduser(a.out), **out,
+    np.savez_compressed(os.path.expanduser(a.out), **out, **val_out,
                         genes=np.asarray([k.split("__")[0] for k in out
                                           if k.endswith("__anchor")]))
     print(f"\n-> {a.out}", flush=True)
