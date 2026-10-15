@@ -8,6 +8,11 @@ summaries and passed to the 20 kept stacked boosters.
 Both heads come back, from the same forward pass, so the two tracks over
 2,980,852 anchors are strictly comparable.
 
+``--pm-rounds N`` fits the PER-MEMBER head instead -- one xgboost per CNN
+member, N fixed rounds, no early stopping -- which is the head the protein
+pages and the model comparison use; ``--skip-stacked`` then omits the stacked
+one. ``--ct-pad`` / ``--nt-pad`` scan a padded trunk the way it was trained.
+
 Work per chunk is 20 members x 20 boosters, so the boosters see each member's
 surface stacked into one matrix rather than 400 separate predict calls.
 
@@ -42,7 +47,19 @@ def main(argv=None):
     ap.add_argument("--max-depth", type=int, default=4)
     ap.add_argument("--eta", type=float, default=0.05)
     ap.add_argument("--near", type=int, default=2)
+    ap.add_argument("--pm-rounds", type=int, default=0,
+                    help="also fit the per-member head, N fixed rounds, no early stopping")
+    ap.add_argument("--skip-stacked", action="store_true",
+                    help="omit the stacked head (needs --pm-rounds)")
+    ap.add_argument("--ct-pad", action="store_true")
+    ap.add_argument("--nt-pad", action="store_true")
     a = ap.parse_args(argv)
+    if a.skip_stacked and not a.pm_rounds:
+        ap.error("--skip-stacked leaves no head; pass --pm-rounds too")
+    if a.ct_pad and a.term != "C":
+        ap.error("--ct-pad applies to C windows only")
+    if a.nt_pad and a.term != "N":
+        ap.error("--nt-pad applies to N windows only")
 
     import xgboost as xgb
     from lf_dcnn.config import Config
@@ -88,16 +105,36 @@ def main(argv=None):
             "lambda": 1.0, "alpha": 0.0, "tree_method": "hist",
             "eval_metric": ["auc", "aucpr"]}
     spw = float((ys == 0).sum()) / max(1.0, float((ys == 1).sum()))
-    boosters = fit_stacked(
-        xgb.DMatrix(np.vstack(Ftr), label=ys, feature_names=names),
-        xgb.DMatrix(np.vstack(Fst), label=np.tile(yc["train"][ist], len(models)),
-                    feature_names=names),
-        base, spw, n_keep=a.stack_seeds, min_rounds=a.min_rounds, nrounds=a.nrounds)
-    pv = np.mean([predict_stacked(boosters, xgb.DMatrix(v, feature_names=names))
-                  for v in Fva], axis=0)
-    print("  val xgb_st " + json.dumps({k: round(v, 4)
-                                        for k, v in _metrics(yc["val"], pv).items()}),
-          flush=True)
+    boosters = None
+    if not a.skip_stacked:
+        boosters = fit_stacked(
+            xgb.DMatrix(np.vstack(Ftr), label=ys, feature_names=names),
+            xgb.DMatrix(np.vstack(Fst), label=np.tile(yc["train"][ist], len(models)),
+                        feature_names=names),
+            base, spw, n_keep=a.stack_seeds, min_rounds=a.min_rounds, nrounds=a.nrounds)
+        pv = np.mean([predict_stacked(boosters, xgb.DMatrix(v, feature_names=names))
+                      for v in Fva], axis=0)
+        print("  val xgb_st " + json.dumps({k: round(v, 4)
+                                            for k, v in _metrics(yc["val"], pv).items()}),
+              flush=True)
+
+    ## the per-member head: one booster per CNN member, on that member's own
+    ## surface -- the same fit scan_genes makes, so the full scan and the
+    ## per-gene tracks are the same quantity
+    boosters_pm = []
+    if a.pm_rounds:
+        ytr = yc["train"][itr]
+        spw_pm = float((ytr == 0).sum()) / max(1.0, float((ytr == 1).sum()))
+        for mi in range(len(models)):
+            d1 = xgb.DMatrix(Ftr[mi], label=ytr, feature_names=names)
+            boosters_pm.append(xgb.train(dict(base, seed=mi, scale_pos_weight=spw_pm),
+                                         d1, num_boost_round=a.pm_rounds,
+                                         verbose_eval=False))
+        pv = np.mean([boosters_pm[mi].predict(xgb.DMatrix(Fva[mi], feature_names=names))
+                      for mi in range(len(models))], axis=0)
+        print("  val xgb_pm " + json.dumps({k: round(v, 4)
+                                            for k, v in _metrics(yc["val"], pv).items()}),
+              flush=True)
     del Ftr, Fst, Fva
 
     # ---- the exhaustive scan ---------------------------------------------------
@@ -106,8 +143,10 @@ def main(argv=None):
     total = int(counts.sum())
     starts = np.concatenate(([0], np.cumsum(counts)))[:-1]
     cnn_all = np.zeros(total, dtype="float32")
-    xgb_all = np.zeros(total, dtype="float32")
-    xgb_sd = np.zeros(total, dtype="float32")
+    xgb_all = np.zeros(total, dtype="float32") if boosters else None
+    xgb_sd = np.zeros(total, dtype="float32") if boosters else None
+    pm_all = np.zeros(total, dtype="float32") if boosters_pm else None
+    pm_sd = np.zeros(total, dtype="float32") if boosters_pm else None
     prot_idx = np.zeros(total, dtype="int32")
     anchor_of = np.zeros(total, dtype="int32")
     for i in range(len(res)):
@@ -115,7 +154,8 @@ def main(argv=None):
         prot_idx[s:s + n] = i
         anchor_of[s:s + n] = np.arange(int(res.n_prot[i]), int(res.c_prot[i]) + 1)
     print(f"scan: {len(res)} precursors, {total:,} {a.term} anchors, "
-          f"{len(models)} members x {len(boosters)} boosters", flush=True)
+          f"{len(models)} members, stacked {len(boosters) if boosters else 0}, "
+          f"per-member {len(boosters_pm)}", flush=True)
 
     t0 = time.time()
     done = 0
@@ -129,7 +169,8 @@ def main(argv=None):
         at = 0
         for pi in range(i, j):
             an = anchor_of[int(starts[pi]):int(starts[pi]) + int(counts[pi])]
-            x[at:at + an.size] = build_windows(res, pi, an, cfg, anchor, pad_col)
+            x[at:at + an.size] = build_windows(res, pi, an, cfg, anchor, pad_col,
+                                               ct_pad=a.ct_pad, nt_pad=a.nt_pad)
             at += int(an.size)
 
         G = np.empty((len(models), k), dtype="float32")
@@ -139,13 +180,18 @@ def main(argv=None):
             G[mi] = np.asarray(o["global"], dtype="float32").reshape(-1)
             P[mi] = pool_features(np.asarray(o["per_index_cat"], dtype="float32"),
                                   anchor, pi_names, near=a.near)[0]
-        # one matrix of every member's view, so each booster predicts once
-        dm = xgb.DMatrix(P.reshape(-1, len(names)), feature_names=names)
-        S = np.mean([b.predict(dm, iteration_range=(0, b.best_iteration + 1))
-                     for b in boosters], axis=0).reshape(len(models), k)
         cnn_all[lo:hi] = G.mean(0)
-        xgb_all[lo:hi] = S.mean(0)
-        xgb_sd[lo:hi] = S.std(0, ddof=1)
+        if boosters:
+            # one matrix of every member's view, so each booster predicts once
+            dm = xgb.DMatrix(P.reshape(-1, len(names)), feature_names=names)
+            S = np.mean([b.predict(dm, iteration_range=(0, b.best_iteration + 1))
+                         for b in boosters], axis=0).reshape(len(models), k)
+            xgb_all[lo:hi] = S.mean(0); xgb_sd[lo:hi] = S.std(0, ddof=1)
+        if boosters_pm:
+            # each member scored by ITS OWN booster
+            Spm = np.stack([boosters_pm[mi].predict(
+                xgb.DMatrix(P[mi], feature_names=names)) for mi in range(len(models))])
+            pm_all[lo:hi] = Spm.mean(0); pm_sd[lo:hi] = Spm.std(0, ddof=1)
         done += k
         el = time.time() - t0
         print(f"  {done:,}/{total:,} ({100*done/total:.1f}%) "
@@ -153,9 +199,11 @@ def main(argv=None):
               flush=True)
         i = j
 
-    np.savez_compressed(os.path.expanduser(a.out), cnn=cnn_all, xgb=xgb_all,
-                        xgb_sd=xgb_sd, prot_idx=prot_idx, anchor=anchor_of,
-                        term=np.asarray(a.term))
+    out = dict(cnn=cnn_all, prot_idx=prot_idx, anchor=anchor_of,
+               term=np.asarray(a.term))
+    if boosters: out.update(xgb=xgb_all, xgb_sd=xgb_sd)
+    if boosters_pm: out.update(xgb_pm=pm_all, xgb_pm_sd=pm_sd)
+    np.savez_compressed(os.path.expanduser(a.out), **out)
     print(f"\n-> {a.out}", flush=True)
 
 
