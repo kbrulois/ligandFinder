@@ -47,6 +47,10 @@ run_p    <- path.expand(.opt("--run", sprintf("~/AF2_analysis/lf_pepend_run_%s.r
 res_npz  <- path.expand(.opt("--residues-npz", "~/AF2_analysis/lf_pepend_residues.npz"))
 out_p    <- path.expand(.opt("--out", sprintf("~/AF2_analysis/lf_pepend_scan_%s.rds", term)))
 chunk_w  <- as.integer(.opt("--chunk-windows", "200000"))
+## a padded trunk must be scanned the way it was trained (10_7 --ct-pad/--nt-pad),
+## or every window shows it residues it only ever saw as padding
+ct_pad   <- "--ct-pad" %in% .args
+nt_pad   <- "--nt-pad" %in% .args
 batch_sz <- as.integer(.opt("--batch-size", "4096"))
 top_n    <- as.integer(.opt("--top", "50"))
 ## per-window seed summaries, in the same currency as the candidate tables
@@ -113,6 +117,7 @@ if (file.exists(scan_npz) && !.flag("--refresh-scan")) {
                        chunk_windows = as.integer(chunk_w),
                        batch_size = as.integer(batch_sz),
                        top_k = as.integer(top_k),
+                       ct_pad = ct_pad, nt_pad = nt_pad,
                        thresholds = reticulate::tuple(as.numeric(thresh)),
                        verbose = TRUE)
 }

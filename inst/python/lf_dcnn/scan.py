@@ -144,6 +144,7 @@ def load_member_models(out_dir, cfg: Config, term: str, n_seeds: int | None = No
 def scan(res: Residues, models, cfg: Config, term: str,
          chunk_windows: int = 200_000, batch_size: int = 4096,
          top_k: int = 5, thresholds=(0.2,),
+         ct_pad: bool = False, nt_pad: bool = False,
          progress=None) -> dict[str, np.ndarray]:
     """Score every mature position of every precursor.
 
@@ -208,7 +209,8 @@ def scan(res: Residues, models, cfg: Config, term: str,
         at = 0
         for p in range(i, j):
             a = anchor_of[int(starts[p]):int(starts[p]) + int(counts[p])]
-            x[at:at + a.size] = build_windows(res, p, a, cfg, anchor_pos, pad_col)
+            x[at:at + a.size] = build_windows(res, p, a, cfg, anchor_pos, pad_col,
+                                              ct_pad=ct_pad, nt_pad=nt_pad)
             at += int(a.size)
 
         G = np.empty((n_mem, k), dtype="float64")
@@ -272,7 +274,8 @@ def scan(res: Residues, models, cfg: Config, term: str,
 
 def scan_to_npz(residues_npz, out_dir, term, out_npz, n_seeds=None,
                 calibrator=None, chunk_windows=200_000, batch_size=4096,
-                top_k=5, thresholds=(0.2,), verbose=True) -> dict[str, np.ndarray]:
+                top_k=5, thresholds=(0.2,), ct_pad=False, nt_pad=False,
+                verbose=True) -> dict[str, np.ndarray]:
     """Read residues, rebuild the ensemble, scan, write ``out_npz``.
 
     ``out_dir`` is the isolated trainer's output directory; its sibling
@@ -297,6 +300,7 @@ def scan_to_npz(residues_npz, out_dir, term, out_npz, n_seeds=None,
 
     got = scan(res, models, cfg, term, chunk_windows=chunk_windows,
                batch_size=batch_size, top_k=top_k, thresholds=thresholds,
+               ct_pad=ct_pad, nt_pad=nt_pad,
                progress=prog if verbose else None)
     if calibrator is not None:
         got["score_cal"] = np.asarray(
