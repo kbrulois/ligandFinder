@@ -139,6 +139,31 @@ message(sprintf("terminus %s: train %d, val %d, all %d windows; %d channels",
                 term, nrow(nn_input[[term]]$train), nrow(nn_input[[term]]$val),
                 nrow(nn_input[[term]]$all), length(x$all_params3)))
 
+## ---- drop input channels, if asked ---------------------------------------------
+## For testing whether the 26 channels can be pruned. They are heavily redundant
+## -- DSSP writes relASA, the SS one-hots, phi/psi and the H-bond energies from
+## ONE structure, and they predict each other at R^2 0.75-0.97 -- but redundancy
+## is not uselessness: min_afm and mean_afm each move retrieval <1.2x alone and
+## 2.8x together, so channels must be dropped as a set and judged by retraining,
+## never one at a time by single-feature importance.
+## `padding` is the mask that says where the protein ends, not a feature; it
+## cannot be dropped.
+drop_ch <- .opt("--drop-channels", NA_character_)
+if (!is.na(drop_ch)) {
+  dc   <- trimws(strsplit(drop_ch, ",")[[1]])
+  miss <- setdiff(dc, x$all_params3)
+  if (length(miss)) stop("no such channel(s): ", paste(miss, collapse = ", "), call. = FALSE)
+  keep <- setdiff(x$all_params3, dc)
+  if (!"padding" %in% keep) stop("padding is the mask channel and cannot be dropped", call. = FALSE)
+  for (tm in names(nn_input)) for (sp in names(nn_input[[tm]]))
+    nn_input[[tm]][[sp]]$data <- lapply(nn_input[[tm]][[sp]]$data,
+                                        function(d) d[, keep, drop = FALSE])
+  message(sprintf("dropped %d channel(s): %s\n  channels: %d -> %d",
+                  length(dc), paste(dc, collapse = ", "),
+                  length(x$all_params3), length(keep)))
+  x$all_params3 <- keep
+}
+
 ## ---- PLM channels into the trunk, if asked -------------------------------------
 if (!is.na(plm_p)) {
   plm_p <- path.expand(plm_p)
