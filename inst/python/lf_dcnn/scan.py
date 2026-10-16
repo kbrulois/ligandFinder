@@ -144,7 +144,7 @@ def load_member_models(out_dir, cfg: Config, term: str, n_seeds: int | None = No
 def scan(res: Residues, models, cfg: Config, term: str,
          chunk_windows: int = 200_000, batch_size: int = 4096,
          top_k: int = 5, thresholds=(0.2,),
-         ct_pad: bool = False, nt_pad: bool = False,
+         ct_pad: bool = False, nt_pad: bool = False, keep_members: bool = False,
          progress=None) -> dict[str, np.ndarray]:
     """Score every mature position of every precursor.
 
@@ -177,6 +177,9 @@ def scan(res: Residues, models, cfg: Config, term: str,
 
     mean_all = np.zeros(total, dtype="float32")
     max_all = np.zeros(total, dtype="float32")   # the single most confident member
+    ## every member's own score, for asking whether the ensemble beats its best
+    ## single seed. (n_seeds, total) float32 -- 238 MB at 20 x 2.98M.
+    mem_all = None
     sd_all = np.zeros(total, dtype="float32")
     top_all = np.zeros(total, dtype="float32")
     n_gt = {t: np.zeros(total, dtype="int16") for t in ths}
@@ -244,6 +247,9 @@ def scan(res: Residues, models, cfg: Config, term: str,
             ins_votes[lo_row:hi_row] = c_votes
         mean_all[lo_row:hi_row] = G.mean(0)
         max_all[lo_row:hi_row] = G.max(0)
+        if keep_members:
+            if mem_all is None: mem_all = np.zeros((n_mem, total), dtype="float32")
+            mem_all[:, lo_row:hi_row] = G
         if n_mem > 1:
             sd_all[lo_row:hi_row] = G.std(0, ddof=1)
         # the kk highest members of each window, not the kk best members overall
@@ -260,6 +266,7 @@ def scan(res: Residues, models, cfg: Config, term: str,
     out = {
         "score": mean_all,
         "score_max": max_all,
+        **({"members": mem_all} if mem_all is not None else {}),
         "sd": sd_all,
         f"score_top{kk}": top_all,
         "prot_idx": prot_idx,
@@ -278,7 +285,7 @@ def scan(res: Residues, models, cfg: Config, term: str,
 def scan_to_npz(residues_npz, out_dir, term, out_npz, n_seeds=None,
                 calibrator=None, chunk_windows=200_000, batch_size=4096,
                 top_k=5, thresholds=(0.2,), ct_pad=False, nt_pad=False,
-                verbose=True) -> dict[str, np.ndarray]:
+                keep_members=False, verbose=True) -> dict[str, np.ndarray]:
     """Read residues, rebuild the ensemble, scan, write ``out_npz``.
 
     ``out_dir`` is the isolated trainer's output directory; its sibling
@@ -303,7 +310,7 @@ def scan_to_npz(residues_npz, out_dir, term, out_npz, n_seeds=None,
 
     got = scan(res, models, cfg, term, chunk_windows=chunk_windows,
                batch_size=batch_size, top_k=top_k, thresholds=thresholds,
-               ct_pad=ct_pad, nt_pad=nt_pad,
+               ct_pad=ct_pad, nt_pad=nt_pad, keep_members=keep_members,
                progress=prog if verbose else None)
     if calibrator is not None:
         got["score_cal"] = np.asarray(
