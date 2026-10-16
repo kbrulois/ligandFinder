@@ -43,15 +43,33 @@ import numpy as np
 
 RECS = (0.25, 0.50, 0.75, 1.00)
 ARMS = ("counted", "excluded")
+MOTIF_GROUPS = (
+    ("all anchors",           "no prior",            None),
+    ("monobasic",             "K/R at +1 only",      "monobasic"),
+    ("dibasic",               "K/R at +1 and +2",    "dibasic"),
+    ("G-dibasic (amidation)", "G then K/R at +2,+3", "G + dibasic"),
+)
 
 
-def groups(motif, L, n):
-    return [
-        ("all anchors",           "no prior",              np.ones(n, bool)),
-        ("monobasic",             "K/R at +1 only",        motif == L["monobasic"]),
-        ("dibasic",               "K/R at +1 and +2",      motif == L["dibasic"]),
-        ("G-dibasic (amidation)", "G then K/R at +2,+3",   motif == L["G + dibasic"]),
-    ]
+def groups(motif, L, n, keep=None, asa=None, asa_thresholds=()):
+    """Motif groups, optionally crossed with a floor on the windowed relASA.
+
+    Returned as (name, desc, mask, motif_group, asa_threshold) so the plot can
+    treat the motif and the exposure filter as separate dimensions.
+    """
+    base = []
+    for name, desc, cls in MOTIF_GROUPS:
+        if keep and name not in keep:
+            continue
+        base.append((name, desc, np.ones(n, bool) if cls is None else motif == L[cls]))
+    if not asa_thresholds:
+        return [(nm, d, m, nm, 0.0) for nm, d, m in base]
+    out = []
+    for nm, d, m in base:
+        for t in asa_thresholds:
+            lab = nm if t <= 0 else f"{nm}, relASA >= {t:g}"
+            out.append((lab, d, m if t <= 0 else (m & (asa >= t)), nm, float(t)))
+    return out
 
 
 def load_other_ends(tables, term, pr):
@@ -74,7 +92,14 @@ def main():
     ap_.add_argument("--term", default="C", choices=["N", "C"])
     ap_.add_argument("--a2", default=os.path.expanduser("~/AF2_analysis"))
     ap_.add_argument("--score-key", default="score", help="score | score_top5 | score_max")
+    ap_.add_argument("--asa-thresholds", default="",
+                     help="comma list of windowed-relASA floors, e.g. 0,0.2,0.4,0.6,0.8")
+    ap_.add_argument("--only-groups", default="",
+                     help="comma list of motif group names to keep")
+    ap_.add_argument("--prefix", default="motif", help="output filename prefix")
     a = ap_.parse_args()
+    thr = tuple(float(x) for x in a.asa_thresholds.split(",") if x.strip() != "")
+    keep = tuple(x.strip() for x in a.only_groups.split(",") if x.strip() != "")
     OUT = os.path.join(a.a2, "pepend_motif"); os.makedirs(OUT, exist_ok=True)
 
     z = np.load(os.path.join(a.a2, f"lf_pepend_scanmax_{a.term}_near.npz"))
@@ -85,6 +110,11 @@ def main():
     L = {s: i + 1 for i, s in enumerate(lv)}
     if len(motif) != len(score):
         raise SystemExit(f"motif has {len(motif)} rows, scan has {len(score)} -- rebuild the codes")
+    asa = None
+    if thr:
+        asa = np.load(os.path.join(a.a2, f"lf_pepend_relasa_{a.term}.npz"))["asa_w"]
+        if len(asa) != len(score):
+            raise SystemExit(f"relASA has {len(asa)} rows, scan has {len(score)}")
 
     ## locate the known ends in the scan's row order
     pr = {r["accession"]: i for i, r in
@@ -127,7 +157,7 @@ def main():
                             n_anchors=int((motif == L[name]).sum()),
                             n_ends=int((motif[sel] == L[name]).sum()),
                             n_ends_all=len(sel)))
-    with open(os.path.join(OUT, "motif_coverage.csv"), "w", newline="") as f:
+    with open(os.path.join(OUT, f"{a.prefix}_coverage.csv"), "w", newline="") as f:
         w = csv.DictWriter(f, list(cov[0].keys())); w.writeheader(); w.writerows(cov)
 
     res, curves = {}, []
@@ -141,8 +171,8 @@ def main():
             drop[train_rows] = True
         drop &= ~lab
         tab = []
-        for (name, desc, base), arm in ((g, m) for g in groups(motif, L, len(score))
-                                        for m in ARMS):
+        for (name, desc, base, mg, at), arm in (
+                (g, m) for g in groups(motif, L, len(score), keep, asa, thr) for m in ARMS):
             sel = base & ~drop if arm == "excluded" else base
             s, y = score[sel], lab[sel]
             y = y[np.argsort(-s, kind="stable")]
@@ -153,7 +183,8 @@ def main():
             prec = tp / rank
             rec = tp / ng            # within the group: always reaches 1
             rec_all = tp / npos      # the global denominator, kept for reference
-            row = dict(group=name, desc=desc, split=tag, arm=arm, n_anchors=len(y),
+            row = dict(group=name, desc=desc, motif_group=mg, asa=at,
+                       split=tag, arm=arm, n_anchors=len(y),
                        n_dropped=int((base & drop).sum()), n_ends=ng, n_ends_all=npos,
                        share_of_ends=ng / npos, prevalence=ng / len(y),
                        ap=float(prec[y].sum() / ng))
@@ -167,18 +198,19 @@ def main():
                 np.flatnonzero(y),
                 np.clip(np.unique(np.logspace(0, np.log10(len(y)), 1500).astype(np.int64)) - 1,
                         0, len(y) - 1)]))
-            curves += [dict(split=tag, arm=arm, group=name, rank=int(i + 1),
+            curves += [dict(split=tag, arm=arm, group=name, motif_group=mg, asa=at,
+                            rank=int(i + 1),
                             precision=float(prec[i]), recall=float(rec[i]),
                             recall_all=float(rec_all[i])) for i in idx]
         res[tag] = tab
 
-    with open(os.path.join(OUT, "motif_pr.json"), "w") as f:
+    with open(os.path.join(OUT, f"{a.prefix}_pr.json"), "w") as f:
         json.dump(res, f, indent=1)
-    with open(os.path.join(OUT, "motif_curves.csv"), "w", newline="") as f:
-        w = csv.DictWriter(f, ["split", "arm", "group", "rank", "precision",
-                               "recall", "recall_all"])
+    with open(os.path.join(OUT, f"{a.prefix}_curves.csv"), "w", newline="") as f:
+        w = csv.DictWriter(f, ["split", "arm", "group", "motif_group", "asa", "rank",
+                               "precision", "recall", "recall_all"])
         w.writeheader(); w.writerows(curves)
-    with open(os.path.join(OUT, "motif_table.csv"), "w", newline="") as f:
+    with open(os.path.join(OUT, f"{a.prefix}_table.csv"), "w", newline="") as f:
         w = csv.DictWriter(f, list(res["heldout"][0].keys())); w.writeheader()
         for t in res.values(): w.writerows(t)
 
@@ -186,11 +218,11 @@ def main():
         for arm in ARMS:
             print(f"\n=== {tag} {a.term} ends, recall within group, "
                   f"other real ends {arm} ===")
-            print(f"{'group':24s}{'anchors':>10s}{'dropped':>8s}{'ends':>6s}{'share':>7s}"
+            print(f"{'group':36s}{'anchors':>10s}{'dropped':>8s}{'ends':>6s}{'share':>7s}"
                   f"{'prev':>10s}{'AP':>7s}{'lift':>7s}"
                   f"  {'to 50%':>8s}{'prec':>7s}  {'to 100%':>9s}{'prec':>7s}")
             for r in (x for x in res[tag] if x["arm"] == arm):
-                print(f"{r['group']:24s}{r['n_anchors']:>10,d}{r['n_dropped']:>8,d}"
+                print(f"{r['group']:36s}{r['n_anchors']:>10,d}{r['n_dropped']:>8,d}"
                       f"{r['n_ends']:>6d}{r['share_of_ends']:>7.0%}{r['prevalence']:>10.1e}"
                       f"{r['ap']:>7.3f}{r['lift']:>7.0f}"
                       f"  {r['n_at_r50']:>8,d}{r['p_at_r50']:>7.3f}"
