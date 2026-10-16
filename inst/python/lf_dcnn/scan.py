@@ -176,6 +176,7 @@ def scan(res: Residues, models, cfg: Config, term: str,
     starts = np.concatenate(([0], np.cumsum(counts)))[:-1]
 
     mean_all = np.zeros(total, dtype="float32")
+    max_all = np.zeros(total, dtype="float32")   # the single most confident member
     sd_all = np.zeros(total, dtype="float32")
     top_all = np.zeros(total, dtype="float32")
     n_gt = {t: np.zeros(total, dtype="int16") for t in ths}
@@ -242,6 +243,7 @@ def scan(res: Residues, models, cfg: Config, term: str,
                 ins_sd_ins[lo_row:hi_row] = np.sqrt(np.clip(var, 0.0, None))
             ins_votes[lo_row:hi_row] = c_votes
         mean_all[lo_row:hi_row] = G.mean(0)
+        max_all[lo_row:hi_row] = G.max(0)
         if n_mem > 1:
             sd_all[lo_row:hi_row] = G.std(0, ddof=1)
         # the kk highest members of each window, not the kk best members overall
@@ -257,6 +259,7 @@ def scan(res: Residues, models, cfg: Config, term: str,
 
     out = {
         "score": mean_all,
+        "score_max": max_all,
         "sd": sd_all,
         f"score_top{kk}": top_all,
         "prot_idx": prot_idx,
