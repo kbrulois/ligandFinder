@@ -64,6 +64,9 @@ def main(argv=None):
                     help="cut every scanned C window at its anchor, for a run trained "
                          "on a 10_7 --ct-pad set. The heads need no change: they are "
                          "fitted on the run's own exported windows, already padded")
+    ap.add_argument("--members", default=None,
+                    help="comma-separated 0-based member indices to use instead of all, "
+                         "for building a single-seed track")
     ap.add_argument("--save-val", action="store_true",
                     help="also write the validation labels and each head's validation "
                          "predictions (_val__y, _val__cnn, _val__xgb_pm), for AUC curves")
@@ -84,6 +87,12 @@ def main(argv=None):
     iso = _iso(a.run)
     cfg = Config.from_json(iso / "in" / "config.json")
     models = load_member_models(iso / "out", cfg, a.term)
+    if a.members:
+        sel = [int(v) for v in a.members.split(",")]
+        bad = [v for v in sel if not 0 <= v < len(models)]
+        if bad: ap.error(f"member(s) {bad} outside 0..{len(models)-1}")
+        models = [models[v] for v in sel]
+        print(f"using {len(models)} of the ensemble's members: {sel}", flush=True)
     pi_names = [str(c) for c in cfg.pi_names]
     anchor = PEPEND_ANCHOR[a.term]
     pad_col = cfg.channel_names.index("padding")

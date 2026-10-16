@@ -295,6 +295,15 @@ lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
   tryCatch({
     .m <- lf_track_models(mod, iso, term)
     cfg <- .m$cfg; models <- .m$models
+    ## options(lf.track_member = k): draw the page from ONE ensemble member,
+    ## 0-based as the weight files are named, instead of averaging all 20
+    .one <- getOption(sprintf("lf.track_member_%s", term), getOption("lf.track_member", NULL))
+    if (!is.null(.one)) {
+      k <- as.integer(.one) + 1L
+      if (k < 1L || k > length(models))
+        stop("lf.track_member ", .one, " is outside 0..", length(models) - 1L, call. = FALSE)
+      models <- models[k]
+    }
     feat <- fc$feats[[i]]
     anchors <- seq.int(n_prot, c_prot)
     w_start <- anchors - LF_PEPEND$anchor[[term]] + 1L
