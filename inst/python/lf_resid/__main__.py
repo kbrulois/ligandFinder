@@ -81,10 +81,12 @@ def cmd_train(a):
 
     rows, lab_prot, ctrl = D.training_rows(d, n_ctrl=a.n_ctrl, seed=a.seed)
     tr, va = D.split_by_precursor(d, rows, val_frac=a.val_frac, seed=a.seed,
-                                  swap=a.swap_splits)
+                                  swap=a.swap_splits, groups=not a.no_groups)
+    _unit = ("similarity groups" if (d.prec_group is not None and not a.no_groups)
+             else "whole precursors")
     print(f"training rows {len(rows):,} over {lab_prot.size} labelled + {ctrl.size} control "
           f"precursors -> train {len(tr):,}, val {len(va):,} "
-          f"(split on whole precursors)", flush=True)
+          f"(split on {_unit})", flush=True)
 
     mature = np.flatnonzero(d.mature == 1)
 
@@ -204,6 +206,9 @@ def main(argv=None):
     t.add_argument("--member-retries", type=int, default=3,
                    help="attempts per member before giving up; members fail\n"
                         "intermittently inside the keras AUC metric")
+    t.add_argument("--no-groups", action="store_true",
+                   help="split on individual precursors instead of the similarity "
+                        "groups 10_9p exports (the pre-2026-10-18 behaviour)")
     t.add_argument("--swap-splits", action="store_true",
                    help="exchange train and val; with --val-frac 0.5 this is the "
                         "second fold of a 2-fold cross-validation")

@@ -81,6 +81,28 @@ secretome_p <- path.expand(.opt("--secretome", "~/AF2_analysis/secretome_latest.
 aa_p        <- path.expand(.opt("--secretome-aa", "~/peptide_alg/build_residue_db/processed/secretome_aa.rds"))
 nn_dat_p    <- path.expand(.opt("--nn-dat-cache", "~/AF2_analysis/nn_dat_cache.rds"))
 feat_cache  <- path.expand(.opt("--feature-cache", "~/AF2_analysis/lf_pepend_residue_cache.rds"))
+## --positional-index: number each secretome_aa row by its POSITION within its
+## accession instead of trusting its `index` column. 9_expand_by_residue.R omits
+## "ref_index" from dat_to_expand, so `index` is inherited from the DSSP table --
+## AlphaFold fragment 1 only, residues 1-1400 -- and 172,981 rows in 125
+## accessions carry real conservation / AlphaMissense data under index = NA,
+## unreachable by the (index, AA) join. The rows themselves are built one per
+## residue of sequence_uni in order (expand_by_residue binds its sub-tables with
+## bind_cols, positionally), so row order IS residue order: verified for all
+## 5,616 cached precursors (row letters spell sequence_uni exactly, nrow ==
+## nchar) and against the old cache on the 4 continuous channels over 439
+## precursors whose old index was valid (max |diff| 0).
+pos_index   <- "--positional-index" %in% .args
+## --mask-channels: append per-SOURCE missing-data flags, 1 where that source has
+## no value for the residue and 0 where it does. Missingness is NOT global --
+## past residue 1400 DSSP genuinely stops (no AlphaFold model) while cons and
+## afm continue -- so one flag per source, not one flag overall. Without these
+## the models read an uncovered residue as a confident mid-range measurement:
+## every channel of it is 0, which after min-max scaling is a real value.
+mask_chan   <- "--mask-channels" %in% .args
+## the cache the regression check compares against -- a REBUILD writes a new
+## --feature-cache, so the baseline has to be named separately
+regress_p   <- path.expand(.opt("--regress-against", "~/AF2_analysis/lf_pepend_residue_cache.rds"))
 
 .this <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
 ROOT  <- if (length(.this)) normalizePath(file.path(dirname(.this[[1]]), "..", "..")) else getwd()
@@ -183,12 +205,37 @@ if (file.exists(feat_cache) && !"--rebuild-features" %in% .args) {
   scale_cols   <- setdiff(all_params3, c(aa_prop_cols, "padding"))
   stopifnot(identical(sort(colnames(chan_range)), sort(scale_cols)))
 
+  ## which scaled channel comes from which upstream source, for --mask-channels
+  mask_src <- list(
+    no_cons   = "cons_rs_n",
+    no_afm    = c("min_afm", "mean_afm"),
+    no_struct = c("relASA", grep("^SS_", scale_cols, value = TRUE),
+                  "Phi_cos", "Psi_cos", "Phi_sin", "Psi_sin",
+                  grep("_energy$", scale_cols, value = TRUE)))
+  stopifnot(all(unlist(mask_src) %in% scale_cols))
+  mask_cols <- if (mask_chan) names(mask_src) else character(0)
+  if (mask_chan) {
+    ## the mask flags sit after `padding` so every existing channel keeps its
+    ## index -- Config finds `padding` by name, but a reordering would still
+    ## invalidate every saved member silently
+    all_params3 <- c(all_params3, mask_cols)
+    message("mask channels: ", paste(mask_cols, collapse = ", "),
+            " -> ", length(all_params3), " channels")
+  }
+
   message("reading ", aa_p, " (~3 GB) ...")
   sa <- readRDS(aa_p)
   sa <- as.data.frame(sa)[, c("accession", "index", "AA", scale_cols)]
   for (cn in scale_cols)
     sa[[cn]] <- pmin(pmax((sa[[cn]] - chan_range[1, cn]) / (chan_range[2, cn] - chan_range[1, cn]), 0), 1)
   sa_rows <- split(seq_len(nrow(sa)), sa$accession)
+  if (pos_index) {
+    ## row position within the accession, in the table's own row order
+    sa$index <- unlist(lapply(sa_rows, seq_along), use.names = FALSE)[order(unlist(sa_rows))]
+    n_na <- sum(is.na(sa$index)); stopifnot(n_na == 0)
+    message("positional index: renumbered ", nrow(sa), " rows in ",
+            length(sa_rows), " accessions")
+  }
   invisible(gc())
 
   ## a residue scaffold from the sequence, with secretome_aa joined on
@@ -197,25 +244,66 @@ if (file.exists(feat_cache) && !"--rebuild-features" %in% .args) {
   residue_matrix <- function(acc, seq) {
     aa <- strsplit(seq, "")[[1]]; n <- length(aa)
     m <- matrix(0, n, length(all_params3), dimnames = list(NULL, all_params3))
+    ## present[i, j] = this residue has a value for scaled channel j. Everything
+    ## not covered keeps the 0 fill, as before, but the mask records WHICH.
+    present <- matrix(FALSE, n, length(scale_cols), dimnames = list(NULL, scale_cols))
     r <- sa_rows[[acc]]
     if (length(r)) {
       s <- sa[r, , drop = FALSE]
       s <- s[which(s$index >= 1 & s$index <= n), , drop = FALSE]
       s <- s[which(s$AA == aa[s$index]), , drop = FALSE]
       s <- s[!duplicated(s$index), , drop = FALSE]
-      v <- as.matrix(s[, scale_cols]); v[is.na(v)] <- 0
+      v <- as.matrix(s[, scale_cols])
+      present[s$index, ] <- !is.na(v)
+      v[is.na(v)] <- 0
       m[s$index, scale_cols] <- v
     }
     p <- as.matrix(aa_props[match(aa, aa_props$AA), aa_prop_cols]); p[is.na(p)] <- 0
     m[, aa_prop_cols] <- p
+    if (mask_chan)
+      for (nm in mask_cols)
+        m[, nm] <- as.numeric(!apply(present[, mask_src[[nm]], drop = FALSE], 1, any))
     m
   }
   message("building residue features for ", nrow(prec), " precursors ...")
   feats <- setNames(map2(prec$accession, prec$seq, residue_matrix), prec$accession)
   rm(sa, sa_rows); invisible(gc())
 
-  ## the check: rebuild cached production windows' inputs. Their coordinates
-  ## are in the name; interior (unpadded) ones must match what 9.2 stored.
+  ## ---- the check ---------------------------------------------------------
+  ## Default: rebuild cached production windows' inputs and demand they match
+  ## 9.2 exactly. That check is only meaningful while the features are 9.2's --
+  ## --positional-index / --mask-channels change them ON PURPOSE, so it is
+  ## replaced by the invariant that actually matters there: wherever the PREVIOUS
+  ## cache held data, the new features must reproduce it bit for bit. New
+  ## coverage is allowed; changed coverage is not.
+  if (pos_index || mask_chan) {
+    if (!file.exists(regress_p))
+      message("no baseline cache at ", regress_p, " -- skipping the regression check")
+    else {
+      message("regression check against ", basename(regress_p), " ...")
+      .old <- readRDS(regress_p)
+      .sc  <- intersect(.old$all_params3, scale_cols)
+      .acc <- intersect(names(.old$feats), names(feats))
+      set.seed(1); .acc <- sample(.acc, min(600, length(.acc)))
+      .d <- vapply(.acc, function(a) {
+        o <- .old$feats[[a]]; n <- feats[[a]]
+        if (!identical(dim(o)[1], dim(n)[1])) return(NA_real_)
+        ## residues the old cache actually covered: not every channel 0 at once
+        had <- rowSums(abs(o[, .sc, drop = FALSE])) > 0
+        if (!any(had)) return(0)
+        max(abs(o[had, .sc, drop = FALSE] - n[had, .sc, drop = FALSE]))
+      }, numeric(1))
+      message(sprintf("  %d precursors, max |new - old| where the old cache had data: %.3g",
+                      sum(!is.na(.d)), max(.d, na.rm = TRUE)))
+      if (max(.d, na.rm = TRUE) > 1e-6)
+        stop("the rebuild CHANGED features the old cache already had; see the check above")
+      .cov <- function(f) mean(unlist(lapply(f[.acc], function(m)
+        rowSums(abs(m[, .sc, drop = FALSE])) > 0)))
+      message(sprintf("  residues with any data: %.1f%% -> %.1f%%",
+                      100 * .cov(.old$feats), 100 * .cov(feats)))
+      rm(.old); invisible(gc())
+    }
+  } else {
   chk <- old_known %>%
     mutate(wN = as.integer(stringr::str_match(peps, "_w(\\d+)-(\\d+)$")[, 2])) %>%
     filter(map_lgl(meta_data, ~ !anyNA(.x$AA))) %>%
@@ -228,6 +316,7 @@ if (file.exists(feat_cache) && !"--rebuild-features" %in% .args) {
   message(sprintf("feature check vs %d cached production windows: max |diff| %.2g", length(dev), max(dev)))
   if (max(dev) > 1e-6) stop("features do not reproduce 9.2's windows; see the check above")
   rm(old_known); invisible(gc())
+  }
 
   saveRDS(list(prec = prec, feats = feats, all_params3 = all_params3), feat_cache)
   message("cached precursor features to ", feat_cache)

@@ -33,6 +33,10 @@ class Residues:
     labelled: np.ndarray     # (n_prot,) int8, precursor has any docked peptide
     accession: np.ndarray
     gene: np.ndarray
+    #: (n_prot,) int32 similarity group, from 10_9p: precursors whose known ends
+    #: cluster together at ``sim_h`` share one.  ``None`` for a labels npz built
+    #: before groups existed, which falls back to one group per precursor.
+    prec_group: np.ndarray | None = None
 
     def __len__(self) -> int:
         return int(self.x.shape[0])
@@ -112,6 +116,8 @@ def load(residues_npz, labels_npz, context=DEFAULT_CONTEXT,
         prot_idx=prot_idx, resno=lab["resno"].astype("int32"),
         mature=lab["mature"].astype("int8"), labelled=lab["labelled"].astype("int8"),
         accession=np.asarray(lab["accession"]), gene=np.asarray(lab["gene"]),
+        prec_group=(lab["prec_group"].astype("int32")
+                    if "prec_group" in lab.files else None),
     )
 
 
@@ -133,19 +139,43 @@ def training_rows(d: Residues, n_ctrl: int = 100, seed: int = 42):
 
 
 def split_by_precursor(d: Residues, rows: np.ndarray, val_frac: float = 0.4,
-                       seed: int = 42, swap: bool = False):
-    """Train/val split on WHOLE precursors.
+                       seed: int = 42, swap: bool = False, groups: bool = True):
+    """Train/val split on whole precursors, grouped by sequence similarity.
 
     Splitting on rows would put residues of one protein on both sides, and
     neighbouring residues are near-duplicates of each other once context columns
-    are attached -- the val score would then be measuring memorisation.
+    are attached -- the val score would then be measuring memorisation.  Whole
+    precursors fix that, but not homology: two precursors carrying near-identical
+    peptides (the galanin/GALP, gastrin/CCK, the natriuretic peptides...) could
+    still land on opposite sides, which is exactly what 9.2's ``split_knowns``
+    has always clustered away on the window side.
+
+    So the unit here is ``d.prec_group`` -- precursors whose known ends cluster
+    together at 10_7's ``sim_h`` -- and the whole group moves to one side.
+    ``groups=False`` restores the old per-precursor shuffle; so does a labels npz
+    with no ``prec_group`` array, with a warning, because silently reverting to a
+    weaker split is how a leak gets reported as a result.
     """
     rng = np.random.default_rng(seed)
-    prots = np.unique(d.prot_idx[rows])
-    rng.shuffle(prots)
-    n_val = max(1, int(round(val_frac * prots.size)))
-    val_prot = set(prots[:n_val].tolist())
-    is_val = np.array([p in val_prot for p in d.prot_idx[rows]])
+    if groups and d.prec_group is None:
+        print("  WARNING: labels npz has no prec_group -- falling back to a "
+              "per-precursor split; rerun 10_9p to cluster", flush=True)
+    use_groups = groups and d.prec_group is not None
+    # the group (or the precursor itself) each training row belongs to
+    key = d.prec_group[d.prot_idx[rows]] if use_groups else d.prot_idx[rows]
+    units = np.unique(key)
+    rng.shuffle(units)
+    # Balance on ROWS, not on unit count: a similarity group can hold several
+    # precursors, so an equal split of groups is not an equal split of residues.
+    size = {u: int(np.sum(key == u)) for u in units.tolist()}
+    target = val_frac * len(rows)
+    val_u, acc = set(), 0
+    for u in units.tolist():
+        if acc >= target:
+            break
+        val_u.add(u)
+        acc += size[u]
+    is_val = np.isin(key, list(val_u))
     # `swap` is the second fold: with val_frac 0.5 the two sides exchange, so
     # every precursor is held out in exactly one of the two runs
     if swap:
