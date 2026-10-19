@@ -117,7 +117,7 @@ def load(residues_npz, labels_npz, context=DEFAULT_CONTEXT,
         mature=lab["mature"].astype("int8"), labelled=lab["labelled"].astype("int8"),
         accession=np.asarray(lab["accession"]), gene=np.asarray(lab["gene"]),
         prec_group=(lab["prec_group"].astype("int32")
-                    if "prec_group" in lab.files else None),
+                    if "prec_group" in lab else None),
     )
 
 
