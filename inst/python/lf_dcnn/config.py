@@ -117,7 +117,26 @@ class Config:
     #:                  access to the pooled whole-window representation instead
     #:                  of forcing it through the 7-channel class softmax.
     #: ``"both"``       concatenate the two pooled vectors.
+    #: ``"flatten"``    the same masked class softmax, flattened (36 x K) into
+    #:                  the embedding. Every position has weights of its own, so
+    #:                  the score can depend on WHERE a class sits -- attention
+    #:                  and every pool above are blind to that.
     global_head: str = "attn"
+    #: effective learning-rate multiplier on the window head's dense layers
+    #: (``embed`` and ``global``; for ``"flatten"`` that is the whole head). Done
+    #: by storing those weights divided by it and using them multiplied by it:
+    #: Adam's step on a stored weight is ~``learning_rate`` whatever its
+    #: gradient's scale, so the weight in use moves this many times faster.
+    #: Raising ``loss_weight_global`` instead would NOT do that -- Adam
+    #: normalises each weight's gradient, so a loss term's scale barely moves the
+    #: head's own steps, only how hard that loss pulls on the trunk.
+    head_lr_mult: float = 1.0
+    #: zero the class/position combinations :attr:`mask_matrix_cat` forbids
+    #: before the global head's class softmax. ``False`` is the ablation: the
+    #: padding logit is still dropped, so the shapes and parameter count are
+    #: identical and only the position constraint goes. The per-index head
+    #: never sees the mask either way.
+    class_position_mask: bool = True
     #: a second window-level head: a 3-way softmax over the insertion classes
     #: (see :data:`PEPEND_INS_CLASSES`), reading the same pooled embedding the
     #: window score does.
@@ -260,6 +279,8 @@ class Config:
         object.__setattr__(self, "position_ramp", bool(self.position_ramp))
         object.__setattr__(self, "include_none", bool(self.include_none))
         object.__setattr__(self, "none_in_loss", bool(self.none_in_loss))
+        object.__setattr__(self, "class_position_mask", bool(self.class_position_mask))
+        object.__setattr__(self, "head_lr_mult", float(self.head_lr_mult))
         if self.none_in_loss and not self.include_none:
             raise ValueError("none_in_loss needs include_none: there is no `none` column to train")
         for f in ("conv_dropout", "unet_dropout", "nt_span", "ct_span", "mid_span"):
@@ -279,10 +300,12 @@ class Config:
                 raise ValueError(f"class_names must contain {name!r}")
         if self.trunk not in ("flat", "unet"):
             raise ValueError(f"trunk must be 'flat' or 'unet', got {self.trunk!r}")
-        if self.global_head not in ("attn", "gap", "bottleneck", "both"):
+        if self.global_head not in ("attn", "gap", "bottleneck", "both", "flatten"):
             raise ValueError(
-                "global_head must be 'attn', 'gap', 'bottleneck' or 'both', got "
-                f"{self.global_head!r}")
+                "global_head must be 'attn', 'gap', 'bottleneck', 'both' or 'flatten', "
+                f"got {self.global_head!r}")
+        if not self.head_lr_mult > 0:
+            raise ValueError(f"head_lr_mult must be > 0, got {self.head_lr_mult!r}")
         ## `gap` reads the class softmax like `attn` does, so it needs no
         ## bottleneck and works on either trunk
         if self.global_head in ("bottleneck", "both") and self.trunk != "unet":

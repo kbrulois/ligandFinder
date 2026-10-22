@@ -71,6 +71,45 @@ class ClassPositionMask(layers.Layer):
         return {**super().get_config(), "mask_matrix": self.mask_matrix.tolist()}
 
 
+@keras.saving.register_keras_serializable(package="lf_dcnn")
+class LRScaledDense(layers.Dense):
+    """A Dense that trains ``lr_mult`` times faster under Adam.
+
+    The kernel and bias are STORED divided by ``lr_mult`` and USED multiplied by
+    it (the "equalized learning rate" reparameterisation). Adam's step on a
+    stored weight is ~``learning_rate`` whatever the gradient's scale, so the
+    weight in use moves ``lr_mult`` times as far per step. The function at
+    initialisation is unchanged: the stored weights start at init / ``lr_mult``.
+    """
+
+    def __init__(self, units, lr_mult=1.0, **kw):
+        super().__init__(units, **kw)
+        self.lr_mult = float(lr_mult)
+
+    def build(self, input_shape):
+        super().build(input_shape)
+        self._kernel.assign(self._kernel / self.lr_mult)
+        if self.use_bias:
+            self.bias.assign(self.bias / self.lr_mult)
+
+    def call(self, inputs, training=None):
+        y = ops.matmul(inputs, self._kernel * self.lr_mult)
+        if self.use_bias:
+            y = ops.add(y, self.bias * self.lr_mult)
+        return self.activation(y) if self.activation is not None else y
+
+    def get_config(self):
+        return {**super().get_config(), "lr_mult": self.lr_mult}
+
+
+def _head_dense(cfg: Config, units, **kw):
+    """The window head's dense layers: plain at ``head_lr_mult == 1``, so every
+    existing model rebuilds exactly as it was trained."""
+    if cfg.head_lr_mult == 1.0:
+        return layers.Dense(units, **kw)
+    return LRScaledDense(units, lr_mult=cfg.head_lr_mult, **kw)
+
+
 def _flat_trunk(x, cfg: Config, reg):
     """Full-resolution trunk: every layer stays at ``seq_len`` positions.
 
@@ -195,10 +234,15 @@ def build_model(cfg: Config | None = None, clear_session: bool = True) -> keras.
     per_index_cat = layers.Activation("softmax", name="per_index_cat")(per_index_logits)
 
     pooled = []
-    if cfg.global_head in ("attn", "gap", "both"):
+    if cfg.global_head in ("attn", "gap", "both", "flatten"):
         # Masked softmax over the [6 real + none] logits, so the ranking head's
-        # class view includes background/none but not padding.
-        masked_sum = ClassPositionMask(cfg.mask_matrix_cat, name="class_position_mask")(
+        # class view includes background/none but not padding. Without the
+        # position mask the same layer runs with an all-ones matrix, so the
+        # padding drop and the layer name (and saved weights) stay the same.
+        mask = cfg.mask_matrix_cat
+        if not cfg.class_position_mask:
+            mask = np.ones_like(mask)
+        masked_sum = ClassPositionMask(mask, name="class_position_mask")(
             per_index_logits
         )
         masked_sum = layers.Activation("softmax", name="masked_sum")(masked_sum)
@@ -210,6 +254,12 @@ def build_model(cfg: Config | None = None, clear_session: bool = True) -> keras.
             # was a different training set and a different window geometry, so
             # the arm is kept runnable rather than only remembered.
             pooled.append(layers.GlobalAveragePooling1D(name="gap")(masked_sum))
+        elif cfg.global_head == "flatten":
+            # Position-aware: (36, K) flattened, so the embedding has separate
+            # weights for every position x class -- "CT context starting at 29"
+            # and "CT context starting at 33" are different inputs, which no
+            # pool over positions can tell apart.
+            pooled.append(layers.Flatten(name="flat_cls")(masked_sum))
         else:
             # A SMALL multi-head attention over the masked class softmax, then
             # pool, at ~1/6 the cost of the old 4-head/key_dim-32 version.
@@ -227,9 +277,9 @@ def build_model(cfg: Config | None = None, clear_session: bool = True) -> keras.
     g = pooled[0] if len(pooled) == 1 else layers.Concatenate(name="global_feats")(pooled)
     # The dense named "embed" is the representation reused (no new loss) for
     # nearest-known retrieval, whichever pooling fed it.
-    g = layers.Dense(cfg.embed_units, activation="gelu", name="embed")(g)
+    g = _head_dense(cfg, cfg.embed_units, activation="gelu", name="embed")(g)
     g = layers.Dropout(cfg.embed_dropout, name="embed_drop")(g)
-    global_output = layers.Dense(1, activation="sigmoid", name="global")(g)
+    global_output = _head_dense(cfg, 1, activation="sigmoid", name="global")(g)
 
     outputs = {"global": global_output, "per_index_cat": per_index_cat}
     if cfg.ins_head:
