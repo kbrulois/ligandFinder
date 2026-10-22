@@ -396,6 +396,31 @@ lf_track_pool_residues <- function(S, anchors, n_prot, c_prot, term,
 }
 
 #' Everything the page needs, or NULL for whatever cannot be built
+#' Which fold held each known end out, for this precursor
+#'
+#' Under 5-fold CV a known end is TRAINING in four folds and held out in exactly
+#' one, so on a per-fold track there is a single series whose value at that
+#' residue is honest -- the other four trained on it. That one point gets a mark
+#' of its own. Reads `lf.cv_knowns`, a list(N =, C =) of the CV knowns csvs.
+#' @keywords internal
+lf_track_heldout_marks <- function(accession) {
+  paths <- getOption("lf.cv_knowns", NULL)
+  if (is.null(paths) || !length(paths)) return(NULL)
+  out <- lapply(names(paths), function(tm) {
+    p <- path.expand(paths[[tm]])
+    if (!file.exists(p)) return(NULL)
+    d <- utils::read.csv(p, stringsAsFactors = FALSE)
+    if (!all(c("accession", "anchor", "fold") %in% names(d))) return(NULL)
+    d <- d[d$accession == accession & !is.na(d$fold), , drop = FALSE]
+    if (!nrow(d)) return(NULL)
+    data.frame(term = sprintf("%s fold %d", tm, as.integer(d$fold)),
+               terminus = tm, residue = as.integer(d$anchor),
+               fold = as.integer(d$fold), stringsAsFactors = FALSE)
+  })
+  out <- do.call(rbind, out)
+  if (is.null(out) || !nrow(out)) NULL else out
+}
+
 #' @export
 lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
                                  want_per_index = TRUE) {
@@ -439,6 +464,7 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
   if (is.null(win) && is.null(rp) && is.null(resid)) return(NULL)
   if (!is.null(pix) && length(extra_pix)) pix$extra <- extra_pix
   list(win = win, rp = rp, resid = resid, extra_resid = extra_resid, pix = pix,
+       heldout = lf_track_heldout_marks(accession),
        anchors = if (is.null(pix)) NULL else pix$anchors)
 }
 
@@ -458,6 +484,14 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
 #' one, well clear of `pep_other`'s pale #D5E4A2 without going neon.
 #' @export
 LF_TERM_COLS <- c(N = "#2BA84A", C = "#D95F0E")
+
+#' The same two termini, darkened, for the all-50 ensemble drawn over a fold track
+#'
+#' Same hue as the fold series so the terminus still reads at a glance, but
+#' clearly heavier -- the ensemble is the reference line, the folds are the
+#' spread around it.
+#' @export
+LF_TERM_COLS_ENS <- c(N = "#13632A", C = "#8A3C08")
 
 
 
@@ -502,6 +536,13 @@ lf_plot_class_track <- function(d, x_range, aa, gene, legend = FALSE,
                                 seq_offset = -0.45, ylab = NULL,
                                 note = "mean of N and C") {
   if (is.null(d) || !nrow(d)) return(NULL)
+  ## FORCE the lazily-used arguments. `note` is referenced only inside the
+  ## aes() sprintf below, which ggplot evaluates when the plot is BUILT -- so a
+  ## caller looping `for (k in seq_along(terms))` and passing
+  ## `sprintf(..., terms[k])` had every track's tooltip read the LAST k. The N
+  ## class track rendered its points correctly but labelled them "C terminus
+  ## windows only". `ylab` escaped it only because `lab <-` forces it here.
+  force(note); force(gene); force(aa)
   n_terms <- length(unique(d$term))
   d <- dplyr::summarise(dplyr::group_by(d, residue, class),
                         mean = mean(mean), sd = mean(sd), n_win = sum(n_win),
@@ -542,7 +583,8 @@ lf_plot_class_track <- function(d, x_range, aa, gene, legend = FALSE,
 #' which.
 #' @keywords internal
 lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
-                              seq_offset = -0.45, group = NA_character_, ylab = NULL) {
+                              seq_offset = -0.45, group = NA_character_, ylab = NULL,
+                              overlay = NULL, held = NULL) {
   ## the page's own series have no group; an extra run's carry one, and each
   ## group gets a track of its own
   if (is.null(d$group)) d$group <- NA_character_
@@ -551,27 +593,90 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
   keep <- d$head == head_nm & (if (is.na(group)) is.na(d$group) else d$group %in% group)
   d <- d[keep, , drop = FALSE]
   if (!nrow(d)) return(NULL)
+  ## `overlay`: the all-50 ensemble for this head, drawn INTO this track rather
+  ## than as a track of its own -- a heavier line with square points, against
+  ## which the fold lines read as spread. Relabelled so it is its own series.
+  d$ens <- FALSE
+  if (!is.null(overlay) && nrow(overlay)) {
+    overlay <- overlay[overlay$head == head_nm, , drop = FALSE]
+    if (nrow(overlay)) {
+      if (is.null(overlay$terminus)) overlay$terminus <- overlay$term
+      overlay$terminus[is.na(overlay$terminus)] <- overlay$term[is.na(overlay$terminus)]
+      overlay$term  <- paste0("all 50 (", overlay$terminus, ")")
+      overlay$group <- NA_character_
+      overlay$ens   <- TRUE
+      d <- dplyr::bind_rows(d, overlay[, intersect(names(overlay), names(d)), drop = FALSE])
+    }
+  }
   ## colour says WHICH TERMINUS, on every head track alike
-  tc <- getOption("lf.term_cols", LF_TERM_COLS)
-  series <- unique(as.character(d$term))
+  tc  <- getOption("lf.term_cols", LF_TERM_COLS)
+  tce <- getOption("lf.term_cols_ens", LF_TERM_COLS_ENS)
+  series  <- unique(as.character(d$term))
   term_of <- d$terminus[match(series, d$term)]
-  series <- series[order(match(term_of, names(tc)))]
-  cols <- stats::setNames(unname(tc[d$terminus[match(series, d$term)]]), series)
+  is_ens  <- d$ens[match(series, d$term)]
+  ## within a terminus the ensemble sorts first, so it heads its half of the key
+  ord <- order(match(term_of, names(tc)), !is_ens, series)
+  series <- series[ord]; term_of <- term_of[ord]; is_ens <- is_ens[ord]
+  cols <- stats::setNames(unname(ifelse(is_ens, tce[term_of], tc[term_of])), series)
   d$term <- factor(d$term, levels = series)
   ## "N terminus" / "C terminus" for the page's own series; an extra one by name
   lab <- function(x) ifelse(x %in% c("N", "C"), paste0(x, " terminus"), x)
+  ## The tooltip is built as a COLUMN, not inside aes(): an aes() expression is
+  ## evaluated when the plot is BUILT, so anything it closes over must still be
+  ## what it was here -- the same trap that made every class track read the last
+  ## loop index (see lf_plot_class_track).
+  ## The popup resolves a clicked point to a series by looking for the series
+  ## LABEL inside the tooltip text (seriesOf), so the ensemble's tooltip has to
+  ## name its terminus: the all-50 per-index surface IS the page's own N/C
+  ## series. Without this the square is clickable but inert.
+  ser <- lab(as.character(d$term))
+  if (any(d$ens))
+    ser[d$ens] <- sprintf("all 50 ensemble, %s terminus", d$terminus[d$ens])
+  d$tip <- sprintf("%s  anchor %d (%s)\n%s, %s: %.3f +/- %.3f",
+                   gene, d$residue, aa[d$residue], ser, head_nm, d$mean, d$sd)
+  ## A known end of THIS precursor is honest on exactly one fold. That whole
+  ## series is then the honest one here, so every one of its residue positions
+  ## is drawn as a triangle -- the fold to read is identifiable anywhere along
+  ## the track, not only at the end itself. The line and ribbon keep EVERY
+  ## non-ensemble row, or the series would break where a triangle replaces a
+  ## circle.
+  d$held <- FALSE
+  if (!is.null(held) && nrow(held)) {
+    d$held <- !d$ens & d$term %in% unique(held$term)
+    d$tip[d$held] <- paste0(d$tip[d$held], "\nthis fold held out a known end here")
+  }
+  dline <- d[!d$ens, , drop = FALSE]
+  dfold <- d[!d$ens & !d$held, , drop = FALSE]
+  dheld <- d[ d$held, , drop = FALSE]
+  dens  <- d[ d$ens, , drop = FALSE]
   ggplot2::ggplot(d, ggplot2::aes(residue, mean, colour = term, fill = term)) +
-    ggplot2::geom_ribbon(ggplot2::aes(ymin = pmax(mean - sd, 0), ymax = pmin(mean + sd, 1)),
+    ggplot2::geom_ribbon(data = dline,
+                         ggplot2::aes(ymin = pmax(mean - sd, 0), ymax = pmin(mean + sd, 1)),
                          alpha = 0.14, colour = NA, na.rm = TRUE) +
-    ggplot2::geom_line(linewidth = 0.45, na.rm = TRUE) +
+    ggplot2::geom_line(data = dline, linewidth = 0.4, alpha = 0.75, na.rm = TRUE) +
     ggiraph::geom_point_interactive(
-      ggplot2::aes(data_id = residue,
-                   tooltip = sprintf("%s  anchor %d (%s)\n%s, %s: %.3f +/- %.3f",
-                                     gene, residue, aa[residue], lab(as.character(term)),
-                                     head_nm, mean, sd)),
+      data = dfold,
+      ggplot2::aes(data_id = residue, tooltip = tip),
       ## hollow (a ring in the series colour, white inside) and big enough to
       ## click; the popup fills the clicked one while its window is open
       shape = 21, fill = "white", size = 1.7, stroke = 0.6, na.rm = TRUE) +
+    ## the fold that held this end out: a DOWNWARD TRIANGLE, so the one honest
+    ## point on the track is findable without reading tooltips
+    ggiraph::geom_point_interactive(
+      data = dheld,
+      ggplot2::aes(data_id = residue, tooltip = tip),
+      ## show.legend = FALSE or this layer's shape becomes the glyph for EVERY
+      ## key in the colour legend -- all ten fold entries drawn as triangles
+      shape = 25, fill = "white", size = 1.8, stroke = 0.7, na.rm = TRUE,
+      show.legend = FALSE) +
+    ## the ensemble, on top: heavier line and SQUARE points, so it never reads as
+    ## just one more fold. White inside like every other point on the page -- the
+    ## shape carries the distinction, not the fill.
+    ggplot2::geom_line(data = dens, linewidth = 0.95, na.rm = TRUE) +
+    ggiraph::geom_point_interactive(
+      data = dens,
+      ggplot2::aes(data_id = residue, tooltip = tip),
+      shape = 22, fill = "white", size = 1.55, stroke = 0.7, na.rm = TRUE) +
     ggplot2::scale_colour_manual(values = cols, name = NULL, labels = lab) +
     ggplot2::scale_fill_manual(values = cols, guide = "none") +
     lf_track_x(x_range, seq_offset) +
@@ -636,11 +741,20 @@ lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
   if (!is.null(dat$win)) {
     ## each head as the page's own track, then one per extra group (e.g. padded)
     grp <- if (is.null(dat$win$group)) character(0) else unique(stats::na.omit(dat$win$group))
+    ## options(lf.win_overlay_all50 = TRUE): the page's own series (group NA --
+    ## the all-50 ensemble) stops being a track of its own and is drawn INTO each
+    ## grouped track instead. A fold is then read against the ensemble on one
+    ## pair of axes rather than by eye across two tracks.
+    ov <- isTRUE(getOption("lf.win_overlay_all50", FALSE)) && length(grp)
+    own <- dat$win[is.na(dat$win$group), , drop = FALSE]
     for (hd in c("CNN attention head", "xgb window head")) {
-      add(lf_plot_win_track(dat$win, hd, x_range, aa, gene, hd == "CNN attention head", seq_offset), 1.15)
+      if (!ov)
+        add(lf_plot_win_track(dat$win, hd, x_range, aa, gene, hd == "CNN attention head", seq_offset), 1.15)
       for (g in grp)
         add(lf_plot_win_track(dat$win, hd, x_range, aa, gene, hd == "CNN attention head", seq_offset,
-                              group = g, ylab = sprintf("%s\n(%s)", sub(" head", "\nhead", hd), g)), 1.15)
+                              group = g, ylab = sprintf("%s\n(%s)", sub(" head", "\nhead", hd), g),
+                              overlay = if (ov) own else NULL,
+                              held = dat$heldout), if (ov) 1.4 else 1.15)
     }
   }
   if (!is.null(dat$rp)) {
@@ -1002,7 +1116,7 @@ lf_pepend_popup_js <- function() '
      116 on every xgb track carrying those series, and centres the view on the
      residue nearest their average; #103 just centres on residue 103. */
   function openAt(svg, term, r) {
-    [].slice.call(svg.querySelectorAll("circle[data-id=\\"" + r + "\\"]")).forEach(function (n) {
+    ptsWithId(svg, r).forEach(function (n) {
       var key = seriesOf(n);
       if (!key || (d.series[key].term || key) !== term) return;
       var cur = slots[slotKey(svg, term)];
@@ -1066,8 +1180,19 @@ lf_pepend_popup_js <- function() '
       if (location.hash === "#" + v) fromHash(0); else location.hash = v;
     });
   }
+  /* ggiraph draws shape 21 as <circle>, but shape 22 (the all-50 squares) as
+     <rect> and shape 25 (the held-out fold triangles) as <polygon>. Binding to
+     "circle[data-id]" alone left both of those inert -- clickable-looking and
+     doing nothing. Ribbons carry no data-id, so they are never matched, and
+     this only ever runs on the xgb head tracks. */
+  var PT_SEL = "circle[data-id], polygon[data-id], rect[data-id]";
+  function ptsWithId(svg, r) {
+    return [].slice.call(svg.querySelectorAll(
+      \'circle[data-id="\' + r + \'"], polygon[data-id="\' + r + \'"], rect[data-id="\' + r + \'"]\'));
+  }
+
   function wireOne(svg) {
-    [].slice.call(svg.querySelectorAll("circle[data-id]")).forEach(function (n) {
+    [].slice.call(svg.querySelectorAll(PT_SEL)).forEach(function (n) {
       if (n.__lfpep) return;
       var v = n.getAttribute("data-id");
       if (!/^[0-9]+$/.test(v)) return;
