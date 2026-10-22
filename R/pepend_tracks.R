@@ -113,7 +113,8 @@ lf_track_window_head <- function(gene, term, path = lf_track_path("scan", term))
   d <- s$scan[s$scan$gene == gene, , drop = FALSE]
   if (!nrow(d)) return(NULL)
   tibble::tibble(residue = as.integer(d$anchor), mean = d$score, sd = d$sd,
-                 term = term, head = "CNN attention head")
+                 term = term, head = "CNN attention head",
+                 head_label = getOption("lf.track_cnn_label", "CNN attention head"))
 }
 
 #' The xgboost window head, from the per-gene scan npz
@@ -347,9 +348,15 @@ lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
            pos = LF_PEPEND$anchor[[term]], w_start = w_start, anchors = anchors, term = term,
            vis = c(if (isTRUE(spec$nt_pad) && term == "N") LF_PEPEND$anchor[["N"]] else 1L,
                    if (isTRUE(spec$ct_pad) && term == "C") LF_PEPEND$anchor[["C"]]
-                   else LF_PEPEND$seq_len)) else NULL
+                   else LF_PEPEND$seq_len),
+           cnn_label = lf_extra_cnn_label(spec)) else NULL
+    ## `head` stays "CNN attention head" whatever the run's head is: it is the
+    ## KEY that puts the series on the CNN track. What the reader sees -- axis,
+    ## tooltip, popup -- comes from `head_label` (spec$cnn_label).
     list(win = tibble::tibble(residue = anchors, mean = colMeans(G), sd = apply(G, 2, stats::sd),
                               term = spec$name, head = "CNN attention head",
+                              head_label = lf_extra_cnn_label(spec),
+                              group_ens = isTRUE(spec$group_ensemble),
                               ## spec$term, not `term`: inside tibble() that
                               ## name is the column just defined above
                               terminus = spec$term, group = lf_extra_group(spec)),
@@ -361,6 +368,14 @@ lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
 #' The track group an extra series is drawn in
 #' @keywords internal
 lf_extra_group <- function(spec) if (is.null(spec$group)) "extra" else as.character(spec$group)
+
+#' What an extra run's CNN window score is called on the page
+#'
+#' `spec$cnn_label`, for a run whose window head is not attention (e.g.
+#' "CNN flatten head"); the attention default otherwise.
+#' @keywords internal
+lf_extra_cnn_label <- function(spec)
+  if (is.null(spec$cnn_label)) "CNN attention head" else as.character(spec$cnn_label)
 
 #' Pool each window's opinion onto the residues it covers
 #'
@@ -421,6 +436,22 @@ lf_track_heldout_marks <- function(accession) {
   if (is.null(out) || !nrow(out)) NULL else out
 }
 
+#' Held-out marks for extra runs that are not the 5-fold CV
+#'
+#' `options(lf.heldout_extra = <data.frame>)` with columns `term` (the extra
+#' series' name, e.g. "C flatten fold A"), `terminus`, `accession`, `residue`:
+#' the series whose fold held that known end out, drawn as triangles exactly
+#' like the 5-fold ones.
+#' @keywords internal
+lf_track_heldout_extra <- function(accession) {
+  x <- getOption("lf.heldout_extra", NULL)
+  if (is.null(x) || !nrow(x)) return(NULL)
+  x <- x[x$accession == accession, , drop = FALSE]
+  if (!nrow(x)) return(NULL)
+  data.frame(term = as.character(x$term), terminus = as.character(x$terminus),
+             residue = as.integer(x$residue), fold = NA_integer_, stringsAsFactors = FALSE)
+}
+
 #' @export
 lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
                                  want_per_index = TRUE) {
@@ -447,6 +478,7 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
       xh <- lf_track_xgb_head(gene, spec$term, spec$winxgb)
       if (!is.null(xh)) {
         xh$term <- spec$name; xh$terminus <- spec$term; xh$group <- lf_extra_group(spec)
+        xh$group_ens <- isTRUE(spec$group_ensemble)
         win <- dplyr::bind_rows(win, xh)
       }
     }
@@ -464,7 +496,7 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
   if (is.null(win) && is.null(rp) && is.null(resid)) return(NULL)
   if (!is.null(pix) && length(extra_pix)) pix$extra <- extra_pix
   list(win = win, rp = rp, resid = resid, extra_resid = extra_resid, pix = pix,
-       heldout = lf_track_heldout_marks(accession),
+       heldout = rbind(lf_track_heldout_marks(accession), lf_track_heldout_extra(accession)),
        anchors = if (is.null(pix)) NULL else pix$anchors)
 }
 
@@ -584,7 +616,7 @@ lf_plot_class_track <- function(d, x_range, aa, gene, legend = FALSE,
 #' @keywords internal
 lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
                               seq_offset = -0.45, group = NA_character_, ylab = NULL,
-                              overlay = NULL, held = NULL) {
+                              overlay = NULL, held = NULL, overlay_own = FALSE) {
   ## the page's own series have no group; an extra run's carry one, and each
   ## group gets a track of its own
   if (is.null(d$group)) d$group <- NA_character_
@@ -596,13 +628,16 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
   ## `overlay`: the all-50 ensemble for this head, drawn INTO this track rather
   ## than as a track of its own -- a heavier line with square points, against
   ## which the fold lines read as spread. Relabelled so it is its own series.
+  ## `overlay_own = TRUE`: the overlay is instead THIS group's own ensemble (its
+  ## folds pooled), which keeps its series name -- the name is what the popup
+  ## resolves a click by, and it must open that ensemble, not the page's own.
   d$ens <- FALSE
   if (!is.null(overlay) && nrow(overlay)) {
     overlay <- overlay[overlay$head == head_nm, , drop = FALSE]
     if (nrow(overlay)) {
       if (is.null(overlay$terminus)) overlay$terminus <- overlay$term
       overlay$terminus[is.na(overlay$terminus)] <- overlay$term[is.na(overlay$terminus)]
-      overlay$term  <- paste0("all 50 (", overlay$terminus, ")")
+      if (!overlay_own) overlay$term <- paste0("all 50 (", overlay$terminus, ")")
       overlay$group <- NA_character_
       overlay$ens   <- TRUE
       d <- dplyr::bind_rows(d, overlay[, intersect(names(overlay), names(d)), drop = FALSE])
@@ -630,10 +665,13 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
   ## name its terminus: the all-50 per-index surface IS the page's own N/C
   ## series. Without this the square is clickable but inert.
   ser <- lab(as.character(d$term))
-  if (any(d$ens))
+  if (any(d$ens) && !overlay_own)
     ser[d$ens] <- sprintf("all 50 ensemble, %s terminus", d$terminus[d$ens])
+  ## the head's display name: an extra run's own (`head_label`), else the key
+  hl <- if (is.null(d$head_label)) rep(head_nm, nrow(d)) else
+    ifelse(is.na(d$head_label), head_nm, d$head_label)
   d$tip <- sprintf("%s  anchor %d (%s)\n%s, %s: %.3f +/- %.3f",
-                   gene, d$residue, aa[d$residue], ser, head_nm, d$mean, d$sd)
+                   gene, d$residue, aa[d$residue], ser, hl, d$mean, d$sd)
   ## A known end of THIS precursor is honest on exactly one fold. That whole
   ## series is then the honest one here, so every one of its residue positions
   ## is drawn as a triangle -- the fold to read is identifiable anywhere along
@@ -750,11 +788,26 @@ lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
     for (hd in c("CNN attention head", "xgb window head")) {
       if (!ov)
         add(lf_plot_win_track(dat$win, hd, x_range, aa, gene, hd == "CNN attention head", seq_offset), 1.15)
-      for (g in grp)
-        add(lf_plot_win_track(dat$win, hd, x_range, aa, gene, hd == "CNN attention head", seq_offset,
-                              group = g, ylab = sprintf("%s\n(%s)", sub(" head", "\nhead", hd), g),
-                              overlay = if (ov) own else NULL,
-                              held = dat$heldout), if (ov) 1.4 else 1.15)
+      for (g in grp) {
+        ## the axis names the head the group's runs actually have, when they
+        ## agree on one (a flatten trunk's CNN track is not attention)
+        hl <- if (is.null(dat$win$head_label)) character(0) else
+          unique(stats::na.omit(dat$win$head_label[dat$win$head == hd & dat$win$group %in% g]))
+        lbl <- if (length(hl) == 1L) hl else hd
+        ## A group that carries its OWN ensemble (spec$group_ensemble: its folds
+        ## pooled) overlays that, not the page's all-50: the heavy line on a
+        ## track must be the average of the folds drawn on it. Only a group
+        ## without one -- the 5-fold per-fold group -- gets the page's own.
+        ge <- if (is.null(dat$win$group_ens)) rep(FALSE, nrow(dat$win)) else
+          dat$win$group %in% g & dat$win$group_ens %in% TRUE
+        own_g <- any(ge)
+        add(lf_plot_win_track(dat$win[!ge, , drop = FALSE], hd, x_range, aa, gene,
+                              hd == "CNN attention head", seq_offset,
+                              group = g, ylab = sprintf("%s\n(%s)", sub(" head", "\nhead", lbl), g),
+                              overlay = if (own_g) dat$win[ge, , drop = FALSE] else if (ov) own else NULL,
+                              overlay_own = own_g,
+                              held = dat$heldout), if (ov || own_g) 1.4 else 1.15)
+      }
     }
   }
   if (!is.null(dat$rp)) {
@@ -795,6 +848,11 @@ lf_pepend_popup_tag <- function(pix, aa, gene, accession,
     if (length(keep) > max_anchors)
       keep <- sort(utils::head(order(S$g, decreasing = TRUE), max_anchors))
     list(label = label, title = title, term = term,
+         ## an extra run's own label, else the page's (options(lf.track_cnn_label):
+         ## what the page's own trunk's window head is -- "CNN flatten head" for
+         ## the flatten models)
+         cnn_label = if (is.null(S$cnn_label))
+           getOption("lf.track_cnn_label", "CNN attention head") else S$cnn_label,
          anchor = as.integer(anchors[keep]),
          pos = as.integer(S$pos),
          vis = as.integer(if (is.null(S$vis)) c(1L, LF_PEPEND$seq_len) else S$vis),
@@ -1039,8 +1097,8 @@ lf_pepend_popup_js <- function() '
       "font:11px ui-sans-serif,system-ui;color:#52514e\\"><b>" + S.title +
       "</b> anchored at residue " + res +
       " (" + (d.aa[res - 1] || "?") + ") &middot; covers " + w0 + "&ndash;" + (w0 + N - 1) +
-      (cs && cs.head !== "CNN attention head" ? " &middot; " + cs.head + " " + cs.val : "") +
-      " &middot; CNN attention head " + S.g[i].toFixed(3) + "</div>";
+      (cs && cs.head !== (S.cnn_label || "CNN attention head") ? " &middot; " + cs.head + " " + cs.val : "") +
+      " &middot; " + (S.cnn_label || "CNN attention head") + " " + S.g[i].toFixed(3) + "</div>";
     var btn = "<div class=\\"lf-pep-close\\" title=\\"close\\" style=\\"position:absolute;right:10px;top:2px;" +
       "cursor:pointer;font:16px ui-sans-serif,system-ui;color:#8a8a8a;padding:0 5px\\">&times;</div>";
     g += "<line class=\\"lf-pep-guide\\" x1=0 y1=6 x2=0 y2=" + (PANEL_H - 26) +
