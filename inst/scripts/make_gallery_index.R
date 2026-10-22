@@ -105,7 +105,7 @@ html <- sprintf('<!doctype html>
     window-free MLP and XGB residue models.
     Clicking a point on the <code>xgb window head</code> track opens the 36-residue
     window anchored at that residue &mdash; N points open the N window, C points the C
-    window &mdash; drawn on the same residue axis, with the spread across the 20 seeds.
+    window &mdash; drawn on the same residue axis, with the spread across the ensemble members.
     Hovering marks that residue on every track.</div>
 </header>
 <div class="wrap">
