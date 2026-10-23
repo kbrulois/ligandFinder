@@ -987,6 +987,18 @@ make_protein_plot_win <- function(old_nn_input,
       .step(sprintf("gpcrdb_gtp: %d peptide(s) on %d line(s)", sum(.gtp), max(lay)))
     }
 
+    ## ---- never-seen peptides: one line per overlap layer, stacked upward ------
+    ## Same treatment as gpcrdb_gtp: overlapping peptides of one precursor (NPPA's
+    ## ANP sits inside urodilatin's span) would otherwise draw over each other.
+    ## This is the top line, so its layers push nothing else; it runs after the
+    ## gpcrdb block, whose lift has already raised this base where it applied.
+    .nsn <- h_rec_dat$feature == "never seen"
+    if (any(.nsn)) {
+      lay_ns <- assign_overlap_layers(h_rec_dat$start[.nsn], h_rec_dat$end[.nsn], gap = 1)
+      h_rec_dat$nudge[.nsn] <- h_rec_dat$nudge[.nsn] + (lay_ns - 1L) * GTP_STEP
+      .step(sprintf("never seen: %d peptide(s) on %d line(s)", sum(.nsn), max(lay_ns)))
+    }
+
     if (!"tooltip" %in% names(h_rec_dat)) h_rec_dat$tooltip <- NA_character_
     if (!"onclick" %in% names(h_rec_dat)) h_rec_dat$onclick <- NA_character_
     if (!"data_id" %in% names(h_rec_dat)) h_rec_dat$data_id <- NA_character_
