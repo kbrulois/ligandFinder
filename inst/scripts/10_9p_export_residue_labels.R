@@ -49,10 +49,19 @@ res_npz  <- path.expand(.opt("--residues-npz", "~/AF2_analysis/lf_pepend_residue
 out_p    <- path.expand(.opt("--out", "~/AF2_analysis/lf_resid_labels.npz"))
 CTX      <- as.integer(.opt("--ctx", "8"))
 CTX_N    <- as.integer(.opt("--ctx-n", "7"))
+## Similarity GROUPS for the residue split. lf_resid held out whole precursors
+## under a plain shuffle, which is leak-free per protein but lets two homologous
+## peptides land on opposite sides -- the window set has never allowed that (9.2's
+## split_knowns clusters by aligned identity first). Cluster every known end's
+## 36-mer exactly as 10_7 does, then put two precursors in one group whenever
+## they share a cluster, so a group is the unit the python side shuffles and no
+## cluster can straddle train/val. --sim-h matches 10_7's default.
+sim_h    <- as.numeric(.opt("--sim-h", "0.30"))
 
 .this <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
 ROOT  <- if (length(.this)) normalizePath(file.path(dirname(.this[[1]]), "..", "..")) else getwd()
 source(file.path(ROOT, "R", "dcnn_bridge.R"))
+source(file.path(ROOT, "R", "pepend_windows.R"))   # lf_pepend_start, LF_PEPEND
 np <- reticulate::import("numpy", convert = FALSE)
 
 ## ---- 1. the docked peptides, through 10_7's funnel ----------------------------
@@ -146,6 +155,39 @@ for (i in seq_len(nrow(fc$prec))) {
 labelled <- integer(nrow(fc$prec))
 labelled[match(intersect(names(by_acc), fc$prec$accession), fc$prec$accession)] <- 1L
 
+## ---- 2b. similarity groups over precursors ------------------------------------
+## One 36-mer per known end, both termini, built the way 10_7's split_knowns
+## builds them (residues outside [n_prot, c_prot] are "X"), so the clustering
+## sees the same strings the window split clusters.
+.ends <- bind_rows(con %>% mutate(term = "N", anchor = pep_start),
+                   con %>% mutate(term = "C", anchor = pep_end)) %>%
+  mutate(i = match(accession, fc$prec$accession)) %>% filter(!is.na(i)) %>%
+  mutate(w_start = lf_pepend_start(term, anchor))
+.aa <- do.call(rbind, lapply(seq_len(nrow(.ends)), function(k) {
+  i <- .ends$i[k]; s <- strsplit(fc$prec$seq[i], "")[[1]]
+  r <- .ends$w_start[k] + 0:(LF_PEPEND$seq_len - 1L)
+  ifelse(r >= n_prot[i] & r <= c_prot[i], s[pmax(pmin(r, length(s)), 1)], "X")
+}))
+.cl <- cutree(hclust(as.dist(ape::dist.aa(.aa, scaled = TRUE)), method = "average"), h = sim_h)
+## union-find: a precursor joins every cluster its ends fall in, so two
+## precursors sharing ANY cluster end up in one group
+.par <- seq_len(nrow(fc$prec))
+.find <- function(a) { while (.par[a] != a) a <- .par[a]; a }
+.union <- function(a, b) { ra <- .find(a); rb <- .find(b); if (ra != rb) .par[[ra]] <<- rb }
+for (cl in unique(.cl)) {
+  members <- unique(.ends$i[.cl == cl])
+  for (m in members[-1]) .union(members[1], m)
+}
+prec_group <- vapply(seq_len(nrow(fc$prec)), .find, integer(1))
+prec_group <- match(prec_group, sort(unique(prec_group))) - 1L   # 0-based, dense
+.lg <- prec_group[labelled == 1L]
+message(sprintf("\nsimilarity groups (h = %.2f): %d ends -> %d clusters -> %d groups over %d labelled precursors",
+                sim_h, nrow(.ends), length(unique(.cl)), length(unique(.lg)), sum(labelled)))
+message(sprintf("  largest groups: %s",
+                paste(head(sort(table(.lg), decreasing = TRUE), 5), collapse = ", ")))
+message(sprintf("  labelled precursors NOT alone in their group: %d",
+                sum(.lg %in% as.integer(names(which(table(.lg) > 1))))))
+
 message(sprintf("\nresidues: %s total, %s mature", format(n_rows, big.mark = ","),
                 format(sum(mature), big.mark = ",")))
 for (nm in c("pep_pocket", "pep_other", "ct_context", "nt_context", "in_peptide")) {
@@ -166,6 +208,8 @@ np$savez_compressed(out_p,
   prot_idx = np$asarray(prot_idx, dtype = "int32"),
   resno    = np$asarray(resno,    dtype = "int32"),
   labelled = np$asarray(labelled, dtype = "int8"),
+  ## similarity group per precursor -- the unit lf_resid splits on
+  prec_group = np$asarray(prec_group, dtype = "int32"),
   ## channel names travel with the labels so xgboost's importance table
   ## names real features instead of c0..c25
   channel_names = np$asarray(fc$all_params3),

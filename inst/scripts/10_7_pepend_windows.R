@@ -33,6 +33,9 @@
 ## unpadded sequence, so the set holds the same windows in the same splits as
 ## the build without the flag and the padding is the only difference.
 ##
+## --nt-pad: the N mirror -- every N window starts at its own anchor, as if the
+## precursor began there, so positions 1-7 are padding in inputs and labels.
+##
 ## Output: ~/AF2_analysis/lf_pepend_nn_input.rds
 ##   nn_input     list(N, C) of list(train, val, all), the 9.2 contract
 ##   all_params3  channel order
@@ -65,6 +68,7 @@ near_lo     <- as.integer(.opt("--near-lo", "2"))         # |offset| range, incl
 near_hi     <- as.integer(.opt("--near-hi", "8"))
 val_frac    <- as.numeric(.opt("--val-frac", "0.34"))
 ct_pad      <- "--ct-pad" %in% .args
+nt_pad      <- "--nt-pad" %in% .args
 ## Swap the two sides after splitting. With --val-frac 0.5 this is the second
 ## fold of a 2-fold cross-validation: every known that was TRAIN in the first
 ## build is VAL here and vice versa, so training both gives each known one
@@ -87,6 +91,10 @@ set.seed(seed)
 ## --ct-pad a C window's own anchor (never later than the real end)
 ct_cut <- function(term, anchor, c_prot)
   if (ct_pad) as.integer(ifelse(term == "C", pmin(c_prot, anchor), c_prot)) else c_prot
+## and where it "starts": the real first mature residue, or under --nt-pad an N
+## window's own anchor (never earlier than the real start)
+nt_cut <- function(term, anchor, n_prot)
+  if (nt_pad) as.integer(ifelse(term == "N", pmax(n_prot, anchor), n_prot)) else n_prot
 
 id_map <- readRDS(file.path(ROOT, "data", "id_mapping.rds"))
 e2s <- setNames(id_map[["Gene Names (primary)"]], id_map[["Entry Name"]])
@@ -249,7 +257,8 @@ ends <- bind_rows(con %>% mutate(term = "N", anchor = pep_start),
          insertion = case_when(ins_term == term & ins_ind < 3  ~ "end insertion",
                                ins_term == term & ins_ind < 16 ~ "loop insertion",
                                TRUE                            ~ "non-inserting end"))
-ends$known_idx <- pmap(list(ends$w_start, ends$pep_start, ends$pep_end, ends$n_prot,
+ends$known_idx <- pmap(list(ends$w_start, ends$pep_start, ends$pep_end,
+                            nt_cut(ends$term, ends$anchor, ends$n_prot),
                             ct_cut(ends$term, ends$anchor, ends$c_prot), ends$pocket),
                        lf_pepend_labels)
 message(sprintf("known windows: %d N, %d C (from %d peptides; %d ends shared by >1 peptide)",
@@ -303,7 +312,8 @@ if (near_n > 0) {
   ## cover peptide residues, unlike every other negative, so labelling them
   ## "none" would teach the per-index head to deny a peptide it can see.
   near$known_idx <- pmap(list(near$w_start, near$pep_start, near$pep_end,
-                              near$n_prot, ct_cut(near$term, near$anchor, near$c_prot),
+                              nt_cut(near$term, near$anchor, near$n_prot),
+                              ct_cut(near$term, near$anchor, near$c_prot),
                               near$pocket), lf_pepend_labels)
   message(sprintf("near-end anchors: %d (|offset| %d-%d, %d dropped as other known ends)",
                   nrow(near), near_lo, near_hi,
@@ -334,9 +344,10 @@ make_windows <- function(w) {
     aa <- strsplit(prec_seq[[acc]], "")[[1]]
     for (i in by_acc[[acc]]) {
       cc <- ct_cut(w$term[i], w$anchor[i], w$c_prot[i])
-      data[[i]] <- lf_pepend_slice(f, w$w_start[i], w$n_prot[i], cc)
+      nc <- nt_cut(w$term[i], w$anchor[i], w$n_prot[i])
+      data[[i]] <- lf_pepend_slice(f, w$w_start[i], nc, cc)
       r  <- w$w_start[i] + 0:35
-      ok <- r >= w$n_prot[i] & r <= cc
+      ok <- r >= nc & r <= cc
       meta[[i]] <- tibble(AA = ifelse(ok, aa[pmax(pmin(r, length(aa)), 1)], NA_character_),
                           index = ifelse(ok, r, NA_integer_))
     }
@@ -437,7 +448,7 @@ for (t in names(nn_input)) for (s in c("train", "val", "all")) {
 saveRDS(list(nn_input = nn_input, all_params3 = all_params3, class_names = LF_PEPEND_CLASSES,
              knowns = knowns,
              params = list(n_ctrl = n_ctrl, random_frac = random_frac, val_frac = val_frac,
-                           swap_splits = swap_splits, ct_pad = ct_pad,
+                           swap_splits = swap_splits, ct_pad = ct_pad, nt_pad = nt_pad,
                            near_n = near_n, near_lo = near_lo, near_hi = near_hi,
                            sim_h = sim_h, seed = seed, banned = banned, built = Sys.time())),
         out_path)

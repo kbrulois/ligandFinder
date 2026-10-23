@@ -83,12 +83,17 @@ anno_feats <- tibble(feature = c("Dibasic",
                                  "sven",
                                  "top200NC",
                                  "uniprot_peptide",
-                                 "new_pep"),
+                                 "new_pep",
+                                 ## a peptide whose gene no CV fold trained on (the
+                                 ## held-out evaluation set), drawn so the page
+                                 ## shows what the models are being tested against
+                                 "never seen"),
                      ggp = c("v_rec",
                              "v_rec",
                              "arch",
                              "arch",
                              "arch",
+                             "h_rec",
                              "h_rec",
                              "h_rec",
                              "h_rec",
@@ -105,7 +110,8 @@ anno_feats <- tibble(feature = c("Dibasic",
                                "#46732EFF",
                                "#FD7446FF",
                                "#1A9993FF",
-                               "#FED439FF")
+                               "#FED439FF",
+                               "#C51B7DFF")
 )
 
 c("#FED439FF", "#709AE1FF", "#FD7446FF",
@@ -115,7 +121,8 @@ c("#FED439FF", "#709AE1FF", "#FD7446FF",
 
 anno_feat_colors <- setNames(anno_feats[["color"]], anno_feats[["feature"]])
 
-pep_nudges <- c(`new_pep` = 2.25, `disha` = 2.0, `top200NC` = 1.75, `uniprot_peptide` = 1.5, `phs` = 1.25, `gpcrdb_gtp` = 0.75, `sven` = 1)
+pep_nudges <- c(`new_pep` = 2.25, `disha` = 2.0, `top200NC` = 1.75, `uniprot_peptide` = 1.5, `phs` = 1.25, `gpcrdb_gtp` = 0.75, `sven` = 1,
+                `never seen` = 2.5)
 
 assemble_anno_feats <- function(features, peps) {
 
@@ -123,13 +130,17 @@ assemble_anno_feats <- function(features, peps) {
     as_tibble %>%
     mutate(type = if_else(type == "disulfide bond", "unidsb", type)) %>%
     filter(case_when(type %in% c("afdsb", "unidsb", "Dibasic", "Cysteine") ~ type %in% c("afdsb", "unidsb", "Dibasic", "Cysteine"),
-                     source %in% c("phs", "gpcrdb_gtp", "sven", "top200NC", "disha", "uni_pep") ~ source %in% c("phs", "gpcrdb_gtp", "sven", "top200NC", "disha", "uni_pep"))) %>%
+                     source %in% c("phs", "gpcrdb_gtp", "sven", "top200NC", "disha", "uni_pep", "never_seen") ~ source %in% c("phs", "gpcrdb_gtp", "sven", "top200NC", "disha", "uni_pep", "never_seen"))) %>%
     mutate(feature = case_when(type %in% c("afdsb", "unidsb", "Dibasic", "Cysteine") ~ type,
+                               ## the caller adds these rows (source "never_seen"),
+                               ## with the hover text already in `description`
+                               source == "never_seen" ~ "never seen",
                                source %in% c("phs", "gpcrdb_gtp", "sven", "top200NC", "disha", "uni_pep") ~ source), .before = everything()) %>%
     mutate(end = case_when(feature == "unidsb" & is.na(end) & stringr::str_detect(description, "Interchain") ~ stringr::str_extract(description, "C-\\d+") %>% stringr::str_remove(., "C-") %>% as.integer(.),
                            TRUE ~ end)) %>%
     filter(!is.na(end)) %>%
-    select(feature, start, end)
+    mutate(tooltip = if_else(feature == "never seen", description, NA_character_)) %>%
+    select(feature, start, end, tooltip)
 
 
   dsb <- tmp %>%

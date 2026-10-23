@@ -58,6 +58,16 @@ pos_cls  <- .opt("--positives", NA_character_)
 ## the 26 hand-built ones.
 plm_p    <- .opt("--plm", NA_character_)
 seq_p    <- path.expand(.opt("--sequences", "~/AF2_analysis/lf_plm/sequences.parquet"))
+## --no-mask trains without the class-position mask in front of the global head
+## (Config.class_position_mask = False): every class may appear at every
+## position. The spans, and so --mask-slack, then do nothing.
+no_mask  <- .flag("--no-mask")
+## --global-head picks the window head (Config.global_head; `flatten` is the
+## position-aware one), --head-lr-mult its effective learning rate relative to
+## the trunk's (Config.head_lr_mult -- NOT loss_weight_global, which Adam
+## mostly normalises away for the head's own weights).
+g_head   <- .opt("--global-head", NA_character_)
+head_lr  <- as.numeric(.opt("--head-lr-mult", "1"))
 ## A different head is a different model, so it gets its own cache rather than
 ## relying on the fingerprint alone to tell them apart -- and so does a different
 ## WEIGHT on that head. This matters more than it looks: lf_dcnn_run_isolated
@@ -76,6 +86,15 @@ out_p   <- path.expand(.opt("--out", sprintf("~/AF2_analysis/lf_pepend_run_%s%s%
                                 paste0("_", sub("_pca32$", "",
                                                 tools::file_path_sans_ext(basename(plm_p))))
                               else "")))
+## the member-reuse trap again: an unmasked run must never share a cache with a
+## masked one, so it is named for it even under an explicit --out
+if (no_mask && !grepl("_nomask", basename(out_p)))
+  out_p <- sub("\\.rds$", "_nomask.rds", out_p)
+## ...and so is a different window head, or a different head learning rate
+.htag <- paste0(if (!is.na(g_head)) paste0("_", g_head) else "",
+                if (head_lr != 1) paste0("_hlr", format(head_lr)) else "")
+if (nzchar(.htag) && !grepl(.htag, basename(out_p), fixed = TRUE))
+  out_p <- sub("\\.rds$", paste0(.htag, ".rds"), out_p)
 
 stopifnot(term %in% c("N", "C"))
 
@@ -104,7 +123,8 @@ nn_input <- x$nn_input[term]
 ## the exact-anchor masks. --mask-slack overrides.
 near_d <- unlist(lapply(nn_input[[term]][c("train", "val")], function(d)
   if ("d" %in% names(d)) abs(d$d[d$win_type %in% "near_end"]) else integer(0)))
-slack <- as.integer(.opt("--mask-slack", if (length(near_d)) max(near_d) else 0L))
+slack <- if (no_mask) 0L else
+  as.integer(.opt("--mask-slack", if (length(near_d)) max(near_d) else 0L))
 ## A different mask is a different model, and lf_dcnn_run_isolated reuses any
 ## member already in <cache>_isolated on presence alone -- so a slack run always
 ## gets its own cache, even under an explicit --out.
@@ -114,30 +134,60 @@ if (slack > 0 && !grepl(sprintf("_slack%d\\.rds$", slack), out_p)) {
 }
 
 ## every per-index label must sit where the mask allows its class, or training
-## quietly fights the mask at those positions -- check before spending the run
-.cfg_chk <- lf_dcnn_config(x$all_params3, pepend = term, slack = slack,
-                           mod = lf_dcnn_python(path = file.path(ROOT, "inst", "python")))
-.span <- list(NT_cleavage_context = .cfg_chk$nt_span, CT_cleavage_context = .cfg_chk$ct_span,
-              pep_other = .cfg_chk$mid_span, pep_pocket = .cfg_chk$mid_span)
-.viol <- vapply(names(.span), function(cl) {
-  sp <- as.integer(unlist(.span[[cl]]))
-  sum(vapply(c("train", "val"), function(s) {
-    lab <- do.call(rbind, nn_input[[term]][[s]]$known_idx)
-    pos <- col(lab)[lab == cl]
-    sum(pos < sp[1] | pos > sp[2])
-  }, numeric(1)))
-}, numeric(1))
-message(sprintf("mask slack %d: nt %s  mid %s  ct %s | labels outside their span: %d",
-                slack, paste(unlist(.cfg_chk$nt_span), collapse = "-"),
-                paste(unlist(.cfg_chk$mid_span), collapse = "-"),
-                paste(unlist(.cfg_chk$ct_span), collapse = "-"), sum(.viol)))
-if (sum(.viol) > 0) {
-  print(.viol[.viol > 0])
-  stop("per-index labels fall outside the position masks; raise --mask-slack", call. = FALSE)
+## quietly fights the mask at those positions -- check before spending the run.
+## With no mask there is nothing for a label to fall outside.
+if (no_mask) {
+  message("class-position mask OFF: every class allowed at every position")
+} else {
+  .cfg_chk <- lf_dcnn_config(x$all_params3, pepend = term, slack = slack,
+                             mod = lf_dcnn_python(path = file.path(ROOT, "inst", "python")))
+  .span <- list(NT_cleavage_context = .cfg_chk$nt_span, CT_cleavage_context = .cfg_chk$ct_span,
+                pep_other = .cfg_chk$mid_span, pep_pocket = .cfg_chk$mid_span)
+  .viol <- vapply(names(.span), function(cl) {
+    sp <- as.integer(unlist(.span[[cl]]))
+    sum(vapply(c("train", "val"), function(s) {
+      lab <- do.call(rbind, nn_input[[term]][[s]]$known_idx)
+      pos <- col(lab)[lab == cl]
+      sum(pos < sp[1] | pos > sp[2])
+    }, numeric(1)))
+  }, numeric(1))
+  message(sprintf("mask slack %d: nt %s  mid %s  ct %s | labels outside their span: %d",
+                  slack, paste(unlist(.cfg_chk$nt_span), collapse = "-"),
+                  paste(unlist(.cfg_chk$mid_span), collapse = "-"),
+                  paste(unlist(.cfg_chk$ct_span), collapse = "-"), sum(.viol)))
+  if (sum(.viol) > 0) {
+    print(.viol[.viol > 0])
+    stop("per-index labels fall outside the position masks; raise --mask-slack", call. = FALSE)
+  }
 }
 message(sprintf("terminus %s: train %d, val %d, all %d windows; %d channels",
                 term, nrow(nn_input[[term]]$train), nrow(nn_input[[term]]$val),
                 nrow(nn_input[[term]]$all), length(x$all_params3)))
+
+## ---- drop input channels, if asked ---------------------------------------------
+## For testing whether the 26 channels can be pruned. They are heavily redundant
+## -- DSSP writes relASA, the SS one-hots, phi/psi and the H-bond energies from
+## ONE structure, and they predict each other at R^2 0.75-0.97 -- but redundancy
+## is not uselessness: min_afm and mean_afm each move retrieval <1.2x alone and
+## 2.8x together, so channels must be dropped as a set and judged by retraining,
+## never one at a time by single-feature importance.
+## `padding` is the mask that says where the protein ends, not a feature; it
+## cannot be dropped.
+drop_ch <- .opt("--drop-channels", NA_character_)
+if (!is.na(drop_ch)) {
+  dc   <- trimws(strsplit(drop_ch, ",")[[1]])
+  miss <- setdiff(dc, x$all_params3)
+  if (length(miss)) stop("no such channel(s): ", paste(miss, collapse = ", "), call. = FALSE)
+  keep <- setdiff(x$all_params3, dc)
+  if (!"padding" %in% keep) stop("padding is the mask channel and cannot be dropped", call. = FALSE)
+  for (tm in names(nn_input)) for (sp in names(nn_input[[tm]]))
+    nn_input[[tm]][[sp]]$data <- lapply(nn_input[[tm]][[sp]]$data,
+                                        function(d) d[, keep, drop = FALSE])
+  message(sprintf("dropped %d channel(s): %s\n  channels: %d -> %d",
+                  length(dc), paste(dc, collapse = ", "),
+                  length(x$all_params3), length(keep)))
+  x$all_params3 <- keep
+}
 
 ## ---- PLM channels into the trunk, if asked -------------------------------------
 if (!is.na(plm_p)) {
@@ -204,7 +254,10 @@ if (!is.na(pos_cls)) {
 ## `path`: lf_dcnn_path() prefers system.file("python", package = "ligandFinder"),
 ## i.e. the INSTALLED copy, which silently shadows this checkout -- pin it to the
 ## tree this script came from, or Config.pepend() is simply not there.
-.extra <- if (ins_head && !is.na(ins_w)) list(loss_weight_ins = ins_w) else list()
+.extra <- c(if (ins_head && !is.na(ins_w)) list(loss_weight_ins = ins_w),
+            if (no_mask) list(class_position_mask = FALSE),
+            if (!is.na(g_head)) list(global_head = g_head),
+            if (head_lr != 1) list(head_lr_mult = head_lr))
 run <- do.call(lf_dcnn_run, c(list(nn_input, channel_names = x$all_params3,
                    pepend = term, slack = slack, ins_head = ins_head),
                    .extra, list(
@@ -216,11 +269,13 @@ cfg <- run$config
 message(sprintf("loss weights: global %.3g, per_index %.3g%s",
                 cfg$loss_weight_global, cfg$loss_weight_per_index,
                 if (ins_head) sprintf(", ins %.3g", cfg$loss_weight_ins) else ""))
-message(sprintf("\ntrained: %s, %d params, %d seeds%s", cfg$trunk,
+message(sprintf("\ntrained: %s, %s head (x%g lr), %d params, %d seeds%s", cfg$trunk,
+                cfg$global_head, cfg$head_lr_mult,
                 as.integer(run$params[[term]]), n_seeds,
                 if (ins_head) sprintf(" | insertion head: %s",
                                       paste(as.character(cfg$ins_class_names), collapse = "/")) else ""))
-message(sprintf("masks: nt %s  mid %s  ct %s",
+message(if (!isTRUE(cfg$class_position_mask)) "masks: OFF" else
+        sprintf("masks: nt %s  mid %s  ct %s",
                 paste(as.integer(cfg$nt_span), collapse = "-"),
                 paste(as.integer(cfg$mid_span), collapse = "-"),
                 paste(as.integer(cfg$ct_span), collapse = "-")))

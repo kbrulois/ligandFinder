@@ -89,7 +89,8 @@ class Residues:
 
 
 def build_windows(res: Residues, i: int, anchors: np.ndarray, cfg: Config,
-                  anchor_pos: int, pad_col: int, ct_pad: bool = False) -> np.ndarray:
+                  anchor_pos: int, pad_col: int, ct_pad: bool = False,
+                  nt_pad: bool = False) -> np.ndarray:
     """The ``(len(anchors), seq_len, n_channels)`` windows of precursor ``i``.
 
     Mirrors ``lf_pepend_slice``: a position outside ``[n_prot, c_prot]`` is
@@ -98,13 +99,16 @@ def build_windows(res: Residues, i: int, anchors: np.ndarray, cfg: Config,
     ``ct_pad`` cuts each window at its own anchor, as ``10_7 --ct-pad`` built
     the training set for C: everything after the anchor is padding, as if the
     precursor ended there. A CT-padded model must be scored this way -- on
-    unpadded windows it sees inputs it was never trained on.
+    unpadded windows it sees inputs it was never trained on. ``nt_pad`` is the
+    N mirror (``10_7 --nt-pad``): each window starts at its own anchor, as if
+    the precursor began there.
     """
     a = np.asarray(anchors, dtype="int64")
     p = np.arange(1, cfg.seq_len + 1, dtype="int64")
     coord = a[:, None] + p[None, :] - anchor_pos            # (A, seq_len)
     lo, hi = int(res.n_prot[i]), int(res.c_prot[i])
     hi = np.minimum(hi, a)[:, None] if ct_pad else hi
+    lo = np.maximum(lo, a)[:, None] if nt_pad else lo
     ok = (coord >= lo) & (coord <= hi)
     x = np.zeros((a.size, cfg.seq_len, cfg.n_channels), dtype="float32")
     rows = int(res.offset[i]) + coord - 1
@@ -140,6 +144,7 @@ def load_member_models(out_dir, cfg: Config, term: str, n_seeds: int | None = No
 def scan(res: Residues, models, cfg: Config, term: str,
          chunk_windows: int = 200_000, batch_size: int = 4096,
          top_k: int = 5, thresholds=(0.2,),
+         ct_pad: bool = False, nt_pad: bool = False, keep_members: bool = False,
          progress=None) -> dict[str, np.ndarray]:
     """Score every mature position of every precursor.
 
@@ -171,6 +176,10 @@ def scan(res: Residues, models, cfg: Config, term: str,
     starts = np.concatenate(([0], np.cumsum(counts)))[:-1]
 
     mean_all = np.zeros(total, dtype="float32")
+    max_all = np.zeros(total, dtype="float32")   # the single most confident member
+    ## every member's own score, for asking whether the ensemble beats its best
+    ## single seed. (n_seeds, total) float32 -- 238 MB at 20 x 2.98M.
+    mem_all = None
     sd_all = np.zeros(total, dtype="float32")
     top_all = np.zeros(total, dtype="float32")
     n_gt = {t: np.zeros(total, dtype="int16") for t in ths}
@@ -204,7 +213,8 @@ def scan(res: Residues, models, cfg: Config, term: str,
         at = 0
         for p in range(i, j):
             a = anchor_of[int(starts[p]):int(starts[p]) + int(counts[p])]
-            x[at:at + a.size] = build_windows(res, p, a, cfg, anchor_pos, pad_col)
+            x[at:at + a.size] = build_windows(res, p, a, cfg, anchor_pos, pad_col,
+                                              ct_pad=ct_pad, nt_pad=nt_pad)
             at += int(a.size)
 
         G = np.empty((n_mem, k), dtype="float64")
@@ -236,6 +246,10 @@ def scan(res: Residues, models, cfg: Config, term: str,
                 ins_sd_ins[lo_row:hi_row] = np.sqrt(np.clip(var, 0.0, None))
             ins_votes[lo_row:hi_row] = c_votes
         mean_all[lo_row:hi_row] = G.mean(0)
+        max_all[lo_row:hi_row] = G.max(0)
+        if keep_members:
+            if mem_all is None: mem_all = np.zeros((n_mem, total), dtype="float32")
+            mem_all[:, lo_row:hi_row] = G
         if n_mem > 1:
             sd_all[lo_row:hi_row] = G.std(0, ddof=1)
         # the kk highest members of each window, not the kk best members overall
@@ -251,6 +265,8 @@ def scan(res: Residues, models, cfg: Config, term: str,
 
     out = {
         "score": mean_all,
+        "score_max": max_all,
+        **({"members": mem_all} if mem_all is not None else {}),
         "sd": sd_all,
         f"score_top{kk}": top_all,
         "prot_idx": prot_idx,
@@ -268,7 +284,8 @@ def scan(res: Residues, models, cfg: Config, term: str,
 
 def scan_to_npz(residues_npz, out_dir, term, out_npz, n_seeds=None,
                 calibrator=None, chunk_windows=200_000, batch_size=4096,
-                top_k=5, thresholds=(0.2,), verbose=True) -> dict[str, np.ndarray]:
+                top_k=5, thresholds=(0.2,), ct_pad=False, nt_pad=False,
+                keep_members=False, verbose=True) -> dict[str, np.ndarray]:
     """Read residues, rebuild the ensemble, scan, write ``out_npz``.
 
     ``out_dir`` is the isolated trainer's output directory; its sibling
@@ -293,6 +310,7 @@ def scan_to_npz(residues_npz, out_dir, term, out_npz, n_seeds=None,
 
     got = scan(res, models, cfg, term, chunk_windows=chunk_windows,
                batch_size=batch_size, top_k=top_k, thresholds=thresholds,
+               ct_pad=ct_pad, nt_pad=nt_pad, keep_members=keep_members,
                progress=prog if verbose else None)
     if calibrator is not None:
         got["score_cal"] = np.asarray(

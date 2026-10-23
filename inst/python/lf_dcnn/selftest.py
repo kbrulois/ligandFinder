@@ -887,6 +887,68 @@ def check_global_head_variants():
         raise AssertionError("accepted a bottleneck head on the flat trunk")
 
 
+def check_flatten_head_and_head_lr():
+    """The position-aware `flatten` head, the head learning-rate multiplier, and
+    the class-position mask switch."""
+    import keras
+    from .model import LRScaledDense
+
+    # flatten: (36, K_cat) straight into the embedding, no attention, no pooling
+    cfg = Config(trunk="unet", global_head="flatten")
+    m = build_model(cfg)
+    names = {l.name for l in m.layers}
+    assert "flat_cls" in names and "attn" not in names and "gap" not in names, names
+    assert m.get_layer("embed").input.shape[-1] == cfg.seq_len * cfg.K_cat
+    out = m.predict(np.zeros((2, cfg.seq_len, cfg.n_channels), "float32"), verbose=0)
+    assert out["global"].shape == (2, 1)
+    assert out["per_index_cat"].shape == (2, cfg.seq_len, cfg.K_pi)
+
+    # head_lr_mult: the SAME function at initialisation and the same parameter
+    # count, only the head's step size differs
+    x = np.random.default_rng(3).normal(size=(4, cfg.seq_len, cfg.n_channels)).astype("float32")
+    preds, params = {}, {}
+    for mult in (1.0, 10.0):
+        keras.utils.set_random_seed(11)
+        mm = build_model(cfg.evolve(head_lr_mult=mult))
+        assert (type(mm.get_layer("embed")) is LRScaledDense) == (mult != 1.0)
+        preds[mult] = mm.predict(x, verbose=0)["global"]
+        params[mult] = mm.count_params()
+    assert params[1.0] == params[10.0], params
+    assert np.allclose(preds[1.0], preds[10.0], atol=1e-6), (preds[1.0], preds[10.0])
+    # one Adam step moves the kernel in use lr_mult times as far
+    steps = {}
+    for mult in (1.0, 10.0):
+        keras.utils.set_random_seed(5)
+        d = LRScaledDense(4, lr_mult=mult); d.build((None, 8))
+        xi = np.random.default_rng(1).normal(size=(32, 8)).astype("float32")
+        yi = np.random.default_rng(2).normal(size=(32, 4)).astype("float32")
+        w0 = ops.convert_to_numpy(d._kernel * d.lr_mult)
+        import tensorflow as tf
+        with tf.GradientTape() as tape:
+            loss = tf.reduce_mean((d(xi) - yi) ** 2)
+        g = tape.gradient(loss, d.trainable_variables)
+        keras.optimizers.Adam(1e-3).apply_gradients(zip(g, d.trainable_variables))
+        steps[mult] = float(np.abs(ops.convert_to_numpy(d._kernel * d.lr_mult) - w0).mean())
+    assert abs(steps[10.0] / steps[1.0] - 10.0) < 0.05, steps
+    try:
+        Config(head_lr_mult=0)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("accepted head_lr_mult = 0")
+
+    # class_position_mask = False: same layer, all-ones matrix, same shapes
+    pe = Config.pepend("C", slack=8)
+    on, off = build_model(pe), build_model(pe.evolve(class_position_mask=False))
+    m_on = on.get_layer("class_position_mask").mask_matrix
+    m_off = off.get_layer("class_position_mask").mask_matrix
+    assert (m_on == 0).any() and (m_off == 1).all() and m_on.shape == m_off.shape
+    assert on.count_params() == off.count_params()
+    # a config saved before the field existed loads with the mask ON
+    d = {k: v for k, v in pe.to_dict().items() if k != "class_position_mask"}
+    assert Config.from_dict(d).class_position_mask is True
+
+
 def check_unet_trains():
     """A short end-to-end run on the pooling trunk."""
     from .pipeline import run
@@ -907,6 +969,7 @@ CHECKS = [
     check_model_shapes,
     check_unet_trunk,
     check_global_head_variants,
+    check_flatten_head_and_head_lr,
     check_unet_trains,
     check_position_ramp,
     check_include_none,

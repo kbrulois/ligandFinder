@@ -64,9 +64,20 @@ def main(argv=None):
                     help="cut every scanned C window at its anchor, for a run trained "
                          "on a 10_7 --ct-pad set. The heads need no change: they are "
                          "fitted on the run's own exported windows, already padded")
+    ap.add_argument("--members", default=None,
+                    help="comma-separated 0-based member indices to use instead of all, "
+                         "for building a single-seed track")
+    ap.add_argument("--save-val", action="store_true",
+                    help="also write the validation labels and each head's validation "
+                         "predictions (_val__y, _val__cnn, _val__xgb_pm), for AUC curves")
+    ap.add_argument("--nt-pad", action="store_true",
+                    help="start every scanned N window at its anchor, for a run trained "
+                         "on a 10_7 --nt-pad set")
     a = ap.parse_args(argv)
     if a.ct_pad and a.term != "C":
         ap.error("--ct-pad applies to C windows only")
+    if a.nt_pad and a.term != "N":
+        ap.error("--nt-pad applies to N windows only")
 
     import xgboost as xgb
     from lf_dcnn.config import Config
@@ -76,6 +87,12 @@ def main(argv=None):
     iso = _iso(a.run)
     cfg = Config.from_json(iso / "in" / "config.json")
     models = load_member_models(iso / "out", cfg, a.term)
+    if a.members:
+        sel = [int(v) for v in a.members.split(",")]
+        bad = [v for v in sel if not 0 <= v < len(models)]
+        if bad: ap.error(f"member(s) {bad} outside 0..{len(models)-1}")
+        models = [models[v] for v in sel]
+        print(f"using {len(models)} of the ensemble's members: {sel}", flush=True)
     pi_names = [str(c) for c in cfg.pi_names]
     anchor = PEPEND_ANCHOR[a.term]
     pad_col = cfg.channel_names.index("padding")
@@ -192,6 +209,11 @@ def main(argv=None):
         print(f"  val {nm:6s} " + json.dumps({k: round(v, 4)
                                               for k, v in _metrics(yc["val"], p).items()}),
               flush=True)
+    val_out = {}
+    if a.save_val:
+        val_out["_val__y"] = yc["val"].astype("int8")
+        for nm, p in heads:
+            val_out[f"_val__{nm}"] = np.asarray(p, dtype="float32")
 
     # ---- now the scan anchors, gene by gene -----------------------------------
     res = Residues.from_npz(os.path.expanduser(a.residues_npz))
@@ -207,7 +229,8 @@ def main(argv=None):
             continue
         i = int(hits[0])
         anchors = np.arange(int(res.n_prot[i]), int(res.c_prot[i]) + 1)
-        x = build_windows(res, i, anchors, cfg, anchor, pad_col, ct_pad=a.ct_pad)
+        x = build_windows(res, i, anchors, cfg, anchor, pad_col, ct_pad=a.ct_pad,
+                          nt_pad=a.nt_pad)
         pm, st, cn = [], [], []
         for mi, m in enumerate(models):
             o = predict_all(m, x)
@@ -230,7 +253,7 @@ def main(argv=None):
             line += f" | xgb_st {out[f'{g}__xgb_st'].max():.3f}"
         print(line, flush=True)
 
-    np.savez_compressed(os.path.expanduser(a.out), **out,
+    np.savez_compressed(os.path.expanduser(a.out), **out, **val_out,
                         genes=np.asarray([k.split("__")[0] for k in out
                                           if k.endswith("__anchor")]))
     print(f"\n-> {a.out}", flush=True)

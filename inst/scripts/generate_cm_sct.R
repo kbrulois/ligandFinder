@@ -275,8 +275,13 @@ generate_cm_script <- function(uni_id,
                 filter(feature %in% c("both", "afdsb", "unidsb"))
 
   dsb_sel <- dsb_mets %>%
-    mutate(cmd = paste0("select :", start, ",", end, "; ", "color sel ",  color, "; ", "show sel atoms; ", "style sel stick;")) %>%
-    mutate(cmd = if_else(grepl("^both_", label), cmd, paste0(cmd, "select :", start, ",", end, "; ", "label sel text ", feature, "; ", "label height 0.5"))) %>%
+    ## NO trailing ";" here. The summarise() below joins these with "; ", so a
+    ## command that already ends in ";" produced "stick;; select ..." -- an EMPTY
+    ## command between two semicolons. ChimeraX treats that as an error and a
+    ## .cxc stops at the first error, so `dsb` (run on line 18, before all 766
+    ## setattr lines) aborted the rest of the script.
+    mutate(cmd = paste0("select :", start, ",", end, "; ", "color sel ",  color, "; ", "show sel atoms; ", "style sel stick")) %>%
+    mutate(cmd = if_else(grepl("^both_", label), cmd, paste0(cmd, "; select :", start, ",", end, "; ", "label sel text ", feature, "; ", "label height 0.5"))) %>%
     add_row(cmd = "select clear") %>%
     summarise(cmd = paste(cmd, collapse = "; ")) %>%
     pull(cmd) %>%
