@@ -755,6 +755,68 @@ lf_plot_resid_track <- function(d, mdl, x_range, aa, gene, seq_offset = -0.45) {
 
 #' Every track that could be built, top to bottom, with its height in inches
 #' @export
+#' One height for every line track
+#'
+#' `options(lf.track_height)` (inches, default 0.77 -- the plotting height the
+#' CNN head track had when a two-row legend squeezed it, which is the size Kevin
+#' asked every track to match) is a track with no legend; a track that carries
+#' its legend INSIDE gets `lf.track_legend_height` (default 0.27) on top, so its
+#' plotting area matches every other track's.
+#' @keywords internal
+lf_track_h <- function(legend = FALSE)
+  getOption("lf.track_height", 0.77) +
+    if (isTRUE(legend)) getOption("lf.track_legend_height", 0.27) else 0
+
+#' The key for the window-head tracks, drawn once above them
+#'
+#' Replaces the per-series legend (N fold 1, C fold 1, ... all 50 (N)) with what
+#' the marks MEAN: colour = terminus, open dot = a fold that trained on this
+#' protein's ends, downward triangle = the fold that held one out, square = the
+#' mean of all folds. Built from off-panel keys so only the legend shows, on the
+#' tracks' own residue axis so the page aligns it like any other track.
+#' @keywords internal
+## `validation`: does this precursor carry a known end that some fold held out?
+## Only then do the triangles exist, and only then does "train" mean anything --
+## on a precursor no fold ever trained on, every fold series is out-of-sample, so
+## the open dot is just that fold's own ensemble and is named as such.
+lf_plot_win_legend <- function(x_range, seq_offset = -0.45, validation = TRUE) {
+  tc <- getOption("lf.term_cols", LF_TERM_COLS)
+  far <- x_range[1] - 1e6                    # off the panel: keys only
+  ln <- data.frame(x = far, y = c(0.4, 0.6, 0.4, 0.6),
+                   key = factor(rep(c("N terminus", "C terminus"), each = 2),
+                                levels = c("N terminus", "C terminus")))
+  keys <- if (validation) c("train", "validation", "mean of all folds")
+          else c("individual fold (mean of 10 seeds)", "mean of all folds")
+  pt <- data.frame(x = far, y = 0.5, key = factor(keys, levels = keys))
+  ggplot2::ggplot() +
+    ggplot2::geom_line(data = ln, ggplot2::aes(x, y, colour = key, group = key), linewidth = 0.7) +
+    ggplot2::geom_point(data = pt, ggplot2::aes(x, y, shape = key),
+                        fill = "white", colour = "grey20", size = 1.9, stroke = 0.6) +
+    ggplot2::scale_colour_manual(values = c(`N terminus` = tc[["N"]], `C terminus` = tc[["C"]]),
+                                 name = NULL) +
+    ggplot2::scale_shape_manual(
+      values = stats::setNames(if (validation) c(21, 25, 22) else c(21, 22), keys),
+      name = NULL) +
+    lf_track_x(x_range, seq_offset) +
+    ggplot2::scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
+    lf_track_theme() +
+    ggplot2::theme(panel.border = ggplot2::element_blank(),
+                   panel.grid = ggplot2::element_blank(),
+                   axis.text.y = ggplot2::element_blank(),
+                   axis.ticks.y = ggplot2::element_blank(),
+                   axis.title.y = ggplot2::element_blank(),
+                   legend.position = "inside",
+                   legend.position.inside = c(0, 0.5),
+                   legend.justification = c(0, 0.5),
+                   legend.direction = "horizontal", legend.box = "horizontal",
+                   legend.background = ggplot2::element_blank(),
+                   legend.key = ggplot2::element_blank(),
+                   legend.text = ggplot2::element_text(size = 7.5),
+                   legend.key.size = grid::unit(10, "pt"),
+                   legend.spacing.x = grid::unit(6, "pt"),
+                   legend.margin = ggplot2::margin(0, 12, 0, 0))
+}
+
 lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
   mk <- list()
   add <- function(p, h) if (!is.null(p)) mk[[length(mk) + 1L]] <<- list(p = p, h = h)
@@ -768,14 +830,21 @@ lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
       add(lf_plot_class_track(dat$resid[dat$resid$term == terms[k], , drop = FALSE],
                               x_range, aa, gene, k == 1L, seq_offset,
                               ylab = sprintf("%s terminus windows\nper-residue\nclass probability", terms[k]),
-                              note = sprintf("%s terminus windows only", terms[k])), 1.7)
+                              note = sprintf("%s terminus windows only", terms[k])),
+          lf_track_h(legend = k == 1L))
   } else {
-    add(lf_plot_class_track(dat$resid, x_range, aa, gene, TRUE, seq_offset), 1.7)
+    add(lf_plot_class_track(dat$resid, x_range, aa, gene, TRUE, seq_offset), lf_track_h(TRUE))
   }
   for (nm in names(dat$extra_resid))
     add(lf_plot_class_track(dat$extra_resid[[nm]], x_range, aa, gene, FALSE, seq_offset,
                             ylab = paste0(nm, "\nper-residue\nclass probability"),
-                            note = paste(nm, "windows only")), 1.7)
+                            note = paste(nm, "windows only")), lf_track_h())
+  ## the window-free per-residue models first: they answer a different question
+  ## from the window heads and read as the page's baseline above them
+  if (!is.null(dat$rp)) {
+    add(lf_plot_resid_track(dat$rp, "MLP", x_range, aa, gene, seq_offset), lf_track_h())
+    add(lf_plot_resid_track(dat$rp, "XGB", x_range, aa, gene, seq_offset), lf_track_h())
+  }
   if (!is.null(dat$win)) {
     ## each head as the page's own track, then one per extra group (e.g. padded)
     grp <- if (is.null(dat$win$group)) character(0) else unique(stats::na.omit(dat$win$group))
@@ -785,9 +854,17 @@ lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
     ## pair of axes rather than by eye across two tracks.
     ov <- isTRUE(getOption("lf.win_overlay_all50", FALSE)) && length(grp)
     own <- dat$win[is.na(dat$win$group), , drop = FALSE]
+    ## Per-fold tracks get ONE key above them (lf_plot_win_legend) instead of a
+    ## per-series legend inside the first; options(lf.win_custom_legend = FALSE)
+    ## restores the per-series one.
+    custom <- length(grp) > 0 && isTRUE(getOption("lf.win_custom_legend", TRUE))
+    has_val <- !is.null(dat$heldout) && nrow(dat$heldout) > 0
+    if (custom) add(lf_plot_win_legend(x_range, seq_offset, validation = has_val),
+                    getOption("lf.track_legend_height", 0.27))
     for (hd in c("CNN attention head", "xgb window head")) {
       if (!ov)
-        add(lf_plot_win_track(dat$win, hd, x_range, aa, gene, hd == "CNN attention head", seq_offset), 1.15)
+        add(lf_plot_win_track(dat$win, hd, x_range, aa, gene, hd == "CNN attention head", seq_offset),
+            lf_track_h(hd == "CNN attention head"))
       for (g in grp) {
         ## the axis names the head the group's runs actually have, when they
         ## agree on one (a flatten trunk's CNN track is not attention)
@@ -801,18 +878,15 @@ lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
         ge <- if (is.null(dat$win$group_ens)) rep(FALSE, nrow(dat$win)) else
           dat$win$group %in% g & dat$win$group_ens %in% TRUE
         own_g <- any(ge)
+        leg <- !custom && hd == "CNN attention head"
         add(lf_plot_win_track(dat$win[!ge, , drop = FALSE], hd, x_range, aa, gene,
-                              hd == "CNN attention head", seq_offset,
+                              leg, seq_offset,
                               group = g, ylab = sprintf("%s\n(%s)", sub(" head", "\nhead", lbl), g),
                               overlay = if (own_g) dat$win[ge, , drop = FALSE] else if (ov) own else NULL,
                               overlay_own = own_g,
-                              held = dat$heldout), if (ov || own_g) 1.4 else 1.15)
+                              held = dat$heldout), lf_track_h(leg))
       }
     }
-  }
-  if (!is.null(dat$rp)) {
-    add(lf_plot_resid_track(dat$rp, "MLP", x_range, aa, gene, seq_offset), 1.1)
-    add(lf_plot_resid_track(dat$rp, "XGB", x_range, aa, gene, seq_offset), 1.1)
   }
   mk
 }
