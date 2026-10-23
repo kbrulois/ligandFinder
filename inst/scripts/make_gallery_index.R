@@ -30,6 +30,21 @@ note_p  <- .opt("--notes", NA_character_)
 blurb_p  <- .opt("--blurb", NA_character_)
 footer_p <- .opt("--footer", NA_character_)
 .read_html_opt <- function(p, d) if (is.na(p)) d else paste(readLines(path.expand(p), warn = FALSE), collapse = "\n")
+## optional per-gene card HTML, as an rds with `gene` and `html` columns, put
+## into the card as is (NOT escaped -- it is generated, e.g. the per-end TP / FN
+## table of the final gallery; any styling it needs travels in the blurb)
+card_p <- .opt("--card-html", NA_character_)
+## the stock description names the near-end trunks' tracks, attention head
+## included; a gallery whose blurb describes its own pages drops it
+stock_desc <- if ("--no-stock-desc" %in% .args) "" else
+  'Each page carries the per-residue class tracks
+    (<b>peptide (inserting)</b>, <b>peptide (non-inserting)</b>, CT- and NT-context),
+    the CNN attention head and the xgboost window head for both termini, and the
+    window-free MLP and XGB residue models.
+    Clicking a point on the <code>xgb window head</code> track opens the 36-residue
+    window anchored at that residue &mdash; N points open the N window, C points the C
+    window &mdash; drawn on the same residue axis, with the spread across the ensemble members.
+    Hovering marks that residue on every track.'
 
 files <- sort(list.files(dir_p, pattern = "\\.html$", full.names = TRUE))
 files <- files[basename(files) != basename(out_p)]
@@ -56,6 +71,11 @@ if (!is.na(note_p) && file.exists(path.expand(note_p))) {
 }
 esc <- function(x) { x <- gsub("&", "&amp;", x, fixed = TRUE)
                      x <- gsub("<", "&lt;", x, fixed = TRUE); gsub(">", "&gt;", x, fixed = TRUE) }
+card_html <- rep("", length(genes))
+if (!is.na(card_p) && file.exists(path.expand(card_p))) {
+  cd <- readRDS(path.expand(card_p))
+  card_html <- ifelse(is.na(cd$html[match(genes, cd$gene)]), "", cd$html[match(genes, cd$gene)])
+}
 
 rows <- paste0(
   '<a class="card" href="', esc(basename(files)), '" data-note="', esc(note), '" data-gene="',
@@ -65,7 +85,7 @@ rows <- paste0(
   ifelse(is.na(len), "", paste0(" &middot; ", len, " aa")),
   ' &middot; ', mb,
   ifelse(nzchar(note), paste0('</div><div class="n">', esc(note)), ''),
-  '</div></a>', collapse = "\n")
+  '</div>', card_html, '</a>', collapse = "\n")
 
 html <- sprintf('<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -99,14 +119,7 @@ html <- sprintf('<!doctype html>
 <body>
 <header>
   <h1>%s</h1>
-  <div class="sub">%d pages. %sEach page carries the per-residue class tracks
-    (<b>peptide (inserting)</b>, <b>peptide (non-inserting)</b>, CT- and NT-context),
-    the CNN attention head and the xgboost window head for both termini, and the
-    window-free MLP and XGB residue models.
-    Clicking a point on the <code>xgb window head</code> track opens the 36-residue
-    window anchored at that residue &mdash; N points open the N window, C points the C
-    window &mdash; drawn on the same residue axis, with the spread across the ensemble members.
-    Hovering marks that residue on every track.</div>
+  <div class="sub">%d pages. %s%s</div>
 </header>
 <div class="wrap">
   <input type="search" id="q" placeholder="filter by gene or accession, or GENEx90x116 + Enter" autocomplete="off">
@@ -146,7 +159,7 @@ html <- sprintf('<!doctype html>
 </script>
 </body></html>
 ', esc(ttl), esc(ttl), length(files),
-  .read_html_opt(blurb_p, ""), rows,
+  .read_html_opt(blurb_p, ""), stock_desc, rows,
   .read_html_opt(footer_p, paste("Trunks: <code>lf_pepend_run_N_near</code> /",
                                  "<code>lf_pepend_run_C_near</code>, 20 members each.")),
   format(Sys.Date(), "%e %B %Y"))
