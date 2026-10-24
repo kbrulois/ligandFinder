@@ -64,6 +64,65 @@ giant precursors, whose pages are too big to open anyway — **MUC16 (14,507 aa)
 projects to ~850 MB of HTML**, and 130 genes are over 2,000 aa. Worth deciding
 whether those should be rendered at a reduced popup cap, or skipped.
 
+## The 19 giants — answering that question (2026-10-24)
+
+**A reduced popup cap does not work.** Measured on ADAMTS10 (1,103 aa), same
+code path, only `LF_POPUP_MAX` changed: 85.2 MB at cap 2000 (not binding, all
+1,103 anchors kept) against **55.0 MB at cap 50**. That is 28.7 KB per
+suppressed anchor — real, but it leaves a 55 MB floor, 49.9 MB per 1,000
+residues, which is ~720 MB for MUC16 before anything else.
+
+**Most of a page is the species-alignment panel.** Counted in a loaded browser,
+CP (1,065 aa, 87.6 MB) has 315,878 SVG elements and **273,373 of them — 87% —
+are that one panel**: a `<rect>` and a `<text>` per species per residue over the
+63 species in `species_dat`. 70,326 of its 70,597 text elements are single
+amino-acid letters, i.e. the sequence drawn 66 times over. By bytes it is a
+steady ~30% of a page in every length band. At 14,507 residues a residue is far
+under a pixel wide, so none of it is readable at any zoom the page offers.
+
+So the giants are rendered by **`allsec_giants.sh`** with three levers, all in
+`final_pages_giant.R` and all off by default:
+
+| env var | what it does |
+|---|---|
+| `LF_NO_ALIGN_MIN` | above N residues, drop the species-alignment panel |
+| `LF_ENS_ONLY_MIN` | above N residues, keep only the two pooled all-50 ensembles, not the ten per-fold series |
+| `LF_POPUP_MAX` | bound the popup payload (existing option) |
+
+Dropping the alignment takes the same route as the 390 genes that have no
+ortholog MSA: `plot_proteins.R` wraps it in `tryCatch` and logs "species
+alignment SKIPPED". Verified on CCN2 that such a page is otherwise complete and
+its nine widgets still share one width and one left edge, so the residue axis
+still lines up.
+
+`final_pages_giant.R` also **overrides `lf_plot_win_legend`** when the ens-only
+mode is on. That function picks its keys from the `validation` flag, not from
+which series exist, so an ens-only page would otherwise still advertise
+"individual fold (mean of 10 seeds)" with no per-fold series drawn. The
+override is a copy of the original with one key instead of two, installed after
+`R/pepend_tracks.R` is sourced — deliberately here and not in the worktree,
+which the overnight render is reading. Verified on MUSTN1 forced into ens-only
+mode: the stale key is gone, "mean of all folds" remains.
+
+**`final_pages_giant.R` is a copy of `final_pages.R`, and has to be.** R reads a
+script incrementally as it runs, so editing `final_pages.R` while the overnight
+render is using it kills that run at the end. The copy differs only by the two
+guarded blocks above; with both env vars unset it behaves identically.
+
+The 19 giants were chunk `c_hy`. That chunk was **emptied while still pending**
+and its gene list saved to `giant_genes.txt` — otherwise the main run would have
+rendered them at the default settings, and being one chunk it would have run
+single-threaded on one worker for ~2 h while the other four idled.
+
+**Status, 2026-10-24: the outcome is not in yet.** The 19 giants are rendering
+as this is committed, so nothing above reports what they actually weigh or
+whether they open — the largest two or three may still be too heavy, sizes
+pending. `allsec_giants.sh` and `final_pages_giant.R` themselves are not in the
+repository yet either; they live in `~/AF2_analysis/lf_nomask_scripts_20261021`,
+which is not version controlled, which is why this section was committed ahead
+of them. The measured per-gene table and the verdict replace this paragraph when
+those renders land.
+
 ## Checking on it
 
 ```bash
