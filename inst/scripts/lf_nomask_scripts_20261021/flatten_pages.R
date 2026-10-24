@@ -6,27 +6,29 @@
 ## the per-fold group, and the masked all-50 ensemble is overlaid into it, so
 ## the two models read on one pair of axes.
 ##
-## Page code: THIS worktree's R files -- the modest-satoshi page code (its
+## Page code: the checkout's R files -- the modest-satoshi page code (its
 ## uncommitted track changes, applied here) plus `cnn_label`, so the flatten
 ## run's CNN track is named for its head instead of inheriting "attention".
-## Python: THIS worktree's inst/python. The no-mask members' config.json says
+## Python: the checkout's inst/python. The no-mask members' config.json says
 ## class_position_mask = false; the older lf_dcnn would drop that field as
 ## unknown and rebuild those members WITH the mask -- silently wrong scores.
 suppressMessages({library(tidyverse); library(ggiraph); library(patchwork)})
 suppressWarnings(suppressMessages(library(ligandFinder)))
-W  <- "/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7"
-WP <- "/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7/inst/python"
+## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
+.lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
+source(file.path(.lf_here, "lf_paths.R"))
+WP <- lf_src("inst/python")
 plot_dir <- Sys.getenv("LF_PLOT_DIR", "~/AF2_analysis/pepend_pages_flatten")
 .b <- readRDS("~/AF2_analysis/plot_bundle.rds")
 list2env(Filter(Negate(is.null), .b), .GlobalEnv)
 id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 if (!exists("species_dat") || is.null(species_dat))
   species_dat <- readRDS(system.file("extdata/species_dat.rds", package = "ligandFinder"))
-source(file.path(W, "R/plot_proteins_win_new.R")); source(file.path(W, "R/pepend_tracks.R"))
+source(lf_src("R/plot_proteins_win_new.R")); source(lf_src("R/pepend_tracks.R"))
 ## the ChimeraX helpers, definitions only (see cv5_pages.R: sourcing the file
 ## whole runs a batch that errors on this bundle)
 local({
-  e <- parse(file.path(W, "inst/scripts/generate_cm_sct.R"))
+  e <- parse(lf_src("inst/scripts/generate_cm_sct.R"))
   isfn <- vapply(e, function(x) {
     if (!is.call(x) || length(x) < 3) return(FALSE)
     op <- tryCatch(as.character(x[[1]])[1], error = function(...) "")

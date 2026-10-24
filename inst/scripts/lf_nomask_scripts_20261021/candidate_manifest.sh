@@ -5,6 +5,7 @@
 #   HEAD=xgb_pm THRESH=0.5 TOL=4 ./candidate_manifest.sh
 set -u
 S=${0:A:h}
+. $S/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 HEAD=${HEAD:-xgb_pm}; THRESH=${THRESH:-0.5}; TOL=${TOL:-4}
 LEN_MIN=${LEN_MIN:-8}; LEN_MAX=${LEN_MAX:-60}
@@ -34,7 +35,7 @@ stat_line() { [[ -e $1 ]] && echo "    $(basename $1)  $(stat -f '%z bytes, modi
   echo "INPUTS"
   for f in $A2/lf_pepend_cv5_tracks_N_flatten.rds $A2/lf_pepend_cv5_tracks_C_flatten.rds \
            $A2/lf_pepend_residue_cache.rds $A2/pepend_locus/uniprot_peptides.csv \
-           /Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7/inst/extdata/ligand_list.rds; do
+           $W/inst/extdata/ligand_list.rds; do
     stat_line $f
   done
   echo

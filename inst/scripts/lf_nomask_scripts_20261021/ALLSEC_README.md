@@ -72,17 +72,33 @@ ls ~/AF2_analysis/pepend_pages_allsec/*.html | wc -l
 du -sh ~/AF2_analysis/pepend_pages_allsec
 ```
 
-## Do not remove the worktree while this is running
+## Where the page code comes from
 
-`final_pages.R` sources `R/pepend_tracks.R` and `R/plot_proteins_win_new.R`
-straight out of
+`final_pages.R` sources `R/pepend_tracks.R` and `R/plot_proteins_win_new.R`, and
+sets the python path to `inst/python`, out of a ligandFinder **source checkout** —
+not out of the installed package, whose `inst/python` has neither `lf_winxgb` nor
+`lf_resid` and whose plotting code is weeks behind. `lf_paths.R` / `lf_paths.sh`
+resolve that checkout in one place for every script here:
 
-    /Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7
+1. `$LF_SRC`, if set
+2. otherwise the checkout this script directory sits in — these scripts are
+   committed at `inst/scripts/lf_nomask_scripts_20261021/`, so a copy that
+   travels with the repository needs no configuration
 
-and every render process re-reads them. PR #12 was merged to master on
-2026-10-23 (merge commit `e6ffced`) but the branch and this worktree were
-deliberately **kept**, because deleting either would kill the run mid-flight.
-Clean them up once the gallery is finished:
+A working copy kept **outside** a checkout (the one in `~/AF2_analysis`, say)
+therefore needs `LF_SRC`, and says so if it is missing:
+
+```bash
+export LF_SRC=~/R_projects/ligandFinder
+```
+
+### historical note
+
+Until 2026-10-24 these scripts each hardcoded the absolute path of the
+`claude/class-position-mask-diagram-b398c7` worktree, so that worktree had to be
+kept alive for the duration of a render. That is no longer true, and the branch
+and worktree can be removed once nothing is running from a copy that still
+points at them:
 
 ```bash
 git push origin --delete claude/class-position-mask-diagram-b398c7

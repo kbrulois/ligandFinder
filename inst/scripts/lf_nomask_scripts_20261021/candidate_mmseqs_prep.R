@@ -17,7 +17,9 @@
 ## so a hit can be compared with a candidate directly.
 suppressMessages({library(data.table)})
 A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
-W  <- "/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7"
+## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
+.lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
+source(file.path(.lf_here, "lf_paths.R"))
 HEAD <- Sys.getenv("HEAD", "xgb_pm")
 thr  <- as.numeric(Sys.getenv("THRESH", "0.5"))
 TOL  <- as.integer(Sys.getenv("TOL", "4"))
@@ -26,7 +28,7 @@ O    <- file.path(A2, "mmseq_cand"); dir.create(O, showWarnings = FALSE, recursi
 fc <- readRDS(file.path(A2, "lf_pepend_residue_cache.rds"))
 prec <- as.data.table(fc$prec)[, .(accession, gene, pseq = seq)]; rm(fc)
 
-ll <- as.data.table(readRDS(file.path(W, "inst/extdata/ligand_list.rds")))
+ll <- as.data.table(readRDS(lf_src("inst/extdata/ligand_list.rds")))
 ll <- ll[!is.na(sequence) & nzchar(sequence)]
 ll[, nm := fifelse(!is.na(final_name) & nzchar(final_name), final_name, uniprot_name)]
 k1 <- unique(ll[, .(accession, start, end, name = nm, seq = sequence, type = "ligand_list")])

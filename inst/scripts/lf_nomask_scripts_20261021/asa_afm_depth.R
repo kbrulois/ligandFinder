@@ -22,7 +22,9 @@
 ##     <= 0 = outside). A residue with no qualifying contact has no depth (NA).
 suppressMessages({library(dplyr); library(data.table); library(reticulate)})
 A2 <- path.expand("~/AF2_analysis")
-W  <- "/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7"
+## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
+.lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
+source(file.path(.lf_here, "lf_paths.R"))
 out <- file.path(A2, "lf_headcmp", "asa_afm_depth.csv")
 np <- import("numpy", convert = TRUE)
 
@@ -44,7 +46,7 @@ message(sprintf("residues: %s total, %s not excluded", format(nrow(res), big.mar
                 format(nrow(ok), big.mark = ",")))
 
 ## ---- insertion depth, through 10_7's model choice ---------------------------
-id_map <- readRDS(file.path(W, "data", "id_mapping.rds"))
+id_map <- readRDS(lf_src("data/id_mapping.rds"))
 e2s <- setNames(id_map[["Gene Names (primary)"]], id_map[["Entry Name"]])
 con <- readRDS(file.path(A2, "knowns.rds")) %>%
   filter(location == "relevant") %>%

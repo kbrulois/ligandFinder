@@ -4,7 +4,7 @@
 # class-position mask -- so lf_pepend_run_*_fold*_nomask (attn head, same folds,
 # same seeds) is the exact baseline. One arm per wave, four trainings at a time.
 set -u
-W=/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7
+. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 S=${0:A:h}
 cd $W
