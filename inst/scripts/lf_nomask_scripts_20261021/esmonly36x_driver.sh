@@ -123,8 +123,19 @@ run_eval() {  # label, ARM, KEEP
 
 run_eval esmonly36x        _esmonly36x ""
 run_eval esmonly36x_cov    _esmonly36x $KEEPF
-run_eval esmonly36_cov     _esmonly36  $KEEPF
-run_eval curated_cov       ""          $KEEPF
+# The covered-set runs for the two EXISTING arms are deliberately NOT here.
+# The class-position-mask session ran them at 14:48 on 2026-10-24, in parallel,
+# at Kevin's direct request -- same code, same KEEP file, same TOL -- producing
+#   segment_{confusion,roc_auc}_tol4_cov.csv            (curated)
+#   segment_{confusion,roc_auc}_esmonly36_tol4_cov.csv  (_esmonly36)
+# Re-running them here would recompute ~38 min for byte-identical output. If
+# those four files are ever missing, the commands are:
+#   TOL=4 ARM=_esmonly36 KEEP=$KEEPF Rscript segments_roc.R
+#   TOL=4 ARM=           KEEP=$KEEPF Rscript segments_roc.R
+for f in segment_confusion_tol4_cov.csv segment_confusion_esmonly36_tol4_cov.csv; do
+  [[ -s $HC/$f ]] && say "stage 6: reusing $f (built by the mask session)" \
+                  || say "stage 6: WARNING $f absent -- the covered-set comparison needs it"
+done
 run_eval curated_identity  ""          ""
 
 say "stage 6: byte-identity check of the KEEP parameterisation's default path"

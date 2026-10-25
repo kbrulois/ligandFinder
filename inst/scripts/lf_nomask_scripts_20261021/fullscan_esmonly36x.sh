@@ -12,7 +12,20 @@
 # trained config.json before it scans, so build_windows' positional copy is
 # safe. Rebuilding the table would produce the same 3,056,424 x 37 array.
 #
-# One honest consequence of reusing it: the 434 precursors with no embedding are
+# THE --groups NPZ, BY CONTRAST, IS *NOT* REUSABLE, and assuming it was cost a
+# full scan queue. fullscan_esmonly36.sh reuses the curated
+# lf_pepend_window_groups_<T>_cv5_f<k>.npz on the grounds that they "carry the
+# fold/member structure, not the channels". True for an arm that differs only in
+# channels; false here, because this arm differs in its TRAINING SET.
+# full_scan.py line 85 does `acc_tr[yc["train"] == 1]`, indexing the groups
+# table's accessions with the MODEL's own y_global, so the two must agree row
+# for row -- and they did not:
+#   IndexError: boolean index did not match indexed array along dimension 0;
+#   dimension is 469 but corresponding boolean dimension is 461
+# groups_esmcov.sh rebuilds them from the same _esmcov inputs used for training
+# and asserts every split's length against the trained arrays.npz.
+#
+# One honest consequence of reusing the residue table: the 434 precursors with no embedding are
 # still SCANNED, on all-zero input, by trunks that never saw an all-zero window
 # in training. Their scores are out-of-distribution and should not be read as
 # predictions. That is why the evaluation is also run restricted to the 5,182
@@ -36,13 +49,15 @@ if [[ ${1:-} == one ]]; then
   RUN=$A2/lf_pepend_run_${T}_cv5_f${k}${TAG}.rds
   [[ -s $RUN ]] || { echo "$T f$k SKIPPED: no trunk at $(basename $RUN)"; exit 0; }
   [[ -s $RESID ]] || { echo "$T f$k SKIPPED: no $(basename $RESID)"; exit 1; }
+  GRP=$A2/lf_pepend_window_groups_${T}_cv5_f${k}_esmcov.npz
+  [[ -s $GRP ]] || { echo "$T f$k SKIPPED: no $(basename $GRP) -- run groups_esmcov.sh"; exit 1; }
   source ~/.virtualenvs/r-tensorflow/bin/activate
   cd $W/inst/python
   echo "### $T f$k start $(date '+%F %H:%M:%S')" > $S/fsesm36x_${T}_f$k.log
   python -m lf_winxgb.full_scan --term $T \
     --run $RUN \
     --residues-npz $RESID \
-    --groups $A2/lf_pepend_window_groups_${T}_cv5_f${k}.npz \
+    --groups $A2/lf_pepend_window_groups_${T}_cv5_f${k}_esmcov.npz \
     --pm-rounds 100 --skip-stacked --out $OUT >> $S/fsesm36x_${T}_f$k.log 2>&1
   rc=$?
   echo "### $T f$k rc=$rc $(date '+%F %H:%M:%S')" >> $S/fsesm36x_${T}_f$k.log
@@ -56,6 +71,10 @@ for k in 1 2 3 4 5; do for T in C N; do
 done; done
 [[ $missing -eq 0 ]] || { echo "train_esmonly36x.sh has not finished -- not scanning"; exit 1; }
 [[ -s $RESID ]] || { echo "MISSING $(basename $RESID)"; exit 1; }
+for k in 1 2 3 4 5; do for T in C N; do
+  [[ -s $A2/lf_pepend_window_groups_${T}_cv5_f${k}_esmcov.npz ]] || { echo "MISSING groups $T f$k -- run groups_esmcov.sh"; missing=1; }
+done; done
+[[ $missing -eq 0 ]] || exit 1
 
 echo "ESM-ONLY (COVERED) FULL SCAN start $(date '+%F %H:%M:%S')  ($PROCS at a time)"
 for k in 1 2 3 4 5; do for T in C N; do echo "$k $T"; done; done | xargs -P $PROCS -n 2 ${0:A} one
