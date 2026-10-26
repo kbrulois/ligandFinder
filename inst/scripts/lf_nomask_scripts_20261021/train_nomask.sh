@@ -2,7 +2,7 @@
 # No-mask arm: 2-fold CV (foldA / foldB, the same cluster partition as
 # --n-folds 2), 5 seeds, both termini -- four trainings in parallel.
 set -u
-W=/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7
+. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 S=${0:A:h}
 cd $W

@@ -16,8 +16,10 @@
 ##   MODE=2fold NPZ_SFX=_brinp3 Rscript final_pages.R BRINP3
 suppressMessages({library(tidyverse); library(ggiraph); library(patchwork)})
 suppressWarnings(suppressMessages(library(ligandFinder)))
-W  <- "/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7"
-WP <- file.path(W, "inst", "python")
+## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
+.lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
+source(file.path(.lf_here, "lf_paths.R"))
+WP <- lf_src("inst/python")
 MODE <- Sys.getenv("MODE", "cv5"); stopifnot(MODE %in% c("2fold", "cv5"))
 SFX  <- Sys.getenv("NPZ_SFX", "")        # which per-gene xgb npz set (see arm_post.sh)
 A2 <- path.expand("~/AF2_analysis")
@@ -28,19 +30,19 @@ list2env(Filter(Negate(is.null), .b), .GlobalEnv)
 id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 if (!exists("species_dat") || is.null(species_dat))
   species_dat <- readRDS(system.file("extdata/species_dat.rds", package = "ligandFinder"))
-source(file.path(W, "R/plot_proteins_win_new.R")); source(file.path(W, "R/pepend_tracks.R"))
+source(lf_src("R/plot_proteins_win_new.R")); source(lf_src("R/pepend_tracks.R"))
 ## The peptide-annotation helpers live in R/plot_proteins.R, which the page does
-## NOT source -- it uses the INSTALLED package's copy. Take this worktree's
+## NOT source -- it uses the INSTALLED package's copy. Take the checkout's
 ## definitions of the four it needs (the "never seen" line), and nothing else.
 local({
-  e <- parse(file.path(W, "R/plot_proteins.R"))
+  e <- parse(lf_src("R/plot_proteins.R"))
   keep <- c("anno_feats", "anno_feat_colors", "pep_nudges", "assemble_anno_feats")
   hit <- vapply(e, function(x) is.call(x) && length(x) >= 3 &&
                   tryCatch(as.character(x[[1]])[1], error = function(...) "") %in% c("<-", "=") &&
                   tryCatch(as.character(x[[2]])[1], error = function(...) "") %in% keep, logical(1))
   for (i in which(hit)) eval(e[[i]], envir = globalenv())
   stopifnot("never seen" %in% anno_feats$feature)
-  message("annotation helpers from the worktree: ", sum(hit), " definitions")
+  message("annotation helpers from the checkout: ", sum(hit), " definitions")
 })
 ## The never-seen peptides: the evaluation set the window metrics use
 ## (cv5_unseen_ends.csv -- ends whose gene no fold trained a window on), one row
@@ -58,7 +60,7 @@ never_seen <- local({
 })
 ## the ChimeraX helpers, definitions only (sourcing the file whole runs a batch)
 local({
-  e <- parse(file.path(W, "inst/scripts/generate_cm_sct.R"))
+  e <- parse(lf_src("inst/scripts/generate_cm_sct.R"))
   isfn <- vapply(e, function(x) {
     if (!is.call(x) || length(x) < 3) return(FALSE)
     op <- tryCatch(as.character(x[[1]])[1], error = function(...) "")

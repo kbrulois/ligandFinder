@@ -29,8 +29,10 @@
 ##   THRESH=0.5 TOL=4,6     Rscript segments_motif.R
 suppressMessages({library(data.table)})
 A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
-W <- "/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7"
-source(file.path(W, "R", "pepend_windows.R"))     # lf_pepend_motif_vec
+## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
+.lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
+source(file.path(.lf_here, "lf_paths.R"))
+source(lf_src("R/pepend_windows.R"))     # lf_pepend_motif_vec
 TOLS <- as.integer(strsplit(Sys.getenv("TOL", "2"), ",")[[1]])
 THRESH <- as.numeric(strsplit(Sys.getenv("THRESH", "0.3"), ",")[[1]])
 CLASSES <- c("terminus", "dibasic", "G + dibasic", "monobasic", "other")
@@ -77,7 +79,7 @@ confusion <- function(b, s, thr, tol, ev, oth) {
   out
 }
 
-ll <- as.data.table(readRDS(file.path(W, "inst/extdata/ligand_list.rds")))[!is.na(start) & !is.na(end)]
+ll <- as.data.table(readRDS(lf_src("inst/extdata/ligand_list.rds")))[!is.na(start) & !is.na(end)]
 up <- fread(file.path(A2, "pepend_locus", "uniprot_peptides.csv"))[type %in% c("peptide", "propeptide")]
 un <- fread(file.path(S, "cv5_unseen_ends.csv"))
 un[, set := ifelse(grepl("^never seen", set), "never seen: peptides", "never seen: large products")]

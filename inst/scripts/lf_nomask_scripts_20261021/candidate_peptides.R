@@ -20,8 +20,10 @@
 ##   HEAD=xgb_pm THRESH=0.5 TOL=4 LEN_MIN=8 LEN_MAX=60 Rscript candidate_peptides.R
 suppressMessages({library(data.table)})
 A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
-W <- "/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7"
-source(file.path(W, "R", "pepend_windows.R"))     # lf_pepend_motif_vec
+## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
+.lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
+source(file.path(.lf_here, "lf_paths.R"))
+source(lf_src("R/pepend_windows.R"))     # lf_pepend_motif_vec
 HEAD    <- Sys.getenv("HEAD", "xgb_pm")
 thr     <- as.numeric(Sys.getenv("THRESH", "0.5"))
 TOL     <- as.integer(Sys.getenv("TOL", "4"))

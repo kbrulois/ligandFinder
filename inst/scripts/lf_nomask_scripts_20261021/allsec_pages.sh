@@ -16,7 +16,7 @@
 #   allsec_pages.sh chunk <file> -> one chunk (what xargs calls)
 #   PROCS=4 CHUNK=25 allsec_pages.sh
 set -u
-W=/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7
+. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 S=${0:A:h}
 OUT=$A2/pepend_pages_allsec

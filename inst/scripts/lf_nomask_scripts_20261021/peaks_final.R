@@ -21,7 +21,9 @@
 ##                 not (it moves with how many peaks a definition emits)
 suppressMessages({library(data.table)})
 A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
-W <- "/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7"
+## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
+.lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
+source(file.path(.lf_here, "lf_paths.R"))
 TOL <- 2L
 ## thresholds: THRESH="0.1,0.15,..." in the environment, else 0.3 and 0.5
 THRESH <- as.numeric(strsplit(Sys.getenv("THRESH", "0.3,0.5"), ",")[[1]])
@@ -70,7 +72,7 @@ best_peak <- function(pk, ends) {
   }, numeric(1))
 }
 
-ll <- as.data.table(readRDS(file.path(W, "inst/extdata/ligand_list.rds")))[!is.na(start) & !is.na(end)]
+ll <- as.data.table(readRDS(lf_src("inst/extdata/ligand_list.rds")))[!is.na(start) & !is.na(end)]
 up <- fread(file.path(A2, "pepend_locus", "uniprot_peptides.csv"))[type %in% c("peptide", "propeptide")]
 un <- fread(file.path(S, "cv5_unseen_ends.csv"))
 un[, set := ifelse(grepl("^never seen", set), "never seen: peptides", "never seen: large products")]

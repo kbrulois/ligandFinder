@@ -16,9 +16,11 @@
 ## ends whose gene no fold trained on (cv5_unseen_ends.csv), scored by all 50.
 suppressMessages({library(data.table); library(dplyr); library(reticulate)})
 S <- commandArgs(TRUE)[1]; A2 <- path.expand("~/AF2_analysis")
-W <- "/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7"
+## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
+.lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
+source(file.path(.lf_here, "lf_paths.R"))
 np <- import("numpy", convert = TRUE)
-ll <- as.data.frame(readRDS(file.path(W, "inst/extdata/ligand_list.rds")))
+ll <- as.data.frame(readRDS(lf_src("inst/extdata/ligand_list.rds")))
 un <- fread(file.path(S, "cv5_unseen_ends.csv"))
 prec <- fread(file.path(A2, "pepend_locus", "prec_order.csv"))
 
