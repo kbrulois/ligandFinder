@@ -5,7 +5,9 @@
 ## seed 14 is also what train-end selection picks; on N that rule picks seed 2.
 suppressMessages({library(tidyverse); library(ggiraph); library(patchwork)})
 suppressWarnings(suppressMessages(library(ligandFinder)))
-WT <- "/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/modest-satoshi-87b2c8"
+## package source tree: $LF_SRC, or the checkout this script sits in (lf_paths.R)
+.lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
+source(file.path(.lf_here, "lf_paths.R"))
 A2 <- path.expand("~/AF2_analysis"); S2 <- Sys.getenv("SCRATCH2")
 out_dir <- file.path(A2, "seed_pages"); dir.create(out_dir, showWarnings = FALSE)
 .b <- readRDS(file.path(A2, "plot_bundle.rds"))
@@ -13,8 +15,8 @@ list2env(Filter(Negate(is.null), .b), .GlobalEnv)
 id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 if (!exists("species_dat") || is.null(species_dat))
   species_dat <- readRDS(system.file("extdata/species_dat.rds", package = "ligandFinder"))
-source(file.path(WT, "R", "plot_proteins_win_new.R"))
-source(file.path(WT, "R", "pepend_tracks.R"))
+source(lf_src("R/plot_proteins_win_new.R"))
+source(lf_src("R/pepend_tracks.R"))
 options(
   lf.track_scan_C   = file.path(A2, "lf_pepend_scan_C_seed14.rds"),
   lf.track_scan_N   = file.path(A2, "lf_pepend_scan_N_seed7.rds"),

@@ -5,11 +5,15 @@
 ## the per-fold group, and the masked all-50 ensemble is overlaid into it, so
 ## the two models read on one pair of axes.
 ##
-## Page code: the checkout's R files. NOTE (2026-10-24): this script originally
-## read the modest-satoshi worktree's uncommitted R files, which were never
-## committed anywhere, so the pages it produces now are NOT bit-identical to
-## the pepend_pages_nomask set it first wrote. This script is superseded by
-## flatten_pages.R / final_pages.R and was not re-verified by a render.
+## Page code: the checkout's R files. NOTE (2026-10-24, corrected 2026-10-26):
+## this script originally read the modest-satoshi worktree's then-uncommitted
+## R files. Those were NOT lost -- that worktree's R/pepend_tracks.R is
+## byte-identical to commit a500526 on master, which is where the same work
+## landed. master has since moved two commits past it (3b09364, 16c6bcb), so
+## the pages this produces now are still not bit-identical to the
+## pepend_pages_nomask set it first wrote -- the page code is newer, not
+## different-and-unrecoverable. This script is superseded by flatten_pages.R /
+## final_pages.R and was not re-verified by a render.
 ## Python: the checkout's inst/python. The no-mask members' config.json says
 ## class_position_mask = false; the older lf_dcnn would drop that field as
 ## unknown and rebuild those members WITH the mask -- silently wrong scores.
