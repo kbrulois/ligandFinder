@@ -853,7 +853,10 @@ lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
     ## grouped track instead. A fold is then read against the ensemble on one
     ## pair of axes rather than by eye across two tracks.
     ov <- isTRUE(getOption("lf.win_overlay_all50", FALSE)) && length(grp)
-    own <- dat$win[is.na(dat$win$group), , drop = FALSE]
+    ## only read under `ov`, and only computable then: without extra runs there
+    ## is no `group` column, so `is.na(NULL)` is logical(0) -- a subscript that
+    ## `[.tbl_df` rejects outright (a base data.frame would quietly give 0 rows).
+    own <- if (ov) dat$win[is.na(dat$win$group), , drop = FALSE] else NULL
     ## Per-fold tracks get ONE key above them (lf_plot_win_legend) instead of a
     ## per-series legend inside the first; options(lf.win_custom_legend = FALSE)
     ## restores the per-series one.
