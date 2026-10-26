@@ -7,13 +7,14 @@
 ##
 ## Page code: the checkout's R files. NOTE (2026-10-24, corrected 2026-10-26):
 ## this script originally read the modest-satoshi worktree's then-uncommitted
-## R files. Those were NOT lost -- that worktree's R/pepend_tracks.R is
-## byte-identical to commit a500526 on master, which is where the same work
-## landed. master has since moved two commits past it (3b09364, 16c6bcb), so
-## the pages this produces now are still not bit-identical to the
-## pepend_pages_nomask set it first wrote -- the page code is newer, not
-## different-and-unrecoverable. This script is superseded by flatten_pages.R /
-## final_pages.R and was not re-verified by a render.
+## R files. Those were NOT lost. That worktree's R/pepend_tracks.R is the same
+## blob as commit a500526 -- an OLDER commit in master's history, not master
+## itself -- so the work was committed and master is two commits further on
+## (3b09364, 16c6bcb). The checkout is therefore NEWER page code than that
+## worktree, not different-and-unrecoverable code; the pages this produces
+## still are not bit-identical to the pepend_pages_nomask set it first wrote.
+## This script is superseded by flatten_pages.R / final_pages.R and was not
+## re-verified by a render.
 ## Python: the checkout's inst/python. The no-mask members' config.json says
 ## class_position_mask = false; the older lf_dcnn would drop that field as
 ## unknown and rebuild those members WITH the mask -- silently wrong scores.
