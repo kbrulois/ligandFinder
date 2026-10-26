@@ -4,8 +4,26 @@
     {
       "name": "af2-pages",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8777", "--directory", "/Users/kbrulois/AF2_analysis"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8777",
+        "--directory",
+        "/Users/kbrulois/AF2_analysis"
+      ],
       "port": 8777
+    },
+    {
+      "name": "esm-pages",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8801",
+        "--directory",
+        "/Users/kbrulois/AF2_analysis/pepend_pages_esmonly36"
+      ],
+      "port": 8801
     }
   ]
 }
