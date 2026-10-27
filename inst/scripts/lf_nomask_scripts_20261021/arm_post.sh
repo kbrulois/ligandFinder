@@ -2,7 +2,7 @@
 # For one trained arm (tag $1, e.g. _nomask_flatten): xgb window heads on each fold for the four page
 # genes, then both folds pooled into one 10-member ensemble per terminus.
 set -eu
-W=/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7
+. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 S=${0:A:h}
 GENES=CXCL14,CXCL17,ANO8,NPPA

@@ -8,7 +8,9 @@
 ##   THRESH=0.2 Rscript index_tpfn.R
 suppressMessages({library(data.table); library(tibble)})
 A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
-W  <- "/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7"
+## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
+.lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
+source(file.path(.lf_here, "lf_paths.R"))
 D  <- file.path(A2, "pepend_pages_flatten_cv5")
 thr <- as.numeric(Sys.getenv("THRESH", "0.2"))
 genes <- readLines(file.path(S, "page_genes.txt")); genes <- genes[nzchar(genes)]
@@ -102,7 +104,7 @@ blurb <- sub(old, paste0(style, new), blurb, fixed = TRUE)
 writeLines(blurb, file.path(S, "final_blurb_tpfn.html"))
 
 ## the cards say which ends are FN now; let a "FN" search find them
-args <- c(file.path(W, "inst/scripts/make_gallery_index.R"), "--dir", D,
+args <- c(lf_src("inst/scripts/make_gallery_index.R"), "--dir", D,
           "--title", "LigandFinder — peptide-end pages, linear window head (5-fold CV)",
           "--notes", file.path(S, "index_notes.rds"), "--card-html", file.path(S, "index_cards.rds"),
           "--blurb", file.path(S, "final_blurb_tpfn.html"), "--footer", file.path(S, "final_footer.html"),

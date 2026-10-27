@@ -4,7 +4,7 @@
 # scanned the attention folds -- so ROC / normalised PR / recall-vs-rank compare
 # like for like. Ten (fold, terminus) scans, four at a time.
 set -u
-W=/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7
+. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 S=${0:A:h}
 if [[ ${1:-} == one ]]; then

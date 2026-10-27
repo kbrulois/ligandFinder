@@ -8,9 +8,9 @@
 ##   HEAD=xgb_pm THRESH=0.5 TOL=4 Rscript candidate_multipep_merge.R
 suppressMessages({library(data.table)})
 A2 <- path.expand("~/AF2_analysis")
-HEAD <- Sys.getenv("HEAD", "xgb_pm")
+HEAD <- Sys.getenv("HEAD", "xgb_pm"); ARM <- Sys.getenv("ARM", "")   # "" = curated, else e.g. "_esmonly36"
 thr <- as.numeric(Sys.getenv("THRESH", "0.5")); TOL <- as.integer(Sys.getenv("TOL", "4"))
-f <- file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s_T%s_tol%d.csv", HEAD, thr, TOL))
+f <- file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s_T%s_tol%d%s.csv", HEAD, thr, TOL, ARM))
 cd <- fread(f)
 mp <- fread(file.path(A2, "multipep_ext", "multipep_scores.csv"))
 setnames(mp, 1, "sequence")

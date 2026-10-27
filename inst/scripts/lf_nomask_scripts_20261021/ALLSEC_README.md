@@ -64,6 +64,65 @@ giant precursors, whose pages are too big to open anyway — **MUC16 (14,507 aa)
 projects to ~850 MB of HTML**, and 130 genes are over 2,000 aa. Worth deciding
 whether those should be rendered at a reduced popup cap, or skipped.
 
+## The 19 giants — answering that question (2026-10-24)
+
+**A reduced popup cap does not work.** Measured on ADAMTS10 (1,103 aa), same
+code path, only `LF_POPUP_MAX` changed: 85.2 MB at cap 2000 (not binding, all
+1,103 anchors kept) against **55.0 MB at cap 50**. That is 28.7 KB per
+suppressed anchor — real, but it leaves a 55 MB floor, 49.9 MB per 1,000
+residues, which is ~720 MB for MUC16 before anything else.
+
+**Most of a page is the species-alignment panel.** Counted in a loaded browser,
+CP (1,065 aa, 87.6 MB) has 315,878 SVG elements and **273,373 of them — 87% —
+are that one panel**: a `<rect>` and a `<text>` per species per residue over the
+63 species in `species_dat`. 70,326 of its 70,597 text elements are single
+amino-acid letters, i.e. the sequence drawn 66 times over. By bytes it is a
+steady ~30% of a page in every length band. At 14,507 residues a residue is far
+under a pixel wide, so none of it is readable at any zoom the page offers.
+
+So the giants are rendered by **`allsec_giants.sh`** with three levers, all in
+`final_pages_giant.R` and all off by default:
+
+| env var | what it does |
+|---|---|
+| `LF_NO_ALIGN_MIN` | above N residues, drop the species-alignment panel |
+| `LF_ENS_ONLY_MIN` | above N residues, keep only the two pooled all-50 ensembles, not the ten per-fold series |
+| `LF_POPUP_MAX` | bound the popup payload (existing option) |
+
+Dropping the alignment takes the same route as the 390 genes that have no
+ortholog MSA: `plot_proteins.R` wraps it in `tryCatch` and logs "species
+alignment SKIPPED". Verified on CCN2 that such a page is otherwise complete and
+its nine widgets still share one width and one left edge, so the residue axis
+still lines up.
+
+`final_pages_giant.R` also **overrides `lf_plot_win_legend`** when the ens-only
+mode is on. That function picks its keys from the `validation` flag, not from
+which series exist, so an ens-only page would otherwise still advertise
+"individual fold (mean of 10 seeds)" with no per-fold series drawn. The
+override is a copy of the original with one key instead of two, installed after
+`R/pepend_tracks.R` is sourced — deliberately here and not in the worktree,
+which the overnight render is reading. Verified on MUSTN1 forced into ens-only
+mode: the stale key is gone, "mean of all folds" remains.
+
+**`final_pages_giant.R` is a copy of `final_pages.R`, and has to be.** R reads a
+script incrementally as it runs, so editing `final_pages.R` while the overnight
+render is using it kills that run at the end. The copy differs only by the two
+guarded blocks above; with both env vars unset it behaves identically.
+
+The 19 giants were chunk `c_hy`. That chunk was **emptied while still pending**
+and its gene list saved to `giant_genes.txt` — otherwise the main run would have
+rendered them at the default settings, and being one chunk it would have run
+single-threaded on one worker for ~2 h while the other four idled.
+
+**Status, 2026-10-24: the outcome is not in yet.** The 19 giants are rendering
+as this is committed, so nothing above reports what they actually weigh or
+whether they open — the largest two or three may still be too heavy, sizes
+pending. `allsec_giants.sh` and `final_pages_giant.R` themselves are not in the
+repository yet either; they live in `~/AF2_analysis/lf_nomask_scripts_20261021`,
+which is not version controlled, which is why this section was committed ahead
+of them. The measured per-gene table and the verdict replace this paragraph when
+those renders land.
+
 ## Checking on it
 
 ```bash
@@ -72,17 +131,33 @@ ls ~/AF2_analysis/pepend_pages_allsec/*.html | wc -l
 du -sh ~/AF2_analysis/pepend_pages_allsec
 ```
 
-## Do not remove the worktree while this is running
+## Where the page code comes from
 
-`final_pages.R` sources `R/pepend_tracks.R` and `R/plot_proteins_win_new.R`
-straight out of
+`final_pages.R` sources `R/pepend_tracks.R` and `R/plot_proteins_win_new.R`, and
+sets the python path to `inst/python`, out of a ligandFinder **source checkout** —
+not out of the installed package, whose `inst/python` has neither `lf_winxgb` nor
+`lf_resid` and whose plotting code is weeks behind. `lf_paths.R` / `lf_paths.sh`
+resolve that checkout in one place for every script here:
 
-    /Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7
+1. `$LF_SRC`, if set
+2. otherwise the checkout this script directory sits in — these scripts are
+   committed at `inst/scripts/lf_nomask_scripts_20261021/`, so a copy that
+   travels with the repository needs no configuration
 
-and every render process re-reads them. PR #12 was merged to master on
-2026-10-23 (merge commit `e6ffced`) but the branch and this worktree were
-deliberately **kept**, because deleting either would kill the run mid-flight.
-Clean them up once the gallery is finished:
+A working copy kept **outside** a checkout (the one in `~/AF2_analysis`, say)
+therefore needs `LF_SRC`, and says so if it is missing:
+
+```bash
+export LF_SRC=~/R_projects/ligandFinder
+```
+
+### historical note
+
+Until 2026-10-24 these scripts each hardcoded the absolute path of the
+`claude/class-position-mask-diagram-b398c7` worktree, so that worktree had to be
+kept alive for the duration of a render. That is no longer true, and the branch
+and worktree can be removed once nothing is running from a copy that still
+points at them:
 
 ```bash
 git push origin --delete claude/class-position-mask-diagram-b398c7
