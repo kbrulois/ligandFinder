@@ -10,8 +10,8 @@
 suppressMessages({library(data.table)})
 A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
 ## ARM selects which arm's tracks to call on and suffixes the output; TOL is
-## no longer fixed at 2. Both defaults reproduce the original exactly.
-TOL <- as.integer(Sys.getenv("TOL", "2"))
+## no longer fixed at 2. TOL=2 with ARM unset reproduces the original exactly.
+TOL <- as.integer(Sys.getenv("TOL", "4"))
 ARM <- Sys.getenv("ARM", "")
 thr <- as.numeric(Sys.getenv("THRESH", "0.2"))
 

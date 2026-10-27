@@ -33,11 +33,11 @@ A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
 source(file.path(.lf_here, "lf_paths.R"))
 source(lf_src("R/pepend_windows.R"))     # lf_pepend_motif_vec
-TOLS <- as.integer(strsplit(Sys.getenv("TOL", "2"), ",")[[1]])
-THRESH <- as.numeric(strsplit(Sys.getenv("THRESH", "0.3"), ",")[[1]])
+TOLS <- as.integer(strsplit(Sys.getenv("TOL", "4"), ",")[[1]])
+THRESH <- as.numeric(strsplit(Sys.getenv("THRESH", "0.5"), ",")[[1]])
 ## ARM picks which arm's tracks to read AND suffixes the output, exactly as in
 ## segments_roc.R. The default "" reads the curated tracks and keeps the output
-## names the already-drawn tables use, so running this bare is unchanged.
+## names the already-drawn tables use (TOL=2 THRESH=0.3 reproduces those).
 ##   THRESH=0.5 TOL=4 ARM=_esmonly36 Rscript segments_motif.R
 ARM <- Sys.getenv("ARM", "")
 CLASSES <- c("terminus", "dibasic", "G + dibasic", "monobasic", "other")

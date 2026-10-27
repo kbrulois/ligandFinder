@@ -22,15 +22,16 @@
 # --out train once and report it as both. The _esmonly36 in the name is what
 # keeps these separate. Do not remove it.
 #
-# PROCS defaults to 2, not the 4 of train_final.sh, because the all-secretome
-# page render is using five R workers on this machine. Raise it once that ends.
+# PROCS defaults to 4, matching train_final.sh. The all-secretome render that
+# forced it down to 2 finished on 2026-10-24; drop it back if something large
+# is rendering, because this machine is memory-bound under concurrent load.
 set -u
 . ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 S=${0:A:h}
 ARM=${ARM:-esmonly36}                      # the arm's name; everything below derives from it
 PLM=${PLM:-$A2/lf_plm/esm_c_pca36.parquet} # its per-residue PLM parquet
-PROCS=${PROCS:-2}
+PROCS=${PROCS:-4}
 
 # the 25 curated channels, i.e. all of all_params3 except `padding`
 DROP='cons_rs_n,min_afm,mean_afm,relASA,SS_P,SS_S,SS_E,SS_-,SS_T,SS_G,SS_B,SS_H,SS_I,Phi_cos,Psi_cos,Phi_sin,Psi_sin,NH->O_1_energy,O->NH_1_energy,NH->O_2_energy,O->NH_2_energy,AA_hydro,AA_charge,AA_mw,AA_pI'

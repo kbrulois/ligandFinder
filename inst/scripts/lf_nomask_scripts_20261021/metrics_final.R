@@ -56,7 +56,7 @@ flat_tracks <- function(tm) {
   saveRDS(b, p); b
 }
 
-ARMS <- strsplit(Sys.getenv("ARMS", "attention,flatten"), ",")[[1]]
+ARMS <- strsplit(Sys.getenv("ARMS", "flatten,esmonly36"), ",")[[1]]   # attention is retired
 NGRID <- unique(round(10^seq(0, 6.48, length.out = 150)))
 res <- list(); curves <- list()
 for (tm in c("C", "N")) {
