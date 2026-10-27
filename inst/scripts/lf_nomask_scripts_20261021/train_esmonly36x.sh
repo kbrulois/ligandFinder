@@ -31,7 +31,7 @@
 # _esmonly36's members, train nothing, and report the OLD model as the new arm.
 # The suffix is the only thing keeping them apart. Do not remove it.
 set -u
-W=/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7
+. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 S=${0:A:h}
 PLM=$A2/lf_plm/esm_c_pca36.parquet

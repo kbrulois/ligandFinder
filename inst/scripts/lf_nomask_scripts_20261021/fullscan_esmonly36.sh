@@ -17,10 +17,11 @@
 # near zero and swap near its allocation, and adding load halves the render's
 # throughput rather than sharing it. Raise this once the render is done.
 set -u
-W=/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7
+. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 S=${0:A:h}
-TAG=_nomask_flatten_esmonly36
+ARM=${ARM:-esmonly36}
+TAG=_nomask_flatten_${ARM}
 PROCS=${PROCS:-2}
 # The residue table MUST be this arm's own 37-channel one. build_windows copies
 # res.feat straight into a (k, seq_len, n_channels) array positionally, so the
@@ -28,7 +29,7 @@ PROCS=${PROCS:-2}
 # raises, and a right-width table in the wrong order would scan silently
 # against the wrong channels. residues_esmonly36.py asserts the order against
 # the trained model's channel_names.
-RESID=$A2/lf_pepend_residues_esmonly36.npz
+RESID=${RESID:-$A2/lf_pepend_residues_${ARM}.npz}
 
 if [[ ${1:-} == one ]]; then
   k=$2 T=$3

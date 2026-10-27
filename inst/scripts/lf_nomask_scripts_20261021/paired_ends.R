@@ -15,7 +15,6 @@
 ## and prints the contingency tables.
 suppressMessages({library(data.table)})
 A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
-W <- "/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7"
 TOL <- as.integer(Sys.getenv("TOL", "4")); THR <- as.numeric(Sys.getenv("THR", "0.5"))
 ARMS <- strsplit(trimws(Sys.getenv("ARMS", "_esmonly36")), "\\s+")[[1]]
 

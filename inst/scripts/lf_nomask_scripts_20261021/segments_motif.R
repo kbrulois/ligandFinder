@@ -35,6 +35,11 @@ source(file.path(.lf_here, "lf_paths.R"))
 source(lf_src("R/pepend_windows.R"))     # lf_pepend_motif_vec
 TOLS <- as.integer(strsplit(Sys.getenv("TOL", "2"), ",")[[1]])
 THRESH <- as.numeric(strsplit(Sys.getenv("THRESH", "0.3"), ",")[[1]])
+## ARM picks which arm's tracks to read AND suffixes the output, exactly as in
+## segments_roc.R. The default "" reads the curated tracks and keeps the output
+## names the already-drawn tables use, so running this bare is unchanged.
+##   THRESH=0.5 TOL=4 ARM=_esmonly36 Rscript segments_motif.R
+ARM <- Sys.getenv("ARM", "")
 CLASSES <- c("terminus", "dibasic", "G + dibasic", "monobasic", "other")
 
 fc <- readRDS(file.path(A2, "lf_pepend_residue_cache.rds")); prec <- as.data.table(fc$prec); rm(fc)
@@ -86,7 +91,7 @@ un[, set := ifelse(grepl("^never seen", set), "never seen: peptides", "never see
 
 res <- list()
 for (tm in c("C", "N")) {
-  b <- readRDS(file.path(A2, sprintf("lf_pepend_cv5_tracks_%s_flatten.rds", tm)))
+  b <- readRDS(file.path(A2, sprintf("lf_pepend_cv5_tracks_%s_flatten%s.rds", tm, ARM)))
   setDT(b); setorder(b, accession, anchor)
   b[, brk0 := c(TRUE, accession[-1] != accession[-.N] | diff(anchor) != 1L)]
   ## motif of every anchor, one precursor at a time
@@ -132,7 +137,7 @@ setorder(R, thr, tol, term, set, head, motif)
 ## tol 2 keeps the plain name, so the tables already drawn stay where they are
 for (t in THRESH) for (v in TOLS)
   fwrite(R[thr == t & tol == v], file.path(A2, "lf_headcmp",
-         sprintf("segment_motif_T%s%s.csv", t, if (v == 2L) "" else paste0("_tol", v))))
+         sprintf("segment_motif_T%s%s%s.csv", t, ARM, if (v == 2L) "" else paste0("_tol", v))))
 options(width = 220)
 print(dcast(R[set == "cross-validated"], term + head + motif ~ thr + tol, value.var = "auc_T")[
         , lapply(.SD, function(x) if (is.numeric(x)) round(x, 3) else x)], row.names = FALSE)
