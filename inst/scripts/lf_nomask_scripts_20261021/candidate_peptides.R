@@ -18,6 +18,36 @@
 ## by the C model.
 ##
 ##   HEAD=xgb_pm THRESH=0.5 TOL=4 LEN_MIN=8 LEN_MAX=60 Rscript candidate_peptides.R
+##
+## ARM picks which arm's tracks to segment, exactly as in segments_roc.R: ""
+## (the default) is the curated arm, "_esmonly36" reads
+## lf_pepend_cv5_tracks_<N|C>_flatten_esmonly36.rds. It also suffixes both
+## output names, so arms never overwrite each other. An arm's threshold is its
+## own (arms/<ARM>.sh THRESH_DEFAULT: 0.65 for esmonly36) -- pass it as THRESH.
+##   ARM=_esmonly36 THRESH=0.65 Rscript candidate_peptides.R
+##
+## ARMS_MAX segments SEVERAL arms at once (Kevin, 2026-10-27): the profile is,
+## per anchor, the MAX over the listed arms of each arm's all-50 mean, and every
+## es records which arms it rests on -- an arm SUPPORTS an es when its own score
+## is at or above THRESH somewhere in the es's run -- as `n_arms` (1, 2, 3...)
+## and `arms` ("curated+esmonly36"), plus `centre_arm`, the arm holding the max
+## at the centre. Candidates carry the same per end (n_es_arms, c_es_arms, ...).
+## "curated" names the curated arm. One THRESH for the max (an arm's own
+## threshold, e.g. esmonly36's 0.65, does not apply here). ARM is required with
+## it, as the output suffix, so this mode can never overwrite a one-arm table.
+##   ARMS_MAX=curated,esmonly36,curated_AAswap ARM=_max3 Rscript candidate_peptides.R
+##
+## Also writes the END SEGMENTS themselves, one row per es with its run of
+## anchors (start..end) and centre, as end_segments_<HEAD>_T<THRESH>.csv -- the
+## protein page draws them, and reading them back from here (rather than
+## re-deriving them on the page) guarantees the page shows the segments the
+## candidates were actually built from. No TOL in that name: an es does not
+## depend on it. Segments with no partner in length range are kept.
+##
+## OUT_DIR (default ~/AF2_analysis/lf_headcmp) redirects both files. Stages 3-5
+## add their columns to the candidate CSV IN PLACE, so re-running this stage
+## alone over an annotated table would drop them -- point OUT_DIR elsewhere to
+## regenerate segments for a table that already exists.
 suppressMessages({library(data.table)})
 A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
@@ -30,14 +60,37 @@ TOL     <- as.integer(Sys.getenv("TOL", "4"))
 LEN_MIN <- as.integer(Sys.getenv("LEN_MIN", "8"))
 LEN_MAX <- as.integer(Sys.getenv("LEN_MAX", "60"))
 COL     <- paste0(HEAD, "__all50")
+ARM     <- Sys.getenv("ARM", "")
+ARMS_MAX <- Filter(nzchar, trimws(strsplit(Sys.getenv("ARMS_MAX", ""), ",")[[1]]))
+if (length(ARMS_MAX) && !nzchar(ARM))
+  stop("ARMS_MAX needs an ARM suffix of its own (e.g. ARM=_max3): without one it would ",
+       "overwrite the curated arm's table")
+arm_sfx <- function(a) if (a == "curated") "" else paste0("_", a)
+OUT_DIR <- path.expand(Sys.getenv("OUT_DIR", file.path(A2, "lf_headcmp")))
 
-## every anchor of every es, plus which es it belongs to and that es's centre
-es_anchors <- function(b, s) {
+## every es: which run it is, its first and last anchor, and its centre. With M
+## (one column of scores per arm, rows aligned with b), also which arms support
+## it: an arm whose own score reaches thr anywhere in the run.
+es_anchors <- function(b, s, M = NULL) {
   up <- !is.na(s) & s >= thr
   sid <- cumsum(b$brk0 | c(TRUE, up[-1] != up[-length(up)]))
-  d <- data.table(sid, accession = b$accession, anchor = b$anchor, s = s, up = up)[up == TRUE]
-  if (!nrow(d)) return(d[0, .(accession, es, centre, centre_score)])
-  cen <- d[, .(centre = anchor[which.max(s)], centre_score = max(s), n_anchor = .N), by = .(sid, accession)]
+  keep <- which(up)
+  d <- data.table(sid = sid[keep], accession = b$accession[keep], anchor = b$anchor[keep], s = s[keep])
+  if (!nrow(d)) return(d[0, .(accession, es = sid, centre = anchor, centre_score = s,
+                              n_anchor = integer(0), seg_start = anchor, seg_end = anchor)])
+  cen <- d[, .(centre = anchor[which.max(s)], centre_score = max(s), n_anchor = .N,
+               seg_start = anchor[1], seg_end = anchor[.N]), by = .(sid, accession)]
+  if (!is.null(M)) {
+    hit <- M[keep, , drop = FALSE] >= thr
+    hit[is.na(hit)] <- FALSE
+    sup <- rowsum(hit * 1L, d$sid) > 0                  # es x arm
+    sup <- sup[match(cen$sid, as.integer(rownames(sup))), , drop = FALSE]
+    stopifnot(all(rowSums(sup) >= 1))                   # the max reached thr, so some arm did
+    ci <- keep[d[, .I[which.max(s)], by = sid]$V1]      # the centre's row in b
+    cen[, `:=`(es_arms = as.integer(rowSums(sup)),
+               es_arm_list = apply(sup, 1, function(r) paste(colnames(M)[r], collapse = "+")),
+               centre_arm = colnames(M)[max.col(M[ci, , drop = FALSE], ties.method = "first")])]
+  }
   setnames(cen, "sid", "es")
   cen
 }
@@ -58,29 +111,58 @@ fan <- function(cen, b, s) {
 fc <- readRDS(file.path(A2, "lf_pepend_residue_cache.rds"))
 prec <- as.data.table(fc$prec)[, .(accession, gene, seq, n_prot)]; rm(fc)
 
-side <- list()
+side <- list(); segs <- list()
 for (tm in c("N", "C")) {
-  b <- readRDS(file.path(A2, sprintf("lf_pepend_cv5_tracks_%s_flatten.rds", tm)))
-  setDT(b); setorder(b, accession, anchor)
+  M <- NULL
+  if (length(ARMS_MAX)) {
+    ## every arm's tracks, which must agree row for row on (accession, anchor)
+    bs <- lapply(ARMS_MAX, function(a) {
+      x <- as.data.table(readRDS(file.path(A2, sprintf("lf_pepend_cv5_tracks_%s_flatten%s.rds",
+                                                       tm, arm_sfx(a)))))[, c("accession", "anchor", COL), with = FALSE]
+      setorder(x, accession, anchor); x
+    })
+    for (x in bs[-1]) stopifnot(identical(x$accession, bs[[1]]$accession),
+                                identical(x$anchor, bs[[1]]$anchor))
+    M <- vapply(bs, function(x) x[[COL]], numeric(nrow(bs[[1]])))
+    colnames(M) <- ARMS_MAX
+    b <- bs[[1]][, .(accession, anchor)]
+    b[, (COL) := do.call(pmax, c(lapply(seq_len(ncol(M)), function(j) M[, j]), na.rm = TRUE))]
+    rm(bs); invisible(gc())
+  } else {
+    b <- readRDS(file.path(A2, sprintf("lf_pepend_cv5_tracks_%s_flatten%s.rds", tm, ARM)))
+    setDT(b); setorder(b, accession, anchor)
+  }
   b[, brk0 := c(TRUE, accession[-1] != accession[-.N] | diff(anchor) != 1L)]
   ## cleavage motif of every anchor, the rule the knowns are labelled with
   b[prec, on = "accession", `:=`(seq = i.seq, n_prot = i.n_prot)]
   b[, motif := lf_pepend_motif_vec(seq[1], tm, anchor, n_prot[1]), by = accession]
   b[, c("seq", "n_prot") := NULL]
   s <- b[[COL]]
-  cen <- es_anchors(b, s)
+  cen <- es_anchors(b, s, M)
+  segs[[tm]] <- cen[, .(term = tm, accession, es, start = seg_start, end = seg_end,
+                        centre, centre_score, n_anchors = n_anchor)]
+  if (!is.null(M))
+    segs[[tm]][, `:=`(n_arms = cen$es_arms, arms = cen$es_arm_list, centre_arm = cen$centre_arm)]
+  segs[[tm]][b, on = .(accession, centre = anchor), motif_centre := i.motif]
+  cen[, c("seg_start", "seg_end") := NULL]
   side[[tm]] <- fan(cen, b, s)
   message(sprintf("%s: %s end segments at T=%.2f (%s anchors offered within +/-%d)",
                   tm, format(nrow(cen), big.mark = ","), thr,
                   format(nrow(side[[tm]]), big.mark = ","), TOL))
-  rm(b, s, cen); invisible(gc())
+  if (!is.null(M)) print(cen[, .(terminus = tm, .N), by = .(n_arms = es_arms)][order(n_arms)], row.names = FALSE)
+  rm(b, s, cen, M); invisible(gc())
 }
 
 ## pair them up on one precursor: N start before C end, length in range
-setnames(side$N, c("es", "centre", "centre_score", "pos", "score", "n_anchor", "motif_end", "motif_centre"),
-         c("n_es", "n_centre", "n_centre_score", "n_pos", "n_pos_score", "n_es_anchors", "n_motif_end", "n_motif_centre"))
-setnames(side$C, c("es", "centre", "centre_score", "pos", "score", "n_anchor", "motif_end", "motif_centre"),
-         c("c_es", "c_centre", "c_centre_score", "c_pos", "c_pos_score", "c_es_anchors", "c_motif_end", "c_motif_centre"))
+## (the arm columns exist only under ARMS_MAX, hence skip_absent)
+setnames(side$N, c("es", "centre", "centre_score", "pos", "score", "n_anchor", "motif_end", "motif_centre",
+                   "es_arms", "es_arm_list", "centre_arm"),
+         c("n_es", "n_centre", "n_centre_score", "n_pos", "n_pos_score", "n_es_anchors", "n_motif_end",
+           "n_motif_centre", "n_es_arms", "n_es_arm_list", "n_centre_arm"), skip_absent = TRUE)
+setnames(side$C, c("es", "centre", "centre_score", "pos", "score", "n_anchor", "motif_end", "motif_centre",
+                   "es_arms", "es_arm_list", "centre_arm"),
+         c("c_es", "c_centre", "c_centre_score", "c_pos", "c_pos_score", "c_es_anchors", "c_motif_end",
+           "c_motif_centre", "c_es_arms", "c_es_arm_list", "c_centre_arm"), skip_absent = TRUE)
 P <- side$N[side$C, on = "accession", allow.cartesian = TRUE, nomatch = 0]
 P[, len := c_pos - n_pos + 1L]
 P <- P[len >= LEN_MIN & len <= LEN_MAX]
@@ -126,10 +208,33 @@ out <- P[, .(peptide_id, group_id, group_size, group_rank, pair_score = round(pa
              c_dist, c_score_end = round(c_pos_score, 4), c_score_centre = round(c_centre_score, 4),
              c_motif_centre, c_motif_end,
              n_centre, c_centre, n_es_anchors, c_es_anchors)]
+## under ARMS_MAX: how many arms (and which) each end's segment rests on --
+## row-aligned with P, so assigned before the sort
+if (length(ARMS_MAX))
+  out[, `:=`(n_es_arms = P$n_es_arms, n_es_arm_list = P$n_es_arm_list, n_centre_arm = P$n_centre_arm,
+             c_es_arms = P$c_es_arms, c_es_arm_list = P$c_es_arm_list, c_centre_arm = P$c_centre_arm)]
 setorder(out, -n_score_centre, -c_score_centre, group_id, group_rank)
-f <- file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s_T%s_tol%d.csv", HEAD, thr, TOL))
+dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
+f <- file.path(OUT_DIR, sprintf("candidate_peptides_%s_T%s_tol%d%s.csv", HEAD, thr, TOL, ARM))
 fwrite(out, f)
 message(sprintf("wrote %s", f))
+## the segments, with how many candidates each one ended up in
+seg <- rbindlist(segs)
+seg[prec, on = "accession", gene := i.gene]
+## an es is identified by (term, accession, centre): runs are disjoint, so no
+## two share a centre
+nc <- rbind(out[, .(term = "N", accession, centre = n_centre)],
+            out[, .(term = "C", accession, centre = c_centre)])[, .(n_candidates = .N),
+                                                                by = .(term, accession, centre)]
+seg[nc, on = .(term, accession, centre), n_candidates := i.n_candidates]
+seg[is.na(n_candidates), n_candidates := 0L]
+setcolorder(seg, c("gene", "accession", "term", "es", "start", "end", "centre", "centre_score",
+                   "n_anchors", "motif_centre", "n_candidates"))
+setorder(seg, accession, term, start)
+fs <- file.path(OUT_DIR, sprintf("end_segments_%s_T%s%s.csv", HEAD, thr, ARM))
+fwrite(seg[, centre_score := round(centre_score, 4)], fs)
+message(sprintf("wrote %s (%s segments, %s in no candidate)", fs, format(nrow(seg), big.mark = ","),
+                format(seg[n_candidates == 0, .N], big.mark = ",")))
 options(width = 230)
 cat("\ntop 15 by the two es centre scores:\n")
 print(out[1:12, .(peptide_id, length, n_dist, n_score_end, n_score_centre, n_motif_centre,
@@ -144,6 +249,11 @@ g <- out[, .N, by = group_id]
 cat(sprintf("groups (one per N es x C es pair): %s | size median %d, max %d | rank-1 rows = %s\n",
             format(nrow(g), big.mark = ","), as.integer(median(g$N)), max(g$N),
             format(nrow(out[group_rank == 1]), big.mark = ",")))
+if (length(ARMS_MAX)) {
+  cat("\ncandidates by how many arms support each end (rows N, columns C):\n")
+  print(dcast(out[, .N, by = .(n_es_arms, c_es_arms)], n_es_arms ~ c_es_arms, value.var = "N", fill = 0),
+        row.names = FALSE)
+}
 cat("\nthe EDN2 group, every cut it offers:\n")
 print(out[group_id == out[gene == "EDN2"][1]$group_id][order(group_rank),
           .(peptide_id, group_rank, length, n_dist, n_score_end, c_dist, c_score_end, pair_score)][1:9],
