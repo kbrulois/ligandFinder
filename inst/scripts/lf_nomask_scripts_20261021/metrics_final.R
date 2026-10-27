@@ -56,6 +56,7 @@ flat_tracks <- function(tm) {
   saveRDS(b, p); b
 }
 
+ARMS <- strsplit(Sys.getenv("ARMS", "flatten,esmonly36"), ",")[[1]]   # attention is retired
 NGRID <- unique(round(10^seq(0, 6.48, length.out = 150)))
 res <- list(); curves <- list()
 for (tm in c("C", "N")) {
@@ -65,12 +66,17 @@ for (tm in c("C", "N")) {
     transmute(key = paste(accession, if (tm == "N") start else end)) %>% pull(key) %>% unique()
   u <- un[term == tm]; u[, key := paste(accession, anchor)]
   all_ends <- unique(c(ann, kn$key, u$key))
-  for (trunk in c("attention", "flatten")) {
+  ## ARMS is comma-separated so a new arm is an env var, not an edit. The ESM-C
+  ## arm reads the tracks rds tracks_esmonly36.R already built from its full
+  ## scans -- nothing is rescanned here.
+  for (trunk in ARMS) {
+    cols <- c("accession", "anchor", sprintf("cnn__f%d", 1:5), sprintf("xgb_pm__f%d", 1:5),
+              "cnn__all50", "xgb_pm__all50")
     b <- if (trunk == "attention")
-      as.data.table(readRDS(file.path(A2, sprintf("lf_pepend_cv5_tracks_%s.rds", tm))))[
-        , c("accession", "anchor", sprintf("cnn__f%d", 1:5), sprintf("xgb_pm__f%d", 1:5),
-            "cnn__all50", "xgb_pm__all50"), with = FALSE]
-    else flat_tracks(tm)
+      as.data.table(readRDS(file.path(A2, sprintf("lf_pepend_cv5_tracks_%s.rds", tm))))[, cols, with = FALSE]
+    else if (trunk == "flatten") flat_tracks(tm)
+    else as.data.table(readRDS(file.path(A2, sprintf("lf_pepend_cv5_tracks_%s_flatten_%s.rds",
+                                                    tm, trunk))))[, cols, with = FALSE]
     b[, key := paste(accession, anchor)]
     not_end <- !(b$key %in% all_ends)
     for (hd in c("cnn", "xgb_pm")) {

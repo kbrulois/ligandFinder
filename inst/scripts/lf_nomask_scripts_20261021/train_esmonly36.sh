@@ -22,21 +22,23 @@
 # --out train once and report it as both. The _esmonly36 in the name is what
 # keeps these separate. Do not remove it.
 #
-# PROCS defaults to 2, not the 4 of train_final.sh, because the all-secretome
-# page render is using five R workers on this machine. Raise it once that ends.
+# PROCS defaults to 4, matching train_final.sh. The all-secretome render that
+# forced it down to 2 finished on 2026-10-24; drop it back if something large
+# is rendering, because this machine is memory-bound under concurrent load.
 set -u
-W=/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7
+. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 S=${0:A:h}
-PLM=$A2/lf_plm/esm_c_pca36.parquet
-PROCS=${PROCS:-2}
+ARM=${ARM:-esmonly36}                      # the arm's name; everything below derives from it
+PLM=${PLM:-$A2/lf_plm/esm_c_pca36.parquet} # its per-residue PLM parquet
+PROCS=${PROCS:-4}
 
 # the 25 curated channels, i.e. all of all_params3 except `padding`
 DROP='cons_rs_n,min_afm,mean_afm,relASA,SS_P,SS_S,SS_E,SS_-,SS_T,SS_G,SS_B,SS_H,SS_I,Phi_cos,Psi_cos,Phi_sin,Psi_sin,NH->O_1_energy,O->NH_1_energy,NH->O_2_energy,O->NH_2_energy,AA_hydro,AA_charge,AA_mw,AA_pI'
 
 if [[ ${1:-} == one ]]; then
   k=$2 T=$3
-  out=$A2/lf_pepend_run_${T}_cv5_f${k}_nomask_flatten_esmonly36.rds
+  out=$A2/lf_pepend_run_${T}_cv5_f${k}_nomask_flatten_${ARM}.rds
   {
     echo "### $T f$k start $(date '+%F %H:%M:%S')"
     cd $W && LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript inst/scripts/10_8_pepend_train.R \
@@ -58,7 +60,7 @@ echo "  jobs     : 5 folds x {N,C} = 10, $PROCS at a time, 10 seeds each"
 # resumable: a job whose .rds already exists is skipped
 jobs=()
 for k in 1 2 3 4 5; do for T in C N; do
-  [[ -s $A2/lf_pepend_run_${T}_cv5_f${k}_nomask_flatten_esmonly36.rds ]] || jobs+=("$k $T")
+  [[ -s $A2/lf_pepend_run_${T}_cv5_f${k}_nomask_flatten_${ARM}.rds ]] || jobs+=("$k $T")
 done; done
 if (( ${#jobs} == 0 )); then
   echo "  nothing to train"
@@ -68,6 +70,6 @@ else
 fi
 echo "ESM-C-ONLY TRAINING DONE $(date '+%F %H:%M:%S')"
 for k in 1 2 3 4 5; do for T in C N; do
-  f=$A2/lf_pepend_run_${T}_cv5_f${k}_nomask_flatten_esmonly36.rds
+  f=$A2/lf_pepend_run_${T}_cv5_f${k}_nomask_flatten_${ARM}.rds
   [[ -s $f ]] && echo "  $T f$k  $(du -h $f | cut -f1)" || echo "  $T f$k  MISSING"
 done; done

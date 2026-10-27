@@ -16,7 +16,7 @@
 # mismatch for --positives ("pass the same --positives you trained with"); the
 # same applies to --input. So: same inputs as training, distinct --out.
 set -u
-W=/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/optimistic-wilbur-83d423
+. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 S=${0:A:h}
 for k in 1 2 3 4 5; do for T in C N; do

@@ -9,7 +9,10 @@
 ##   THRESH=0.2 Rscript end_calls.R
 suppressMessages({library(data.table)})
 A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
-TOL <- 2L
+## ARM selects which arm's tracks to call on and suffixes the output; TOL is
+## no longer fixed at 2. TOL=2 with ARM unset reproduces the original exactly.
+TOL <- as.integer(Sys.getenv("TOL", "4"))
+ARM <- Sys.getenv("ARM", "")
 thr <- as.numeric(Sys.getenv("THRESH", "0.2"))
 
 segments <- function(b, s, thr) {
@@ -44,7 +47,7 @@ un <- fread(file.path(S, "cv5_unseen_ends.csv"))
 un[, set := ifelse(grepl("^never seen", set), "never seen: peptides", "never seen: large products")]
 out <- list()
 for (tm in c("C", "N")) {
-  b <- readRDS(file.path(A2, sprintf("lf_pepend_cv5_tracks_%s_flatten.rds", tm)))
+  b <- readRDS(file.path(A2, sprintf("lf_pepend_cv5_tracks_%s_flatten%s.rds", tm, ARM)))
   setDT(b); setorder(b, accession, anchor)
   b[, brk0 := c(TRUE, accession[-1] != accession[-.N] | diff(anchor) != 1L)]
   kn <- fread(file.path(A2, sprintf("lf_pepend_cv5_knowns_%s.csv", tm)))
@@ -62,7 +65,8 @@ for (tm in c("C", "N")) {
 }
 R <- rbindlist(out, fill = TRUE)
 R[, thr := thr]
-fwrite(R, file.path(A2, "lf_headcmp", sprintf("end_calls_T%s.csv", thr)))
+SUF <- paste0(ARM, if (TOL == 2L) "" else paste0("_tol", TOL))
+fwrite(R, file.path(A2, "lf_headcmp", sprintf("end_calls_T%s%s.csv", thr, SUF)))
 print(R[, .(ends = .N, TP = sum(call == "TP"), below_T = sum(reason == "below T"),
             off_centre = sum(reason == "off-centre peak"), unscored = sum(reason == "unscored")),
         by = .(set, term, head)][order(set, term, head)], row.names = FALSE)

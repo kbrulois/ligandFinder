@@ -35,7 +35,7 @@
 #   ./fullscan_esmonly36x.sh one K T  -> one scan
 #   PROCS=4 ./fullscan_esmonly36x.sh  -> raise the parallelism
 set -u
-W=/Users/kbrulois/R_projects/ligandFinder/.claude/worktrees/class-position-mask-diagram-b398c7
+. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 S=${0:A:h}
 TAG=_nomask_flatten_esmonly36x

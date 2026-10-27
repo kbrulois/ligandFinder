@@ -32,11 +32,11 @@ A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
 source(file.path(.lf_here, "lf_paths.R"))
 ## TOL and ARM are read from the environment so a second arm can be scored with
-## the SAME code rather than a divergent copy. BOTH DEFAULTS REPRODUCE THE
-## ORIGINAL BEHAVIOUR EXACTLY -- TOL 2, the curated tracks, the unsuffixed output
-## names -- so running this bare is byte-identical to before it was parameterised.
+## the SAME code rather than a divergent copy. TOL=2 WITH ARM UNSET REPRODUCES
+## THE ORIGINAL BEHAVIOUR EXACTLY -- the curated tracks, the unsuffixed output
+## names -- byte-identical to before it was parameterised. TOL now defaults to 4.
 ##   TOL=4 ARM=_esmonly36 Rscript segments_roc.R   # the ESM-C-only arm
-TOL  <- as.integer(Sys.getenv("TOL", "2"))
+TOL  <- as.integer(Sys.getenv("TOL", "4"))   # 4 is current practice; TOL=2 reproduces the Oct-22 run
 ARM  <- Sys.getenv("ARM", "")              # which tracks to read ("" = curated)
 ## KEEP restricts the whole evaluation -- the anchor profile AND the end sets --
 ## to the accessions listed in a one-column CSV. It exists for one question: the

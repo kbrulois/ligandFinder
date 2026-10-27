@@ -30,18 +30,19 @@ import os
 import numpy as np
 
 A2 = os.path.expanduser("~/AF2_analysis")
+ARM = os.environ.get("ARM", "esmonly36")   # everything below defaults from it
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="residues_esmonly36")
     ap.add_argument("--residues-npz", default=f"{A2}/lf_pepend_residues.npz")
     ap.add_argument("--labels-npz", default=f"{A2}/lf_resid_labels.npz")
-    ap.add_argument("--plm", default=f"{A2}/lf_plm/esm_c_pca36.parquet")
-    ap.add_argument("--config", default=f"{A2}/lf_pepend_run_C_cv5_f1_nomask_flatten_esmonly36_isolated/in/config.json",
+    ap.add_argument("--plm", default=os.environ.get("PLM", f"{A2}/lf_plm/esm_c_pca36.parquet"))
+    ap.add_argument("--config", default=f"{A2}/lf_pepend_run_C_cv5_f1_nomask_flatten_{ARM}_isolated/in/config.json",
                     help="a trained trunk of THIS arm; its channel_names is the contract")
     ap.add_argument("--curated-config", default=f"{A2}/lf_pepend_run_C_cv5_f1_nomask_flatten_isolated/in/config.json",
                     help="the curated arm, to locate `padding` in the residue table")
-    ap.add_argument("--out", default=f"{A2}/lf_pepend_residues_esmonly36.npz")
+    ap.add_argument("--out", default=f"{A2}/lf_pepend_residues_{ARM}.npz")
     a = ap.parse_args(argv)
 
     want = json.load(open(os.path.expanduser(a.config)))["channel_names"]

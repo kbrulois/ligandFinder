@@ -117,11 +117,9 @@ single-threaded on one worker for ~2 h while the other four idled.
 **Status, 2026-10-24: the outcome is not in yet.** The 19 giants are rendering
 as this is committed, so nothing above reports what they actually weigh or
 whether they open — the largest two or three may still be too heavy, sizes
-pending. `allsec_giants.sh` and `final_pages_giant.R` themselves are not in the
-repository yet either; they live in `~/AF2_analysis/lf_nomask_scripts_20261021`,
-which is not version controlled, which is why this section was committed ahead
-of them. The measured per-gene table and the verdict replace this paragraph when
-those renders land.
+pending. `allsec_giants.sh`, `allsec_giants_after.sh` and `final_pages_giant.R`
+were committed beside this file on 2026-10-27, after this section. The measured
+per-gene table and the verdict replace this paragraph when those renders land.
 
 ## Checking on it
 
