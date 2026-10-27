@@ -23,10 +23,10 @@
 ## model that never saw its gene -- which is the honest number to rank on.
 suppressMessages({library(data.table)})
 A2 <- path.expand("~/AF2_analysis")
-HEAD <- Sys.getenv("HEAD", "xgb_pm")
+HEAD <- Sys.getenv("HEAD", "xgb_pm"); ARM <- Sys.getenv("ARM", "")   # "" = curated, else e.g. "_esmonly36"
 thr <- as.numeric(Sys.getenv("THRESH", "0.5")); TOL <- as.integer(Sys.getenv("TOL", "4"))
 NFOLD <- as.integer(Sys.getenv("NFOLD", "5"))
-f <- file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s_T%s_tol%d.csv", HEAD, thr, TOL))
+f <- file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s_T%s_tol%d%s.csv", HEAD, thr, TOL, ARM))
 cd <- fread(f)
 
 cd[, y := as.integer(mmseqs_hit_type == "ligand_list" & mmseqs_pident >= 100 & mmseqs_tcov >= 0.99)]

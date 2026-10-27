@@ -8,11 +8,11 @@ S=${0:A:h}
 . $S/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 HEAD=${HEAD:-xgb_pm}; THRESH=${THRESH:-0.5}; TOL=${TOL:-4}
-LEN_MIN=${LEN_MIN:-8}; LEN_MAX=${LEN_MAX:-60}
-OUT=$A2/lf_headcmp/candidate_peptides_${HEAD}_T${THRESH}_tol${TOL}.csv
-MAN=$A2/lf_headcmp/candidate_peptides_${HEAD}_T${THRESH}_tol${TOL}.manifest.txt
-MMSEQS_ARGS=(-s 7.5 --min-seq-id 0 -e 10000 -k 5 --comp-bias-corr 0 --max-seqs 300
-             --alignment-mode 3 --format-output "query,target,pident,alnlen,bits,evalue,qcov,tcov")
+LEN_MIN=${LEN_MIN:-8}; LEN_MAX=${LEN_MAX:-60}; ARM=${ARM:-}; ARMS_MAX=${ARMS_MAX:-}
+KNOWN_LEN_MIN=${KNOWN_LEN_MIN:-8}; KNOWN_LEN_MAX=${KNOWN_LEN_MAX:-60}
+OUT=$A2/lf_headcmp/candidate_peptides_${HEAD}_T${THRESH}_tol${TOL}${ARM}.csv
+MAN=$A2/lf_headcmp/candidate_peptides_${HEAD}_T${THRESH}_tol${TOL}${ARM}.manifest.txt
+. $S/candidate_mmseqs_args.sh     # MMSEQS_ARGS, the settings the pipeline ran
 stat_line() { [[ -e $1 ]] && echo "    $(basename $1)  $(stat -f '%z bytes, modified %Sm' -t '%F %T' $1)" || echo "    $(basename $1)  MISSING" }
 {
   echo "candidate peptide table -- how it was built"
@@ -23,6 +23,13 @@ stat_line() { [[ -e $1 ]] && echo "    $(basename $1)  $(stat -f '%z bytes, modi
   echo "    THRESH  = $THRESH     (anchor score at or above which it joins an end segment)"
   echo "    TOL     = $TOL        (fan-out: every anchor within +/-TOL of an es centre is offered)"
   echo "    LEN_MIN = $LEN_MIN, LEN_MAX = $LEN_MAX"
+  if [[ -n $ARMS_MAX ]]; then
+    echo "    ARMS_MAX = $ARMS_MAX  (segmented: the per-anchor MAX of their all-50 means)"
+    echo "    ARM     = $ARM  (output suffix)"
+  else
+    echo "    ARM     = ${ARM:-(curated)}  (whose lf_pepend_cv5_tracks_*_flatten${ARM}.rds is segmented)"
+  fi
+  echo "    KNOWN_LEN = $KNOWN_LEN_MIN-$KNOWN_LEN_MAX aa  (length of the known peptides MMseqs searches)"
   echo
   echo "RULE"
   echo "    An end segment (es) is a run of consecutive anchors scoring >= THRESH, centred"
@@ -33,7 +40,13 @@ stat_line() { [[ -e $1 ]] && echo "    $(basename $1)  $(stat -f '%z bytes, modi
   echo "    Scores are <HEAD>__all50 taken from each terminus' OWN profile."
   echo
   echo "INPUTS"
-  for f in $A2/lf_pepend_cv5_tracks_N_flatten.rds $A2/lf_pepend_cv5_tracks_C_flatten.rds \
+  if [[ -n $ARMS_MAX ]]; then
+    TRK=(); for a in ${(s:,:)ARMS_MAX}; do sfx=$([[ $a == curated ]] && echo "" || echo "_$a")
+      TRK+=($A2/lf_pepend_cv5_tracks_N_flatten${sfx}.rds $A2/lf_pepend_cv5_tracks_C_flatten${sfx}.rds); done
+  else
+    TRK=($A2/lf_pepend_cv5_tracks_N_flatten${ARM}.rds $A2/lf_pepend_cv5_tracks_C_flatten${ARM}.rds)
+  fi
+  for f in $TRK \
            $A2/lf_pepend_residue_cache.rds $A2/pepend_locus/uniprot_peptides.csv \
            $W/inst/extdata/ligand_list.rds; do
     stat_line $f
@@ -47,7 +60,9 @@ stat_line() { [[ -e $1 ]] && echo "    $(basename $1)  $(stat -f '%z bytes, modi
   echo "MMSEQS COMMAND"
   echo "    mmseqs easy-search cand.fasta known.fasta res.m8 tmp \\"
   echo "        ${MMSEQS_ARGS[@]}"
-  echo "    (defaults find nothing at these lengths; the prefilter is tuned for proteins)"
+  echo "    (no k-mer prefilter: every candidate is aligned ungapped against every target,"
+  echo "     so short candidates get hits too -- see candidate_mmseqs_args.sh)"
+  echo "    then only each candidate's best hit overall and within each target type is kept"
   echo "    best hit per candidate chosen by BIT SCORE, not percent identity"
   echo
   echo "VERSIONS"
@@ -55,6 +70,9 @@ stat_line() { [[ -e $1 ]] && echo "    $(basename $1)  $(stat -f '%z bytes, modi
   echo "    $(/usr/local/bin/Rscript -e 'cat(R.version.string, "| data.table", as.character(packageVersion("data.table")))' 2>/dev/null)"
   echo
   echo "OUTPUT"
+  SEG=$A2/lf_headcmp/end_segments_${HEAD}_T${THRESH}${ARM}.csv
+  echo "    $(basename $SEG)  (stage 1's segments: one row per es, drawn on the protein pages)"
+  [[ -e $SEG ]] && echo "    rows     : $(( $(wc -l < $SEG) - 1 ))" || echo "    MISSING"
   echo "    $(basename $OUT)"
   echo "    rows     : $(( $(wc -l < $OUT) - 1 ))"
   echo "    groups   : $(tail -n +2 $OUT | cut -d, -f2 | sort -u | wc -l | tr -d ' ')  (one per N es x C es pair)"

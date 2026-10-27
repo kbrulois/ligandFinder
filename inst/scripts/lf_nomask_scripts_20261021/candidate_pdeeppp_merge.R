@@ -4,9 +4,9 @@
 ##   TASK=neuro HEAD=xgb_pm THRESH=0.5 TOL=4 Rscript candidate_pdeeppp_merge.R
 suppressMessages({library(data.table)})
 A2 <- path.expand("~/AF2_analysis")
-TASK <- Sys.getenv("TASK", "neuro"); HEAD <- Sys.getenv("HEAD", "xgb_pm")
+TASK <- Sys.getenv("TASK", "neuro"); HEAD <- Sys.getenv("HEAD", "xgb_pm"); ARM <- Sys.getenv("ARM", "")
 thr <- as.numeric(Sys.getenv("THRESH", "0.5")); TOL <- as.integer(Sys.getenv("TOL", "4"))
-f <- file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s_T%s_tol%d.csv", HEAD, thr, TOL))
+f <- file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s_T%s_tol%d%s.csv", HEAD, thr, TOL, ARM))
 cd <- fread(f)
 sc <- fread(file.path(A2, "pdeeppp_run", sprintf("pdeeppp_%s_scores.csv", TASK)))
 lc <- paste0("pdeeppp_", TASK, "_logit"); pc <- paste0("pdeeppp_", TASK, "_prob")

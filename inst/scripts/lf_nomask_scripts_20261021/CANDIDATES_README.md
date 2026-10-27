@@ -10,14 +10,18 @@ HEAD=cnn ./candidate_pipeline.sh              # the linear head instead
 
 Output `lf_headcmp/candidate_peptides_<HEAD>_T<THRESH>_tol<TOL>.csv`, with a
 `.manifest.txt` beside it recording parameters, input sizes and mtimes, tool
-versions, the exact mmseqs command and the full column list.
+versions, the exact mmseqs command and the full column list. Stage 1 also
+writes `lf_headcmp/end_segments_<HEAD>_T<THRESH>.csv` (no TOL: a segment does
+not depend on it), one row per end segment with its run, centre and how many
+candidates it is in -- the protein pages draw it, and `final_pages.R`'s
+`CAND_SETS` picks which sets a page shows.
 
 ## Stages
 
 | | script | adds |
 |---|---|---|
-| 1 | `candidate_peptides.R` | the candidates themselves: pair N and C end segments, fan out by ±TOL, `group_id`/`group_rank`/`pair_score`, `end_score_max`, `total_offset`, motifs |
-| 2 | `candidate_mmseqs_prep.R` + `mmseqs easy-search` | search against known peptides |
+| 1 | `candidate_peptides.R` | the candidates themselves: pair N and C end segments, fan out by ±TOL, `group_id`/`group_rank`/`pair_score`, `end_score_max`, `total_offset`, motifs; plus the `end_segments_*.csv` sidecar |
+| 2 | `candidate_mmseqs_prep.R` + `mmseqs easy-search` | search against known peptides 8–60 aa (`KNOWN_LEN_MIN`/`MAX`); no k-mer prefilter, so every candidate, however short, gets its closest one (settings and why: `candidate_mmseqs_args.sh`) |
 | 3 | `candidate_annotate.R` | `mmseqs_*` best hit and per-class bests, `length_bin`, `overlap_*` |
 | 4 | `candidate_multipep.sh` | 20 `mp_*` MultiPep classes + `mp_signalling_max` |
 | 5 | `candidate_logistic.R` | `lr_prob`, `lr_prob_oof` |

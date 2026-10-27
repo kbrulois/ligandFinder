@@ -11,6 +11,8 @@
 ##
 ## Columns added
 ##   mmseqs_best_hit       <gene>x<start>x<end> of the closest known peptide
+##                         (one KNOWN_LEN_MIN..KNOWN_LEN_MAX aa long, 8-60 by
+##                         default: the target set is cut to that in stage 2a)
 ##   mmseqs_best_hit_name  its readable name   mmseqs_best_hit_acc  its accession
 ##   mmseqs_hit_type       ligand_list (a curated bioactive ligand) | peptide
 ##                         (a UniProt peptide feature) | propeptide (a real
@@ -37,11 +39,12 @@
 suppressMessages({library(data.table)})
 A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
 HEAD    <- Sys.getenv("HEAD", "xgb_pm")
+ARM     <- Sys.getenv("ARM", "")      # "" = curated, else e.g. "_esmonly36"
 thr     <- as.numeric(Sys.getenv("THRESH", "0.5"))
 TOL     <- as.integer(Sys.getenv("TOL", "4"))
 LEN_MAX <- as.integer(Sys.getenv("LEN_MAX", "60"))
 O       <- file.path(A2, "mmseq_cand")
-f_cand  <- file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s_T%s_tol%d.csv", HEAD, thr, TOL))
+f_cand  <- file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s_T%s_tol%d%s.csv", HEAD, thr, TOL, ARM))
 
 cd  <- fread(f_cand)
 kn  <- fread(file.path(O, "known.csv"))
