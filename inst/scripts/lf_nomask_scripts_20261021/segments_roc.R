@@ -31,7 +31,30 @@ A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
 source(file.path(.lf_here, "lf_paths.R"))
-TOL <- 2L
+## TOL and ARM are read from the environment so a second arm can be scored with
+## the SAME code rather than a divergent copy. BOTH DEFAULTS REPRODUCE THE
+## ORIGINAL BEHAVIOUR EXACTLY -- TOL 2, the curated tracks, the unsuffixed output
+## names -- so running this bare is byte-identical to before it was parameterised.
+##   TOL=4 ARM=_esmonly36 Rscript segments_roc.R   # the ESM-C-only arm
+TOL  <- as.integer(Sys.getenv("TOL", "2"))
+ARM  <- Sys.getenv("ARM", "")              # which tracks to read ("" = curated)
+## KEEP restricts the whole evaluation -- the anchor profile AND the end sets --
+## to the accessions listed in a one-column CSV. It exists for one question: the
+## ESM-C-only arm scores 434 of 5,616 precursors from an all-zero embedding, and
+## an all-zero input is degenerate (every window identical), so those proteins
+## return a CONSTANT score and at T = 0.5 contribute no positive segments at
+## all -- free TN mass that the curated arm, which still has 25 real channels
+## there, does not get. Restricting both arms to the 5,182 embedded precursors
+## removes that asymmetry. The end sets are filtered too, so an end on an
+## excluded precursor leaves the denominator instead of counting as FN_unscored.
+## UNSET IS A NO-OP: every line below is guarded by nzchar(KEEP), so the default
+## path is the code that produced the files on record, unchanged.
+##   TOL=4 ARM=_esmonly36 KEEP=$S/zero_esm_covered.csv Rscript segments_roc.R
+KEEP <- Sys.getenv("KEEP", "")
+## The OUTPUT suffix is not the same thing as the tracks suffix: the curated
+## arm at TOL 4 reads the unsuffixed tracks but must NOT overwrite the TOL-2
+## results on record. TOL 2 stays unsuffixed, as segment_motif_T*.csv does.
+SUF  <- paste0(ARM, if (TOL == 2L) "" else paste0("_tol", TOL), if (nzchar(KEEP)) "_cov" else "")
 GRID <- sort(unique(round(c(seq(0, 1, by = 0.025), seq(0.1, 0.5, by = 0.05)), 3)))
 
 ## segments of one profile at threshold thr; `b` is sorted by accession, anchor
@@ -85,13 +108,33 @@ ll <- as.data.table(readRDS(lf_src("inst/extdata/ligand_list.rds")))[!is.na(star
 up <- fread(file.path(A2, "pepend_locus", "uniprot_peptides.csv"))[type %in% c("peptide", "propeptide")]
 un <- fread(file.path(S, "cv5_unseen_ends.csv"))
 un[, set := ifelse(grepl("^never seen", set), "never seen: peptides", "never seen: large products")]
+if (nzchar(KEEP)) {
+  keep_acc <- fread(path.expand(KEEP))$accession
+  message(sprintf("KEEP: restricting to %d accessions from %s", length(keep_acc), basename(KEEP)))
+  message(sprintf("  unseen ends %d -> %d", nrow(un), sum(un$accession %in% keep_acc)))
+  un <- un[accession %in% keep_acc]
+}
 
 out <- list()
 for (tm in c("C", "N")) {
-  b <- readRDS(file.path(A2, sprintf("lf_pepend_cv5_tracks_%s_flatten.rds", tm)))
-  setDT(b); setorder(b, accession, anchor)
+  b <- readRDS(file.path(A2, sprintf("lf_pepend_cv5_tracks_%s_flatten%s.rds", tm, ARM)))
+  setDT(b)
+  ## before brk0: brk0 marks precursor and anchor-gap boundaries, so it has to
+  ## be computed on the rows that will actually be segmented
+  if (nzchar(KEEP)) {
+    n0 <- nrow(b); p0 <- uniqueN(b$accession)
+    b <- b[accession %in% keep_acc]
+    message(sprintf("%s: anchors %s -> %s; precursors %d -> %d", tm,
+                    format(n0, big.mark = ","), format(nrow(b), big.mark = ","),
+                    p0, uniqueN(b$accession)))
+  }
+  setorder(b, accession, anchor)
   b[, brk0 := c(TRUE, accession[-1] != accession[-.N] | diff(anchor) != 1L)]
   kn <- fread(file.path(A2, sprintf("lf_pepend_cv5_knowns_%s.csv", tm)))[, .(accession, anchor, fold)]
+  if (nzchar(KEEP)) {
+    n0 <- nrow(kn); kn <- kn[accession %in% keep_acc]
+    message(sprintf("%s: knowns %d -> %d", tm, n0, nrow(kn)))
+  }
   ann <- unique(rbind(ll[, .(accession, anchor = if (tm == "N") start else end)],
                       up[, .(accession, anchor = if (tm == "N") start else end)]))
   for (hd in c("cnn", "xgb_pm")) {
@@ -130,8 +173,8 @@ auc <- R[order(-thr), {
     tpr_max = max(y), thr_tpr_max = thr[ok][which.max(y)],
     auc_T_max = max(auc_T[ok]), thr_auc_T_max = thr[ok][which.max(auc_T[ok])])
 }, by = .(term, set, head)]
-fwrite(R, file.path(A2, "lf_headcmp", "segment_confusion.csv"))
-fwrite(auc, file.path(A2, "lf_headcmp", "segment_roc_auc.csv"))
+fwrite(R, file.path(A2, "lf_headcmp", sprintf("segment_confusion%s.csv", SUF)))
+fwrite(auc, file.path(A2, "lf_headcmp", sprintf("segment_roc_auc%s.csv", SUF)))
 options(width = 220)
 print(auc[order(set, term, head)], row.names = FALSE)
 print(R[thr %in% c(0, 0.025, 0.05, 0.1, 0.3, 0.5) & set == "cross-validated",
