@@ -306,15 +306,55 @@ lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
       models <- models[k]
     }
     feat <- fc$feats[[i]]
+    chans <- fc$all_params3
+    ## A spec whose run was trained on protein-language-model channels needs them
+    ## ON the feature table, and the model's OWN channel_names as the column
+    ## order -- the page's all_params3 is the curated 26, and feeding those to a
+    ## 37-channel model is the (None, 36, 37) vs (n, 36, 26) error. lf_pepend_slice
+    ## is generic over feat's columns, so an out-of-range row still gets plm 0 and
+    ## padding 1, exactly as 10_8 built the training windows.
+    ## THE PLM FLAG. A series only takes this path when its spec carries
+    ## `plm_rds`, so a page of curated-only specs behaves exactly as it did
+    ## before these channels existed. `options(lf.track_plm = FALSE)` disables
+    ## it globally -- and then a spec that NEEDS the channels is SKIPPED rather
+    ## than scored on the wrong ones, because a 37-channel model fed the curated
+    ## 26 does not fail loudly, it fails plausibly.
+    if (!is.null(spec$plm_rds)) {
+      if (!isTRUE(getOption("lf.track_plm", TRUE))) {
+        message("  extra series '", spec$name,
+                "': needs PLM channels but lf.track_plm is FALSE; skipping")
+        return(NULL)
+      }
+      P <- .lf_once(paste0("plmrds_", spec$plm_rds),
+                    function() readRDS(path.expand(spec$plm_rds)))
+      acc <- as.character(fc$prec$accession[i])
+      pm <- if (is.list(P) && !is.null(P[[acc]])) P[[acc]] else NULL
+      if (is.null(pm)) {
+        message("  extra series '", spec$name, "': no PLM rows for ", acc); return(NULL) }
+      if (nrow(pm) != nrow(feat)) {
+        message("  extra series '", spec$name, "': PLM rows ", nrow(pm),
+                " != residues ", nrow(feat), " for ", acc); return(NULL) }
+      ## BOTH are matrices and must stay matrices: lf_pepend_slice assigns into a
+      ## matrix, so coercing to data.frame here gives "incorrect number of
+      ## subscripts on matrix".
+      stopifnot(is.matrix(feat), is.matrix(pm))
+      feat <- cbind(feat, pm)
+      chans <- as.character(cfg$channel_names)
+      miss <- setdiff(chans, colnames(feat))
+      if (length(miss)) {
+        message("  extra series '", spec$name, "': feat lacks ", length(miss),
+                " model channel(s): ", paste(utils::head(miss, 4), collapse = ", "))
+        return(NULL) }
+    }
     anchors <- seq.int(n_prot, c_prot)
     w_start <- anchors - LF_PEPEND$anchor[[term]] + 1L
     ## the window's own end and start: the precursor's, or under ct_pad the C
     ## anchor / under nt_pad the N anchor
     cut <- if (isTRUE(spec$ct_pad) && term == "C") pmin(c_prot, anchors) else rep(c_prot, length(anchors))
     cut_lo <- if (isTRUE(spec$nt_pad) && term == "N") pmax(n_prot, anchors) else rep(n_prot, length(anchors))
-    X <- array(0, c(length(anchors), LF_PEPEND$seq_len, ncol(feat)))
+    X <- array(0, c(length(anchors), LF_PEPEND$seq_len, length(chans)))
     for (k in seq_along(anchors))
-      X[k, , ] <- as.matrix(lf_pepend_slice(feat, w_start[k], cut_lo[k], cut[k])[, fc$all_params3])
+      X[k, , ] <- as.matrix(lf_pepend_slice(feat, w_start[k], cut_lo[k], cut[k])[, chans])
     xp <- np$ascontiguousarray(np$asarray(X, dtype = "float32"))
     G <- matrix(0, length(models), length(anchors))
     pin <- as.character(cfg$pi_names)
@@ -409,6 +449,16 @@ lf_track_pool_residues <- function(S, anchors, n_prot, c_prot, term,
   out$class <- factor(out$class, levels = names(nn_class_cols))
   out
 }
+
+## White marker fills at 0.4 alpha, so the ribbon and the line under a marker
+## stay visible through it. Only the FILL is softened -- the stroke keeps its
+## full-strength colour, so the marker outline stays crisp.
+##
+## A function, not a constant: it is read when a plot is built, so
+## `options(lf.track_point_fill = "white")` restores the opaque marker any time,
+## including after this file has loaded.
+.lf_pt_fill <- function()
+  getOption("lf.track_point_fill", grDevices::adjustcolor("white", alpha.f = 0.4))
 
 #' Everything the page needs, or NULL for whatever cannot be built
 #' Which fold held each known end out, for this precursor
@@ -735,7 +785,7 @@ lf_plot_class_track <- function(d, x_range, aa, gene, legend = FALSE,
                                      gene, residue, aa[residue],
                                      nn_class_labels[as.character(class)], mean, sd, note)),
       ## hollow, the same as the head tracks
-      shape = 21, fill = "white", size = 1.7, stroke = 0.6, na.rm = TRUE) +
+      shape = 21, fill = .lf_pt_fill(), size = 1.7, stroke = 0.6, na.rm = TRUE) +
     ggplot2::scale_colour_manual(values = nn_class_cols, labels = nn_class_label_fn,
                                  name = NULL) +
     ggplot2::scale_fill_manual(values = nn_class_cols, guide = "none") +
@@ -847,7 +897,7 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
       ggplot2::aes(data_id = residue, tooltip = tip),
       ## hollow (a ring in the series colour, white inside) and big enough to
       ## click; the popup fills the clicked one while its window is open
-      shape = 21, fill = "white", size = 1.7, stroke = 0.6, na.rm = TRUE) +
+      shape = 21, fill = .lf_pt_fill(), size = 1.7, stroke = 0.6, na.rm = TRUE) +
     ## the fold that held this end out: a DOWNWARD TRIANGLE, so the one honest
     ## point on the track is findable without reading tooltips
     ggiraph::geom_point_interactive(
@@ -855,7 +905,7 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
       ggplot2::aes(data_id = residue, tooltip = tip),
       ## show.legend = FALSE or this layer's shape becomes the glyph for EVERY
       ## key in the colour legend -- all ten fold entries drawn as triangles
-      shape = 25, fill = "white", size = 1.8, stroke = 0.7, na.rm = TRUE,
+      shape = 25, fill = .lf_pt_fill(), size = 1.8, stroke = 0.7, na.rm = TRUE,
       show.legend = FALSE) +
     ## the ensemble, on top: heavier line and SQUARE points, so it never reads as
     ## just one more fold. White inside like every other point on the page -- the
@@ -864,7 +914,7 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
     ggiraph::geom_point_interactive(
       data = dens,
       ggplot2::aes(data_id = residue, tooltip = tip),
-      shape = 22, fill = "white", size = 1.55, stroke = 0.7, na.rm = TRUE) +
+      shape = 22, fill = .lf_pt_fill(), size = 1.55, stroke = 0.7, na.rm = TRUE) +
     ggplot2::scale_colour_manual(values = cols, name = NULL, labels = lab) +
     ggplot2::scale_fill_manual(values = cols, guide = "none") +
     lf_track_x(x_range, seq_offset) +
@@ -894,7 +944,7 @@ lf_plot_resid_track <- function(d, mdl, x_range, aa, gene, seq_offset = -0.45) {
                                      gene, residue, aa[residue], mdl,
                                      nn_class_labels[as.character(class)], mean)),
       ## hollow, the same as the other tracks
-      shape = 21, fill = "white", size = 1.7, stroke = 0.6, na.rm = TRUE) +
+      shape = 21, fill = .lf_pt_fill(), size = 1.7, stroke = 0.6, na.rm = TRUE) +
     ggplot2::scale_colour_manual(values = nn_class_cols, guide = "none") +
     ggplot2::scale_fill_manual(values = nn_class_cols, guide = "none") +
     lf_track_x(x_range, seq_offset) +
@@ -1207,7 +1257,7 @@ lf_plot_win_legend <- function(x_range, seq_offset = -0.45, validation = TRUE) {
   ggplot2::ggplot() +
     ggplot2::geom_line(data = ln, ggplot2::aes(x, y, colour = key, group = key), linewidth = 0.7) +
     ggplot2::geom_point(data = pt, ggplot2::aes(x, y, shape = key),
-                        fill = "white", colour = "grey20", size = 1.9, stroke = 0.6) +
+                        fill = .lf_pt_fill(), colour = "grey20", size = 1.9, stroke = 0.6) +
     ggplot2::scale_colour_manual(values = c(`N terminus` = tc[["N"]], `C terminus` = tc[["C"]]),
                                  name = NULL) +
     ggplot2::scale_shape_manual(
@@ -1310,7 +1360,10 @@ lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
         leg <- !custom && hd == "CNN attention head"
         add(lf_plot_win_track(dat$win[!ge, , drop = FALSE], hd, x_range, aa, gene,
                               leg, seq_offset,
-                              group = g, ylab = sprintf("%s\n(%s)", sub(" head", "\nhead", lbl), g),
+                              group = g,
+                              ## a group with no name labels the track by its head alone
+                              ylab = if (nzchar(g)) sprintf("%s\n(%s)", sub(" head", "\nhead", lbl), g)
+                                     else sub(" head", "\nhead", lbl),
                               overlay = if (own_g) dat$win[ge, , drop = FALSE] else if (ov) own else NULL,
                               overlay_own = own_g,
                               held = dat$heldout), lf_track_h(leg))
