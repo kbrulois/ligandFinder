@@ -452,6 +452,140 @@ lf_track_heldout_extra <- function(accession) {
              residue = as.integer(x$residue), fold = NA_integer_, stringsAsFactors = FALSE)
 }
 
+#' The marker a tooltip carries when its series has no window popup
+#' @keywords internal
+## (no apostrophe: it lands in an svg attribute, and in the JS that reads it)
+LF_NO_POPUP <- "no window popup (scores from the full-proteome scan of this arm)"
+
+#' An arm's two window heads for one precursor, from its tracks rds
+#'
+#' `options(lf.track_arm_tracks = list(list(label = "ESM-C only",
+#'     N = <lf_pepend_cv5_tracks_N_flatten_esmonly36.rds>, C = <..._C_...>), ...))`
+#'
+#' The tracks rds is what an arm's full-proteome scan assembles
+#' (tracks_esmonly36.R): every anchor of every precursor, the CNN linear head
+#' and the per-member xgb head per fold (`cnn__f1..5`, `xgb_pm__f1..5`) and
+#' their mean over all 50 members (`*__all50`). That covers ANY gene, so an arm
+#' can be drawn on a page without the per-gene scan and PLM table that
+#' `lf.track_extra_win` needs -- which exist only for the genes an arm's own
+#' gallery was built for. The values are the same scan's: the curated arm's
+#' all-50 rds matches its per-gene page scan to 5e-7.
+#'
+#' What this source does not have: the per-seed spread within a fold (no
+#' ribbon) and the per-index surface (no click-to-open window). Rows come back
+#' in lf.track_extra_win's shape -- one group per arm, named by `label`, five
+#' thin fold series and the all-50 as the group's own heavy line -- with
+#' `no_popup = TRUE`.
+#' @keywords internal
+lf_track_arm_heads <- function(arm, accession) {
+  out <- list()
+  for (tm in c("N", "C")) {
+    p <- arm[[tm]]
+    if (is.null(p) || !file.exists(path.expand(p))) next
+    b <- .lf_once(paste0("armtracks_", p), function() {
+      x <- data.table::as.data.table(readRDS(path.expand(p)))
+      data.table::setkeyv(x, "accession")
+      x
+    })
+    if (!data.table::is.data.table(b)) next
+    ## NOT b[list(accession)]: inside [ that is b's own column, a self-join
+    acc <- accession
+    d <- b[list(acc), nomatch = NULL]
+    if (!nrow(d)) next
+    folds <- sub("^cnn__f", "", grep("^cnn__f[0-9]+$", names(d), value = TRUE))
+    for (hd in c("cnn", "xgb_pm")) {
+      key <- if (hd == "cnn") "CNN attention head" else "xgb window head"
+      hl  <- if (hd == "cnn") sprintf("CNN linear head (%s)", arm$label) else NA_character_
+      one <- function(col, term, ens)
+        tibble::tibble(residue = as.integer(d$anchor), mean = as.numeric(d[[col]]),
+                       sd = NA_real_, term = term, terminus = tm, head = key,
+                       head_label = hl, group = arm$label, group_ens = ens, no_popup = TRUE)
+      for (k in folds)
+        out[[length(out) + 1L]] <- one(sprintf("%s__f%s", hd, k),
+                                       sprintf("%s %s fold %s", arm$label, tm, k), FALSE)
+      if (paste0(hd, "__all50") %in% names(d))
+        out[[length(out) + 1L]] <- one(paste0(hd, "__all50"),
+                                       sprintf("%s all 50, %s terminus", arm$label, tm), TRUE)
+    }
+  }
+  if (!length(out)) NULL else dplyr::bind_rows(out)
+}
+
+#' MultiPep's class columns, in the candidate table's own `mp_*` names
+#'
+#' `mp_signalling_max` is a derived column (max of three of these), not a class,
+#' so it never competes for "best".
+#' @keywords internal
+lf_mp_classes <- function(nms) setdiff(grep("^mp_", nms, value = TRUE), "mp_signalling_max")
+
+#' Candidate sets to draw: one spec, or a list of them
+#'
+#' `options(lf.track_candidates = <spec> | list(<spec>, <spec>, ...))`, each spec
+#'
+#'   list(label = "xgb all 50 >= 0.5",   # names the set on both of its tracks
+#'        segments = <end_segments_*.csv>, candidates = <candidate_peptides_*.csv>,
+#'        tol = 4, thresh = 0.5)
+#'
+#' One spec per ARM or per WAY OF DEFINING END SEGMENTS; every set draws its own
+#' pair of tracks, in the order given. The page knows nothing about how a set's
+#' segments were defined -- it reads the segment file the set names, which needs
+#' term, accession, start, end, centre, centre_score, n_anchors, motif_centre,
+#' n_candidates -- so a new definition is a new file, not a page change. The
+#' label must not contain "xgb window": the popup wires clicks on any track
+#' whose text matches that.
+#' @keywords internal
+lf_track_candidate_specs <- function() {
+  o <- getOption("lf.track_candidates", NULL)
+  if (is.null(o)) return(list())
+  if (!is.null(o$segments)) o <- list(o)               # a bare spec
+  o
+}
+
+#' End segments and the candidate peptides built from them, for one precursor
+#'
+#' For one spec (see lf_track_candidate_specs): the table `candidate_pipeline.sh`
+#' writes and the `end_segments_*.csv` its stage 1 writes beside it. The
+#' segments are READ, not re-derived from the page's own xgb series: they are
+#' then by construction the ones the candidates came from. A missing file or a
+#' precursor with no segment -> NULL, and neither track is drawn.
+#'
+#' Each candidate gets `best_type` / `best_score`: the MultiPep class with the
+#' highest score and that score. A table that has not been through stage 4 has
+#' no `mp_*` columns; its candidates are then all "no MultiPep score".
+#' @keywords internal
+lf_track_candidates <- function(o, accession) {
+  if (is.null(o$segments) || !file.exists(path.expand(o$segments))) return(NULL)
+  seg_all <- .lf_once(paste0("cand_seg_", o$segments), function()
+    as.data.frame(data.table::fread(path.expand(o$segments))))
+  if (!is.data.frame(seg_all)) return(NULL)
+  seg <- seg_all[seg_all$accession == accession, , drop = FALSE]
+  if (!nrow(seg)) return(NULL)
+  cand <- NULL
+  if (!is.null(o$candidates) && file.exists(path.expand(o$candidates))) {
+    cand_all <- .lf_once(paste0("cand_tab_", o$candidates), function() {
+      d <- data.table::fread(path.expand(o$candidates))
+      mp <- lf_mp_classes(names(d))
+      if (length(mp)) {
+        m <- as.matrix(d[, mp, with = FALSE])
+        k <- max.col(replace(m, is.na(m), -Inf), ties.method = "first")
+        d[, best_type := sub("^mp_", "", mp[k])]
+        d[, best_score := m[cbind(seq_len(nrow(m)), k)]]
+      } else {
+        d[, `:=`(best_type = "no MultiPep score", best_score = NA_real_)]
+      }
+      as.data.frame(d)
+    })
+    if (is.data.frame(cand_all)) {
+      cand <- cand_all[cand_all$accession == accession, , drop = FALSE]
+      if (!nrow(cand)) cand <- NULL
+    }
+  }
+  list(seg = seg, cand = cand,
+       label = if (is.null(o$label)) basename(o$segments) else as.character(o$label),
+       tol = if (is.null(o$tol)) NA_integer_ else as.integer(o$tol),
+       thresh = if (is.null(o$thresh)) NA_real_ else as.numeric(o$thresh))
+}
+
 #' @export
 lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
                                  want_per_index = TRUE) {
@@ -483,6 +617,10 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
       }
     }
   }
+  ## other arms, from their full-proteome tracks: after the page's own groups,
+  ## in the order given
+  for (arm in getOption("lf.track_arm_tracks", list()))
+    win <- dplyr::bind_rows(win, lf_track_arm_heads(arm, accession))
   if (!nrow(win)) win <- NULL
   rp <- lf_track_resid_models(accession, n_prot, c_prot)
   resid <- NULL
@@ -493,9 +631,13 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
     }))
     if (!nrow(resid)) resid <- NULL
   }
-  if (is.null(win) && is.null(rp) && is.null(resid)) return(NULL)
+  cand <- Filter(Negate(is.null), lapply(lf_track_candidate_specs(), lf_track_candidates,
+                                         accession = accession))
+  if (!length(cand)) cand <- NULL
+  if (is.null(win) && is.null(rp) && is.null(resid) && is.null(cand)) return(NULL)
   if (!is.null(pix) && length(extra_pix)) pix$extra <- extra_pix
   list(win = win, rp = rp, resid = resid, extra_resid = extra_resid, pix = pix,
+       cand = cand,
        heldout = rbind(lf_track_heldout_marks(accession), lf_track_heldout_extra(accession)),
        anchors = if (is.null(pix)) NULL else pix$anchors)
 }
@@ -670,8 +812,16 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
   ## the head's display name: an extra run's own (`head_label`), else the key
   hl <- if (is.null(d$head_label)) rep(head_nm, nrow(d)) else
     ifelse(is.na(d$head_label), head_nm, d$head_label)
-  d$tip <- sprintf("%s  anchor %d (%s)\n%s, %s: %.3f +/- %.3f",
-                   gene, d$residue, aa[d$residue], ser, hl, d$mean, d$sd)
+  d$tip <- sprintf("%s  anchor %d (%s)\n%s, %s: %.3f%s",
+                   gene, d$residue, aa[d$residue], ser, hl, d$mean,
+                   ifelse(is.finite(d$sd), sprintf(" +/- %.3f", d$sd), ""))
+  ## A series read from an arm's tracks rds has no per-index surface on the
+  ## page, so a click has no window to open. Say so -- and the popup handler
+  ## skips any point whose tooltip carries LF_NO_POPUP, which it must: it
+  ## matches a point to a series by finding the series label INSIDE the
+  ## tooltip, and "ESM-C only C fold 1" contains the curated "C fold 1".
+  if (!is.null(d$no_popup))
+    d$tip[d$no_popup %in% TRUE] <- paste0(d$tip[d$no_popup %in% TRUE], "\n", LF_NO_POPUP)
   ## A known end of THIS precursor is honest on exactly one fold. That whole
   ## series is then the honest one here, so every one of its residue positions
   ## is drawn as a triangle -- the fold to read is identifiable anywhere along
@@ -751,6 +901,272 @@ lf_plot_resid_track <- function(d, mdl, x_range, aa, gene, seq_offset = -0.45) {
     ggplot2::scale_y_continuous(limits = c(0, 1.02), breaks = c(0, 0.5, 1), expand = c(0, 0)) +
     ggplot2::labs(y = sprintf("%s per residue\n(no window)", mdl)) +
     lf_track_theme()
+}
+
+#' MultiPep class -> symbol on the candidate track, the same on every page
+#'
+#' Colour carries the SCORE (turbo, continuous); the symbol carries which class
+#' won. MultiPep scores 20 classes; a symbol for each would be unreadable, so
+#' five carry the classes that matter and the rest share an "other" cross: the
+#' three signalling classes (the ones `mp_signalling_max` pools), growth
+#' factors, and antimicrobial + antibacterial sharing one -- both say "looks
+#' like an AMP". The tooltip always names the exact class. The five are the
+#' FILLABLE shapes, drawn white with a black outline, so they read on both the
+#' dark ends and the bright middle of turbo; the line-only cross gets a halo.
+#' @export
+LF_MP_SHAPES <- c(peptidehormone = 21, neuropeptide = 24, cellcellsignaling = 23,
+                  cytokines_growthfactors = 22, antimicrobial = 25, other = 4)
+
+#' MultiPep classes that share another class's symbol
+#' @keywords internal
+LF_MP_SHARE <- c(antibacterial = "antimicrobial")
+
+#' @keywords internal
+LF_MP_LABELS <- c(peptidehormone = "peptide hormone", neuropeptide = "neuropeptide",
+                  cellcellsignaling = "cell-cell signalling",
+                  cytokines_growthfactors = "cytokine / growth factor",
+                  antimicrobial = "antimicrobial", antibacterial = "antibacterial",
+                  other = "other class")
+## the legend's names, one per symbol
+LF_MP_KEY_LABELS <- c(LF_MP_LABELS[setdiff(names(LF_MP_SHAPES), "antimicrobial")],
+                      antimicrobial = "antimicrobial / antibacterial")
+
+## arm tokens (as candidate_peptides.R's ARMS_MAX writes them) -> short names
+LF_ARM_SHORT <- c(curated = "curated", esmonly36 = "ESM-C", esmonly36x = "ESM-C (covered)",
+                  curated_wAAid = "wAAid", curated_AAswap = "AAswap", motifind = "motif-ind")
+.lf_arm_names <- function(x) vapply(strsplit(as.character(x), "+", fixed = TRUE), function(a) {
+  a <- ifelse(a %in% names(LF_ARM_SHORT), LF_ARM_SHORT[a], a); paste(a, collapse = " + ") }, "")
+
+## tooltip text: ggiraph escapes it itself (escaping here too shows a literal
+## "&gt;"), but a single quote inside an attribute is an error rather than an
+## escape (see the onclick trap), so a hit name like "5'-nucleotidase" is
+## given a typographic apostrophe
+.lf_tip_txt <- function(x) gsub("'", "’", as.character(x), fixed = TRUE)
+
+#' The end segments a candidate table was cut from
+#'
+#' One row per terminus. The bar is the segment's run of anchors at or above
+#' the threshold, the open circle its centre (the run's maximum -- the anchor
+#' the candidates are built around), the thin line the +/-TOL fan-out: every
+#' residue that segment offers as a peptide's first (N) or last (C) residue. A
+#' segment with no partner in the length range is drawn pale: it is real, but
+#' it is in no candidate.
+#' @keywords internal
+lf_plot_segment_track <- function(cd, x_range, aa, gene, seq_offset = -0.45) {
+  s <- cd$seg
+  if (is.null(s) || !nrow(s)) return(NULL)
+  force(gene); force(aa)
+  tc  <- getOption("lf.term_cols", LF_TERM_COLS)
+  tol <- cd$tol; thr <- cd$thresh
+  s$y <- ifelse(s$term == "N", 2, 1)
+  s$paired <- factor(ifelse(s$n_candidates > 0, "paired", "unpaired"),
+                     levels = c("paired", "unpaired"))
+  has_fan <- is.finite(tol)
+  s$fan_lo <- if (has_fan) pmax(1, s$centre - tol) else s$centre
+  s$fan_hi <- if (has_fan) pmin(x_range[2] - 1, s$centre + tol) else s$centre
+  role <- ifelse(s$term == "N", "first", "last")
+  s$tip <- paste0(
+    sprintf("%s  %s end segment %d-%d (%s): %d anchor%s%s\n",
+            gene, s$term, s$start, s$end, cd$label, s$n_anchors,
+            ifelse(s$n_anchors == 1, "", "s"),
+            if (is.finite(thr)) paste(" at or above", format(thr)) else ""),
+    sprintf("centre %d (%s), score %.3f, %s motif\n",
+            s$centre, aa[s$centre], s$centre_score, s$motif_centre),
+    if (has_fan) sprintf("offers residues %d-%d as a peptide's %s residue (+/-%d)\n",
+                         s$fan_lo, s$fan_hi, role, tol) else "",
+    ifelse(s$n_candidates > 0, sprintf("in %d candidate peptide%s", s$n_candidates,
+                                       ifelse(s$n_candidates == 1, "", "s")),
+           "no partner segment in the length range: in no candidate"))
+  ## a segment cut from several arms' max (candidate_peptides.R ARMS_MAX) says
+  ## which of them reach the threshold inside it
+  has_arms <- !is.null(s$n_arms)
+  if (has_arms)
+    s$tip <- paste0(s$tip, sprintf("\nsupported by %d arm%s: %s; max at the centre from %s",
+                                   s$n_arms, ifelse(s$n_arms == 1, "", "s"),
+                                   .lf_arm_names(s$arms), .lf_arm_names(s$centre_arm)))
+  s$tip <- .lf_tip_txt(s$tip)
+  ## the bar and its fan-out light up together; the centre keeps the bare
+  ## residue number so hovering it marks that anchor on every other track
+  s$sid <- sprintf("seg_%s_%d", s$term, s$centre)
+  ggplot2::ggplot(s) +
+    ggiraph::geom_segment_interactive(
+      ggplot2::aes(x = fan_lo, xend = fan_hi, y = y, yend = y, colour = term,
+                   data_id = sid, tooltip = tip),
+      linewidth = 0.5) +
+    ggiraph::geom_rect_interactive(
+      ggplot2::aes(xmin = start - 0.45, xmax = end + 0.45, ymin = y - 0.26, ymax = y + 0.26,
+                   fill = term, colour = term, alpha = paired, data_id = sid, tooltip = tip),
+      linewidth = 0.4) +
+    ggiraph::geom_point_interactive(
+      ggplot2::aes(centre, y, colour = term, data_id = centre, tooltip = tip),
+      shape = 21, fill = "white", size = 1.7, stroke = 0.6) +
+    ## how many arms the segment rests on, over its bar
+    (if (has_arms) ggplot2::geom_text(ggplot2::aes(x = (start + end) / 2, y = y + 0.42, label = n_arms),
+                                      size = 2.3, colour = "#0b0b0b", fontface = "bold")) +
+    ggplot2::scale_colour_manual(values = tc, guide = "none") +
+    ggplot2::scale_fill_manual(values = tc, guide = "none") +
+    ggplot2::scale_alpha_manual(
+      values = c(paired = 0.85, unpaired = 0.15), drop = FALSE, name = cd$label,
+      labels = c(paired = "segment in a candidate",
+                 unpaired = "segment with no partner in the length range"),
+      ## outlined keys: the pale one is otherwise white on white
+      guide = ggplot2::guide_legend(override.aes = list(colour = "grey35"))) +
+    lf_track_x(x_range, seq_offset) +
+    ggplot2::scale_y_continuous(limits = c(0.5, 2.5), breaks = c(1, 2), labels = c("C", "N"),
+                                expand = c(0, 0)) +
+    ## the set's label rides in the legend title: the axis title of a track
+    ## this short has room for two short words, and is clipped past that
+    ggplot2::labs(y = if (has_arms) "end\nsegments\n(digit = arms)" else "end\nsegments") +
+    lf_track_theme() +
+    ggplot2::theme(panel.grid.major.y = ggplot2::element_blank(),
+                   legend.position = "top", legend.direction = "horizontal",
+                   legend.justification.top = "left",
+                   legend.title = ggplot2::element_text(size = 7, face = "bold"),
+                   legend.text = ggplot2::element_text(size = 7),
+                   legend.key.size = grid::unit(8, "pt"),
+                   legend.margin = ggplot2::margin(0, 0, 0, 0))
+}
+
+#' The candidate peptides, one bar each, coloured by their best MultiPep call
+#'
+#' Colour = the best MultiPep score (turbo, 0..1); the symbol near the bar's N
+#' end = which class it was (LF_MP_SHAPES). Every candidate is its own row -- a group's
+#' candidates all overlap, since they are one pair of segments cut at different
+#' offsets -- packed first-fit so that groups that do not overlap share rows.
+#' Groups go in order of their centres and, within a group, the strongest
+#' MultiPep call first, so the top of each group's block is its best guess.
+#'
+#' Returns list(p, h): the track height grows with the number of rows,
+#' `options(lf.cand_row_height)` inches each -- 0.065 by default, the least at
+#' which a row is tall enough to carry its symbol.
+#' @keywords internal
+lf_plot_candidate_track <- function(cd, x_range, aa, gene, seq_offset = -0.45,
+                                    row_in = getOption("lf.cand_row_height", 0.065)) {
+  d <- cd$cand
+  if (is.null(d) || !nrow(d)) return(NULL)
+  force(gene); force(aa)
+  d <- d[order(d$n_centre, d$c_centre, -d$best_score, d$start, d$end), , drop = FALSE]
+  ## first-fit packing; one clear residue between neighbours on a row
+  last <- integer(0); d$row <- 0L
+  for (i in seq_len(nrow(d))) {
+    j <- which(last < d$start[i] - 1L)[1]
+    if (is.na(j)) { last <- c(last, d$end[i]); j <- length(last) } else last[j] <- d$end[i]
+    d$row[i] <- j
+  }
+  n_rows <- length(last)
+  key <- ifelse(d$best_type %in% names(LF_MP_SHARE), LF_MP_SHARE[d$best_type], d$best_type)
+  d$cls <- factor(ifelse(key %in% names(LF_MP_SHAPES), key, "other"), levels = names(LF_MP_SHAPES))
+  ## the symbol sits inside the bar, one residue in from its N end
+  ## under ARMS_MAX each end carries how many arms its segment rests on: drawn
+  ## as a cap on that end of the bar, so the class symbol steps one residue in
+  has_arms <- all(c("n_es_arms", "c_es_arms") %in% names(d))
+  d$sym_x <- d$start + if (has_arms) 1.6 else 1
+
+  ## ---- tooltip ----------------------------------------------------------------
+  col <- function(n) if (n %in% names(d)) d[[n]] else rep(NA, nrow(d))
+  has <- function(x) !is.na(x) & nzchar(as.character(x)) & as.character(x) != "none"
+  src <- c(ligand_list = "curated ligand", peptide = "UniProt peptide",
+           propeptide = "UniProt propeptide", none = "none")
+  lbl <- function(t) ifelse(t %in% names(LF_MP_LABELS), LF_MP_LABELS[t], t)
+  mp <- lf_mp_classes(names(d))
+  runner_up <- if (length(mp) >= 3) {
+    m <- as.matrix(d[, mp, drop = FALSE])
+    apply(m, 1, function(v) {
+      o <- order(v, decreasing = TRUE)[2:3]
+      paste(sprintf("%s %.2f", lbl(sub("^mp_", "", mp[o])), v[o]), collapse = ", ")
+    })
+  } else rep(NA_character_, nrow(d))
+  gsz <- stats::ave(d$group_rank, d$group_id, FUN = length)
+  ll  <- col("ll_hit_name"); ov <- col("overlap_name"); lr <- col("lr_prob")
+  bh  <- col("mmseqs_best_hit_name")
+  d$tip <- paste0(
+    sprintf("%s  residues %d-%d (%d aa)\n%s\n", d$peptide_id, d$start, d$end, d$length, d$sequence),
+    ifelse(is.na(d$best_score), "no MultiPep score\n",
+           sprintf("best MultiPep: %s %.3f%s\n", lbl(d$best_type), d$best_score,
+                   ifelse(is.na(runner_up), "", paste0("  (then ", runner_up, ")")))),
+    sprintf("N end %d (score %.3f, %s, %+d from centre) | C end %d (%.3f, %s, %+d)\n",
+            d$start, d$n_score_end, col("n_motif_end"), d$n_dist,
+            d$end, d$c_score_end, col("c_motif_end"), d$c_dist),
+    if (has_arms) sprintf("N end segment: %d arm%s (%s) | C end segment: %d arm%s (%s)\n",
+                          d$n_es_arms, ifelse(d$n_es_arms == 1, "", "s"), .lf_arm_names(d$n_es_arm_list),
+                          d$c_es_arms, ifelse(d$c_es_arms == 1, "", "s"), .lf_arm_names(d$c_es_arm_list))
+    else "",
+    sprintf("group %s: rank %d of %d by end-score product %.3f",
+            d$group_id, d$group_rank, gsz, d$pair_score),
+    ifelse(is.na(lr), "", sprintf("\nranker lr_prob %.3f", lr)),
+    ## the closest known peptide of any source (the target set is cut to
+    ## peptide lengths in stage 2a), then the closest CURATED one when that is a
+    ## different peptide -- HCRT's curated list has orexin-B but not orexin-A
+    ifelse(has(bh), sprintf("\nbest known-peptide match: %s (%s, %s%% identity, covers %s%%, e-value %s)",
+                            bh, src[as.character(col("mmseqs_hit_type"))], round(col("mmseqs_pident")),
+                            round(100 * col("mmseqs_tcov")), signif(col("mmseqs_evalue"), 2)),
+           "\nno known-peptide match"),
+    ifelse(has(ll) & col("mmseqs_hit_type") != "ligand_list",
+           sprintf("\nclosest curated ligand: %s (%s%% identity, covers %s%%)", ll,
+                   round(col("ll_pident")), round(100 * col("ll_tcov"))), ""),
+    ifelse(has(ov), sprintf("\noverlaps annotated: %s%s", ov,
+                            ifelse(col("overlap_exact") %in% TRUE, " (exact range)", "")), ""))
+  d$tip <- .lf_tip_txt(d$tip)
+
+  present <- levels(droplevels(d$cls))
+  n_grp <- length(unique(d$group_id))
+  ## at least an inch, or the axis title outruns a short pile and is clipped
+  panel_h <- max(n_rows * row_in, 1)
+  oth <- d[d$cls == "other", , drop = FALSE]
+  caps <- NULL
+  if (has_arms) {
+    K <- max(3L, d$n_es_arms, d$c_es_arms, na.rm = TRUE)
+    ramp <- grDevices::colorRampPalette(c("#ffffff", "#0b0b0b"))(K)
+    lv <- sprintf("%d arm%s", seq_len(K), ifelse(seq_len(K) == 1, "", "s"))
+    caps <- rbind(data.frame(x = d$start, row = d$row, k = d$n_es_arms, id = d$peptide_id, tip = d$tip),
+                  data.frame(x = d$end,   row = d$row, k = d$c_es_arms, id = d$peptide_id, tip = d$tip))
+    caps$lab <- factor(lv[caps$k], levels = lv)
+  }
+  p <- ggplot2::ggplot(d) +
+    ggiraph::geom_rect_interactive(
+      ggplot2::aes(xmin = start - 0.45, xmax = end + 0.45, ymin = row - 0.42, ymax = row + 0.42,
+                   fill = best_score, data_id = peptide_id, tooltip = tip),
+      colour = NA) +
+    ## arm-support caps, one per end. Fill is a per-row constant (the track's
+    ## fill scale is the turbo score), and the legend comes from `colour`
+    ## with the ramp put back into its keys.
+    (if (has_arms) ggiraph::geom_rect_interactive(
+      data = caps, ggplot2::aes(xmin = x - 0.45, xmax = x + 0.45, ymin = row - 0.42, ymax = row + 0.42,
+                                colour = lab, data_id = id, tooltip = tip),
+      fill = ramp[caps$k], linewidth = 0.2)) +
+    (if (has_arms) ggplot2::scale_colour_manual(
+      values = stats::setNames(rep("#0b0b0b", K), lv), drop = FALSE, name = "end segment rests on:",
+      guide = ggplot2::guide_legend(order = 3, override.aes = list(fill = ramp)))) +
+    ## the cross is line-only: a white stroke under a black one is its halo
+    ggplot2::geom_point(data = oth, ggplot2::aes(sym_x, row), shape = 4, size = 1.5,
+                        stroke = 1.3, colour = "white") +
+    ggiraph::geom_point_interactive(
+      ggplot2::aes(sym_x, row, shape = cls, data_id = peptide_id, tooltip = tip),
+      fill = "white", colour = "black", size = 1.5, stroke = 0.35) +
+    ggplot2::scale_fill_viridis_c(option = "turbo", limits = c(0, 1),
+                                  breaks = c(0, 0.25, 0.5, 0.75, 1), na.value = "grey70",
+                                  name = paste0(cd$label, "   best MultiPep score:")) +
+    ggplot2::scale_shape_manual(values = LF_MP_SHAPES, breaks = present,
+                                labels = LF_MP_KEY_LABELS[present], name = "its class:") +
+    ggplot2::guides(fill = ggplot2::guide_colourbar(order = 1, barwidth = grid::unit(110, "pt"),
+                                                    barheight = grid::unit(7, "pt")),
+                    shape = ggplot2::guide_legend(order = 2,
+                                                  override.aes = list(size = 2.2, stroke = 0.5))) +
+    lf_track_x(x_range, seq_offset) +
+    ggplot2::scale_y_reverse(limits = c(n_rows + 0.6, 0.4), expand = c(0, 0)) +
+    ggplot2::labs(y = sprintf("candidates\n%d in %d group%s", nrow(d), n_grp,
+                              if (n_grp == 1) "" else "s")) +
+    lf_track_theme() +
+    ggplot2::theme(axis.text.y = ggplot2::element_blank(),
+                   axis.ticks.y = ggplot2::element_blank(),
+                   panel.grid.major.y = ggplot2::element_blank(),
+                   legend.position = "top", legend.direction = "horizontal",
+                   legend.box = "horizontal", legend.justification.top = "left",
+                   legend.title = ggplot2::element_text(size = 7, face = "bold"),
+                   legend.text = ggplot2::element_text(size = 7),
+                   legend.key.size = grid::unit(8, "pt"),
+                   legend.margin = ggplot2::margin(0, 12, 0, 0))
+  list(p = p, h = panel_h + getOption("lf.track_legend_height", 0.27) + 0.05)
 }
 
 #' Every track that could be built, top to bottom, with its height in inches
@@ -861,16 +1277,26 @@ lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
     has_val <- !is.null(dat$heldout) && nrow(dat$heldout) > 0
     if (custom) add(lf_plot_win_legend(x_range, seq_offset, validation = has_val),
                     getOption("lf.track_legend_height", 0.27))
-    for (hd in c("CNN attention head", "xgb window head")) {
+    for (hd in c("CNN attention head", "xgb window head"))
       if (!ov)
         add(lf_plot_win_track(dat$win, hd, x_range, aa, gene, hd == "CNN attention head", seq_offset),
             lf_track_h(hd == "CNN attention head"))
-      for (g in grp) {
+    ## GROUP-major: each arm's CNN and xgb tracks sit together, in the order the
+    ## arms were given (curated first). Head-major interleaves them, which put
+    ## one arm's tracks between another's two.
+    for (g in grp) {
+      for (hd in c("CNN attention head", "xgb window head")) {
         ## the axis names the head the group's runs actually have, when they
         ## agree on one (a flatten trunk's CNN track is not attention)
         hl <- if (is.null(dat$win$head_label)) character(0) else
           unique(stats::na.omit(dat$win$head_label[dat$win$head == hd & dat$win$group %in% g]))
         lbl <- if (length(hl) == 1L) hl else hd
+        ## An arm's head_label already names the arm ("CNN linear head (ESM-C
+        ## only)") because the TOOLTIP has no group to carry it; the axis does,
+        ## so strip it here rather than say it twice. Fixed-string, not regex: an
+        ## arm label may contain "+" or "(".
+        .sfx <- paste0(" (", g, ")")
+        if (nzchar(g) && endsWith(lbl, .sfx)) lbl <- substr(lbl, 1L, nchar(lbl) - nchar(.sfx))
         ## A group that carries its OWN ensemble (spec$group_ensemble: its folds
         ## pooled) overlays that, not the page's all-50: the heavy line on a
         ## track must be the average of the folds drawn on it. Only a group
@@ -887,6 +1313,14 @@ lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
                               held = dat$heldout), lf_track_h(leg))
       }
     }
+  }
+  ## per candidate set: the end segments it was cut from, then its candidates --
+  ## last, so they sit directly above the sequence they span
+  for (cd in dat$cand) {
+    add(lf_plot_segment_track(cd, x_range, aa, gene, seq_offset),
+        getOption("lf.seg_track_height", 0.5) + getOption("lf.track_legend_height", 0.27))
+    cp <- lf_plot_candidate_track(cd, x_range, aa, gene, seq_offset)
+    if (!is.null(cp)) add(cp$p, cp$h)
   }
   mk
 }
@@ -1230,7 +1664,13 @@ lf_pepend_popup_js <- function() '
   /* which series a dot belongs to -- its tooltip names it. Longest matching
      label wins, so a dot of "C terminus, CT-padded" is that run and not the
      plain C series its label also contains */
+  /* a series with no surface on the page (an arm drawn from its tracks rds,
+     tooltip marked by LF_NO_POPUP) has nothing to open -- and its label can
+     CONTAIN a curated one ("ESM-C only C fold 1" holds "C fold 1"), so without
+     this it would open the curated window */
+  function noPopup(n) { return (n.getAttribute("title") || "").indexOf("no window popup") >= 0; }
   function seriesOf(n) {
+    if (noPopup(n)) return null;
     var t = n.getAttribute("title") || "", key = null, best = -1;
     Object.keys(d.series || {}).forEach(function (k2) {
       var lab = d.series[k2].label;
@@ -1327,7 +1767,7 @@ lf_pepend_popup_js <- function() '
     [].slice.call(svg.querySelectorAll(PT_SEL)).forEach(function (n) {
       if (n.__lfpep) return;
       var v = n.getAttribute("data-id");
-      if (!/^[0-9]+$/.test(v)) return;
+      if (!/^[0-9]+$/.test(v) || noPopup(n)) return;
       n.__lfpep = true;
       n.style.cursor = "pointer";
       n.addEventListener("click", function (ev) {

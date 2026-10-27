@@ -105,7 +105,73 @@ for (s in specs) stopifnot(dir.exists(sub("\\.rds$", "_isolated", s$run)), file.
 
 ## held-out marks: the fold whose val split holds a known end is the honest
 ## series on that precursor (triangles)
-held <- if (MODE == "cv5") NULL else do.call(rbind, lapply(folds, function(f) {
+## ---- other arms -------------------------------------------------------------
+## ARMS=esmonly36,curated_AAswap adds each arm's CNN linear head and xgb window
+## head as one group of two tracks, after the curated pair -- drawn from the
+## arm's full-proteome tracks rds, so it works for ANY gene (the per-gene scan
+## and PLM table final_pages_arms.R uses exist only for an arm's own 104 page
+## genes). Those series carry no seed spread and open no window popup. Labels
+## are the arm galleries' own. With any arm drawn, the baseline group is named
+## too ("curated", BASE_LABEL) -- "per-fold" described the series, not the arm.
+ARM_REG <- list(esmonly36      = list(label = "ESM-C only"),
+                curated_wAAid  = list(label = "curated + AA ID"),
+                curated_AAswap = list(label = "curated, AA props -> one-hot"))
+ARMS <- Filter(nzchar, strsplit(Sys.getenv("ARMS", ""), ",")[[1]])
+if (length(setdiff(ARMS, names(ARM_REG))))
+  stop("unknown arm(s): ", paste(setdiff(ARMS, names(ARM_REG)), collapse = ", "),
+       "  -- add a row to ARM_REG")
+arm_tracks <- lapply(ARMS, function(a) list(
+  label = ARM_REG[[a]]$label,
+  N = file.path(A2, sprintf("lf_pepend_cv5_tracks_N_flatten_%s.rds", a)),
+  C = file.path(A2, sprintf("lf_pepend_cv5_tracks_C_flatten_%s.rds", a))))
+for (a in arm_tracks) stopifnot(file.exists(a$N), file.exists(a$C))
+if (length(ARMS)) {
+  BASE_LABEL <- Sys.getenv("BASE_LABEL", "curated")
+  for (.i in seq_along(specs)) if (identical(specs[[.i]]$group, "per-fold")) {
+    specs[[.i]]$group <- BASE_LABEL
+    specs[[.i]]$cnn_label <- sprintf("CNN linear head (%s)", BASE_LABEL)
+  }
+}
+## held-out triangles are matched to a series BY NAME, so each arm needs its
+## own copy of the same CV knowns under its own series names
+arm_held <- do.call(rbind, lapply(arm_tracks, function(a) do.call(rbind, lapply(c("C", "N"), function(tm) {
+  p <- file.path(A2, sprintf("lf_pepend_cv5_knowns_%s.csv", tm))
+  if (!file.exists(p)) return(NULL)
+  d <- utils::read.csv(p, stringsAsFactors = FALSE)
+  d <- d[!is.na(d$fold), , drop = FALSE]
+  if (!nrow(d)) return(NULL)
+  data.frame(term = sprintf("%s %s fold %d", a$label, tm, as.integer(d$fold)), terminus = tm,
+             accession = d$accession, residue = as.integer(d$anchor), stringsAsFactors = FALSE)
+}))))
+
+## candidate sets: each draws an end-segment track and a candidate track, in
+## this order, directly above the sequence. CAND_SETS is comma-separated keys
+## <HEAD>_T<THRESH>_tol<TOL>[<ARM>], each naming the files candidate_pipeline.sh
+## writes (stage 1 writes the segments, stage 4 the MultiPep colour); ARM is the
+## pipeline's own suffix, absent for the curated arm. "" = none; a set whose
+## files are missing is skipped, not an error.
+##   CAND_SETS=xgb_pm_T0.5_tol4,xgb_pm_T0.65_tol4_esmonly36 Rscript final_pages.R NDNF
+CAND_ARM_LABELS <- c(curated = "curated",
+                     setNames(vapply(ARM_REG, `[[`, "", "label"), paste0("_", names(ARM_REG))),
+                     ## candidate_pipeline.sh ARMS_MAX=curated,esmonly36,curated_AAswap ARM=_max3
+                     `_max3` = "max of curated, ESM-C, AAswap")
+cand_specs <- lapply(Filter(nzchar, strsplit(Sys.getenv("CAND_SETS", "xgb_pm_T0.5_tol4"), ",")[[1]]),
+                     function(k) {
+  m <- regmatches(k, regexec("^(xgb_pm|cnn)_T([0-9.]+)_tol([0-9]+)(_.+)?$", k))[[1]]
+  if (length(m) != 5) stop("CAND_SETS key not <HEAD>_T<THRESH>_tol<TOL>[<ARM>]: ", k)
+  arm <- m[5]
+  al <- CAND_ARM_LABELS[if (nzchar(arm)) arm else "curated"]
+  hd <- c(xgb_pm = "xgb", cnn = "linear")[[m[2]]]
+  list(label = sprintf("%s: %s all 50 >= %s, +/-%s", if (is.na(al)) sub("^_", "", arm) else al,
+                       hd, m[3], m[4]),
+       segments = file.path(A2, "lf_headcmp", sprintf("end_segments_%s_T%s%s.csv", m[2], m[3], arm)),
+       candidates = file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s.csv", k)),
+       thresh = as.numeric(m[3]), tol = as.integer(m[4]))
+})
+for (s in cand_specs) if (!file.exists(s$segments))
+  message("candidate set skipped, no segment file: ", s$segments)
+
+held <- if (MODE == "cv5") arm_held else do.call(rbind, lapply(folds, function(f) {
   k <- as.data.frame(readRDS(file.path(A2, sprintf("lf_pepend_nn_input_fold%s.rds", f)))$knowns)
   k <- k[k$split == "val", , drop = FALSE]
   data.frame(term = sprintf("%s fold %s", k$term, f), terminus = k$term,
@@ -127,7 +193,9 @@ options(lf.pepend_python_path = WP,
                                                C = file.path(A2, "lf_pepend_cv5_knowns_C.csv")),
         lf.heldout_extra = held,
         lf.track_resid = file.path(A2, "lf_resid_preds_v2.npz"),
-        lf.track_extra_win = specs)
+        lf.track_extra_win = specs,
+        lf.track_arm_tracks = arm_tracks,
+        lf.track_candidates = cand_specs)
 dir.create(path.expand(plot_dir), showWarnings = FALSE, recursive = TRUE)
 want <- commandArgs(trailingOnly = TRUE)
 gs <- purrr::map_chr(the_input, \(x) x$gene)
