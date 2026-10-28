@@ -115,7 +115,9 @@ for (s in specs) stopifnot(dir.exists(sub("\\.rds$", "_isolated", s$run)), file.
 ## too ("curated", BASE_LABEL) -- "per-fold" described the series, not the arm.
 ARM_REG <- list(esmonly36      = list(label = "ESM-C only"),
                 curated_wAAid  = list(label = "curated + AA ID"),
-                curated_AAswap = list(label = "curated, AA props -> one-hot"))
+                ## short: it is the axis title of a 0.77 in track, and
+                ## "curated, AA props -> one-hot" was clipped there
+                curated_AAswap = list(label = "AAswap"))
 ARMS <- Filter(nzchar, strsplit(Sys.getenv("ARMS", ""), ",")[[1]])
 if (length(setdiff(ARMS, names(ARM_REG))))
   stop("unknown arm(s): ", paste(setdiff(ARMS, names(ARM_REG)), collapse = ", "),
