@@ -82,17 +82,33 @@ def fit_mlp(x_tr, y_tr, x_val, y_val, *, epochs=100, patience=40,
     return m, {k: [float(v) for v in vs] for k, vs in h.history.items()}
 
 
+#: The R's parameters, ported as-is: no L2 on the leaves, no minimum child
+#: weight, no split gain floor, depth 6.  With ~400 positives among ~45,000 rows
+#: and every positive carrying `scale_pos_weight` (~250x), a depth-6 tree can
+#: put a leaf around a single positive, so this is the overfitting-prone end of
+#: the dial.  `XGB_REG` is the regularised alternative; `--xgb-preset` picks.
+XGB_PARAMS = {
+    "r_port": dict(eta=0.08, subsample=0.5, min_child_weight=0, gamma=0,
+                   reg_lambda=0, alpha=1, max_depth=6, colsample_bytree=1.0),
+    "reg":    dict(eta=0.05, subsample=0.7, min_child_weight=10, gamma=0.5,
+                   reg_lambda=5.0, alpha=1, max_depth=4, colsample_bytree=0.6),
+}
+
+
 def fit_xgb(x_tr, y_tr, x_val, y_val, *, nrounds=500, early_stopping_rounds=100,
-            verbose=False, seed=0, feat_names=None):
+            verbose=False, seed=0, feat_names=None, preset="r_port"):
     import xgboost as xgb
 
     dtr = xgb.DMatrix(x_tr, label=y_tr, feature_names=feat_names)
     dva = xgb.DMatrix(x_val, label=y_val, feature_names=feat_names)
+    pre = XGB_PARAMS[preset]
     params = {
-        "objective": "binary:logistic", "eta": 0.08, "subsample": 0.5,
-        "min_child_weight": 0, "gamma": 0, "lambda": 0, "alpha": 1,
-        "tree_method": "exact", "max_depth": 6, "eval_metric": ["auc", "aucpr"],
-        "seed": int(seed),
+        "objective": "binary:logistic", "tree_method": "exact",
+        "eval_metric": ["auc", "aucpr"], "seed": int(seed),
+        "eta": pre["eta"], "subsample": pre["subsample"],
+        "min_child_weight": pre["min_child_weight"], "gamma": pre["gamma"],
+        "lambda": pre["reg_lambda"], "alpha": pre["alpha"],
+        "max_depth": pre["max_depth"], "colsample_bytree": pre["colsample_bytree"],
         # the R leaves this at 1 and leans on class_weight only for the MLP;
         # without it the trees see a 4% positive rate and barely split
         "scale_pos_weight": float((y_tr == 0).sum()) / max(1.0, float((y_tr == 1).sum())),

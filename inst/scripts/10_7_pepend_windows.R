@@ -74,6 +74,18 @@ nt_pad      <- "--nt-pad" %in% .args
 ## build is VAL here and vice versa, so training both gives each known one
 ## in-sample and one held-out prediction.
 swap_splits <- "--swap-splits" %in% .args
+## --n-folds K --fold k: K-fold cross-validation over the SAME similarity
+## clusters the default split uses. Fold k takes every K-th cluster in
+## dendrogram order starting at k, so the K folds partition the clusters
+## exactly -- every known end is validation in one fold and training in K-1,
+## and no cluster straddles the split in any of them. Without --n-folds this
+## is the two-way split as before (`--swap-splits` for its complement).
+n_folds     <- as.integer(.opt("--n-folds", "0"))
+fold_k      <- as.integer(.opt("--fold", "1"))
+if (n_folds > 0) {
+  stopifnot(fold_k >= 1, fold_k <= n_folds)
+  if (swap_splits) stop("--swap-splits is the 2-fold form; use --n-folds/--fold instead")
+}
 sim_h       <- as.numeric(.opt("--sim-h", "0.30"))
 seed        <- as.integer(.opt("--seed", "42"))
 docked_ref  <- path.expand(.opt("--docked", "~/AF2_analysis/knowns.rds"))
@@ -385,7 +397,8 @@ split_knowns <- function(k_sub) {
   hc <- hclust(as.dist(ape::dist.aa(aa, scaled = TRUE)), method = "average")
   cl <- cutree(hc, h = sim_h)
   ord <- unique(cl[hc$order])
-  val_cl <- ord[seq(2L, length(ord), by = max(2L, round(1 / val_frac)))]
+  val_cl <- if (n_folds > 0) ord[seq(fold_k, length(ord), by = n_folds)]
+            else ord[seq(2L, length(ord), by = max(2L, round(1 / val_frac)))]
   out <- list(train = which(!cl %in% val_cl), val = which(cl %in% val_cl))
   ## the complement, taken AFTER clustering so both folds respect the same
   ## similarity boundaries -- no cluster straddles the split in either one
@@ -448,6 +461,7 @@ for (t in names(nn_input)) for (s in c("train", "val", "all")) {
 saveRDS(list(nn_input = nn_input, all_params3 = all_params3, class_names = LF_PEPEND_CLASSES,
              knowns = knowns,
              params = list(n_ctrl = n_ctrl, random_frac = random_frac, val_frac = val_frac,
+                           n_folds = n_folds, fold = if (n_folds > 0) fold_k else NA_integer_,
                            swap_splits = swap_splits, ct_pad = ct_pad, nt_pad = nt_pad,
                            near_n = near_n, near_lo = near_lo, near_hi = near_hi,
                            sim_h = sim_h, seed = seed, banned = banned, built = Sys.time())),

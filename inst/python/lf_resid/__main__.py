@@ -47,30 +47,56 @@ def cmd_member(a):
     import json
     x = np.load(os.path.expanduser(a.matrix), mmap_mode="r")
     idx = np.load(os.path.expanduser(a.index), allow_pickle=True)
-    tr, va, mature = idx["tr"], idx["va"], idx["mature"]
+    va, mature = idx["va"], idx["mature"]
+    # `tr_fit` / `tr_stop` when the index carries an inner split: the model is
+    # FITTED on tr_fit and STOPPED on tr_stop, so `va` is untouched until the
+    # member is done.  An older index with only `tr` falls back to the previous
+    # behaviour -- stopping on `va` -- and says so, rather than silently
+    # reporting a number that was selected on itself.
+    has_inner = "tr_fit" in idx.files and "tr_stop" in idx.files
+    if has_inner:
+        tr_fit, tr_stop = idx["tr_fit"], idx["tr_stop"]
+    else:
+        tr_fit, tr_stop = idx["tr"], va
+        print("  WARNING: index has no inner split -- early stopping will read "
+              "the REPORTED val rows; rerun `train` to rebuild it", flush=True)
     y = idx[f"y_{a.target}"].astype("float32")
     names = [str(n) for n in idx["feat_names"]]
-    xtr, xva = np.asarray(x[tr]), np.asarray(x[va])
-    ytr, yva = y[tr], y[va]
+    xfit, xstop, xva = np.asarray(x[tr_fit]), np.asarray(x[tr_stop]), np.asarray(x[va])
+    yfit, ystop, yva = y[tr_fit], y[tr_stop], y[va]
 
     if a.model == "mlp":
-        m, _ = M.fit_mlp(xtr, ytr, xva, yva, epochs=a.epochs, monitor=a.monitor,
-                         seed=a.seed, verbose=1 if a.verbose else 0)
+        m, hist = M.fit_mlp(xfit, yfit, xstop, ystop, epochs=a.epochs,
+                            monitor=a.monitor, seed=a.seed,
+                            verbose=1 if a.verbose else 0)
         pv = M.predict_mlp(m, xva)
+        pfit = M.predict_mlp(m, xfit)
         pa = np.concatenate([M.predict_mlp(m, np.asarray(x[mature[i:i + 200000]]))
                              for i in range(0, mature.size, 200000)])
+        curves = hist
     else:
-        b, _ = M.fit_xgb(xtr, ytr, xva, yva, nrounds=a.nrounds, seed=a.seed,
-                         feat_names=names, verbose=bool(a.verbose))
+        b, ev = M.fit_xgb(xfit, yfit, xstop, ystop, nrounds=a.nrounds, seed=a.seed,
+                          feat_names=names, verbose=bool(a.verbose),
+                          preset=a.xgb_preset)
         pv = M.predict_xgb(b, xva, names)
+        pfit = M.predict_xgb(b, xfit, names)
         pa = np.concatenate([M.predict_xgb(b, np.asarray(x[mature[i:i + 200000]]), names)
                              for i in range(0, mature.size, 200000)])
+        curves = {f"{k}_{m2}": list(map(float, v))
+                  for k, d2 in ev.items() for m2, v in d2.items()}
+        curves["best_iteration"] = [float(getattr(b, "best_iteration", -1))]
+    # the fitted-rows metrics are the other half of the overfitting question and
+    # were previously computed and thrown away with the history
     out = _member_path(a.out_dir, a.target, a.model, a.seed)
     os.makedirs(os.path.dirname(out), exist_ok=True)
+    mv, mf = _metrics(yva, pv), _metrics(yfit, pfit)
     np.savez_compressed(out, p_val=pv.astype("float32"), p_all=pa.astype("float32"),
-                        metrics=np.asarray(json.dumps(_metrics(yva, pv))))
-    print(f"wrote {out}  " + json.dumps({k: round(v, 4) for k, v in
-                                         _metrics(yva, pv).items()}), flush=True)
+                        metrics=np.asarray(json.dumps(mv)),
+                        metrics_fit=np.asarray(json.dumps(mf)),
+                        curves=np.asarray(json.dumps(curves)),
+                        inner_split=np.asarray(json.dumps(bool(has_inner))))
+    print(f"wrote {out}  val " + json.dumps({k: round(v, 4) for k, v in mv.items()})
+          + "  fit " + json.dumps({k: round(v, 4) for k, v in mf.items()}), flush=True)
 
 
 def cmd_train(a):
@@ -105,7 +131,21 @@ def cmd_train(a):
     # every target the labels npz carries, under the `y_<target>` name the
     # member subprocess looks up -- not a fixed pair, or a new target trains
     # against whatever happened to be written here
+    # the early-stopping set, carved out of TRAIN so `va` stays a measurement
+    # rather than a selection criterion.  Stratified on the first target, which
+    # is the one the shared split has to keep usable.
+    _y0 = d.y[a.targets.split(",")[0].strip()].astype("float32")
+    if a.no_inner:
+        tr_fit, tr_stop = tr, va
+        print("  --no-inner: early stopping will read the REPORTED val rows", flush=True)
+    else:
+        tr_fit, tr_stop = D.inner_split(d, tr, frac=a.inner_frac,
+                                        seed=a.inner_seed, y=_y0)
+        print(f"inner stop set: fit {len(tr_fit):,} / stop {len(tr_stop):,} rows "
+              f"({100*len(tr_stop)/len(tr):.0f}% of train), "
+              f"{int(_y0[tr_stop].sum())} positives in the stop set", flush=True)
     np.savez_compressed(idx_p, tr=tr, va=va, mature=mature,
+                        tr_fit=tr_fit, tr_stop=tr_stop,
                         **{f"y_{k}": v for k, v in d.y.items()},
                         feat_names=np.asarray(d.feat_names))
     print(f"isolated work dir: {work}", flush=True)
@@ -134,7 +174,8 @@ def cmd_train(a):
                            "--matrix", mat, "--index", idx_p, "--out-dir", work,
                            "--target", target, "--model", kind,
                            "--seed", str(a.seed + s), "--epochs", str(a.epochs),
-                           "--nrounds", str(a.nrounds), "--monitor", a.monitor]
+                           "--nrounds", str(a.nrounds), "--monitor", a.monitor,
+                           "--xgb-preset", a.xgb_preset]
                     if a.verbose:
                         cmd.append("--verbose")
                     # Members fail INTERMITTENTLY: a run died at pep_pocket/mlp/43
@@ -206,6 +247,16 @@ def main(argv=None):
     t.add_argument("--member-retries", type=int, default=3,
                    help="attempts per member before giving up; members fail\n"
                         "intermittently inside the keras AUC metric")
+    t.add_argument("--inner-frac", type=float, default=0.3,
+                   help="fraction of TRAIN held out to early-stop on, so the "
+                        "reported val rows are never used for selection")
+    t.add_argument("--inner-seed", type=int, default=7)
+    t.add_argument("--no-inner", action="store_true",
+                   help="early-stop on the reported val rows (the pre-2026-10-18 "
+                        "behaviour; inflates val metrics)")
+    t.add_argument("--xgb-preset", default="r_port", choices=("r_port", "reg"),
+                   help="r_port = the R's unregularised parameters; reg = L2 5, "
+                        "min_child_weight 10, gamma 0.5, depth 4, colsample 0.6")
     t.add_argument("--no-groups", action="store_true",
                    help="split on individual precursors instead of the similarity "
                         "groups 10_9p exports (the pre-2026-10-18 behaviour)")
@@ -235,6 +286,7 @@ def main(argv=None):
     m.add_argument("--epochs", type=int, default=100)
     m.add_argument("--nrounds", type=int, default=500)
     m.add_argument("--monitor", default=M.MONITOR_DEFAULT)
+    m.add_argument("--xgb-preset", default="r_port", choices=("r_port", "reg"))
     m.add_argument("--verbose", action="store_true")
     m.set_defaults(func=cmd_member)
     a = p.parse_args(argv)
