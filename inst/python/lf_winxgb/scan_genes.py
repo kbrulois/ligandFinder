@@ -222,10 +222,15 @@ def main(argv=None):
     accs_all = np.asarray([str(g) for g in lz["accession"]])
 
     out = {}
-    for g in [x.strip() for x in a.genes.split(",")]:
+    for tok in [x.strip() for x in a.genes.split(",")]:
+        # GENE@ACCESSION picks one of several accessions under one name (COL18A1,
+        # OTOA); a bare name takes the first. Keys stay GENE__*.
+        g, _, want_acc = tok.partition("@")
         hits = np.flatnonzero(genes_all == g)
+        if want_acc:
+            hits = hits[accs_all[hits] == want_acc]
         if not hits.size:
-            print(f"  {g}: not in the secretome -- skipped", flush=True)
+            print(f"  {tok}: not in the secretome -- skipped", flush=True)
             continue
         i = int(hits[0])
         anchors = np.arange(int(res.n_prot[i]), int(res.c_prot[i]) + 1)

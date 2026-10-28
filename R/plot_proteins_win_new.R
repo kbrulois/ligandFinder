@@ -1171,6 +1171,17 @@ make_protein_plot_win <- function(old_nn_input,
               ggiraph::opts_selection(type = "none"),
               ggiraph::opts_hover(css = "stroke:#000;stroke-width:1.2px;"),
               ggiraph::opts_hover_inv(css = "opacity:0.35;"),
+              ## ggiraph's own look, plus a width of the tooltip's OWN: as an
+              ## absolutely placed box it otherwise shrinks to whatever room is
+              ## left right of the cursor, and ggiraph measures that shrunken
+              ## width to choose a side -- so near a track's right end the
+              ## candidate tooltips came out a few words wide. max-content gives
+              ## the real width, and ggiraph then flips it left of the cursor.
+              ## zindex: above the fixed ChimeraX / annotation panel (9999), which
+              ## otherwise hides the start of every line of a tooltip flipped left
+              ggiraph::opts_tooltip(css = getOption("lf.track_tooltip_css", paste0(
+                "padding:5px;background:black;color:white;border-radius:2px;text-align:left;",
+                "width:max-content;max-width:680px;")), zindex = 10000),
               ggiraph::opts_toolbar(saveaspng = FALSE))
           })
           .step(sprintf("pepend tracks: %d", length(pep_wgts)))

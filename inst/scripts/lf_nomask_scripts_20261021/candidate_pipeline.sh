@@ -33,10 +33,11 @@
 #   4 candidate_multipep.sh     MultiPep bioactivity classes (cached by sequence)
 #   5 candidate_logistic.R      the 5-variable ranker -> lr_prob
 #   6 candidate_xgb.R           xgboost over held-out end, MultiPep and MMseqs
-#                               (other-precursor) evidence -> xgb_score, and the
+#                               (other-precursor) evidence -> xgb_score; the same
+#                               without MultiPep -> xgb_nomp_score; and the
 #                               tidy candidate_peptides_<...>_scored.csv
-#   7 candidate_best_per_group.R  up to four cuts per group -- best by xgb,
-#                               end score, MultiPep, MMseqs -> _best_per_group.csv
+#   7 candidate_best_per_group.R  up to five cuts per group -- best by xgb,
+#                               xgb without MultiPep, end score, MultiPep, MMseqs -> _best_per_group.csv
 #
 # WITH_PDEEPPP=1 also runs the PDeepPP neuro head. Off by default: measured on
 # our own ground truth it ranks real ligands BACKWARDS (AUC 0.21) because it

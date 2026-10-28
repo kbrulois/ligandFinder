@@ -33,12 +33,16 @@
 ##
 ## Writes, beside the table:
 ##   xgb_score / xgb_fold / label / label_match onto the candidate table (in place)
+##   xgb_nomp_score                        the same classifier, folds and rounds with every
+##                                         MultiPep (mp_*) feature removed: end, motif and
+##                                         MMseqs evidence only
 ##   curated_relation (exact | overlap | none) and its curated_* details: the
 ##                                         curated known (ligand_list) of 8-60 aa on the
 ##                                         same precursor the candidate matches or overlaps
 ##   candidate_peptides_<...>_scored.csv  the tidy table: ids, end, MultiPep and
 ##                                         MMseqs metrics, and xgb_score, best first
 ##   candidate_xgb_<...>.model             the full-data model, for new candidates
+##   candidate_xgb_nomp_<...>.model        the same without MultiPep
 ## (stage 7, candidate_best_per_group.R, cuts the scored table to the best cuts per group)
 suppressMessages({library(data.table); library(xgboost)})
 A2 <- path.expand("~/AF2_analysis")
@@ -54,6 +58,7 @@ key  <- sprintf("%s_T%s_tol%d%s", HEAD, thr, TOL, ARM)
 f    <- file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s.csv", key))
 f_sc <- file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s_scored.csv", key))
 f_md <- file.path(A2, "lf_headcmp", sprintf("candidate_xgb_%s.model", key))
+f_md_nomp <- file.path(A2, "lf_headcmp", sprintf("candidate_xgb_nomp_%s.model", key))
 
 ## the arms whose scores are features: ARMS_MAX's (with their own thresholds),
 ## else the one arm this table was cut from
@@ -65,7 +70,7 @@ ARM_THR <- stats::setNames(vapply(am, function(x) if (length(x) > 1) as.numeric(
 arm_sfx <- function(a) if (a == "curated") "" else paste0("_", a)
 
 cd <- fread(f)
-out_cols <- c("xgb_score", "xgb_fold", "label", "label_match", "label_type",
+out_cols <- c("xgb_score", "xgb_nomp_score", "xgb_fold", "label", "label_match", "label_type",
               paste0("curated_", c("relation", "match", "match_id", "match_len", "shared_res",
                                    "frac_of_known", "frac_of_cand", "start_diff", "end_diff")))
 if (length(intersect(names(cd), out_cols))) cd[, (intersect(names(cd), out_cols)) := NULL]
@@ -218,30 +223,50 @@ auc <- function(s, l) { r <- rank(s); n1 <- sum(l == 1); n0 <- sum(l == 0)
   if (!n1 || !n0) return(NA_real_); (sum(r[l == 1]) - n1 * (n1 + 1) / 2) / (n1 * n0) }
 ap  <- function(s, l) { o <- order(-s); l <- l[o]; if (!sum(l)) return(NA_real_)
   sum(cumsum(l)[l == 1] / which(l == 1)) / sum(l) }
-fit <- function(rows) {
+fit <- function(rows, fs) {
   yy <- y[rows]
-  d  <- xgb.DMatrix(X[rows, , drop = FALSE], label = yy)
+  d  <- xgb.DMatrix(X[rows, fs, drop = FALSE], label = yy)
   ## (the R package takes its randomness from set.seed, not a `seed` param)
   xgb.train(c(params, list(scale_pos_weight = sum(yy == 0) / max(1, sum(yy == 1)))),
             d, nrounds = NROUNDS, verbose = 0)
 }
-cd[, xgb_score := NA_real_]
-res <- list()
-for (k in seq_len(NFOLD)) {
-  tr <- which(cd$xgb_fold != k & !is.na(y)); te <- which(cd$xgb_fold == k)
-  m <- fit(tr)
-  cd[te, xgb_score := predict(m, xgb.DMatrix(X[te, , drop = FALSE]))]
-  ev <- te[!is.na(y[te])]
-  res[[k]] <- data.table(fold = k, n = length(ev), pos = sum(y[ev] == 1),
-                         auc = auc(cd$xgb_score[ev], y[ev]), ap = ap(cd$xgb_score[ev], y[ev]),
-                         base = mean(y[ev] == 1))
-  cat(sprintf("  fold %d: trained on %s rows (%d pos), scored %s; held-out ROC AUC %.3f, AP %.3f (base rate %.4f)\n",
-              k, format(length(tr), big.mark = ","), sum(y[tr] == 1), format(length(te), big.mark = ","),
-              res[[k]]$auc, res[[k]]$ap, res[[k]]$base))
+## out-of-fold score over the feature set fs into column sc; the per-fold table back
+cv_score <- function(fs, sc) {
+  cd[, (sc) := NA_real_]
+  res <- list()
+  for (k in seq_len(NFOLD)) {
+    tr <- which(cd$xgb_fold != k & !is.na(y)); te <- which(cd$xgb_fold == k)
+    m <- fit(tr, fs)
+    set(cd, i = te, j = sc, value = predict(m, xgb.DMatrix(X[te, fs, drop = FALSE])))
+    ev <- te[!is.na(y[te])]
+    res[[k]] <- data.table(fold = k, n = length(ev), pos = sum(y[ev] == 1),
+                           auc = auc(cd[[sc]][ev], y[ev]), ap = ap(cd[[sc]][ev], y[ev]),
+                           base = mean(y[ev] == 1))
+    cat(sprintf("  fold %d: trained on %s rows (%d pos), scored %s; held-out ROC AUC %.3f, AP %.3f (base rate %.4f)\n",
+                k, format(length(tr), big.mark = ","), sum(y[tr] == 1), format(length(te), big.mark = ","),
+                res[[k]]$auc, res[[k]]$ap, res[[k]]$base))
+  }
+  res <- rbindlist(res)
+  cat(sprintf("%s PER-FOLD held-out (gene-grouped): ROC AUC %.3f +/- %.3f, AP %.3f +/- %.3f (base rate %.4f)\n",
+              sc, mean(res$auc), sd(res$auc), mean(res$ap), sd(res$ap), mean(res$base)))
+  res
 }
-res <- rbindlist(res)
-cat(sprintf("PER-FOLD held-out (gene-grouped): ROC AUC %.3f +/- %.3f, AP %.3f +/- %.3f (base rate %.4f)\n",
-            mean(res$auc), sd(res$auc), mean(res$ap), sd(res$ap), mean(res$base)))
+feat_nomp <- grep("^mp_", feat, value = TRUE, invert = TRUE)
+## xgb_score is drawn exactly as before (CV, then the full model, one RNG
+## stream); the no-MultiPep score replays that stream from the same point, so
+## the only difference between the two is the features
+rng0 <- .Random.seed
+cat(sprintf("xgb_score: all %d features\n", length(feat)))
+res <- cv_score(feat, "xgb_score")
+ev <- which(!is.na(y))
+full <- fit(ev, feat)
+invisible(xgb.save(full, f_md))
+.Random.seed <- rng0
+cat(sprintf("xgb_nomp_score: %d features, no MultiPep (%d mp_* dropped)\n",
+            length(feat_nomp), length(feat) - length(feat_nomp)))
+res_nomp <- cv_score(feat_nomp, "xgb_nomp_score")
+full_nomp <- fit(ev, feat_nomp)
+invisible(xgb.save(full_nomp, f_md_nomp))
 ## single features, the same folds, for scale
 cat("single features, per-fold mean ROC AUC / AP:\n")
 for (sf in intersect(c("mp_signalling_max", "mp_peptidehormone", "n_ho_max", "c_ho_max", "mmseqs_ns_sim",
@@ -251,21 +276,22 @@ for (sf in intersect(c("mp_signalling_max", "mp_peptidehormone", "n_ho_max", "c_
     c(auc(v, y[ev]), ap(v, y[ev])) })
   cat(sprintf("   %-24s %.3f / %.3f\n", sf, mean(a[1, ], na.rm = TRUE), mean(a[2, ], na.rm = TRUE)))
 }
-
-## the full-data model: for new candidates, and for which features carry it
-full <- fit(which(!is.na(y)))
-invisible(xgb.save(full, f_md))
+cat(sprintf("rank agreement, xgb_score vs xgb_nomp_score: Spearman %.3f over all candidates\n",
+            cor(cd$xgb_score, cd$xgb_nomp_score, method = "spearman")))
+## which features carry the full-data models
 imp <- xgb.importance(feature_names = feat, model = full)
 cat("strongest features (gain, full-data model):\n"); print(head(imp[, .(Feature, Gain = round(Gain, 4))], 15), row.names = FALSE)
+imp <- xgb.importance(feature_names = feat_nomp, model = full_nomp)
+cat("strongest features without MultiPep (gain, full-data model):\n"); print(head(imp[, .(Feature, Gain = round(Gain, 4))], 15), row.names = FALSE)
 
 ## ---- write back, and the tidy scored table -----------------------------------------
-cd[, xgb_score := round(xgb_score, 5)]
+cd[, `:=`(xgb_score = round(xgb_score, 5), xgb_nomp_score = round(xgb_nomp_score, 5))]
 keep_full <- setdiff(names(cd), c("row", grep("^ns_type_|^[nc]_motif_(?!end$|centre$)", names(cd), value = TRUE, perl = TRUE),
                                    "mmseqs_ns_log10_evalue", "mp_best_class", "mp_best_score"))
 fwrite(cd[, keep_full, with = FALSE], f)
 arm_cols <- function(tm) c(sprintf("%s_score_%s", tm, ARMS), sprintf("%s_ho_%s", tm, ARMS))
 tidy <- c("peptide_id", "gene", "accession", "start", "end", "length", "sequence", "group_id", "group_rank",
-          "xgb_score", "xgb_fold", "label", "label_match", "label_type",
+          "xgb_score", "xgb_nomp_score", "xgb_fold", "label", "label_match", "label_type",
           ## curated knowns 8-60 aa on the same precursor
           "curated_relation", "curated_match", "curated_match_id", "curated_match_len",
           "curated_shared_res", "curated_frac_of_known", "curated_frac_of_cand",
@@ -285,8 +311,8 @@ tidy <- c("peptide_id", "gene", "accession", "start", "end", "length", "sequence
           "mmseqs_ns_evalue", "mmseqs_ns_bits_per_res", "mmseqs_ns_sim")
 sc <- cd[order(-xgb_score), intersect(tidy, names(cd)), with = FALSE]
 fwrite(sc, f_sc)
-cat(sprintf("wrote xgb_score into %s\nwrote %s (%d columns, best first)\nwrote %s\n",
-            basename(f), basename(f_sc), ncol(sc), basename(f_md)))
+cat(sprintf("wrote xgb_score and xgb_nomp_score into %s\nwrote %s (%d columns, best first)\nwrote %s and %s\n",
+            basename(f), basename(f_sc), ncol(sc), basename(f_md), basename(f_md_nomp)))
 cat("\ntop 10 candidates with no known peptide at their range (label 0):\n")
-print(sc[label %in% 0L][1:10, .(peptide_id, length, xgb_score, mp_best_class, mp_best_score,
+print(sc[label %in% 0L][1:10, .(peptide_id, length, xgb_score, xgb_nomp_score, mp_best_class, mp_best_score,
                                mmseqs_ns_hit_name, mmseqs_ns_sim, n_ho_max, c_ho_max)], row.names = FALSE)

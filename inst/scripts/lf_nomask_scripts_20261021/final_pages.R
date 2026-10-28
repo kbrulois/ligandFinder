@@ -27,6 +27,19 @@ plot_dir <- Sys.getenv("LF_PLOT_DIR", if (MODE == "cv5") "~/AF2_analysis/pepend_
                                       else "~/AF2_analysis/pepend_pages_flatten")
 .b <- readRDS("~/AF2_analysis/plot_bundle.rds")
 list2env(Filter(Negate(is.null), .b), .GlobalEnv)
+## LF_EXTRA_BUNDLE: the_input / pep_input entries for genes plot_bundle.rds
+## lacks -- it holds only the genes the old dibasic-window model scored -- built
+## by inst/scripts/plot_bundle_extra.R and appended here. pred_to_plot stays the
+## bundle's: these genes have no old-model windows, so make_protein_plot_win
+## draws them through its no-window branch.
+.xb <- Sys.getenv("LF_EXTRA_BUNDLE", "")
+if (nzchar(.xb)) local({
+  x <- readRDS(path.expand(.xb))
+  g <- function(l) vapply(l, function(e) as.character(e$gene)[1], "")
+  stopifnot(identical(g(x$the_input), g(x$pep_input)), !any(g(x$the_input) %in% g(the_input)))
+  the_input <<- c(the_input, x$the_input); pep_input <<- c(pep_input, x$pep_input)
+  message("extra bundle ", .xb, ": ", paste(g(x$the_input), collapse = ", "))
+})
 id_map <- readRDS(system.file("data/id_mapping.rds", package = "ligandFinder"))
 if (!exists("species_dat") || is.null(species_dat))
   species_dat <- readRDS(system.file("extdata/species_dat.rds", package = "ligandFinder"))
@@ -122,11 +135,20 @@ ARMS <- Filter(nzchar, strsplit(Sys.getenv("ARMS", ""), ",")[[1]])
 if (length(setdiff(ARMS, names(ARM_REG))))
   stop("unknown arm(s): ", paste(setdiff(ARMS, names(ARM_REG)), collapse = ", "),
        "  -- add a row to ARM_REG")
+## ARM_SCAN_SFX: per-gene scans of the arms (arm_gene_scans.sh SFX=...), which
+## add each fold's sd and the all-50's to the arm tracks; genes they lack keep
+## the means-only rds
+ARM_SCAN_SFX <- Sys.getenv("ARM_SCAN_SFX", "")
 arm_tracks <- lapply(ARMS, function(a) list(
   label = ARM_REG[[a]]$label,
   N = file.path(A2, sprintf("lf_pepend_cv5_tracks_N_flatten_%s.rds", a)),
-  C = file.path(A2, sprintf("lf_pepend_cv5_tracks_C_flatten_%s.rds", a))))
-for (a in arm_tracks) stopifnot(file.exists(a$N), file.exists(a$C))
+  C = file.path(A2, sprintf("lf_pepend_cv5_tracks_C_flatten_%s.rds", a)),
+  scan = if (nzchar(ARM_SCAN_SFX)) sapply(c("N", "C"), function(tm) c(
+    stats::setNames(file.path(A2, sprintf("lf_winxgb_scan_%s_cv5_f%d_nomask_flatten_%s%s.npz",
+                                          tm, 1:5, a, ARM_SCAN_SFX)), paste0("f", 1:5)),
+    all50 = file.path(A2, sprintf("lf_winxgb_scan_%s_cv5all50_nomask_flatten_%s%s.npz",
+                                  tm, a, ARM_SCAN_SFX))), simplify = FALSE)))
+for (a in arm_tracks) stopifnot(file.exists(a$N), file.exists(a$C), all(file.exists(unlist(a$scan))))
 if (length(ARMS)) {
   BASE_LABEL <- Sys.getenv("BASE_LABEL", "curated")
   for (.i in seq_along(specs)) if (identical(specs[[.i]]$group, "per-fold")) {

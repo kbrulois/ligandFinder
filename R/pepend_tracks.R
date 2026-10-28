@@ -450,15 +450,21 @@ lf_track_pool_residues <- function(S, anchors, n_prot, c_prot, term,
   out
 }
 
-## White marker fills at 0.4 alpha, so the ribbon and the line under a marker
-## stay visible through it. Only the FILL is softened -- the stroke keeps its
-## full-strength colour, so the marker outline stays crisp.
+## Every point marker on these tracks -- an individual fold's ring, the
+## all-folds mean's square, a held-out triangle, a class or residue ring, an
+## end segment's centre ring -- is drawn white-filled at ONE opacity, applied
+## to outline and fill alike, so no series reads as more solid than another
+## and the ribbons and lines show through every marker the same way (Kevin,
+## 2026-10-28; until then only the fill was softened, to 0.4, and the dark
+## all-folds outlines read as solid). The one exception is the candidate
+## track's MultiPep class symbols: glyphs on turbo-coloured bars, kept opaque
+## so they stay legible, with the cross's white halo under them.
 ##
-## A function, not a constant: it is read when a plot is built, so
-## `options(lf.track_point_fill = "white")` restores the opaque marker any time,
+## Functions, not constants: read when a plot is built, so
+## `options(lf.track_point_alpha = 1)` restores opaque markers any time,
 ## including after this file has loaded.
-.lf_pt_fill <- function()
-  getOption("lf.track_point_fill", grDevices::adjustcolor("white", alpha.f = 0.4))
+.lf_pt_fill  <- function() getOption("lf.track_point_fill", "white")
+.lf_pt_alpha <- function() getOption("lf.track_point_alpha", 0.55)
 
 #' Everything the page needs, or NULL for whatever cannot be built
 #' Which fold held each known end out, for this precursor
@@ -526,10 +532,20 @@ LF_NO_POPUP <- "no window popup (scores from the full-proteome scan of this arm)
 #' in lf.track_extra_win's shape -- one group per arm, named by `label`, five
 #' thin fold series and the all-50 as the group's own heavy line -- with
 #' `no_popup = TRUE`.
+#'
+#' `arm$scan` (list(N =, C =), each the five fold npz and the all-50 npz,
+#' named f1..f5 and all50; arm_gene_scans.sh writes them) supplies the spread:
+#' for a gene those per-gene scans hold, the same series come from them WITH
+#' each fold's sd across its 10 seeds and the all-50's across all 50 members.
+#' Any other gene falls back to the means-only rds above.
 #' @keywords internal
-lf_track_arm_heads <- function(arm, accession) {
+lf_track_arm_heads <- function(arm, accession, gene = NULL) {
   out <- list()
   for (tm in c("N", "C")) {
+    ## per-gene scans of this arm (arm_gene_scans.sh), when they hold this gene:
+    ## the same series, plus each fold's and the all-50's sd
+    sc <- if (!is.null(gene) && !is.null(arm$scan)) .lf_arm_scan_rows(arm, arm$scan[[tm]], gene, accession, tm)
+    if (!is.null(sc)) { out[[length(out) + 1L]] <- sc; next }
     p <- arm[[tm]]
     if (is.null(p) || !file.exists(path.expand(p))) next
     b <- .lf_once(paste0("armtracks_", p), function() {
@@ -559,6 +575,39 @@ lf_track_arm_heads <- function(arm, accession) {
     }
   }
   if (!length(out)) NULL else dplyr::bind_rows(out)
+}
+
+## One terminus of one arm from its per-gene scans: both heads, each fold and
+## the all-50, mean AND sd, named exactly as the rds route names them (the
+## held-out triangles and the series colours key on those names). NULL -- the
+## caller then falls back to the rds -- when a file is missing, the gene is
+## not in it, or the scan holds another accession under this gene's name.
+.lf_arm_scan_rows <- function(arm, paths, gene, accession, tm) {
+  if (is.null(paths) || !length(paths) || !all(file.exists(path.expand(paths)))) return(NULL)
+  rows <- list()
+  for (nm in names(paths)) {
+    z <- .lf_once(paste0("armscan_", paths[[nm]]), function()
+      reticulate::import("numpy", convert = FALSE)$load(path.expand(paths[[nm]]), allow_pickle = TRUE))
+    if (!inherits(z, "python.builtin.object")) return(NULL)
+    f <- tryCatch(as.character(reticulate::py_to_r(z$files)), error = function(e) character(0))
+    if (!paste0(gene, "__anchor") %in% f) return(NULL)
+    ak <- paste0(gene, "__accession")
+    if (ak %in% f && !identical(as.character(reticulate::py_to_r(z[[ak]])), accession)) return(NULL)
+    ens <- identical(nm, "all50")
+    res <- as.integer(reticulate::py_to_r(z[[paste0(gene, "__anchor")]]))
+    for (hd in c("cnn", "xgb_pm")) {
+      rows[[length(rows) + 1L]] <- tibble::tibble(
+        residue = res,
+        mean = as.numeric(reticulate::py_to_r(z[[paste0(gene, "__", hd)]])),
+        sd   = as.numeric(reticulate::py_to_r(z[[paste0(gene, "__", hd, "__sd")]])),
+        term = if (ens) sprintf("%s all 50, %s terminus", arm$label, tm)
+               else sprintf("%s %s fold %s", arm$label, tm, sub("^f", "", nm)),
+        terminus = tm, head = if (hd == "cnn") "CNN attention head" else "xgb window head",
+        head_label = if (hd == "cnn") sprintf("CNN linear head (%s)", arm$label) else NA_character_,
+        group = arm$label, group_ens = ens, no_popup = TRUE)
+    }
+  }
+  dplyr::bind_rows(rows)
 }
 
 #' MultiPep's class columns, in the candidate table's own `mp_*` names
@@ -670,7 +719,7 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
   ## other arms, from their full-proteome tracks: after the page's own groups,
   ## in the order given
   for (arm in getOption("lf.track_arm_tracks", list()))
-    win <- dplyr::bind_rows(win, lf_track_arm_heads(arm, accession))
+    win <- dplyr::bind_rows(win, lf_track_arm_heads(arm, accession, gene))
   if (!nrow(win)) win <- NULL
   rp <- lf_track_resid_models(accession, n_prot, c_prot)
   resid <- NULL
@@ -785,7 +834,7 @@ lf_plot_class_track <- function(d, x_range, aa, gene, legend = FALSE,
                                      gene, residue, aa[residue],
                                      nn_class_labels[as.character(class)], mean, sd, note)),
       ## hollow, the same as the head tracks
-      shape = 21, fill = .lf_pt_fill(), size = 1.7, stroke = 0.6, na.rm = TRUE) +
+      shape = 21, fill = .lf_pt_fill(), alpha = .lf_pt_alpha(), size = 1.7, stroke = 0.6, na.rm = TRUE) +
     ggplot2::scale_colour_manual(values = nn_class_cols, labels = nn_class_label_fn,
                                  name = NULL) +
     ggplot2::scale_fill_manual(values = nn_class_cols, guide = "none") +
@@ -888,7 +937,12 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
   dheld <- d[ d$held, , drop = FALSE]
   dens  <- d[ d$ens, , drop = FALSE]
   ggplot2::ggplot(d, ggplot2::aes(residue, mean, colour = term, fill = term)) +
+    ## +/- 1 sd: each fold's across its 10 seeds, and the all-folds mean's
+    ## across all 50 members, in that series' own (darker) colour
     ggplot2::geom_ribbon(data = dline,
+                         ggplot2::aes(ymin = pmax(mean - sd, 0), ymax = pmin(mean + sd, 1)),
+                         alpha = 0.14, colour = NA, na.rm = TRUE) +
+    ggplot2::geom_ribbon(data = dens,
                          ggplot2::aes(ymin = pmax(mean - sd, 0), ymax = pmin(mean + sd, 1)),
                          alpha = 0.14, colour = NA, na.rm = TRUE) +
     ggplot2::geom_line(data = dline, linewidth = 0.4, alpha = 0.75, na.rm = TRUE) +
@@ -897,7 +951,7 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
       ggplot2::aes(data_id = residue, tooltip = tip),
       ## hollow (a ring in the series colour, white inside) and big enough to
       ## click; the popup fills the clicked one while its window is open
-      shape = 21, fill = .lf_pt_fill(), size = 1.7, stroke = 0.6, na.rm = TRUE) +
+      shape = 21, fill = .lf_pt_fill(), alpha = .lf_pt_alpha(), size = 1.7, stroke = 0.6, na.rm = TRUE) +
     ## the fold that held this end out: a DOWNWARD TRIANGLE, so the one honest
     ## point on the track is findable without reading tooltips
     ggiraph::geom_point_interactive(
@@ -905,7 +959,7 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
       ggplot2::aes(data_id = residue, tooltip = tip),
       ## show.legend = FALSE or this layer's shape becomes the glyph for EVERY
       ## key in the colour legend -- all ten fold entries drawn as triangles
-      shape = 25, fill = .lf_pt_fill(), size = 1.8, stroke = 0.7, na.rm = TRUE,
+      shape = 25, fill = .lf_pt_fill(), alpha = .lf_pt_alpha(), size = 1.8, stroke = 0.7, na.rm = TRUE,
       show.legend = FALSE) +
     ## the ensemble, on top: heavier line and SQUARE points, so it never reads as
     ## just one more fold. White inside like every other point on the page -- the
@@ -914,7 +968,7 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
     ggiraph::geom_point_interactive(
       data = dens,
       ggplot2::aes(data_id = residue, tooltip = tip),
-      shape = 22, fill = .lf_pt_fill(), size = 1.55, stroke = 0.7, na.rm = TRUE) +
+      shape = 22, fill = .lf_pt_fill(), alpha = .lf_pt_alpha(), size = 1.55, stroke = 0.7, na.rm = TRUE) +
     ggplot2::scale_colour_manual(values = cols, name = NULL, labels = lab) +
     ggplot2::scale_fill_manual(values = cols, guide = "none") +
     lf_track_x(x_range, seq_offset) +
@@ -944,7 +998,7 @@ lf_plot_resid_track <- function(d, mdl, x_range, aa, gene, seq_offset = -0.45) {
                                      gene, residue, aa[residue], mdl,
                                      nn_class_labels[as.character(class)], mean)),
       ## hollow, the same as the other tracks
-      shape = 21, fill = .lf_pt_fill(), size = 1.7, stroke = 0.6, na.rm = TRUE) +
+      shape = 21, fill = .lf_pt_fill(), alpha = .lf_pt_alpha(), size = 1.7, stroke = 0.6, na.rm = TRUE) +
     ggplot2::scale_colour_manual(values = nn_class_cols, guide = "none") +
     ggplot2::scale_fill_manual(values = nn_class_cols, guide = "none") +
     lf_track_x(x_range, seq_offset) +
@@ -1047,9 +1101,12 @@ lf_plot_segment_track <- function(cd, x_range, aa, gene, seq_offset = -0.45) {
       ggplot2::aes(xmin = start - 0.45, xmax = end + 0.45, ymin = y - 0.26, ymax = y + 0.26,
                    fill = term, colour = term, alpha = paired, data_id = sid, tooltip = tip),
       linewidth = 0.4) +
+    ## the centre ring: the same marker, at the same opacity, as every other
+    ## point on the page (a constant, so the bars' alpha = paired scale is
+    ## untouched)
     ggiraph::geom_point_interactive(
       ggplot2::aes(centre, y, colour = term, data_id = centre, tooltip = tip),
-      shape = 21, fill = "white", size = 1.7, stroke = 0.6) +
+      shape = 21, fill = .lf_pt_fill(), alpha = .lf_pt_alpha(), size = 1.7, stroke = 0.6) +
     ## how many arms the segment rests on, over its bar
     (if (has_arms) ggplot2::geom_text(ggplot2::aes(x = (start + end) / 2, y = y + 0.42, label = n_arms),
                                       size = 2.3, colour = "#0b0b0b", fontface = "bold")) +
@@ -1132,12 +1189,13 @@ lf_plot_candidate_track <- function(cd, x_range, aa, gene, seq_offset = -0.45,
   } else rep(NA_character_, nrow(d))
   gsz <- stats::ave(d$group_rank, d$group_id, FUN = length)
   ll  <- col("ll_hit_name"); ov <- col("overlap_name"); lr <- col("lr_prob")
-  bh  <- col("mmseqs_best_hit_name"); xs <- col("xgb_score")
+  bh  <- col("mmseqs_best_hit_name"); xs <- col("xgb_score"); xn <- col("xgb_nomp_score")
   d$sim <- col("mmseqs_sim")
   d$mid <- (d$start + d$end) / 2
   d$tip <- paste0(
     sprintf("%s  residues %d-%d (%d aa)\n%s\n", d$peptide_id, d$start, d$end, d$length, d$sequence),
     ifelse(is.na(xs), "", sprintf("global score (xgboost, out of fold): %.3f\n", xs)),
+    ifelse(is.na(xn), "", sprintf("global score without MultiPep: %.3f\n", xn)),
     ifelse(is.na(d$best_score), "no MultiPep score\n",
            sprintf("best MultiPep: %s %.3f%s\n", lbl(d$best_type), d$best_score,
                    ifelse(is.na(runner_up), "", paste0("  (then ", runner_up, ")")))),
@@ -1264,13 +1322,14 @@ lf_plot_win_legend <- function(x_range, seq_offset = -0.45, validation = TRUE) {
   ln <- data.frame(x = far, y = c(0.4, 0.6, 0.4, 0.6),
                    key = factor(rep(c("N terminus", "C terminus"), each = 2),
                                 levels = c("N terminus", "C terminus")))
-  keys <- if (validation) c("train", "validation", "mean of all folds")
-          else c("individual fold (mean of 10 seeds)", "mean of all folds")
+  ## the bands: +/- 1 sd across a fold's 10 seeds, and across all 50 members
+  keys <- if (validation) c("train ± sd", "validation ± sd", "mean of all folds ± sd")
+          else c("individual fold (mean of 10 seeds) ± sd", "mean of all folds ± sd")
   pt <- data.frame(x = far, y = 0.5, key = factor(keys, levels = keys))
   ggplot2::ggplot() +
     ggplot2::geom_line(data = ln, ggplot2::aes(x, y, colour = key, group = key), linewidth = 0.7) +
     ggplot2::geom_point(data = pt, ggplot2::aes(x, y, shape = key),
-                        fill = .lf_pt_fill(), colour = "grey20", size = 1.9, stroke = 0.6) +
+                        fill = .lf_pt_fill(), alpha = .lf_pt_alpha(), colour = "grey20", size = 1.9, stroke = 0.6) +
     ggplot2::scale_colour_manual(values = c(`N terminus` = tc[["N"]], `C terminus` = tc[["C"]]),
                                  name = NULL) +
     ggplot2::scale_shape_manual(

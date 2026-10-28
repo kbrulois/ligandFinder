@@ -54,14 +54,34 @@ files <- sort(list.files(dir_p, pattern = "\\.html$", full.names = TRUE))
 files <- files[basename(files) != basename(out_p)]
 if (!length(files)) stop("no pages in ", dir_p, call. = FALSE)
 genes <- sub("\\.html$", "", basename(files))
+## optional card order, as an rds with `gene` and `rank` columns, lowest rank
+## first; genes it does not rank follow, alphabetically -- or, with
+## --only-ranked, are left off (a page from another selection in the same dir)
+order_p <- .opt("--card-order", NA_character_)
+if (!is.na(order_p) && file.exists(path.expand(order_p))) {
+  od <- readRDS(path.expand(order_p))
+  rk <- od$rank[match(genes, od$gene)]
+  o  <- order(rk, genes, na.last = TRUE)
+  if ("--only-ranked" %in% .args) o <- o[!is.na(rk[o])]
+  if (!length(o)) stop("--only-ranked: no page in ", dir_p, " is ranked", call. = FALSE)
+  files <- files[o]; genes <- genes[o]
+}
 
 ## accession and length come from the residue cache, which is what the pages
 ## themselves were built from -- absent cache just leaves the columns blank
 acc <- len <- rep(NA_character_, length(genes))
+## optional, an rds with `gene` and `accession`: the accession a page draws,
+## where the gene name alone is ambiguous (COL18A1 has two in the cache)
+acc_p <- .opt("--card-accession", NA_character_)
+acc_by_gene <- if (!is.na(acc_p) && file.exists(path.expand(acc_p))) readRDS(path.expand(acc_p)) else NULL
 if (file.exists(cache_p)) {
   fc <- readRDS(cache_p)
   ## a page can be one of several for a gene (CXCL14_foldA, CXCL14_foldB)
   i <- match(sub("_fold[AB]$", "", genes), fc$prec$gene)
+  if (!is.null(acc_by_gene)) {
+    a <- acc_by_gene$accession[match(genes, acc_by_gene$gene)]
+    i <- ifelse(is.na(a), i, match(a, fc$prec$accession))
+  }
   acc <- fc$prec$accession[i]
   len <- ifelse(is.na(i), NA_character_, as.character(nchar(fc$prec$seq[i])))
 }
@@ -162,7 +182,8 @@ html <- sprintf('<!doctype html>
    for (var i = 0; i < cards.length; i++) {
      var h = cards[i].getAttribute("href").split("#")[0];
      if (h.replace(/[.]html$/, "").toUpperCase() === m[1].toUpperCase()) {
-       location.href = h + "#" + encodeURIComponent(v); return;
+       /* the page parses its fragment with a lower-case "x" only */
+       location.href = h + "#" + encodeURIComponent(m[1] + "x" + m[2] + "x" + m[3]); return;
      }
    }
  });
