@@ -58,9 +58,9 @@ stat_line() { [[ -e $1 ]] && echo "    $(basename $1)  $(stat -f '%z bytes, modi
   echo "    3  candidate_annotate.R"
   echo "    4  candidate_multipep.sh"
   echo "    5  candidate_logistic.R"
-  echo "    6  candidate_xgb.R  (xgb_score; label = a curated ligand or UniProt peptide on the"
+  echo "    6  candidate_xgb.R  (xgb_score, xgb_nomp_score without MultiPep; label = a curated ligand or UniProt peptide on the"
   echo "       same precursor with both ends within +/-${LABEL_TOL:-2}; out-of-fold, grouped by gene)"
-  echo "    7  candidate_best_per_group.R  (per group, the best cut by xgb_score, end_score_max,"
+  echo "    7  candidate_best_per_group.R  (per group, the best cut by xgb_score, xgb_nomp_score, end_score_max,"
   echo "       mp_best_score and mmseqs_sim; one row per distinct cut, picked_by names the criteria)"
   echo
   echo "MMSEQS COMMAND"
