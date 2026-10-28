@@ -106,8 +106,12 @@ def load(residues_npz, labels_npz, context=DEFAULT_CONTEXT,
     ## target is included only when its array is actually there: an older npz
     ## still loads, and `train --targets` then fails naming the missing one
     ## rather than silently training something else.
+    ## `pep_any` is pocket OR peptide-body as ONE class -- 10_9p already writes
+    ## it as `in_pep`, and y_pocket + y_pep_other sum to exactly that, so the
+    ## union needs no recomputation here.
     y = {k: lab[v].astype("int8")
          for k, v in (("pep_pocket", "y_pocket"), ("pep_other", "y_pep_other"),
+                      ("pep_any", "in_pep"),
                       ("ct_context", "y_ct"), ("nt_context", "y_nt"))
          if v in lab}
 
@@ -181,6 +185,55 @@ def split_by_precursor(d: Residues, rows: np.ndarray, val_frac: float = 0.4,
     if swap:
         is_val = ~is_val
     return rows[~is_val], rows[is_val]
+
+
+def inner_split(d: Residues, train_rows: np.ndarray, frac: float = 0.3,
+                seed: int = 7, y: np.ndarray | None = None):
+    """Carve an early-stopping set out of TRAIN, grouped like the outer split.
+
+    Both models stop on a held-out set: the MLP restores the best of ~80 epochs
+    and xgboost the best of up to 500 rounds.  Pointing that at the REPORTED
+    validation rows selects a model by looking at them, which is the leak
+    ``lf_winxgb`` answers with ``--inner-frac`` -- there, stopping on ``val``
+    moved val PR AUC 0.833 -> 0.884 while retrieval got WORSE.  So the stop set
+    comes out of train, on whole groups (the similarity groups when the labels
+    npz carries them, else whole precursors), and ``va`` is never looked at
+    until the member is finished.
+
+    Stratified: groups holding positives are dealt out first, so a stop set with
+    no positives -- on which ``val_auc`` is undefined and early stopping is
+    meaningless -- cannot happen while any positive group exists.
+    """
+    rng = np.random.default_rng(seed)
+    key = (d.prec_group[d.prot_idx[train_rows]] if d.prec_group is not None
+           else d.prot_idx[train_rows])
+    units = np.unique(key)
+
+    def _take(pool):
+        """~`frac` of THIS pool's rows, whole units, in random order."""
+        if not len(pool):
+            return set()
+        rows_in = int(np.sum(np.isin(key, pool)))
+        target, got, acc = frac * rows_in, set(), 0
+        for u in rng.permutation(pool).tolist():
+            if acc >= target:
+                break
+            got.add(u)
+            acc += int(np.sum(key == u))
+        return got
+
+    if y is not None:
+        # Deal the positive-bearing units and the rest SEPARATELY, each at
+        # `frac`.  Taking positives first instead sweeps every one of them into
+        # the stop set -- the 66 labelled precursors are ~31% of the training
+        # rows, so the row target is met before a single negative unit is dealt,
+        # and the model then fits on zero positives.
+        pos_u = np.unique(key[y[train_rows] > 0])
+        stop_u = _take(pos_u) | _take(np.setdiff1d(units, pos_u))
+    else:
+        stop_u = _take(units)
+    is_stop = np.isin(key, list(stop_u))
+    return train_rows[~is_stop], train_rows[is_stop]
 
 
 def cache_matrix(d: Residues, path) -> dict:
