@@ -33,6 +33,9 @@
 ##
 ## Writes, beside the table:
 ##   xgb_score / xgb_fold / label / label_match onto the candidate table (in place)
+##   curated_relation (exact | overlap | none) and its curated_* details: the
+##                                         curated known (ligand_list) of 8-60 aa on the
+##                                         same precursor the candidate matches or overlaps
 ##   candidate_peptides_<...>_scored.csv  the tidy table: ids, end, MultiPep and
 ##                                         MMseqs metrics, and xgb_score, best first
 ##   candidate_xgb_<...>.model             the full-data model, for new candidates
@@ -61,7 +64,9 @@ ARM_THR <- stats::setNames(vapply(am, function(x) if (length(x) > 1) as.numeric(
 arm_sfx <- function(a) if (a == "curated") "" else paste0("_", a)
 
 cd <- fread(f)
-out_cols <- c("xgb_score", "xgb_fold", "label", "label_match", "label_type")
+out_cols <- c("xgb_score", "xgb_fold", "label", "label_match", "label_type",
+              paste0("curated_", c("relation", "match", "match_id", "match_len", "shared_res",
+                                   "frac_of_known", "frac_of_cand", "start_diff", "end_diff")))
 if (length(intersect(names(cd), out_cols))) cd[, (intersect(names(cd), out_cols)) := NULL]
 cd[, row := .I]
 cat(sprintf("%s candidates on %s precursors; arms: %s\n", format(nrow(cd), big.mark = ","),
@@ -88,6 +93,35 @@ cd[is.na(label) & is.na(label_type), label := 0L]
 cat(sprintf("label (both ends within +/-%d of a known peptide on the same precursor): %s positive, %s propeptide-only (left out of training), %s negative\n",
             LABEL_TOL, format(cd[label %in% 1L, .N], big.mark = ","),
             format(cd[is.na(label), .N], big.mark = ","), format(cd[label %in% 0L, .N], big.mark = ",")))
+
+## ---- curated knowns 8-60 aa on the same precursor: exact or overlapping ----------
+## Reported, never a feature (it is the label's own annotation). Only curated
+## ligands (ligand_list) of peptide length (KNOWN_LEN_MIN..MAX, 8-60): exact =
+## same start and end; overlap = any shared residue. Where several overlap,
+## the exact one, else the one sharing most residues, is reported.
+CUR_MIN <- as.integer(Sys.getenv("KNOWN_LEN_MIN", "8"))
+CUR_MAX <- as.integer(Sys.getenv("KNOWN_LEN_MAX", "60"))
+cur <- unique(ll[, .(accession, kstart = as.integer(start), kend = as.integer(end), kname = nm)])[
+  kend - kstart + 1L >= CUR_MIN & kend - kstart + 1L <= CUR_MAX]
+cur[prec, on = "accession", kgene := i.gene]
+cur[, kid := sprintf("%sx%dx%d", fifelse(is.na(kgene), accession, kgene), kstart, kend)]
+jo <- cur[cd[, .(row, accession, start, end, length)], on = "accession", allow.cartesian = TRUE,
+          nomatch = NULL][pmin(end, kend) >= pmax(start, kstart)]
+jo[, `:=`(shared = pmin(end, kend) - pmax(start, kstart) + 1L, exact = start == kstart & end == kend)]
+setorder(jo, row, -exact, -shared, kstart)
+jb <- jo[jo[, .I[1], by = row]$V1]
+cd[, curated_relation := "none"]
+cd[jb, on = "row", `:=`(curated_relation = fifelse(i.exact, "exact", "overlap"),
+                        curated_match = i.kname, curated_match_id = i.kid,
+                        curated_match_len = i.kend - i.kstart + 1L, curated_shared_res = i.shared,
+                        curated_frac_of_known = round(i.shared / (i.kend - i.kstart + 1L), 3),
+                        curated_frac_of_cand = round(i.shared / length, 3),
+                        curated_start_diff = start - i.kstart, curated_end_diff = end - i.kend)]
+cat(sprintf("curated knowns %d-%d aa (%d on %d precursors): %s candidates match one exactly, %s overlap one, %s neither\n",
+            CUR_MIN, CUR_MAX, nrow(cur), uniqueN(cur$accession),
+            format(cd[curated_relation == "exact", .N], big.mark = ","),
+            format(cd[curated_relation == "overlap", .N], big.mark = ","),
+            format(cd[curated_relation == "none", .N], big.mark = ",")))
 
 ## ---- held-out end scores, per arm ---------------------------------------------
 ## For every anchor: the fold that held out its precursor's NEAREST known end
@@ -159,7 +193,7 @@ feat <- c("length",
 feat <- intersect(feat, names(cd))
 ## LEAKAGE GUARD: nothing self-inclusive from MMseqs, nothing from the overlap
 ## annotation, no other ranker, no all-50 end score
-banned <- grep("^(overlap_|lr_|label)|^mmseqs_(?!ns_)|^(ll|pep|prop)_(?!ns_)|_score_end$|_score_centre$|^end_score_max$|^pair_score$|_es_arms$|_dist$|total_offset|_es_anchors$|^[nc]_score_",
+banned <- grep("^(overlap_|curated_|lr_|label)|^mmseqs_(?!ns_)|^(ll|pep|prop)_(?!ns_)|_score_end$|_score_centre$|^end_score_max$|^pair_score$|_es_arms$|_dist$|total_offset|_es_anchors$|^[nc]_score_",
                feat, value = TRUE, perl = TRUE)
 if (length(banned)) stop("leakage guard: these must not be predictors: ", paste(banned, collapse = ", "))
 cat(sprintf("%d features: %d held-out end, %d motif, %d MultiPep, %d MMseqs (other precursors only)\n",
@@ -231,6 +265,10 @@ fwrite(cd[, keep_full, with = FALSE], f)
 arm_cols <- function(tm) c(sprintf("%s_score_%s", tm, ARMS), sprintf("%s_ho_%s", tm, ARMS))
 tidy <- c("peptide_id", "gene", "accession", "start", "end", "length", "sequence", "group_id", "group_rank",
           "xgb_score", "xgb_fold", "label", "label_match", "label_type",
+          ## curated knowns 8-60 aa on the same precursor
+          "curated_relation", "curated_match", "curated_match_id", "curated_match_len",
+          "curated_shared_res", "curated_frac_of_known", "curated_frac_of_cand",
+          "curated_start_diff", "curated_end_diff",
           ## end
           "n_score_end", "n_score_centre", "n_dist", "n_motif_end", "n_es_arms", "n_es_arm_list", "n_centre_arm",
           arm_cols("n"), "n_ho_max", "n_ho_arms", "n_ho_peak",
