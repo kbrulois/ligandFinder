@@ -35,6 +35,8 @@
 #   6 candidate_xgb.R           xgboost over held-out end, MultiPep and MMseqs
 #                               (other-precursor) evidence -> xgb_score, and the
 #                               tidy candidate_peptides_<...>_scored.csv
+#   7 candidate_best_per_group.R  up to four cuts per group -- best by xgb,
+#                               end score, MultiPep, MMseqs -> _best_per_group.csv
 #
 # WITH_PDEEPPP=1 also runs the PDeepPP neuro head. Off by default: measured on
 # our own ground truth it ranks real ligands BACKWARDS (AUC 0.21) because it
@@ -110,6 +112,9 @@ eval $R $S/candidate_logistic.R || { echo "STAGE 5 FAILED"; exit 1; }
 echo "--- stage 6: the xgboost classifier and the scored table"
 eval $R $S/candidate_xgb.R || { echo "STAGE 6 FAILED"; exit 1; }
 
+echo "--- stage 7: the best cuts per group"
+eval $R $S/candidate_best_per_group.R || { echo "STAGE 7 FAILED"; exit 1; }
+
 # ---- provenance (its own script, so it can be refreshed alone) --------------
 HEAD=$HEAD THRESH=$THRESH TOL=$TOL LEN_MIN=$LEN_MIN LEN_MAX=$LEN_MAX ARM=$ARM $S/candidate_manifest.sh
 
@@ -118,4 +123,5 @@ echo "=== DONE ==="
 echo "  table    : $OUT"
 echo "  segments : $A2/lf_headcmp/end_segments_${HEAD}_T${THRESH}${ARM}.csv"
 echo "  scored   : $A2/lf_headcmp/candidate_peptides_${HEAD}_T${THRESH}_tol${TOL}${ARM}_scored.csv"
+echo "  per group: $A2/lf_headcmp/candidate_peptides_${HEAD}_T${THRESH}_tol${TOL}${ARM}_best_per_group.csv"
 echo "  manifest : $MAN"
