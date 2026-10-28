@@ -65,13 +65,17 @@ kn[, tid := sprintf("t%06d", .I)]
 
 writeLines(paste0(">", kn$tid, "\n", kn$seq), file.path(O, "known.fasta"))
 fwrite(kn[, .(tid, known_id, name, gene, accession, start, end, type, seq)], file.path(O, "known.csv"))
-## surrogate id -> type, plain TSV for the pipeline's best-per-type awk pass
-fwrite(kn[, .(tid, type)], file.path(O, "known_types.tsv"), sep = "\t")
+## surrogate id -> type and accession, plain TSV for the pipeline's awk pass
+fwrite(kn[, .(tid, type, accession)], file.path(O, "known_types.tsv"), sep = "\t")
 
 cd <- fread(file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s_T%s_tol%d%s.csv", HEAD, thr, TOL, ARM)))
 u <- unique(cd[, .(sequence)]); u[, qid := sprintf("q%06d", .I)]
 writeLines(paste0(">", u$qid, "\n", u$sequence), file.path(O, "cand.fasta"))
 fwrite(u, file.path(O, "cand_ids.csv"))
+## query -> the precursor(s) carrying that sequence, so a hit on the
+## candidate's OWN precursor can be told from one on another gene
+qa <- cd[, .(accessions = paste(unique(accession), collapse = ",")), by = sequence][u, on = "sequence"]
+fwrite(qa[, .(qid, accessions)], file.path(O, "query_acc.tsv"), sep = "\t")
 
 cat(sprintf("targets: %s unique sequences (%s)\n", format(nrow(kn), big.mark = ","),
             paste(sprintf("%s %d", kn[, .N, by = type]$type, kn[, .N, by = type]$N), collapse = ", ")))

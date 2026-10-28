@@ -59,6 +59,12 @@ m[kn, on = c(target = "tid"), `:=`(ttype = i.type, kid = i.known_id,
                                    kname = i.name, kacc = i.accession)]
 m[ids, on = "qid", sequence := i.sequence]
 m <- m[!is.na(ttype) & !is.na(sequence)]
+## is the hit a known peptide on the candidate's OWN precursor? (a sequence
+## shared by candidates on several precursors counts all of them as own)
+qa <- fread(file.path(O, "query_acc.tsv"))
+qx <- qa[, .(acc = unlist(strsplit(accessions, ",", fixed = TRUE))), by = qid]
+m[, self := FALSE]
+m[qx, on = .(qid, kacc = acc), self := TRUE]
 
 pfx  <- c(ligand_list = "ll", peptide = "pep", propeptide = "prop")
 ## wipe any previous annotation so re-running is idempotent
@@ -66,6 +72,9 @@ cols <- c(paste0("mmseqs_", c("best_hit","best_hit_name","best_hit_acc","hit_typ
                               "pident","bits","evalue","qcov","tcov","bits_per_res")),
           as.vector(outer(unname(pfx), c("_hit","_hit_name","_pident","_tcov","_bits_per_res"),
                           paste0)),
+          paste0("mmseqs_ns_", c("hit","hit_name","hit_acc","hit_type","pident","bits","evalue",
+                                 "qcov","tcov","bits_per_res","sim")),
+          "mmseqs_sim", paste0(unname(pfx), "_ns_bits_per_res"),
           "length_bin", "overlap_known","overlap_id","overlap_name","overlap_type",
           "overlap_frac_cand","overlap_exact")
 if (length(intersect(names(cd), cols))) cd[, (intersect(names(cd), cols)) := NULL]
@@ -80,6 +89,28 @@ cd[best, on = "sequence", `:=`(
 cd[is.na(mmseqs_best_hit), `:=`(mmseqs_best_hit = "none", mmseqs_best_hit_name = "none",
                                 mmseqs_best_hit_acc = "none", mmseqs_hit_type = "none")]
 cd[, mmseqs_bits_per_res := round(mmseqs_bits / length, 4)]
+## similarity on one 0-1 scale: the share of the known peptide matched
+## identically (identity x target coverage) -- 1 is a full rediscovery
+cd[, mmseqs_sim := round(mmseqs_pident / 100 * pmin(1, mmseqs_tcov), 4)]
+
+## ---- best hit on ANOTHER precursor ------------------------------------------
+## The same thing with the candidate's own precursor's peptides removed. A
+## candidate on a known peptide's precursor always "finds" that peptide, so
+## the self-inclusive hit is the label in disguise; this one is evidence a
+## classifier may use -- homology to a peptide known elsewhere.
+mn <- m[self == FALSE]
+bn <- mn[mn[, .I[1], by = sequence]$V1]
+cd[bn, on = "sequence", `:=`(
+     mmseqs_ns_hit = i.kid, mmseqs_ns_hit_name = i.kname, mmseqs_ns_hit_acc = i.kacc,
+     mmseqs_ns_hit_type = i.ttype, mmseqs_ns_pident = i.pident, mmseqs_ns_bits = i.bits,
+     mmseqs_ns_evalue = i.evalue, mmseqs_ns_qcov = i.qcov, mmseqs_ns_tcov = i.tcov)]
+cd[is.na(mmseqs_ns_hit), `:=`(mmseqs_ns_hit = "none", mmseqs_ns_hit_name = "none",
+                              mmseqs_ns_hit_acc = "none", mmseqs_ns_hit_type = "none")]
+cd[, `:=`(mmseqs_ns_bits_per_res = round(mmseqs_ns_bits / length, 4),
+          mmseqs_ns_sim = round(mmseqs_ns_pident / 100 * pmin(1, mmseqs_ns_tcov), 4))]
+cat(sprintf("own-precursor hits are the best hit for %s of %s candidates\n",
+            format(cd[mmseqs_best_hit_acc == accession, .N], big.mark = ","),
+            format(nrow(cd), big.mark = ",")))
 
 ## ---- best hit within each class -------------------------------------------
 setorder(m, sequence, ttype, -bits, evalue, kid)
@@ -91,6 +122,10 @@ for (tt in names(pfx)) {
        .(i.kid, i.kname, i.pident, i.tcov, round(i.bits / length, 4))]
   cd[is.na(get(paste0(p, "_hit"))), (paste0(p, c("_hit","_hit_name"))) := .("none", "none")]
 }
+setorder(mn, sequence, ttype, -bits, evalue, kid)
+pern <- mn[mn[, .I[1], by = .(sequence, ttype)]$V1]
+for (tt in names(pfx))
+  cd[pern[ttype == tt], on = "sequence", (paste0(pfx[[tt]], "_ns_bits_per_res")) := round(i.bits / length, 4)]
 
 ## ---- length bins -----------------------------------------------------------
 brk <- c(4, 10, seq(20, ceiling(LEN_MAX / 10) * 10, by = 10))

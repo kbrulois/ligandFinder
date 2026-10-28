@@ -32,6 +32,9 @@
 #   3 candidate_annotate.R      merge the best hit + derived columns
 #   4 candidate_multipep.sh     MultiPep bioactivity classes (cached by sequence)
 #   5 candidate_logistic.R      the 5-variable ranker -> lr_prob
+#   6 candidate_xgb.R           xgboost over held-out end, MultiPep and MMseqs
+#                               (other-precursor) evidence -> xgb_score, and the
+#                               tidy candidate_peptides_<...>_scored.csv
 #
 # WITH_PDEEPPP=1 also runs the PDeepPP neuro head. Off by default: measured on
 # our own ground truth it ranks real ligands BACKWARDS (AUC 0.21) because it
@@ -73,14 +76,18 @@ mmseqs easy-search $O/cand.fasta $O/known.fasta $O/res_all.m8 $O/tmp "${MMSEQS_A
   || { echo "mmseqs FAILED, see $O/mmseqs.log"; exit 1; }
 echo "    $(wc -l < $O/res_all.m8 | tr -d ' ') hits, $(cut -f1 $O/res_all.m8 | sort -u | wc -l | tr -d ' ') queries with one"
 # Stage 3 uses only each candidate's best hit overall and its best within each
-# target type, so keep exactly those -- every row tied on top bits for its
-# (candidate, type), ties left for stage 3 to break as before. ~80 hits per
-# candidate become ~3, which keeps tens of millions of rows out of R's memory.
-awk -F'\t' 'FNR == 1 { p++ }
-  p == 1 { ty[$1] = $2; next }
-  p == 2 { k = $1 SUBSEP ty[$2]; b = $5 + 0; if (!(k in mx) || b > mx[k]) mx[k] = b; next }
-  { k = $1 SUBSEP ty[$2]; if ($5 + 0 == mx[k]) print }' \
-  $O/known_types.tsv $O/res_all.m8 $O/res_all.m8 > $O/res.m8 \
+# target type -- both counting and NOT counting the known peptides on the
+# candidate's own precursor (the classifier may only see the latter) -- so keep
+# exactly those: every row tied on top bits for its (candidate, type, own?),
+# ties left for stage 3 to break. ~80 hits per candidate become ~6, which keeps
+# tens of millions of rows out of R's memory.
+awk -F'\t' 'function key(q, t) { return q SUBSEP ty[t] SUBSEP (index(qa[q], "," ac[t] ",") > 0) }
+  FNR == 1 { p++ }
+  p == 1 { ty[$1] = $2; ac[$1] = $3; next }
+  p == 2 { qa[$1] = "," $2 ","; next }
+  p == 3 { k = key($1, $2); b = $5 + 0; if (!(k in mx) || b > mx[k]) mx[k] = b; next }
+  { if ($5 + 0 == mx[key($1, $2)]) print }' \
+  $O/known_types.tsv $O/query_acc.tsv $O/res_all.m8 $O/res_all.m8 > $O/res.m8 \
   || { echo "reducing the hits FAILED"; exit 1; }
 echo "    kept $(wc -l < $O/res.m8 | tr -d ' ') best-per-type hits for stage 3"
 rm -f $O/res_all.m8
@@ -100,6 +107,9 @@ fi
 echo "--- stage 5: the logistic ranker"
 eval $R $S/candidate_logistic.R || { echo "STAGE 5 FAILED"; exit 1; }
 
+echo "--- stage 6: the xgboost classifier and the scored table"
+eval $R $S/candidate_xgb.R || { echo "STAGE 6 FAILED"; exit 1; }
+
 # ---- provenance (its own script, so it can be refreshed alone) --------------
 HEAD=$HEAD THRESH=$THRESH TOL=$TOL LEN_MIN=$LEN_MIN LEN_MAX=$LEN_MAX ARM=$ARM $S/candidate_manifest.sh
 
@@ -107,4 +117,5 @@ echo
 echo "=== DONE ==="
 echo "  table    : $OUT"
 echo "  segments : $A2/lf_headcmp/end_segments_${HEAD}_T${THRESH}${ARM}.csv"
+echo "  scored   : $A2/lf_headcmp/candidate_peptides_${HEAD}_T${THRESH}_tol${TOL}${ARM}_scored.csv"
 echo "  manifest : $MAN"

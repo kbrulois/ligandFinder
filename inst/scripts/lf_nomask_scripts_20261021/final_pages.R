@@ -154,7 +154,11 @@ arm_held <- do.call(rbind, lapply(arm_tracks, function(a) do.call(rbind, lapply(
 CAND_ARM_LABELS <- c(curated = "curated",
                      setNames(vapply(ARM_REG, `[[`, "", "label"), paste0("_", names(ARM_REG))),
                      ## candidate_pipeline.sh ARMS_MAX=curated,esmonly36,curated_AAswap ARM=_max3
-                     `_max3` = "max of curated, ESM-C, AAswap")
+                     `_max3` = "max of curated, ESM-C, AAswap",
+                     ## ... ARMS_MAX=curated:0.5,esmonly36:0.65,curated_AAswap:0.5 ARM=_arms3
+                     `_arms3` = "curated >= 0.5 | ESM-C >= 0.65 | AAswap >= 0.5")
+## sets cut with a threshold PER ARM: no single "at or above T" to report
+CAND_PER_ARM_T <- c("_arms3")
 cand_specs <- lapply(Filter(nzchar, strsplit(Sys.getenv("CAND_SETS", "xgb_pm_T0.5_tol4"), ",")[[1]]),
                      function(k) {
   m <- regmatches(k, regexec("^(xgb_pm|cnn)_T([0-9.]+)_tol([0-9]+)(_.+)?$", k))[[1]]
@@ -162,11 +166,13 @@ cand_specs <- lapply(Filter(nzchar, strsplit(Sys.getenv("CAND_SETS", "xgb_pm_T0.
   arm <- m[5]
   al <- CAND_ARM_LABELS[if (nzchar(arm)) arm else "curated"]
   hd <- c(xgb_pm = "xgb", cnn = "linear")[[m[2]]]
-  list(label = sprintf("%s: %s all 50 >= %s, +/-%s", if (is.na(al)) sub("^_", "", arm) else al,
-                       hd, m[3], m[4]),
+  per_arm <- arm %in% CAND_PER_ARM_T
+  list(label = if (per_arm) sprintf("%s (%s all 50), +/-%s", al, hd, m[4])
+               else sprintf("%s: %s all 50 >= %s, +/-%s", if (is.na(al)) sub("^_", "", arm) else al,
+                            hd, m[3], m[4]),
        segments = file.path(A2, "lf_headcmp", sprintf("end_segments_%s_T%s%s.csv", m[2], m[3], arm)),
        candidates = file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s.csv", k)),
-       thresh = as.numeric(m[3]), tol = as.integer(m[4]))
+       thresh = if (per_arm) NA_real_ else as.numeric(m[3]), tol = as.integer(m[4]))
 })
 for (s in cand_specs) if (!file.exists(s$segments))
   message("candidate set skipped, no segment file: ", s$segments)

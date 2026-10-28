@@ -31,11 +31,16 @@
 ## es records which arms it rests on -- an arm SUPPORTS an es when its own score
 ## is at or above THRESH somewhere in the es's run -- as `n_arms` (1, 2, 3...)
 ## and `arms` ("curated+esmonly36"), plus `centre_arm`, the arm holding the max
-## at the centre. Candidates carry the same per end (n_es_arms, c_es_arms, ...).
-## "curated" names the curated arm. One THRESH for the max (an arm's own
-## threshold, e.g. esmonly36's 0.65, does not apply here). ARM is required with
-## it, as the output suffix, so this mode can never overwrite a one-arm table.
+## at the centre. Candidates carry the same per end (n_es_arms, c_es_arms, ...),
+## plus each arm's own score at the cut (n_score_<arm>, c_score_<arm>).
+## "curated" names the curated arm. Each arm may carry its OWN threshold as
+## arm:T (2026-10-27) -- an anchor joins a segment when ANY arm reaches its own
+## threshold there, and an arm supports a segment when it does so inside it;
+## an arm without one uses THRESH. The max still places the centre and scores
+## the ends. ARM is required with it, as the output suffix, so this mode can
+## never overwrite a one-arm table.
 ##   ARMS_MAX=curated,esmonly36,curated_AAswap ARM=_max3 Rscript candidate_peptides.R
+##   ARMS_MAX=curated:0.5,esmonly36:0.65,curated_AAswap:0.5 ARM=_arms3 Rscript candidate_peptides.R
 ##
 ## Also writes the END SEGMENTS themselves, one row per es with its run of
 ## anchors (start..end) and centre, as end_segments_<HEAD>_T<THRESH>.csv -- the
@@ -62,6 +67,12 @@ LEN_MAX <- as.integer(Sys.getenv("LEN_MAX", "60"))
 COL     <- paste0(HEAD, "__all50")
 ARM     <- Sys.getenv("ARM", "")
 ARMS_MAX <- Filter(nzchar, trimws(strsplit(Sys.getenv("ARMS_MAX", ""), ",")[[1]]))
+## arm[:threshold] -> the arm names, and each arm's own threshold
+.am <- strsplit(ARMS_MAX, ":", fixed = TRUE)
+ARMS_MAX <- vapply(.am, `[`, "", 1)
+ARM_THR  <- stats::setNames(vapply(.am, function(x) if (length(x) > 1) as.numeric(x[2]) else thr, 0),
+                            ARMS_MAX)
+if (anyNA(ARM_THR)) stop("ARMS_MAX: a threshold after ':' is not a number")
 if (length(ARMS_MAX) && !nzchar(ARM))
   stop("ARMS_MAX needs an ARM suffix of its own (e.g. ARM=_max3): without one it would ",
        "overwrite the curated arm's table")
@@ -69,10 +80,16 @@ arm_sfx <- function(a) if (a == "curated") "" else paste0("_", a)
 OUT_DIR <- path.expand(Sys.getenv("OUT_DIR", file.path(A2, "lf_headcmp")))
 
 ## every es: which run it is, its first and last anchor, and its centre. With M
-## (one column of scores per arm, rows aligned with b), also which arms support
-## it: an arm whose own score reaches thr anywhere in the run.
+## (one column of scores per arm, rows aligned with b), an anchor is in a
+## segment when ANY arm reaches its own threshold (ARM_THR) there, and the arms
+## that do so anywhere in the run are the ones that support it.
+arm_hits <- function(M) {
+  h <- sweep(M, 2, ARM_THR[colnames(M)], ">=")
+  h[is.na(h)] <- FALSE
+  h
+}
 es_anchors <- function(b, s, M = NULL) {
-  up <- !is.na(s) & s >= thr
+  up <- if (is.null(M)) !is.na(s) & s >= thr else rowSums(arm_hits(M)) > 0
   sid <- cumsum(b$brk0 | c(TRUE, up[-1] != up[-length(up)]))
   keep <- which(up)
   d <- data.table(sid = sid[keep], accession = b$accession[keep], anchor = b$anchor[keep], s = s[keep])
@@ -81,11 +98,10 @@ es_anchors <- function(b, s, M = NULL) {
   cen <- d[, .(centre = anchor[which.max(s)], centre_score = max(s), n_anchor = .N,
                seg_start = anchor[1], seg_end = anchor[.N]), by = .(sid, accession)]
   if (!is.null(M)) {
-    hit <- M[keep, , drop = FALSE] >= thr
-    hit[is.na(hit)] <- FALSE
+    hit <- arm_hits(M[keep, , drop = FALSE])
     sup <- rowsum(hit * 1L, d$sid) > 0                  # es x arm
     sup <- sup[match(cen$sid, as.integer(rownames(sup))), , drop = FALSE]
-    stopifnot(all(rowSums(sup) >= 1))                   # the max reached thr, so some arm did
+    stopifnot(all(rowSums(sup) >= 1))                   # an anchor is in only if some arm hit
     ci <- keep[d[, .I[which.max(s)], by = sid]$V1]      # the centre's row in b
     cen[, `:=`(es_arms = as.integer(rowSums(sup)),
                es_arm_list = apply(sup, 1, function(r) paste(colnames(M)[r], collapse = "+")),
@@ -103,7 +119,11 @@ fan <- function(cen, b, s) {
   g[, pos := centre + rep(-TOL:TOL, times = nrow(cen))]
   stopifnot(all(abs(g$pos - g$centre) <= TOL))
   sc <- data.table(accession = b$accession, anchor = b$anchor, score = s, motif = b$motif)
-  g[sc, on = .(accession, pos = anchor), `:=`(score = i.score, motif_end = i.motif)]
+  ## under ARMS_MAX, each arm's own score at the cut rides along (sc_<arm>)
+  ac <- grep("^sc_", names(b), value = TRUE)
+  for (a in ac) set(sc, j = a, value = b[[a]])
+  g[sc, on = .(accession, pos = anchor), c("score", "motif_end", ac) :=
+      mget(c("i.score", "i.motif", paste0("i.", ac)))]
   g[sc, on = .(accession, centre = anchor), motif_centre := i.motif]
   g[!is.na(score)]                       # a position off the mature range has none
 }
@@ -127,6 +147,7 @@ for (tm in c("N", "C")) {
     colnames(M) <- ARMS_MAX
     b <- bs[[1]][, .(accession, anchor)]
     b[, (COL) := do.call(pmax, c(lapply(seq_len(ncol(M)), function(j) M[, j]), na.rm = TRUE))]
+    for (k in seq_len(ncol(M))) set(b, j = paste0("sc_", colnames(M)[k]), value = M[, k])
     rm(bs); invisible(gc())
   } else {
     b <- readRDS(file.path(A2, sprintf("lf_pepend_cv5_tracks_%s_flatten%s.rds", tm, ARM)))
@@ -146,8 +167,10 @@ for (tm in c("N", "C")) {
   segs[[tm]][b, on = .(accession, centre = anchor), motif_centre := i.motif]
   cen[, c("seg_start", "seg_end") := NULL]
   side[[tm]] <- fan(cen, b, s)
-  message(sprintf("%s: %s end segments at T=%.2f (%s anchors offered within +/-%d)",
-                  tm, format(nrow(cen), big.mark = ","), thr,
+  message(sprintf("%s: %s end segments at %s (%s anchors offered within +/-%d)",
+                  tm, format(nrow(cen), big.mark = ","),
+                  if (is.null(M)) sprintf("T=%.2f", thr)
+                  else paste(sprintf("%s>=%s", names(ARM_THR), ARM_THR), collapse = ", "),
                   format(nrow(side[[tm]]), big.mark = ","), TOL))
   if (!is.null(M)) print(cen[, .(terminus = tm, .N), by = .(n_arms = es_arms)][order(n_arms)], row.names = FALSE)
   rm(b, s, cen, M); invisible(gc())
@@ -163,6 +186,10 @@ setnames(side$C, c("es", "centre", "centre_score", "pos", "score", "n_anchor", "
                    "es_arms", "es_arm_list", "centre_arm"),
          c("c_es", "c_centre", "c_centre_score", "c_pos", "c_pos_score", "c_es_anchors", "c_motif_end",
            "c_motif_centre", "c_es_arms", "c_es_arm_list", "c_centre_arm"), skip_absent = TRUE)
+for (a in ARMS_MAX) {
+  setnames(side$N, paste0("sc_", a), paste0("n_score_", a), skip_absent = TRUE)
+  setnames(side$C, paste0("sc_", a), paste0("c_score_", a), skip_absent = TRUE)
+}
 P <- side$N[side$C, on = "accession", allow.cartesian = TRUE, nomatch = 0]
 P[, len := c_pos - n_pos + 1L]
 P <- P[len >= LEN_MIN & len <= LEN_MAX]
@@ -210,9 +237,14 @@ out <- P[, .(peptide_id, group_id, group_size, group_rank, pair_score = round(pa
              n_centre, c_centre, n_es_anchors, c_es_anchors)]
 ## under ARMS_MAX: how many arms (and which) each end's segment rests on --
 ## row-aligned with P, so assigned before the sort
-if (length(ARMS_MAX))
+if (length(ARMS_MAX)) {
   out[, `:=`(n_es_arms = P$n_es_arms, n_es_arm_list = P$n_es_arm_list, n_centre_arm = P$n_centre_arm,
              c_es_arms = P$c_es_arms, c_es_arm_list = P$c_es_arm_list, c_centre_arm = P$c_centre_arm)]
+  for (a in ARMS_MAX) for (tm in c("n", "c")) {
+    cl <- sprintf("%s_score_%s", tm, a)
+    set(out, j = cl, value = round(P[[cl]], 4))
+  }
+}
 setorder(out, -n_score_centre, -c_score_centre, group_id, group_rank)
 dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
 f <- file.path(OUT_DIR, sprintf("candidate_peptides_%s_T%s_tol%d%s.csv", HEAD, thr, TOL, ARM))
