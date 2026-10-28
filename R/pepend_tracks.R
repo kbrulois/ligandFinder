@@ -1077,10 +1077,14 @@ lf_plot_segment_track <- function(cd, x_range, aa, gene, seq_offset = -0.45) {
                    legend.margin = ggplot2::margin(0, 0, 0, 0))
 }
 
-#' The candidate peptides, one bar each, coloured by their best MultiPep call
+#' The candidate peptides, one bar each, coloured by MultiPep and MMseqs
 #'
-#' Colour = the best MultiPep score (turbo, 0..1); the symbol near the bar's N
-#' end = which class it was (LF_MP_SHAPES). Every candidate is its own row -- a group's
+#' Each bar is split at its midpoint, both halves on one turbo 0..1 scale: the
+#' N half is the best MultiPep score, the C half the MMseqs similarity to the
+#' closest known 8-60 aa peptide (`mmseqs_sim`, identity x coverage of that
+#' peptide: 1 is a full rediscovery; grey when the table has no such column).
+#' The symbol near the N end = which MultiPep class won (LF_MP_SHAPES). Every
+#' candidate is its own row -- a group's
 #' candidates all overlap, since they are one pair of segments cut at different
 #' offsets -- packed first-fit so that groups that do not overlap share rows.
 #' Groups go in order of their centres and, within a group, the strongest
@@ -1128,9 +1132,12 @@ lf_plot_candidate_track <- function(cd, x_range, aa, gene, seq_offset = -0.45,
   } else rep(NA_character_, nrow(d))
   gsz <- stats::ave(d$group_rank, d$group_id, FUN = length)
   ll  <- col("ll_hit_name"); ov <- col("overlap_name"); lr <- col("lr_prob")
-  bh  <- col("mmseqs_best_hit_name")
+  bh  <- col("mmseqs_best_hit_name"); xs <- col("xgb_score")
+  d$sim <- col("mmseqs_sim")
+  d$mid <- (d$start + d$end) / 2
   d$tip <- paste0(
     sprintf("%s  residues %d-%d (%d aa)\n%s\n", d$peptide_id, d$start, d$end, d$length, d$sequence),
+    ifelse(is.na(xs), "", sprintf("global score (xgboost, out of fold): %.3f\n", xs)),
     ifelse(is.na(d$best_score), "no MultiPep score\n",
            sprintf("best MultiPep: %s %.3f%s\n", lbl(d$best_type), d$best_score,
                    ifelse(is.na(runner_up), "", paste0("  (then ", runner_up, ")")))),
@@ -1147,9 +1154,9 @@ lf_plot_candidate_track <- function(cd, x_range, aa, gene, seq_offset = -0.45,
     ## the closest known peptide of any source (the target set is cut to
     ## peptide lengths in stage 2a), then the closest CURATED one when that is a
     ## different peptide -- HCRT's curated list has orexin-B but not orexin-A
-    ifelse(has(bh), sprintf("\nbest known-peptide match: %s (%s, %s%% identity, covers %s%%, e-value %s)",
+    ifelse(has(bh), sprintf("\nbest known-peptide match: %s (%s, %s%% identity, covers %s%%, e-value %s, similarity %.2f)",
                             bh, src[as.character(col("mmseqs_hit_type"))], round(col("mmseqs_pident")),
-                            round(100 * col("mmseqs_tcov")), signif(col("mmseqs_evalue"), 2)),
+                            round(100 * col("mmseqs_tcov")), signif(col("mmseqs_evalue"), 2), d$sim),
            "\nno known-peptide match"),
     ifelse(has(ll) & col("mmseqs_hit_type") != "ligand_list",
            sprintf("\nclosest curated ligand: %s (%s%% identity, covers %s%%)", ll,
@@ -1173,9 +1180,14 @@ lf_plot_candidate_track <- function(cd, x_range, aa, gene, seq_offset = -0.45,
     caps$lab <- factor(lv[caps$k], levels = lv)
   }
   p <- ggplot2::ggplot(d) +
+    ## the N half: MultiPep; the C half: MMseqs -- one data_id, so they hover together
     ggiraph::geom_rect_interactive(
-      ggplot2::aes(xmin = start - 0.45, xmax = end + 0.45, ymin = row - 0.42, ymax = row + 0.42,
+      ggplot2::aes(xmin = start - 0.45, xmax = mid, ymin = row - 0.42, ymax = row + 0.42,
                    fill = best_score, data_id = peptide_id, tooltip = tip),
+      colour = NA) +
+    ggiraph::geom_rect_interactive(
+      ggplot2::aes(xmin = mid, xmax = end + 0.45, ymin = row - 0.42, ymax = row + 0.42,
+                   fill = sim, data_id = peptide_id, tooltip = tip),
       colour = NA) +
     ## arm-support caps, one per end. Fill is a per-row constant (the track's
     ## fill scale is the turbo score), and the legend comes from `colour`
@@ -1195,7 +1207,8 @@ lf_plot_candidate_track <- function(cd, x_range, aa, gene, seq_offset = -0.45,
       fill = "white", colour = "black", size = 1.5, stroke = 0.35) +
     ggplot2::scale_fill_viridis_c(option = "turbo", limits = c(0, 1),
                                   breaks = c(0, 0.25, 0.5, 0.75, 1), na.value = "grey70",
-                                  name = paste0(cd$label, "   best MultiPep score:")) +
+                                  name = paste0(cd$label, "   left half: best MultiPep score,\n",
+                                                "right half: MMseqs similarity to the closest known peptide:")) +
     ggplot2::scale_shape_manual(values = LF_MP_SHAPES, breaks = present,
                                 labels = LF_MP_KEY_LABELS[present], name = "its class:") +
     ggplot2::guides(fill = ggplot2::guide_colourbar(order = 1, barwidth = grid::unit(110, "pt"),
