@@ -34,6 +34,10 @@ footer_p <- .opt("--footer", NA_character_)
 ## into the card as is (NOT escaped -- it is generated, e.g. the per-end TP / FN
 ## table of the final gallery; any styling it needs travels in the blurb)
 card_p <- .opt("--card-html", NA_character_)
+## optional per-gene link target, as an rds with `gene` and `href` columns: the
+## card then opens that -- e.g. GENE.html#GENExNxC, the page jumped to a peptide
+## (N window at N, C window at C) -- instead of the bare page
+href_p <- .opt("--card-href", NA_character_)
 ## the stock description names the near-end trunks' tracks, attention head
 ## included; a gallery whose blurb describes its own pages drops it
 stock_desc <- if ("--no-stock-desc" %in% .args) "" else
@@ -77,8 +81,15 @@ if (!is.na(card_p) && file.exists(path.expand(card_p))) {
   card_html <- ifelse(is.na(cd$html[match(genes, cd$gene)]), "", cd$html[match(genes, cd$gene)])
 }
 
+href <- basename(files)
+if (!is.na(href_p) && file.exists(path.expand(href_p))) {
+  hd <- readRDS(path.expand(href_p))
+  h <- hd$href[match(genes, hd$gene)]
+  href <- ifelse(is.na(h), href, h)
+}
+
 rows <- paste0(
-  '<a class="card" href="', esc(basename(files)), '" data-note="', esc(note), '" data-gene="',
+  '<a class="card" href="', esc(href), '" data-note="', esc(note), '" data-gene="',
   esc(toupper(paste(genes, ifelse(is.na(acc), "", acc)))), '">',
   '<div class="g">', esc(genes), '</div>',
   '<div class="m">', ifelse(is.na(acc), "", esc(acc)),
@@ -149,7 +160,7 @@ html <- sprintf('<!doctype html>
    var v = q.value.trim(), m = /^(.+?)x([0-9]+)x([0-9]+)$/i.exec(v);
    if (!m) return;
    for (var i = 0; i < cards.length; i++) {
-     var h = cards[i].getAttribute("href");
+     var h = cards[i].getAttribute("href").split("#")[0];
      if (h.replace(/[.]html$/, "").toUpperCase() === m[1].toUpperCase()) {
        location.href = h + "#" + encodeURIComponent(v); return;
      }
