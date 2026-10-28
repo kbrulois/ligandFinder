@@ -25,6 +25,7 @@ candidates it is in -- the protein pages draw it, and `final_pages.R`'s
 | 3 | `candidate_annotate.R` | `mmseqs_*` best hit and per-class bests, `length_bin`, `overlap_*` |
 | 4 | `candidate_multipep.sh` | 20 `mp_*` MultiPep classes + `mp_signalling_max` |
 | 5 | `candidate_logistic.R` | `lr_prob`, `lr_prob_oof` |
+| 6 | `candidate_xgb.R` | `xgb_score` (out of fold, grouped by gene), `label`, and the tidy `candidate_peptides_<...>_scored.csv`; features are held-out end scores, MultiPep and MMseqs hits on OTHER precursors only (see its header for the three leaks it avoids) |
 
 `WITH_PDEEPPP=1` adds a stage 4b. It is **off by default**: on our own ground
 truth PDeepPP's neuro head ranks real ligands backwards (AUC 0.21), behaving

@@ -56,6 +56,10 @@ stat_line() { [[ -e $1 ]] && echo "    $(basename $1)  $(stat -f '%z bytes, modi
   echo "    1  candidate_peptides.R"
   echo "    2  candidate_mmseqs_prep.R  +  mmseqs easy-search"
   echo "    3  candidate_annotate.R"
+  echo "    4  candidate_multipep.sh"
+  echo "    5  candidate_logistic.R"
+  echo "    6  candidate_xgb.R  (xgb_score; label = a curated ligand or UniProt peptide on the"
+  echo "       same precursor with both ends within +/-${LABEL_TOL:-2}; out-of-fold, grouped by gene)"
   echo
   echo "MMSEQS COMMAND"
   echo "    mmseqs easy-search cand.fasta known.fasta res.m8 tmp \\"
