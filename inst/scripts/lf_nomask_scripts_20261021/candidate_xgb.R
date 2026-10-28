@@ -36,9 +36,13 @@
 ##   xgb_nomp_score                        the same classifier, folds and rounds with every
 ##                                         MultiPep (mp_*) feature removed: end, motif and
 ##                                         MMseqs evidence only
-##   curated_relation (exact | overlap | none) and its curated_* details: the
+##   curated_relation (exact | overlap | uniprot | none) and its curated_* details: the
 ##                                         curated known (ligand_list) of 8-60 aa on the
-##                                         same precursor the candidate matches or overlaps
+##                                         same precursor the candidate matches or overlaps;
+##                                         "uniprot" = no curated one, but a UniProt peptide
+##                                         of 8-60 aa there (so "none" = no known peptide)
+##   uniprot_relation (exact | overlap | none) and its uniprot_* details: the same
+##                                         against UniProt `peptide` features of 8-60 aa
 ##   candidate_peptides_<...>_scored.csv  the tidy table: ids, end, MultiPep and
 ##                                         MMseqs metrics, and xgb_score, best first
 ##   candidate_xgb_<...>.model             the full-data model, for new candidates
@@ -70,9 +74,10 @@ ARM_THR <- stats::setNames(vapply(am, function(x) if (length(x) > 1) as.numeric(
 arm_sfx <- function(a) if (a == "curated") "" else paste0("_", a)
 
 cd <- fread(f)
+rel_cols <- c("relation", "match", "match_id", "match_len", "shared_res",
+              "frac_of_known", "frac_of_cand", "start_diff", "end_diff")
 out_cols <- c("xgb_score", "xgb_nomp_score", "xgb_fold", "label", "label_match", "label_type",
-              paste0("curated_", c("relation", "match", "match_id", "match_len", "shared_res",
-                                   "frac_of_known", "frac_of_cand", "start_diff", "end_diff")))
+              paste0("curated_", rel_cols), paste0("uniprot_", rel_cols))
 if (length(intersect(names(cd), out_cols))) cd[, (intersect(names(cd), out_cols)) := NULL]
 cd[, row := .I]
 cat(sprintf("%s candidates on %s precursors; arms: %s\n", format(nrow(cd), big.mark = ","),
@@ -127,6 +132,43 @@ cat(sprintf("curated knowns %d-%d aa (%d on %d precursors): %s candidates match 
             CUR_MIN, CUR_MAX, nrow(cur), uniqueN(cur$accession),
             format(cd[curated_relation == "exact", .N], big.mark = ","),
             format(cd[curated_relation == "overlap", .N], big.mark = ","),
+            format(cd[curated_relation == "none", .N], big.mark = ",")))
+
+## ---- UniProt peptides 8-60 aa on the same precursor: exact or overlapping ----------
+## The same comparison against UniProt `peptide` features (not propeptides, not
+## chains), into uniprot_*, whatever the curated relation. And a candidate with
+## no curated relation that matches or overlaps one moves out of "none" into a
+## curated_relation category of its own, "uniprot" -- so "none" means no known
+## peptide, curated or UniProt, at any of its residues (Kevin, 2026-10-28: "none"
+## let 222 UniProt peptides into the first novel-candidate gallery). Reported,
+## never a feature: it is the label's own annotation. Length window
+## UNIPROT_LEN_MIN..MAX, default the curated one.
+UP_MIN <- as.integer(Sys.getenv("UNIPROT_LEN_MIN", CUR_MIN))
+UP_MAX <- as.integer(Sys.getenv("UNIPROT_LEN_MAX", CUR_MAX))
+upk <- unique(up[type == "peptide", .(accession, kstart = as.integer(start), kend = as.integer(end),
+                                      kname = fifelse(!is.na(description) & nzchar(description),
+                                                      description, "peptide"))])[
+  !is.na(kstart) & !is.na(kend) & kend - kstart + 1L >= UP_MIN & kend - kstart + 1L <= UP_MAX]
+upk[prec, on = "accession", kgene := i.gene]
+upk[, kid := sprintf("%sx%dx%d", fifelse(is.na(kgene), accession, kgene), kstart, kend)]
+ju <- upk[cd[, .(row, accession, start, end, length)], on = "accession", allow.cartesian = TRUE,
+          nomatch = NULL][pmin(end, kend) >= pmax(start, kstart)]
+ju[, `:=`(shared = pmin(end, kend) - pmax(start, kstart) + 1L, exact = start == kstart & end == kend)]
+setorder(ju, row, -exact, -shared, kstart)
+jub <- ju[ju[, .I[1], by = row]$V1]
+cd[, uniprot_relation := "none"]
+cd[jub, on = "row", `:=`(uniprot_relation = fifelse(i.exact, "exact", "overlap"),
+                         uniprot_match = i.kname, uniprot_match_id = i.kid,
+                         uniprot_match_len = i.kend - i.kstart + 1L, uniprot_shared_res = i.shared,
+                         uniprot_frac_of_known = round(i.shared / (i.kend - i.kstart + 1L), 3),
+                         uniprot_frac_of_cand = round(i.shared / length, 3),
+                         uniprot_start_diff = start - i.kstart, uniprot_end_diff = end - i.kend)]
+cd[curated_relation == "none" & uniprot_relation != "none", curated_relation := "uniprot"]
+cat(sprintf("UniProt peptides %d-%d aa (%d on %d precursors): %s candidates match one exactly, %s overlap one; %s with no curated relation -> curated_relation \"uniprot\", %s left \"none\"\n",
+            UP_MIN, UP_MAX, nrow(upk), uniqueN(upk$accession),
+            format(cd[uniprot_relation == "exact", .N], big.mark = ","),
+            format(cd[uniprot_relation == "overlap", .N], big.mark = ","),
+            format(cd[curated_relation == "uniprot", .N], big.mark = ","),
             format(cd[curated_relation == "none", .N], big.mark = ",")))
 
 ## ---- held-out end scores, per arm ---------------------------------------------
@@ -199,7 +241,7 @@ feat <- c("length",
 feat <- intersect(feat, names(cd))
 ## LEAKAGE GUARD: nothing self-inclusive from MMseqs, nothing from the overlap
 ## annotation, no other ranker, no all-50 end score
-banned <- grep("^(overlap_|curated_|lr_|label)|^mmseqs_(?!ns_)|^(ll|pep|prop)_(?!ns_)|_score_end$|_score_centre$|^end_score_max$|^pair_score$|_es_arms$|_dist$|total_offset|_es_anchors$|^[nc]_score_",
+banned <- grep("^(overlap_|curated_|uniprot_|lr_|label)|^mmseqs_(?!ns_)|^(ll|pep|prop)_(?!ns_)|_score_end$|_score_centre$|^end_score_max$|^pair_score$|_es_arms$|_dist$|total_offset|_es_anchors$|^[nc]_score_",
                feat, value = TRUE, perl = TRUE)
 if (length(banned)) stop("leakage guard: these must not be predictors: ", paste(banned, collapse = ", "))
 cat(sprintf("%d features: %d held-out end, %d motif, %d MultiPep, %d MMseqs (other precursors only)\n",
@@ -296,6 +338,10 @@ tidy <- c("peptide_id", "gene", "accession", "start", "end", "length", "sequence
           "curated_relation", "curated_match", "curated_match_id", "curated_match_len",
           "curated_shared_res", "curated_frac_of_known", "curated_frac_of_cand",
           "curated_start_diff", "curated_end_diff",
+          ## UniProt peptides 8-60 aa on the same precursor
+          "uniprot_relation", "uniprot_match", "uniprot_match_id", "uniprot_match_len",
+          "uniprot_shared_res", "uniprot_frac_of_known", "uniprot_frac_of_cand",
+          "uniprot_start_diff", "uniprot_end_diff",
           ## end
           "n_score_end", "n_score_centre", "n_dist", "n_motif_end", "n_es_arms", "n_es_arm_list", "n_centre_arm",
           arm_cols("n"), "n_ho_max", "n_ho_arms", "n_ho_peak",
