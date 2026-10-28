@@ -25,7 +25,7 @@ candidates it is in -- the protein pages draw it, and `final_pages.R`'s
 | 3 | `candidate_annotate.R` | `mmseqs_*` best hit and per-class bests, `length_bin`, `overlap_*` |
 | 4 | `candidate_multipep.sh` | 20 `mp_*` MultiPep classes + `mp_signalling_max` |
 | 5 | `candidate_logistic.R` | `lr_prob`, `lr_prob_oof` |
-| 6 | `candidate_xgb.R` | `xgb_score` (out of fold, grouped by gene), `xgb_nomp_score` (the same model without any MultiPep feature), `label`, and the tidy `candidate_peptides_<...>_scored.csv`; features are held-out end scores, MultiPep and MMseqs hits on OTHER precursors only (see its header for the three leaks it avoids) |
+| 6 | `candidate_xgb.R` | `xgb_score` (out of fold, grouped by gene), `xgb_nomp_score` (the same model without any MultiPep feature), `label`, `curated_relation` / `uniprot_relation` (the known peptides of 8–60 aa a candidate touches; reported, never features), and the tidy `candidate_peptides_<...>_scored.csv`; features are held-out end scores, MultiPep and MMseqs hits on OTHER precursors only (see its header for the three leaks it avoids) |
 | 7 | `candidate_best_per_group.R` | `candidate_peptides_<...>_best_per_group.csv`: per group (one N es × C es pair) the best cut by `xgb_score`, `xgb_nomp_score`, `end_score_max`, `mp_best_score` and `mmseqs_sim` — 1 to 5 rows, `picked_by` naming the criteria each won |
 
 `WITH_PDEEPPP=1` adds a stage 4b. It is **off by default**: on our own ground
@@ -79,11 +79,17 @@ is the candidate track's class symbols, which stay opaque on the turbo-coloured
 bars. Tooltips keep their own width (`width:max-content`), so the ones at a
 track's right end no longer collapse to a few words per line.
 
-- **`curated_relation == "none"` is not "unannotated".** It compares with the
-  curated 8–60 aa knowns only, so UniProt peptides (gonadoliberin, orexin-A, …)
-  and curated ligands outside 8–60 aa (neuromedin-N) pass. Add
-  `& !label %in% 1L` to drop both. Each card's note lists the known peptides
-  among its gene's passing cuts.
+- **`curated_relation == "none"` means no known peptide of 8–60 aa at any of
+  the candidate's residues.** That covers both a curated ligand (`exact` /
+  `overlap`) and, failing one, a UniProt peptide (`uniprot`; details in
+  `uniprot_relation` / `uniprot_*`).
+  - It can still pass a UniProt propeptide, or a cut within ±2 of a known
+    peptide outside 8–60 aa (neuromedin-N, 6 aa). `& label %in% 0L` drops those
+    too.
+  - Tables scored before this change (2026-10-28) compared with curated ligands
+    only. Their "none" let 222 UniProt peptides into the first gallery
+    (gonadoliberin, orexin-A, …). Re-run stage 6 to apply the new meaning.
+  - Each card's note lists the known peptides among its gene's passing cuts.
 - **Genes `plot_bundle.rds` lacks.** About 430 secretome genes have no dibasic
   site after the signal peptide, which the old window model needed. Build their
   entries with `inst/scripts/plot_bundle_extra.R`, then select with

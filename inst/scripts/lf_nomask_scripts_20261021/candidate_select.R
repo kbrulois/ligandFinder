@@ -13,10 +13,14 @@
 ## FILTER names (in that order of preference, whatever order FILTER uses), else
 ## xgb_score.
 ##
-## NOTE curated_relation compares a candidate with the CURATED knowns of 8-60 aa
-## (ligand_list) only. "none" is not "unannotated": a UniProt peptide (label 1,
-## e.g. gonadoliberin, orexin-A) can pass it. Add `& !label %in% 1L` to FILTER to
-## drop those; the card note names any it keeps.
+## NOTE curated_relation "none" means no known peptide of 8-60 aa at any of the
+## candidate's residues: no curated ligand (exact / overlap) and, since
+## 2026-10-28, no UniProt peptide either ("uniprot"; stage 6). It can still pass
+## a UniProt propeptide, or a cut within +/-2 of a known peptide outside 8-60 aa
+## (neuromedin-N, 6 aa); add `& label %in% 0L` to FILTER to drop those. A table
+## scored before that compared with curated ligands only, and its "none" let
+## UniProt peptides through (gonadoliberin, orexin-A). The card note names any
+## known peptide the filter keeps.
 ##
 ## Writes into OUT:
 ##   selected_candidates.csv  every passing candidate, all the scored table's columns,
@@ -134,7 +138,9 @@ fcols <- intersect(c("group_id", "length", "xgb_score", "xgb_nomp_score", "end_s
                      "label_type", "curated_relation", "curated_match"), names(s))
 fo <- cbind(fo, s[match(fo$peptide_id, s$peptide_id), fcols, with = FALSE])
 ## a known peptide at the anchor's range (label 1 = UniProt peptide or curated
-## ligand; NA = propeptide): say so, since curated_relation "none" allows it
+## ligand; NA = propeptide): say so -- curated_relation "none" still allows a
+## propeptide or a known peptide outside 8-60 aa, and allowed any UniProt
+## peptide in tables scored before 2026-10-28
 kn <- !is.na(fo$label_type) & nzchar(fo$label_type)
 kind <- c(peptide = "UniProt peptide", propeptide = "UniProt propeptide", ligand_list = "curated ligand")
 fo[kn, note := sprintf("%s -- matches %s%s", note, kind[label_type],
