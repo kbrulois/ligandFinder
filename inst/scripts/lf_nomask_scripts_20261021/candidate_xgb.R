@@ -39,6 +39,7 @@
 ##   candidate_peptides_<...>_scored.csv  the tidy table: ids, end, MultiPep and
 ##                                         MMseqs metrics, and xgb_score, best first
 ##   candidate_xgb_<...>.model             the full-data model, for new candidates
+## (stage 7, candidate_best_per_group.R, cuts the scored table to the best cuts per group)
 suppressMessages({library(data.table); library(xgboost)})
 A2 <- path.expand("~/AF2_analysis")
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
