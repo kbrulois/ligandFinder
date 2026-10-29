@@ -10,7 +10,8 @@
 ##   xgb       xgb_score       the classifier's global score (out of fold)
 ##   nomp      xgb_nomp_score  the same classifier without MultiPep (out of fold)
 ##   end       end_score_max   the stronger of its two end scores (all-50 max)
-##   multipep  mp_best_score   its best MultiPep class score
+##   multipep  mp_best_score   its best MultiPep score of peptide hormone or neuropeptide
+##                             (stage 6's MP_BEST_CLASSES; the other 18 classes not counted)
 ##   mmseqs    mmseqs_sim      its similarity to the closest known 8-60 aa peptide
 ##                             (ties: higher mmseqs_bits_per_res)
 ## Remaining ties go to xgb_score, then group_rank, then the id. A cut that wins

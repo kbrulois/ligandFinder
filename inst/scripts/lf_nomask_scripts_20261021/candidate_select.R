@@ -53,9 +53,12 @@ if (!file.exists(f_sc)) stop("no scored table ", f_sc, " -- run candidate_pipeli
 sc <- fread(f_sc)
 ## stage 6 writes mp_best_* into the scored table; rebuild them if absent
 mp <- setdiff(grep("^mp_", names(sc), value = TRUE), c("mp_signalling_max", "mp_best_class", "mp_best_score"))
-if (!"mp_best_score" %in% names(sc) && length(mp)) {
-  M <- as.matrix(sc[, mp, with = FALSE]); k <- max.col(replace(M, is.na(M), -Inf), ties.method = "first")
-  sc[, `:=`(mp_best_class = sub("^mp_", "", mp[k]), mp_best_score = M[cbind(seq_len(nrow(M)), k)])]
+## (as stage 6 does: the best of peptide hormone / neuropeptide, MP_BEST_CLASSES)
+mpb <- intersect(paste0("mp_", trimws(strsplit(Sys.getenv("MP_BEST_CLASSES", "peptidehormone,neuropeptide"),
+                                               ",")[[1]])), mp)
+if (!"mp_best_score" %in% names(sc) && length(mpb)) {
+  M <- as.matrix(sc[, mpb, with = FALSE]); k <- max.col(replace(M, is.na(M), -Inf), ties.method = "first")
+  sc[, `:=`(mp_best_class = sub("^mp_", "", mpb[k]), mp_best_score = M[cbind(seq_len(nrow(M)), k)])]
 }
 ex <- str2lang(FILTER)
 miss <- setdiff(all.vars(ex), names(sc))
