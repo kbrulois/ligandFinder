@@ -25,8 +25,8 @@ candidates it is in -- the protein pages draw it, and `final_pages.R`'s
 | 3 | `candidate_annotate.R` | `mmseqs_*` best hit and per-class bests, `length_bin`, `overlap_*` |
 | 4 | `candidate_multipep.sh` | 20 `mp_*` MultiPep classes + `mp_signalling_max` |
 | 5 | `candidate_logistic.R` | `lr_prob`, `lr_prob_oof` |
-| 6 | `candidate_xgb.R` | `xgb_score` (out of fold, grouped by gene), `xgb_nomp_score` (the same model without any MultiPep feature), `label`, `curated_relation` / `uniprot_relation` (the known peptides of 8–60 aa a candidate touches; reported, never features), and the tidy `candidate_peptides_<...>_scored.csv`; features are held-out end scores, MultiPep and MMseqs hits on OTHER precursors only (see its header for the three leaks it avoids) |
-| 7 | `candidate_best_per_group.R` | `candidate_peptides_<...>_best_per_group.csv`: per group (one N es × C es pair) the best cut by `xgb_score`, `xgb_nomp_score`, `end_score_max`, `mp_best_score` and `mmseqs_sim` — 1 to 5 rows, `picked_by` naming the criteria each won |
+| 6 | `candidate_xgb.R` | `xgb_score` (out of fold, grouped by gene), `xgb_nomp_score` (the same model without any MultiPep feature), `label`, `curated_relation` / `uniprot_relation` (the known peptides of 8–60 aa a candidate touches; reported, never features), `mp_best_class` / `mp_best_score` (the best of peptide hormone or neuropeptide only), `*_neglog10_evalue` (−log10 of the MMseqs e-values), and the tidy `candidate_peptides_<...>_scored.csv`; features are held-out end scores, MultiPep and MMseqs hits on OTHER precursors only (see its header for the three leaks it avoids) |
+| 7 | `candidate_best_per_group.R` | `candidate_peptides_<...>_best_per_group.csv`: per group (one N es × C es pair) the best cut by `xgb_score`, `xgb_nomp_score`, `end_score_max`, `mp_best_score` (peptide hormone or neuropeptide) and `mmseqs_sim` — 1 to 5 rows, `picked_by` naming the criteria each won |
 
 `WITH_PDEEPPP=1` adds a stage 4b. It is **off by default**: on our own ground
 truth PDeepPP's neuro head ranks real ligands backwards (AUC 0.21), behaving

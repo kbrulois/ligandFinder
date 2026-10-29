@@ -44,7 +44,10 @@
 ##   uniprot_relation (exact | overlap | none) and its uniprot_* details: the same
 ##                                         against UniProt `peptide` features of 8-60 aa
 ##   candidate_peptides_<...>_scored.csv  the tidy table: ids, end, MultiPep and
-##                                         MMseqs metrics, and xgb_score, best first
+##                                         MMseqs metrics, and xgb_score, best first;
+##                                         mp_best_* = the best of peptide hormone /
+##                                         neuropeptide (MP_BEST_CLASSES), and each MMseqs
+##                                         e-value also as -log10 (*_neglog10_evalue)
 ##   candidate_xgb_<...>.model             the full-data model, for new candidates
 ##   candidate_xgb_nomp_<...>.model        the same without MultiPep
 ## (stage 7, candidate_best_per_group.R, cuts the scored table to the best cuts per group)
@@ -221,11 +224,21 @@ for (tm in c("N", "C")) {
 
 ## ---- features ---------------------------------------------------------------------
 mp <- setdiff(grep("^mp_", names(cd), value = TRUE), "mp_signalling_max")
-if (length(mp)) {
-  M <- as.matrix(cd[, mp, with = FALSE]); k <- max.col(replace(M, is.na(M), -Inf), ties.method = "first")
-  cd[, `:=`(mp_best_class = sub("^mp_", "", mp[k]), mp_best_score = M[cbind(seq_len(nrow(M)), k)])]
+## the "best MultiPep" reported (mp_best_class / mp_best_score, and stage 7's
+## multipep pick): the best of the signalling-peptide classes only -- peptide
+## hormone or neuropeptide, MP_BEST_CLASSES -- not of all 20 (Kevin,
+## 2026-10-28). Reported, never a feature: the model sees every mp_* column.
+MP_BEST <- trimws(strsplit(Sys.getenv("MP_BEST_CLASSES", "peptidehormone,neuropeptide"), ",")[[1]])
+mpb <- intersect(paste0("mp_", MP_BEST), mp)
+if (length(mpb)) {
+  M <- as.matrix(cd[, mpb, with = FALSE]); k <- max.col(replace(M, is.na(M), -Inf), ties.method = "first")
+  cd[, `:=`(mp_best_class = sub("^mp_", "", mpb[k]), mp_best_score = M[cbind(seq_len(nrow(M)), k)])]
 }
 cd[, mmseqs_ns_log10_evalue := pmin(log10(pmax(mmseqs_ns_evalue, 1e-30)), 4)]
+## -log10 e-values, for reading -- larger = closer match (reported, never
+## features; the model's own feature stays the clipped mmseqs_ns_log10_evalue)
+cd[, `:=`(mmseqs_neglog10_evalue = round(-log10(pmax(mmseqs_evalue, 1e-300)), 3),
+          mmseqs_ns_neglog10_evalue = round(-log10(pmax(mmseqs_ns_evalue, 1e-300)), 3))]
 for (tt in c("ligand_list", "peptide", "propeptide", "none"))
   set(cd, j = paste0("ns_type_", tt), value = as.integer(cd$mmseqs_ns_hit_type == tt))
 motifs <- sort(unique(c(cd$n_motif_end, cd$c_motif_end)))
@@ -352,9 +365,9 @@ tidy <- c("peptide_id", "gene", "accession", "start", "end", "length", "sequence
           "mp_best_class", "mp_best_score", "mp_signalling_max", mp,
           ## MMseqs: closest known peptide of any precursor, then of another precursor
           "mmseqs_best_hit", "mmseqs_best_hit_name", "mmseqs_hit_type", "mmseqs_pident", "mmseqs_tcov",
-          "mmseqs_evalue", "mmseqs_bits_per_res", "mmseqs_sim",
+          "mmseqs_evalue", "mmseqs_neglog10_evalue", "mmseqs_bits_per_res", "mmseqs_sim",
           "mmseqs_ns_hit", "mmseqs_ns_hit_name", "mmseqs_ns_hit_type", "mmseqs_ns_pident", "mmseqs_ns_tcov",
-          "mmseqs_ns_evalue", "mmseqs_ns_bits_per_res", "mmseqs_ns_sim")
+          "mmseqs_ns_evalue", "mmseqs_ns_neglog10_evalue", "mmseqs_ns_bits_per_res", "mmseqs_ns_sim")
 sc <- cd[order(-xgb_score), intersect(tidy, names(cd)), with = FALSE]
 fwrite(sc, f_sc)
 cat(sprintf("wrote xgb_score and xgb_nomp_score into %s\nwrote %s (%d columns, best first)\nwrote %s and %s\n",
