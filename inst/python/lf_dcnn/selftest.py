@@ -663,6 +663,248 @@ def check_calibrator():
         raise AssertionError("calibrator accepted single-class labels")
 
 
+def check_es_replay_matches_keras():
+    """replay_early_stopping is keras' EarlyStopping, decision for decision."""
+    import itertools
+
+    import keras
+
+    from .es_replay import ESGrid, ESGridTracker, replay_early_stopping
+
+    class Dummy:                       # get_weights() hands back the epoch number
+        stop_training = False
+        epoch = 0
+        restored = None
+
+        def get_weights(self):
+            return [np.array(self.epoch)]
+
+        def set_weights(self, w):
+            self.restored = int(w[0])
+
+    def keras_answer(v, start, patience, epochs):
+        cb = keras.callbacks.EarlyStopping(monitor="m", mode="max", patience=patience,
+                                           start_from_epoch=start, restore_best_weights=True)
+        d = Dummy()
+        cb.set_model(d)
+        cb.on_train_begin()
+        for e in range(epochs):
+            d.epoch = e
+            cb.on_epoch_end(e, {"m": float(v[e])})
+            if d.stop_training:
+                break
+        cb.on_train_end()
+        return e, (d.restored if d.restored is not None else e)
+
+    rng = np.random.default_rng(5)
+    for it in range(40):
+        # noise, then plateaus with ties, then a rising curve that saturates
+        v = [rng.random(60), np.round(np.cumsum(rng.normal(0.01, 0.05, 60)), 1),
+             np.minimum(np.linspace(0, 1, 60) + rng.normal(0, .05, 60), .8).round(2)][it % 3]
+        for start, pat, ep in itertools.product([0, 4, 25, 59, 70], [0, 1, 3, 9], [15, 60]):
+            assert keras_answer(v, start, pat, ep) == replay_early_stopping(v, start, pat, ep), \
+                (it, start, pat, ep)
+
+    # the online grid gives the same answers, and ends training once all are in
+    grid = ESGrid(("pr_auc", "roc_auc"), (0, 4, 25), (1, 3, 9), (15, 40, 60))
+    curves = {(m, r): np.round(rng.random(60), 1) for m in grid.monitors for r in (0, 1)}
+    tr = ESGridTracker(grid, (0, 1))
+    got, snaps = {}, set()          # snaps: the epochs whose weights the callback would hold
+    for e in range(60):
+        snap, finals = tr.step(e, {k: c[e] for k, c in curves.items()})
+        if snap:
+            snaps.add(e)
+        for key, last, rest in finals:
+            # TuneCallback can only score an epoch it still holds (or the current one)
+            assert rest == e or rest in snaps, (key, rest, e)
+            got[key] = (last, rest)
+        snaps &= tr.live_epochs()   # what the callback releases after scoring
+        if tr.done:
+            break
+    n = len(grid.monitors) * 2 * len(grid.starts) * len(grid.patiences) * len(grid.caps)
+    assert len(got) == n
+    for key, ans in got.items():
+        m, r, s, p, cap = key
+        assert ans == replay_early_stopping(curves[m, r], s, p, cap), key
+    # a curve that ends before a setting would have stopped is refused
+    try:
+        replay_early_stopping(np.arange(10.0), 0, 50, 100)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("replay answered from a curve too short to hold the answer")
+
+
+def check_tune_metrics():
+    """keras_pr_auc == keras.metrics.AUC(curve="PR"); AP, ROC and rank against
+    their definitions."""
+    import keras
+
+    from .es_replay import average_precision, keras_pr_auc, rank_among, roc_auc
+
+    rng = np.random.default_rng(9)
+    for it in range(60):
+        n = int(rng.integers(5, 300))
+        y = np.zeros(n)
+        y[rng.choice(n, int(rng.integers(1, max(2, n // 3))), replace=False)] = 1
+        s = [rng.random(n), np.round(rng.random(n), 2), rng.choice([0, 1 / 199, .5, 1.], n)][it % 3]
+        s = s.astype("float32")
+        m = keras.metrics.AUC(curve="PR")
+        m.update_state(y, s)
+        assert abs(float(m.result()) - keras_pr_auc(y, s)) < 1e-5, it
+        # ROC: P(score_pos > score_neg) + half the ties, by brute force
+        pos, neg = s[y == 1].astype("float64"), s[y == 0].astype("float64")
+        if neg.size:
+            bf = ((pos[:, None] > neg[None]).sum() + 0.5 * (pos[:, None] == neg[None]).sum()) / (pos.size * neg.size)
+            assert abs(roc_auc(y, s) - bf) < 1e-12, it
+        # AP: mean over positives of precision at that positive's threshold
+        ap = np.mean([((s >= t) & (y == 1)).sum() / (s >= t).sum() for t in pos])
+        assert abs(average_precision(y, s) - ap) < 1e-12, it
+    pool = np.sort(np.array([0.1, 0.2, 0.2, 0.5, 0.9]))
+    assert rank_among(pool, [0.95, 0.5, 0.2, 0.0]).tolist() == [1, 2, 3, 6]   # ties do not push down
+
+
+def _synthetic_meta(n_val_pos, n_val, n_all_extra, rng, prefix):
+    """val / all metadata shaped like 10_8 --export-only's, for the tuner checks:
+    two val ends share a precursor, two others are near-identical windows, and
+    some negatives are near-end windows of a val end."""
+    import pandas as pd
+
+    aa = "ACDEFGHIKLMNPQRSTVWY"
+    seqs = ["".join(rng.choice(list(aa), 36)) for _ in range(n_val_pos)]
+    seqs[3] = seqs[2][:-3] + "WWW"                   # 3/36 apart: must group with 2
+    acc = [f"{prefix}P{i}" for i in range(n_val_pos)]
+    acc[1] = acc[0]                                   # same precursor: must group
+    anchor = [100 + 10 * i for i in range(n_val_pos)]
+    rows = [dict(peps=f"{prefix}end{i}", gene=f"G{i}", accession=acc[i], anchor=float(anchor[i]),
+                 win_type="known", motif="other", parent=np.nan, d=np.nan, known=1.0, AA=seqs[i])
+            for i in range(n_val_pos)]
+    for j in range(n_val - n_val_pos):
+        if j < 2 * n_val_pos:                         # two near-end negatives per end
+            i = j // 2
+            rows.append(dict(peps=f"{prefix}near{j}", gene=f"G{i}", accession=acc[i],
+                             anchor=float(anchor[i] + 3), win_type="near_end", motif="",
+                             parent=float(anchor[i]), d=3.0, known=0.0, AA="X" * 36))
+        else:
+            rows.append(dict(peps=f"{prefix}neg{j}", gene="N", accession=f"{prefix}N{j}",
+                             anchor=float(j), win_type=["db", "random"][j % 2], motif="",
+                             parent=np.nan, d=np.nan, known=0.0, AA="X" * 36))
+    val_meta = pd.DataFrame(rows)
+    all_meta = pd.DataFrame(
+        [{k: r[k] for k in ("peps", "gene", "accession", "anchor", "win_type", "motif", "known")}
+         for r in rows[:n_val_pos]] +
+        [dict(peps=f"{prefix}cand{j}", gene="C", accession=f"{prefix}C{j}", anchor=float(j),
+              win_type="db", motif="", known=0.0) for j in range(n_all_extra)])
+    return val_meta, all_meta
+
+
+def _synthetic_fold(path, cfg, seed):
+    """One fold directory as 10_8 --export-only writes it."""
+    from .io import save_inputs
+    from .synthetic import make_term
+
+    rng = np.random.default_rng(seed)
+    n_vp, n_val, n_extra = 8, 40, 50
+    train = make_term(cfg, 96, 12, rng)
+    val = make_term(cfg, n_val, n_vp, rng)
+    order = np.argsort(-val["y_global"][:, 0], kind="stable")      # ends first, as 10_7
+    val = {k: v[order] for k, v in val.items()}
+    extra = make_term(cfg, n_extra, 6, rng)
+    extra["y_global"][:] = 0                     # candidates: unknown, whatever they look like
+    pos = val["y_global"][:, 0] == 1
+    all_ = {k: np.concatenate([val[k][pos], extra[k]]) for k in val}
+    save_inputs(path, {"C": {"train": train, "val": val, "all": all_}}, cfg)
+    vm, am = _synthetic_meta(n_vp, n_val, n_extra, rng, f"s{seed}")
+    vm.to_parquet(Path(path) / "val_meta.parquet", index=False)
+    am.to_parquet(Path(path) / "meta.parquet", index=False)
+
+
+def check_tune_parts():
+    """Val parts keep a precursor, near-identical windows and an end's near-end
+    negatives together, give every part ends and negatives, and are seeded."""
+    from .tune import assign_parts, val_groups
+
+    rng = np.random.default_rng(3)
+    vm, _ = _synthetic_meta(8, 40, 0, rng, "x")
+    y = vm["known"].to_numpy()
+    g = val_groups(vm, y)
+    assert g[0] == g[1], "two ends of one precursor were split"
+    assert g[2] == g[3], "near-identical windows were split"
+    assert len(set(g[[0, 2, 4, 5, 6, 7]])) == 6
+    near = (vm["win_type"] == "near_end").to_numpy()
+    for i in np.flatnonzero(near):
+        par = np.flatnonzero((vm["accession"] == vm["accession"][i]) & (vm["anchor"] == vm["parent"][i]))
+        assert g[i] == g[par[0]], "a near-end negative left its parent's group"
+    p = assign_parts(vm, y, g, 3, seed=1)
+    for k in range(3):
+        assert (y[p == k] == 1).any() and (y[p == k] == 0).any()
+    for grp in np.unique(g[g >= 0]):
+        assert np.unique(p[g == grp]).size == 1, "a group straddles parts"
+    assert np.array_equal(p, assign_parts(vm, y, g, 3, seed=1)), "parts are not reproducible"
+    try:
+        assign_parts(vm, y, g, 7, seed=1)              # 6 groups cannot fill 7 parts
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("assign_parts accepted more parts than groups")
+
+
+def check_tune_end_to_end():
+    """plan -> trials -> report on synthetic folds; every setting the online
+    tracker resolved equals an offline replay of the logged monitor curve."""
+    import json
+    import tempfile
+
+    from .es_replay import ESGrid, replay_early_stopping
+    from .tune import (RESULT_FILE, extend_plan, load_plan, make_plan, plan_trials, report,
+                       run_trial, trial_dir)
+
+    cfg = Config.pepend("C", global_head="flatten", class_position_mask=False, seed=1)
+    space = {"learning_rate": {"type": "loguniform", "low": 1e-3, "high": 3e-3},
+             "unet_width": {"type": "choice", "values": [8]},
+             "conv_kernel": {"type": "choice", "values": [5]}}
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        for k in (1, 2):
+            _synthetic_fold(d / "in" / f"f{k}", cfg, seed=k)
+        grid = ESGrid(("pr_auc", "roc_auc"), (0, 2), (1, 3), (5, 8))
+        plan = make_plan(d / "run", d / "in", n_configs=1, space=space, grid=grid, n_parts=2,
+                         baseline_setting={"monitor": "pr_auc", "start": 2, "patience": 3, "cap": 8},
+                         verbose=0)
+        assert [c["id"] for c in plan["configs"]][0] == "base" and len(plan["configs"]) == 2
+        assert plan["configs"][1]["overrides"]["unet_filters"] == [8, 16, 32]
+        for t in plan_trials(plan):
+            run_trial(d / "run", *t)
+        for t in plan_trials(plan):
+            res = json.loads((trial_dir(d / "run", *t) / RESULT_FILE).read_text())
+            curves = np.load(trial_dir(d / "run", *t) / "curves.npz")
+            S = res["settings"]
+            assert len(S["monitor"]) == 2 * 2 * 2 * 2 * 2
+            for i in range(len(S["monitor"])):
+                c = curves[f"{S['monitor'][i]}__r{S['rotation'][i]}"]
+                assert replay_early_stopping(c, S["start"][i], S["patience"][i], S["cap"][i]) == \
+                    (S["last"][i], S["restored"][i]), (t, i)
+            assert all(v["val_all_diff"] < 1e-6 for v in res["evals"].values())
+            assert all(1 <= r <= 51 for v in res["evals"].values() for r in v["rank"])
+        s = report(d / "run", verbose=0)
+        assert s["objective"] == "log_rank"                 # no other-end files given
+        assert (d / "run" / "report" / "summary.md").exists()
+        best = json.loads((d / "run" / "report" / "best.json").read_text())
+        assert "--patience" in best["flags_10_8"] and "--unet-filters" in best["flags_10_8"]
+        # every (config, setting) is complete on both folds; caps no rotation
+        # reached are collapsed onto the smallest; the baseline's own row stays
+        # and is the zero of the paired deltas
+        tab = s["table"]
+        assert tab["n_folds"].eq(2).all() and len(tab) <= 2 * 16
+        assert (tab["cap_upto"] >= tab["cap"]).all()
+        assert not tab.duplicated(["config", "monitor", "start", "patience", "cap"]).any()
+        b = tab[(tab["config"] == "base") & (tab["monitor"] == "pr_auc") & (tab["start"] == 2)
+                & (tab["patience"] == 3) & (tab["cap"] == 8)]
+        assert len(b) == 1 and abs(float(b["delta"].iloc[0])) < 1e-12
+        extend_plan(d / "run", top=1, seeds=(2,), verbose=0)
+        assert all(c["seeds"] == [1, 2] for c in load_plan(d / "run")["configs"])
+
+
 def _tiny_cfg() -> Config:
     return Config(epochs=3, patience=2, start_from_epoch=1, seed=42)
 
@@ -983,6 +1225,10 @@ CHECKS = [
     check_validate_catches_transpose,
     check_calibrator,
     check_members_roundtrip,
+    check_es_replay_matches_keras,
+    check_tune_metrics,
+    check_tune_parts,
+    check_tune_end_to_end,
 ]
 
 

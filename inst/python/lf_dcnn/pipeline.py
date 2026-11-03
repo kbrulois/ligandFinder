@@ -37,10 +37,18 @@ def train(
     verbose: int = 1,
     extra_callbacks: Sequence[keras.callbacks.Callback] | None = None,
     rng: np.random.Generator | None = None,
+    early_stopping: bool = True,
+    validate: bool = True,
 ) -> tuple[keras.Model, dict]:
     """Build, compile and fit one terminus model.
 
     Returns ``(model, history)`` where ``history`` is a plain dict of lists.
+
+    ``early_stopping=False`` and ``validate=False`` are for the tuner
+    (:mod:`lf_dcnn.tune`), which watches its own validation windows from a
+    callback and replays early stopping afterwards. Neither changes the path
+    training takes: the validation pass runs with dropout off and draws no
+    random numbers, and EarlyStopping only decides when to stop.
     """
     cfg = cfg or Config()
     # keras3::clear_session() equivalent: without it the two per-terminus models
@@ -50,15 +58,17 @@ def train(
 
     train_ds = OversampledWindows(splits["train"], cfg, rng=rng)
 
-    callbacks = [
-        keras.callbacks.EarlyStopping(
-            monitor=cfg.monitor,
-            mode="max",
-            patience=cfg.patience,
-            start_from_epoch=cfg.start_from_epoch,
-            restore_best_weights=True,
+    callbacks = []
+    if early_stopping:
+        callbacks.append(
+            keras.callbacks.EarlyStopping(
+                monitor=cfg.monitor,
+                mode="max",
+                patience=cfg.patience,
+                start_from_epoch=cfg.start_from_epoch,
+                restore_best_weights=True,
+            )
         )
-    ]
     if cfg.tensorboard_dir:
         import os
 
@@ -73,13 +83,16 @@ def train(
     if extra_callbacks:
         callbacks.extend(extra_callbacks)
 
-    val = splits["val"]
+    fit_kw = {}
+    if validate:
+        val = splits["val"]
+        fit_kw["validation_data"] = (val.x, val.targets())
     history = model.fit(
         train_ds,
-        validation_data=(val.x, val.targets()),
         epochs=cfg.epochs,
         callbacks=callbacks,
         verbose=verbose,
+        **fit_kw,
     )
     return model, {k: [float(v) for v in vals] for k, vals in history.history.items()}
 
