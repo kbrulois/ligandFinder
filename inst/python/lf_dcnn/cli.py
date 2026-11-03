@@ -5,6 +5,7 @@
     python -m lf_dcnn train --input-dir DIR --output-dir DIR --n-seeds 5 --isolated
     python -m lf_dcnn combine --input-dir DIR --output-dir DIR
     python -m lf_dcnn selftest
+    python -m lf_dcnn tune plan|run|report|extend ...   (hyperparameter search, lf_dcnn/tune.py)
 
 ``--isolated`` trains every (member, terminus) model in its own python process
 (they land under ``<output-dir>/members/``) and then combines them; a model
@@ -193,6 +194,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--verbose", type=int, default=1)
     s.set_defaults(func=cmd_selftest)
 
+    from .tune import add_parser as add_tune_parser
+
+    add_tune_parser(sub)
     return p
 
 

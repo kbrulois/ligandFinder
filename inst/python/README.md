@@ -118,7 +118,9 @@ Neither is an error the R would report; both change what the model sees.
 | `calibrate.py` | pooled Platt calibration (IRLS mirroring R's `glm`; scipy cross-check) |
 | `pipeline.py` | `train` / `predict_all` / `embed`; `run_member` + `combine` = `run` |
 | `io.py` | the `.npz` + parquet exchange format |
-| `cli.py` | `python -m lf_dcnn train｜selftest` |
+| `cli.py` | `python -m lf_dcnn train｜combine｜selftest｜tune` |
+| `es_replay.py` | keras' EarlyStopping replayed offline (`replay_early_stopping`, `ESGridTracker`); `keras_pr_auc`, AP, ROC AUC, candidate rank |
+| `tune.py` | the hyperparameter search: plan, isolated trials, report (see below) |
 | `synthetic.py` | contract-shaped fake windows for the tests |
 | `selftest.py` | the checks, runnable without pytest |
 
@@ -208,6 +210,71 @@ across seeds, plus the top-hit violin and rank agreement, written to one html.
 `Result.val_scores_members` / `pred_raw_members` (`(n_seeds, m)` / `(n_seeds, n)`)
 exist for that: the AUC of the averaged score is a different, usually higher,
 number than the average of the per-seed AUCs, and a benchmark needs the latter.
+
+## Hyperparameter tuning
+
+`lf_dcnn.tune` searches the learning rate, the U-Net width (filters per level,
+doubling down the trunk), the kernel size and early stopping (start epoch,
+patience, epoch budget, monitor) for one terminus over the cv5 folds.
+`inst/scripts/10_8t_pepend_tune.sh` runs it end to end:
+
+```bash
+inst/scripts/10_8t_pepend_tune.sh                       # terminus C: export, plan, run, report
+STAGES=report inst/scripts/10_8t_pepend_tune.sh         # re-aggregate what has finished
+EXTEND="5:2,3" STAGES=extend,run,report inst/scripts/10_8t_pepend_tune.sh   # seeds 2,3 for the top 5
+```
+
+1. **export** -- `10_8_pepend_train.R --export-only DIR`, once per fold: the
+   arrays and the resolved Config 10_8 would have trained, plus window metadata.
+   On fold 1 the export is byte-identical to the production trunk's own
+   `_isolated/in/` (arrays and config.json).
+2. **plan** -- `python -m lf_dcnn tune plan`: the folds, their val parts, the
+   candidate pools, the early-stopping grid and the configs (a balanced random
+   design, the production config always first as the baseline).
+3. **run** -- one trial = one (config, fold, seed) = one model in its own
+   process, `--workers` at a time; resumable.
+4. **report** -- `report/summary.md`, `configs.csv`, `lofo.csv`,
+   `marginals.csv`, `trials.csv` and `best.json`, which carries the 10_8 flags.
+
+**What is held out from what.** Training uses each fold's train split
+unchanged -- the production trunk's windows. Its val split is dealt into
+`--parts` (default 4) parts that keep a precursor, any two known windows within
+0.3 sequence distance, and an end's near-end negatives together. Each rotation
+early-stops on three parts and is scored on the fourth, so every held-out end is
+scored once, by a model whose stopping epoch other ends chose. Scoring on the
+windows early stopping watched would always favour long patience: restoring the
+best epoch is a maximum over the curve, and a longer patience takes it over more
+of it.
+
+**Early stopping is replayed, not retrained.** It never changes the path
+training takes, so a trial trains once, logs the monitor on every rotation after
+every epoch, and `es_replay.ESGridTracker` replays every setting online with
+keras' own logic (the selftest drives the real `EarlyStopping` callback against
+it). Weights of epochs a running setting could still restore are held in memory;
+each setting's restored epoch is scored as soon as its answer is final. The
+default grid -- monitor `pr_auc`/`roc_auc` x start 0/100/300/500 x patience
+50/100/200/300/500 x cap 1000/2000/3000 -- is 120 settings per rotation from one
+~4-minute run (6 trials in parallel on the M2 Max). A baseline trial reproduces
+the production fold-1 member 0 epoch for epoch (val PR AUC within 6e-7 over 120
+epochs), so the tuner trains what production trains.
+
+**The objective** is the mean log10 rank of the held-out ends among the fold's
+~41.8k unknown candidate windows, 10_8's convention (`1 + #higher`), shown as
+the geometric-mean rank. `rank_fair` also drops candidates sitting on real
+unlabelled peptide ends (`--other-ends`, as `10_9z_locus_pr.py::load_ends`) and
+is the default objective when those files are given. AP and ROC AUC against the
+held-out part's hard negatives are reported beside it, not instead of it.
+
+**Training the winner.** 10_8 takes the searched knobs as flags --
+`--learning-rate --unet-filters --conv-kernel --patience --start-from-epoch
+--epochs [--monitor]` -- and folds each one given into the cache name (the
+member-reuse trap).
+
+**Read the numbers with these in mind** (the report repeats them): the monitor
+sees 3/4 of val where production sees all of it; every fold's ends took part in
+the selection, so a winner retrained and scored on the same folds is optimistic
+-- the leave-one-fold-out delta is the honest estimate, and the never-seen ends,
+which the search never touches, are the clean test.
 
 ## Testing
 

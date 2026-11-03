@@ -14,6 +14,12 @@
 ##   Rscript inst/scripts/10_8_pepend_train.R --term C
 ##   ... --n-seeds 20 --refresh
 ##   ... --mask-slack 8     (default: the largest near-end offset in the set)
+##   ... --learning-rate 1e-3 --unet-filters 24,48,96 --conv-kernel 5 \
+##       --patience 200 --start-from-epoch 100 --epochs 3000 [--monitor val_global_auc]
+##                          (the knobs `python -m lf_dcnn tune` searches; each one
+##                           given lands in the cache name)
+##   ... --export-only DIR  (write the tuner's input for this fold and stop; see
+##                           inst/scripts/10_8t_pepend_tune.sh)
 ##
 ## Reports, for the held-out (validation) known peptide ends, where they rank
 ## among the candidate windows the set scores -- the same currency as
@@ -95,6 +101,44 @@ if (no_mask && !grepl("_nomask", basename(out_p)))
                 if (head_lr != 1) paste0("_hlr", format(head_lr)) else "")
 if (nzchar(.htag) && !grepl(.htag, basename(out_p), fixed = TRUE))
   out_p <- sub("\\.rds$", paste0(.htag, ".rds"), out_p)
+
+## ---- training hyper-parameters (Config fields), if asked -----------------------
+## What `python -m lf_dcnn tune` searches over, so a tuned setting trains through
+## this script like any other arm (its report prints the flags). A flag left off
+## keeps the Config default: learning_rate 3e-4, unet_filters 16,32,64,
+## conv_kernel 3, patience 300, start_from_epoch 300, epochs 2000, monitor
+## val_global_pr_auc. A value given is a different model, so it is folded into
+## the cache name -- the member-reuse trap again -- unless the name carries it.
+.int <- function(flag) {
+  v <- as.numeric(.opt(flag, NA_character_))
+  if (!is.na(v) && v != round(v)) stop(flag, " takes a whole number", call. = FALSE)
+  v
+}
+hp <- list(learning_rate    = as.numeric(.opt("--learning-rate", NA_character_)),
+           unet_filters     = .opt("--unet-filters", NA_character_),
+           conv_kernel      = .int("--conv-kernel"),
+           patience         = .int("--patience"),
+           start_from_epoch = .int("--start-from-epoch"),
+           epochs           = .int("--epochs"),
+           monitor          = .opt("--monitor", NA_character_))
+hp <- hp[!vapply(hp, function(v) is.na(v[[1]]), logical(1))]
+if (!is.null(hp$unet_filters)) {
+  hp$unet_filters <- suppressWarnings(as.integer(strsplit(hp$unet_filters, ",")[[1]]))
+  if (anyNA(hp$unet_filters))
+    stop("--unet-filters takes comma-separated integers, e.g. 24,48,96", call. = FALSE)
+  ## one dropout per level, and the default is 0.2 at every level
+  if (length(hp$unet_filters) != 3L) hp$unet_dropout <- rep(0.2, length(hp$unet_filters))
+}
+.hptag <- paste0(
+  if (!is.null(hp$learning_rate))    paste0("_lr", format(hp$learning_rate, scientific = TRUE, digits = 3)) else "",
+  if (!is.null(hp$unet_filters))     paste0("_uf", paste(hp$unet_filters, collapse = "-")) else "",
+  if (!is.null(hp$conv_kernel))      paste0("_k", hp$conv_kernel) else "",
+  if (!is.null(hp$patience))         paste0("_pat", hp$patience) else "",
+  if (!is.null(hp$start_from_epoch)) paste0("_sfe", hp$start_from_epoch) else "",
+  if (!is.null(hp$epochs))           paste0("_ep", hp$epochs) else "",
+  if (!is.null(hp$monitor))          paste0("_mon", sub("^val_global_", "", hp$monitor)) else "")
+if (nzchar(.hptag) && !grepl(.hptag, basename(out_p), fixed = TRUE))
+  out_p <- sub("\\.rds$", paste0(.hptag, ".rds"), out_p)
 
 stopifnot(term %in% c("N", "C"))
 
@@ -257,7 +301,52 @@ if (!is.na(pos_cls)) {
 .extra <- c(if (ins_head && !is.na(ins_w)) list(loss_weight_ins = ins_w),
             if (no_mask) list(class_position_mask = FALSE),
             if (!is.na(g_head)) list(global_head = g_head),
-            if (head_lr != 1) list(head_lr_mult = head_lr))
+            if (head_lr != 1) list(head_lr_mult = head_lr),
+            hp)
+
+## ---- --export-only DIR: the tuner's input for this fold, then stop -------------
+## Writes what `python -m lf_dcnn tune` trains from: the array contract and the
+## Config this run WOULD train (every flag above applied, through the same
+## lf_dcnn_config call), plus per-window metadata -- for val, what the tuner
+## needs to split it into parts that keep a precursor and an end's near-end
+## negatives together; for `all`, what it needs to rank held-out ends among the
+## candidates. Trains nothing. See inst/scripts/10_8t_pepend_tune.sh.
+export_dir <- .opt("--export-only", NA_character_)
+if (!is.na(export_dir)) {
+  export_dir <- path.expand(export_dir)
+  dir.create(export_dir, showWarnings = FALSE, recursive = TRUE)
+  ## plain columns only: reticulate turns a logical NA into TRUE and an integer
+  ## NA into INT_MIN on the way to pandas, so numbers go as doubles and the
+  ## logical `at_candidate` stays behind
+  .meta <- function(d, cols) {
+    out <- as.data.frame(d)[, intersect(cols, names(d)), drop = FALSE]
+    for (cl in intersect(c("anchor", "parent", "d"), names(out))) out[[cl]] <- as.numeric(out[[cl]])
+    if ("motif" %in% names(out)) out$motif <- ifelse(is.na(out$motif), "", out$motif)
+    out$known <- as.numeric(d$known)
+    out
+  }
+  .sets <- nn_input[[term]]
+  all_meta <- .meta(.sets$all, c("peps", "gene", "accession", "anchor", "win_type", "motif"))
+  val_meta <- .meta(.sets$val, c("peps", "gene", "accession", "anchor", "win_type", "motif",
+                                 "parent", "d"))
+  val_meta$AA <- vapply(.sets$val$meta_data, function(m)
+    paste(ifelse(is.na(m$AA), "X", m$AA), collapse = ""), character(1))
+  do.call(lf_dcnn_export, c(list(nn_input, channel_names = x$all_params3, dir = export_dir,
+                                 meta = all_meta, pepend = term, slack = slack,
+                                 ins_head = ins_head),
+                            .extra, list(path = file.path(ROOT, "inst", "python"))))
+  reticulate::r_to_py(val_meta)$to_parquet(file.path(export_dir, "val_meta.parquet"),
+                                           index = FALSE)
+  jsonlite::write_json(list(input = in_path, term = term, args = .args,
+                            n = vapply(.sets[c("train", "val", "all")], nrow, integer(1)),
+                            channels = x$all_params3, written = format(Sys.time())),
+                       file.path(export_dir, "export.json"), auto_unbox = TRUE, pretty = TRUE)
+  message(sprintf("exported %s: train %d, val %d, all %d windows; %d channels -> %s",
+                  term, nrow(.sets$train), nrow(.sets$val), nrow(.sets$all),
+                  length(x$all_params3), export_dir))
+  quit(save = "no", status = 0)
+}
+
 run <- do.call(lf_dcnn_run, c(list(nn_input, channel_names = x$all_params3,
                    pepend = term, slack = slack, ins_head = ins_head),
                    .extra, list(
@@ -274,6 +363,10 @@ message(sprintf("\ntrained: %s, %s head (x%g lr), %d params, %d seeds%s", cfg$tr
                 as.integer(run$params[[term]]), n_seeds,
                 if (ins_head) sprintf(" | insertion head: %s",
                                       paste(as.character(cfg$ins_class_names), collapse = "/")) else ""))
+message(sprintf("trunk %s, kernel %d; lr %g; early stopping on %s from epoch %d, patience %d, at most %d epochs",
+                paste(as.integer(unlist(cfg$unet_filters)), collapse = "-"),
+                as.integer(cfg$conv_kernel), cfg$learning_rate, cfg$monitor,
+                as.integer(cfg$start_from_epoch), as.integer(cfg$patience), as.integer(cfg$epochs)))
 message(if (!isTRUE(cfg$class_position_mask)) "masks: OFF" else
         sprintf("masks: nt %s  mid %s  ct %s",
                 paste(as.integer(cfg$nt_span), collapse = "-"),
