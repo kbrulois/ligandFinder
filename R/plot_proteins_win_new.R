@@ -1194,7 +1194,8 @@ make_protein_plot_win <- function(old_nn_input,
             error = function(e) { .step(paste0("popup SKIPPED: ", conditionMessage(e))); NULL })
           if (!is.null(pep_popup))
             .step(sprintf("popup: %d anchor(s) per terminus carried",
-                          length(.ptd$pix$anchors)))
+                          length(if (is.null(.ptd$pix$anchors)) .ptd$pix$extra[[1]]$anchors
+                                 else .ptd$pix$anchors)))
         }
       }
     }

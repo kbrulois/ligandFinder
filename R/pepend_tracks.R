@@ -273,6 +273,13 @@ lf_track_per_index <- function(accession, n_prot, c_prot, terms = c("N", "C")) {
 #' in the click popup: a click on that series opens that run's window. `winxgb` (optional) adds the same series to the xgb
 #' window-head track from a `lf_winxgb.scan_genes` npz -- which has to be built
 #' from the same run, with `--ct-pad` for a padded one.
+#'
+#' `surface_only = TRUE` keeps a spec's per-residue track and popup surface and
+#' draws none of its head series: for an arm whose heads come from its tracks
+#' rds (`lf.track_arm_tracks`). With it, `popup_also` names further tooltip
+#' labels that open this surface (an arm's folds, opening the arm's all-50),
+#' `popup_title` heads the opened window, and `class_label` is the axis title
+#' of the class track.
 #' @keywords internal
 lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
   if (!requireNamespace("reticulate", quietly = TRUE)) return(NULL)
@@ -383,13 +390,20 @@ lf_track_extra_head <- function(spec, accession, n_prot, c_prot) {
     ## for the click popup: the same shape as lf_track_per_index() returns, plus
     ## `vis`, the window positions the model actually saw -- 1-28 for a
     ## CT-padded window, 8-36 for an NT-padded one
+    ## only the anchors the popup will carry are held on to: at 14,507 residues
+    ## the full surfaces of four series come to 20 GB
+    g <- colMeans(G)
+    keep <- seq_along(anchors)
+    if (length(keep) > getOption("lf.pepend_popup_max", 600L))
+      keep <- sort(utils::head(order(g, decreasing = TRUE), getOption("lf.pepend_popup_max", 600L)))
     pix <- if (isTRUE(spec$popup))
-      list(pi = PI, pi_sd = PSD, g = colMeans(G), pi_names = pin,
-           pos = LF_PEPEND$anchor[[term]], w_start = w_start, anchors = anchors, term = term,
+      list(pi = PI[keep, , , drop = FALSE], pi_sd = PSD[keep, , , drop = FALSE], g = g[keep], pi_names = pin,
+           pos = LF_PEPEND$anchor[[term]], w_start = w_start[keep], anchors = anchors[keep], term = term,
            vis = c(if (isTRUE(spec$nt_pad) && term == "N") LF_PEPEND$anchor[["N"]] else 1L,
                    if (isTRUE(spec$ct_pad) && term == "C") LF_PEPEND$anchor[["C"]]
                    else LF_PEPEND$seq_len),
-           cnn_label = lf_extra_cnn_label(spec)) else NULL
+           cnn_label = lf_extra_cnn_label(spec),
+           title = spec$popup_title, also = spec$popup_also) else NULL
     ## `head` stays "CNN attention head" whatever the run's head is: it is the
     ## KEY that puts the series on the CNN track. What the reader sees -- axis,
     ## tooltip, popup -- comes from `head_label` (spec$cnn_label).
@@ -565,7 +579,8 @@ lf_track_arm_heads <- function(arm, accession, gene = NULL) {
       one <- function(col, term, ens)
         tibble::tibble(residue = as.integer(d$anchor), mean = as.numeric(d[[col]]),
                        sd = NA_real_, term = term, terminus = tm, head = key,
-                       head_label = hl, group = arm$label, group_ens = ens, no_popup = TRUE)
+                       head_label = hl, group = arm$label, group_ens = ens,
+                       no_popup = !isTRUE(arm$popup))
       for (k in folds)
         out[[length(out) + 1L]] <- one(sprintf("%s__f%s", hd, k),
                                        sprintf("%s %s fold %s", arm$label, tm, k), FALSE)
@@ -574,7 +589,11 @@ lf_track_arm_heads <- function(arm, accession, gene = NULL) {
                                        sprintf("%s all 50, %s terminus", arm$label, tm), TRUE)
     }
   }
-  if (!length(out)) NULL else dplyr::bind_rows(out)
+  if (!length(out)) return(NULL)
+  out <- dplyr::bind_rows(out)
+  ## a giant draws its pooled ensembles only (final_pages.R LF_ENS_ONLY_MIN)
+  if (isTRUE(getOption("lf.ens_only_page", FALSE))) out <- out[out$group_ens, , drop = FALSE]
+  out
 }
 
 ## One terminus of one arm from its per-gene scans: both heads, each fold and
@@ -604,7 +623,7 @@ lf_track_arm_heads <- function(arm, accession, gene = NULL) {
                else sprintf("%s %s fold %s", arm$label, tm, sub("^f", "", nm)),
         terminus = tm, head = if (hd == "cnn") "CNN attention head" else "xgb window head",
         head_label = if (hd == "cnn") sprintf("CNN linear head (%s)", arm$label) else NA_character_,
-        group = arm$label, group_ens = ens, no_popup = TRUE)
+        group = arm$label, group_ens = ens, no_popup = !isTRUE(arm$popup))
     }
   }
   dplyr::bind_rows(rows)
@@ -701,13 +720,17 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
     lf_track_window_head(gene, "N"), lf_track_window_head(gene, "C"),
     lf_track_xgb_head(gene, "N"),    lf_track_xgb_head(gene, "C"))
   ## extra series (another trunk's window head), after the bridge is up
-  extra_resid <- list(); extra_pix <- list()
+  extra_resid <- list(); extra_pix <- list(); extra_resid_lab <- list()
   for (spec in getOption("lf.track_extra_win", list())) {
     ex <- lf_track_extra_head(spec, accession, n_prot, c_prot)
-    win <- dplyr::bind_rows(win, ex$win)
-    if (!is.null(ex$resid) && nrow(ex$resid)) extra_resid[[spec$name]] <- ex$resid
+    surf <- isTRUE(spec$surface_only)
+    if (!surf) win <- dplyr::bind_rows(win, ex$win)
+    if (!is.null(ex$resid) && nrow(ex$resid)) {
+      extra_resid[[spec$name]] <- ex$resid
+      extra_resid_lab[[spec$name]] <- spec$class_label
+    }
     if (!is.null(ex$pix)) extra_pix[[spec$name]] <- ex$pix
-    if (!is.null(spec$winxgb)) {
+    if (!surf && !is.null(spec$winxgb)) {
       xh <- lf_track_xgb_head(gene, spec$term, spec$winxgb)
       if (!is.null(xh)) {
         xh$term <- spec$name; xh$terminus <- spec$term; xh$group <- lf_extra_group(spec)
@@ -734,8 +757,10 @@ lf_pepend_track_data <- function(gene, accession, n_prot, c_prot,
                                          accession = accession))
   if (!length(cand)) cand <- NULL
   if (is.null(win) && is.null(rp) && is.null(resid) && is.null(cand)) return(NULL)
-  if (!is.null(pix) && length(extra_pix)) pix$extra <- extra_pix
-  list(win = win, rp = rp, resid = resid, extra_resid = extra_resid, pix = pix,
+  ## `pix` is NULL on a page with no surface of its own, only extras'
+  if (length(extra_pix)) { if (is.null(pix)) pix <- list(); pix$extra <- extra_pix }
+  list(win = win, rp = rp, resid = resid, extra_resid = extra_resid,
+       extra_resid_lab = extra_resid_lab, pix = pix,
        cand = cand,
        heldout = rbind(lf_track_heldout_marks(accession), lf_track_heldout_extra(accession)),
        anchors = if (is.null(pix)) NULL else pix$anchors)
@@ -865,7 +890,8 @@ lf_plot_win_track <- function(d, head_nm, x_range, aa, gene, legend = FALSE,
   d$terminus[is.na(d$terminus)] <- d$term[is.na(d$terminus)]
   keep <- d$head == head_nm & (if (is.na(group)) is.na(d$group) else d$group %in% group)
   d <- d[keep, , drop = FALSE]
-  if (!nrow(d)) return(NULL)
+  ## a group drawn as its ensemble alone has no rows here, only an overlay
+  if (!nrow(d) && (is.null(overlay) || !any(overlay$head == head_nm))) return(NULL)
   ## `overlay`: the all-50 ensemble for this head, drawn INTO this track rather
   ## than as a track of its own -- a heavier line with square points, against
   ## which the fold lines read as spread. Relabelled so it is its own series.
@@ -1134,6 +1160,41 @@ lf_plot_segment_track <- function(cd, x_range, aa, gene, seq_offset = -0.45) {
                    legend.margin = ggplot2::margin(0, 0, 0, 0))
 }
 
+#' The track rows of a capped candidate pile: at most `max_n` deep
+#'
+#' The cap is on the pile, not per group: a group's candidates all overlap but so
+#' do groups, and capping each group at 20 still left 457 of 833 precursors more
+#' than 20 deep (the worst 357). The first `max_n - ends_n` rows go to the best
+#' MultiPep calls, then all `max_n` are open to the best end-score products among
+#' what is left, so a peptide MultiPep does not rate can still show on the
+#' strength of its ends. Within each pass every group's best is placed before any
+#' group's second, so overlapping groups share the rows and no one group takes
+#' them all (99.8% of groups keep a bar, 77.7% if the best scores simply go first).
+#'
+#' Rows are handed out here, in that order, so the top rows carry the best calls
+#' and `max_n` is a hard limit: packing the survivors afterwards took up to 27
+#' rows for a pile 20 deep. Returns the track row of each row of `d`, 0 if not drawn.
+#' @keywords internal
+lf_cand_rows <- function(d, max_n, ends_n) {
+  row <- integer(nrow(d))
+  ## the extra column: one clear residue between neighbours on a row
+  used <- matrix(FALSE, max_n, max(d$end) + 1L)
+  fill <- function(score, limit) {
+    rk <- stats::ave(-score, d$group_id, FUN = function(x) rank(x, na.last = "keep", ties.method = "first"))
+    for (i in order(rk, -score)) {
+      if (row[i] > 0L || is.na(score[i])) next
+      r <- d$start[i]:(d$end[i] + 1L)
+      j <- which(rowSums(used[seq_len(limit), r, drop = FALSE]) == 0L)[1]
+      if (is.na(j)) next
+      used[j, r] <<- TRUE
+      row[i] <<- j
+    }
+  }
+  fill(d$best_score, max_n - ends_n)
+  fill(d$pair_score, max_n)
+  row
+}
+
 #' The candidate peptides, one bar each, coloured by MultiPep and MMseqs
 #'
 #' Each bar is split at its midpoint, both halves on one turbo 0..1 scale: the
@@ -1146,6 +1207,9 @@ lf_plot_segment_track <- function(cd, x_range, aa, gene, seq_offset = -0.45) {
 #' offsets -- packed first-fit so that groups that do not overlap share rows.
 #' Groups go in order of their centres and, within a group, the strongest
 #' MultiPep call first, so the top of each group's block is its best guess.
+#' `options(lf.cand_max_overlap = 20)` caps the pile (lf_cand_rows), keeping
+#' `lf.cand_max_ends` of the rows for candidates chosen on their ends alone; the
+#' axis then says how many of how many are shown. Off by default.
 #'
 #' Returns list(p, h): the track height grows with the number of rows,
 #' `options(lf.cand_row_height)` inches each -- 0.065 by default, the least at
@@ -1156,15 +1220,25 @@ lf_plot_candidate_track <- function(cd, x_range, aa, gene, seq_offset = -0.45,
   d <- cd$cand
   if (is.null(d) || !nrow(d)) return(NULL)
   force(gene); force(aa)
+  ## the whole set, before any cap: a tooltip's "rank k of n" counts the group
+  n_all <- nrow(d); n_grp <- length(unique(d$group_id))
+  d$gsz <- stats::ave(d$group_rank, d$group_id, FUN = length)
   d <- d[order(d$n_centre, d$c_centre, -d$best_score, d$start, d$end), , drop = FALSE]
-  ## first-fit packing; one clear residue between neighbours on a row
-  last <- integer(0); d$row <- 0L
-  for (i in seq_len(nrow(d))) {
-    j <- which(last < d$start[i] - 1L)[1]
-    if (is.na(j)) { last <- c(last, d$end[i]); j <- length(last) } else last[j] <- d$end[i]
-    d$row[i] <- j
+  max_n <- getOption("lf.cand_max_overlap", Inf)
+  if (is.finite(max_n)) {
+    d$row <- lf_cand_rows(d, max_n, getOption("lf.cand_max_ends", 5L))
+    d <- d[d$row > 0L, , drop = FALSE]
+    n_rows <- max(d$row)
+  } else {
+    ## first-fit packing; one clear residue between neighbours on a row
+    last <- integer(0); d$row <- 0L
+    for (i in seq_len(nrow(d))) {
+      j <- which(last < d$start[i] - 1L)[1]
+      if (is.na(j)) { last <- c(last, d$end[i]); j <- length(last) } else last[j] <- d$end[i]
+      d$row[i] <- j
+    }
+    n_rows <- length(last)
   }
-  n_rows <- length(last)
   key <- ifelse(d$best_type %in% names(LF_MP_SHARE), LF_MP_SHARE[d$best_type], d$best_type)
   d$cls <- factor(ifelse(key %in% names(LF_MP_SHAPES), key, "other"), levels = names(LF_MP_SHAPES))
   ## the symbol sits inside the bar, one residue in from its N end
@@ -1187,7 +1261,6 @@ lf_plot_candidate_track <- function(cd, x_range, aa, gene, seq_offset = -0.45,
       paste(sprintf("%s %.2f", lbl(sub("^mp_", "", mp[o])), v[o]), collapse = ", ")
     })
   } else rep(NA_character_, nrow(d))
-  gsz <- stats::ave(d$group_rank, d$group_id, FUN = length)
   ll  <- col("ll_hit_name"); ov <- col("overlap_name"); lr <- col("lr_prob")
   bh  <- col("mmseqs_best_hit_name"); xs <- col("xgb_score"); xn <- col("xgb_nomp_score")
   d$sim <- col("mmseqs_sim")
@@ -1207,7 +1280,7 @@ lf_plot_candidate_track <- function(cd, x_range, aa, gene, seq_offset = -0.45,
                           d$c_es_arms, ifelse(d$c_es_arms == 1, "", "s"), .lf_arm_names(d$c_es_arm_list))
     else "",
     sprintf("group %s: rank %d of %d by end-score product %.3f",
-            d$group_id, d$group_rank, gsz, d$pair_score),
+            d$group_id, d$group_rank, d$gsz, d$pair_score),
     ifelse(is.na(lr), "", sprintf("\nranker lr_prob %.3f", lr)),
     ## the closest known peptide of any source (the target set is cut to
     ## peptide lengths in stage 2a), then the closest CURATED one when that is a
@@ -1224,7 +1297,6 @@ lf_plot_candidate_track <- function(cd, x_range, aa, gene, seq_offset = -0.45,
   d$tip <- .lf_tip_txt(d$tip)
 
   present <- levels(droplevels(d$cls))
-  n_grp <- length(unique(d$group_id))
   ## at least an inch, or the axis title outruns a short pile and is clipped
   panel_h <- max(n_rows * row_in, 1)
   oth <- d[d$cls == "other", , drop = FALSE]
@@ -1275,8 +1347,10 @@ lf_plot_candidate_track <- function(cd, x_range, aa, gene, seq_offset = -0.45,
                                                   override.aes = list(size = 2.2, stroke = 0.5))) +
     lf_track_x(x_range, seq_offset) +
     ggplot2::scale_y_reverse(limits = c(n_rows + 0.6, 0.4), expand = c(0, 0)) +
-    ggplot2::labs(y = sprintf("candidates\n%d in %d group%s", nrow(d), n_grp,
-                              if (n_grp == 1) "" else "s")) +
+    ggplot2::labs(y = sprintf("candidates\n%s%d group%s",
+                              if (nrow(d) < n_all) sprintf("%d of %d shown\n", nrow(d), n_all)
+                              else sprintf("%d in ", n_all),
+                              n_grp, if (n_grp == 1) "" else "s")) +
     lf_track_theme() +
     ggplot2::theme(axis.text.y = ggplot2::element_blank(),
                    axis.ticks.y = ggplot2::element_blank(),
@@ -1323,7 +1397,9 @@ lf_plot_win_legend <- function(x_range, seq_offset = -0.45, validation = TRUE) {
                    key = factor(rep(c("N terminus", "C terminus"), each = 2),
                                 levels = c("N terminus", "C terminus")))
   ## the bands: +/- 1 sd across a fold's 10 seeds, and across all 50 members
-  keys <- if (validation) c("train ± sd", "validation ± sd", "mean of all folds ± sd")
+  ens_only <- isTRUE(getOption("lf.ens_only_page", FALSE))   # no folds on the page
+  keys <- if (ens_only) "mean of all folds ± sd"
+          else if (validation) c("train ± sd", "validation ± sd", "mean of all folds ± sd")
           else c("individual fold (mean of 10 seeds) ± sd", "mean of all folds ± sd")
   pt <- data.frame(x = far, y = 0.5, key = factor(keys, levels = keys))
   ggplot2::ggplot() +
@@ -1333,7 +1409,7 @@ lf_plot_win_legend <- function(x_range, seq_offset = -0.45, validation = TRUE) {
     ggplot2::scale_colour_manual(values = c(`N terminus` = tc[["N"]], `C terminus` = tc[["C"]]),
                                  name = NULL) +
     ggplot2::scale_shape_manual(
-      values = stats::setNames(if (validation) c(21, 25, 22) else c(21, 22), keys),
+      values = stats::setNames(if (ens_only) 22 else if (validation) c(21, 25, 22) else c(21, 22), keys),
       name = NULL) +
     lf_track_x(x_range, seq_offset) +
     ggplot2::scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
@@ -1373,16 +1449,20 @@ lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
   } else {
     add(lf_plot_class_track(dat$resid, x_range, aa, gene, TRUE, seq_offset), lf_track_h(TRUE))
   }
-  for (nm in names(dat$extra_resid))
-    add(lf_plot_class_track(dat$extra_resid[[nm]], x_range, aa, gene, FALSE, seq_offset,
-                            ylab = paste0(nm, "\nper-residue\nclass probability"),
-                            note = paste(nm, "windows only")), lf_track_h())
+  ## a page with no class track of its own: the first extra carries the legend
+  leg_extra <- is.null(dat$resid) || !nrow(dat$resid)
+  for (nm in names(dat$extra_resid)) {
+    ylb <- dat$extra_resid_lab[[nm]]
+    add(lf_plot_class_track(dat$extra_resid[[nm]], x_range, aa, gene, leg_extra, seq_offset,
+                            ylab = if (is.null(ylb)) paste0(nm, "\nper-residue\nclass probability") else ylb,
+                            note = paste(nm, "windows only")), lf_track_h(leg_extra))
+    leg_extra <- FALSE
+  }
   ## the window-free per-residue models first: they answer a different question
   ## from the window heads and read as the page's baseline above them
-  if (!is.null(dat$rp)) {
-    add(lf_plot_resid_track(dat$rp, "MLP", x_range, aa, gene, seq_offset), lf_track_h())
-    add(lf_plot_resid_track(dat$rp, "XGB", x_range, aa, gene, seq_offset), lf_track_h())
-  }
+  if (!is.null(dat$rp))
+    for (mdl in getOption("lf.track_resid_models", c("MLP", "XGB")))
+      add(lf_plot_resid_track(dat$rp, mdl, x_range, aa, gene, seq_offset), lf_track_h())
   if (!is.null(dat$win)) {
     ## each head as the page's own track, then one per extra group (e.g. padded)
     grp <- if (is.null(dat$win$group)) character(0) else unique(stats::na.omit(dat$win$group))
@@ -1473,9 +1553,11 @@ lf_pepend_track_plots <- function(dat, x_range, aa, gene, seq_offset = -0.45) {
 #' @export
 lf_pepend_popup_tag <- function(pix, aa, gene, accession,
                                 max_anchors = getOption("lf.pepend_popup_max", 600L)) {
-  if (is.null(pix) || is.null(pix$anchors)) return(NULL)
-  terms <- intersect(c("N", "C"), names(pix))
-  if (!length(terms)) return(NULL)
+  if (is.null(pix)) return(NULL)
+  terms <- if (is.null(pix$anchors)) character(0) else intersect(c("N", "C"), names(pix))
+  if (!length(terms) && !length(pix$extra)) return(NULL)
+  ## the class vocabulary: the page's own surface, else the first extra's
+  first <- if (length(terms)) pix[[terms[1]]] else pix$extra[[1]]
 
   ## `label` is how the series is named in the head tracks' tooltips, which is
   ## how a click finds it; `title` heads the opened panel
@@ -1483,7 +1565,7 @@ lf_pepend_popup_tag <- function(pix, aa, gene, accession,
     keep <- seq_along(anchors)
     if (length(keep) > max_anchors)
       keep <- sort(utils::head(order(S$g, decreasing = TRUE), max_anchors))
-    list(label = label, title = title, term = term,
+    list(label = label, title = title, term = term, also = S$also,
          ## an extra run's own label, else the page's (options(lf.track_cnn_label):
          ## what the page's own trunk's window head is -- "CNN flatten head" for
          ## the flatten models)
@@ -1498,16 +1580,18 @@ lf_pepend_popup_tag <- function(pix, aa, gene, accession,
   }
   payload <- list(gene = gene, accession = accession, aa = aa,
                   seq_len = as.integer(LF_PEPEND$seq_len),
-                  classes = pix[[terms[1]]]$pi_names,
-                  labels = unname(nn_class_labels[pix[[terms[1]]]$pi_names]),
-                  cols = unname(nn_class_cols[pix[[terms[1]]]$pi_names]))
+                  classes = first$pi_names,
+                  labels = unname(nn_class_labels[first$pi_names]),
+                  cols = unname(nn_class_cols[first$pi_names]))
   series <- list()
   for (t in terms)
     series[[t]] <- pack(pix[[t]], pix$anchors, paste0(t, " terminus"), paste0(t, " window"), t)
   for (nm in names(pix$extra)) {
     S <- pix$extra[[nm]]
-    if (!identical(as.character(S$pi_names), as.character(pix[[terms[1]]]$pi_names))) next
-    series[[nm]] <- pack(S, S$anchors, nm, sub("^([NC]) terminus", "\\1 window", nm), S$term)
+    if (!identical(as.character(S$pi_names), as.character(first$pi_names))) next
+    series[[nm]] <- pack(S, S$anchors, nm,
+                         if (is.null(S$title)) sub("^([NC]) terminus", "\\1 window", nm) else S$title,
+                         S$term)
   }
   payload$series <- series
 
@@ -1545,7 +1629,8 @@ lf_pepend_popup_js <- function() '
      the linear map, so the opened window lands on the SAME residue positions as
      every other track rather than on its own 36-wide axis. */
   function residueScale(svg) {
-    var pts = [].slice.call(svg.querySelectorAll("circle[data-id]"))
+    /* PT_SEL, not circles alone: a track of pooled ensembles is all squares */
+    var pts = [].slice.call(svg.querySelectorAll(PT_SEL))
       .map(function (c) { var v = c.getAttribute("data-id");
                           return /^[0-9]+$/.test(v) ? { r: +v, el: c } : null; })
       .filter(Boolean);
@@ -1643,8 +1728,10 @@ lf_pepend_popup_js <- function() '
     if (i < 0) return;
     var sc = residueScale(svg);
     if (!sc) return;
-    var term = S.term || key, k = slotKey(svg, term);
-    closeSlot(k);
+    /* sk, not k: the class loops below reuse k, and the close button reads this
+       one when clicked */
+    var term = S.term || key, sk = slotKey(svg, term);
+    closeSlot(sk);
 
     var svgRect = svg.getBoundingClientRect();
     var stack = stackFor(svg);
@@ -1659,7 +1746,7 @@ lf_pepend_popup_js <- function() '
         if (!before && c.getAttribute("data-term") === "C") before = c;
       });
     stack.insertBefore(host, before);
-    slots[k] = { host: host, key: key, res: res, dot: dot ? selectDot(dot) : null };
+    slots[sk] = { host: host, key: key, res: res, dot: dot ? selectDot(dot) : null };
     var hostRect = host.getBoundingClientRect();
     var N = d.seq_len, w0 = res - S.pos + 1, K = d.classes.length;
     /* positions the model saw (1-based, inclusive): all 36, 1-28 for a
@@ -1727,7 +1814,9 @@ lf_pepend_popup_js <- function() '
     /* centred over the window it describes, not pinned to the left margin --
        the title belongs to the 36-mer, which can sit anywhere along the protein */
     var cx = (X(w0) + X(w0 + N - 1)) / 2;
-    var cs = clickedScore(dot);
+    /* a dot opening a surface that is not its own (popup_also) scores some
+       other series: quoting that beside this surface would mix two models */
+    var cs = ownDot(dot, S) ? clickedScore(dot) : null;
     var hdr = "<div class=\\"lf-pep-hdr\\" style=\\"position:absolute;top:4px;left:" +
       cx.toFixed(0) + "px;transform:translateX(-50%);white-space:nowrap;text-align:center;" +
       "font:11px ui-sans-serif,system-ui;color:#52514e\\"><b>" + S.title +
@@ -1740,7 +1829,7 @@ lf_pepend_popup_js <- function() '
     g += "<line class=\\"lf-pep-guide\\" x1=0 y1=6 x2=0 y2=" + (PANEL_H - 26) +
          " stroke=#000 stroke-width=1 opacity=0 />";
     host.innerHTML = g + hdr + btn;
-    host.querySelector(".lf-pep-close").addEventListener("click", function () { closeSlot(k); });
+    host.querySelector(".lf-pep-close").addEventListener("click", function () { closeSlot(sk); });
 
     /* a window near either terminus would push the centred title off the panel,
        so nudge it back inside once its width is known */
@@ -1801,11 +1890,14 @@ lf_pepend_popup_js <- function() '
     if (noPopup(n)) return null;
     var t = n.getAttribute("title") || "", key = null, best = -1;
     Object.keys(d.series || {}).forEach(function (k2) {
-      var lab = d.series[k2].label;
-      if (lab && t.indexOf(lab) >= 0 && lab.length > best) { key = k2; best = lab.length; }
+      /* `also`: other series whose dots open this surface */
+      [d.series[k2].label].concat(d.series[k2].also || []).forEach(function (lab) {
+        if (lab && t.indexOf(lab) >= 0 && lab.length > best) { key = k2; best = lab.length; }
+      });
     });
     return key;
   }
+  function ownDot(n, S) { return !!n && (n.getAttribute("title") || "").indexOf(S.label) >= 0; }
 
   function wire() {
     xgbSvgs().forEach(wireOne);
@@ -1816,9 +1908,16 @@ lf_pepend_popup_js <- function() '
      116 on every xgb track carrying those series, and centres the view on the
      residue nearest their average; #103 just centres on residue 103. */
   function openAt(svg, term, r) {
-    ptsWithId(svg, r).forEach(function (n) {
+    var pts = ptsWithId(svg, r).filter(function (n) {
       var key = seriesOf(n);
-      if (!key || (d.series[key].term || key) !== term) return;
+      return key && (d.series[key].term || key) === term;
+    });
+    /* a surface opens once per residue: from its own dot when it has one */
+    pts.sort(function (a, b) {
+      return ownDot(b, d.series[seriesOf(b)]) - ownDot(a, d.series[seriesOf(a)]);
+    });
+    pts.forEach(function (n) {
+      var key = seriesOf(n);
       var cur = slots[slotKey(svg, term)];
       if (cur && cur.key === key && cur.res === r) return;
       open(key, r, svg, n);
