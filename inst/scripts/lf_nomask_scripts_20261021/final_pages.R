@@ -14,6 +14,21 @@
 ## those were the attention trunk's. The window-free MLP/XGB residue tracks stay.
 ##
 ##   MODE=2fold NPZ_SFX=_brinp3 Rscript final_pages.R BRINP3
+##
+## ARMS_ONLY=1 (Kevin, 2026-11-03) drops the curated baseline: every model track
+## and popup comes from the ARMS, and no NPZ_SFX scan is needed. Per arm, the two
+## head tracks (as ever), and from the arm's all-50 per-index surface (one per
+## terminus, scored on the fly) the N and C class-probability tracks and the
+## click popups -- a click on any of the arm's xgb dots, fold or all-50, opens
+## its all-50 window; per-fold surfaces would be 24 per page, not 4. Of the
+## window-free models only XGB is drawn, and the candidate pile is capped at 20
+## deep, 15 rows on MultiPep and 5 on the ends (lf_cand_rows). Needs arm_all50.sh's
+## ensembles and plm_pagegenes.R's GENES_FILE=all tables.
+##   ARMS_ONLY=1 ARMS=curated_AAswap,esmonly36 Rscript final_pages.R NDNF
+##
+## LF_ENS_ONLY_MIN, LF_NO_ALIGN_MIN: above that many residues draw the pooled
+## all-50 series only, and no species alignment. final_pages_giant.R's two levers
+## (ALLSEC_README.md, "The 19 giants"), which is how a giant stays openable.
 suppressMessages({library(tidyverse); library(ggiraph); library(patchwork)})
 suppressWarnings(suppressMessages(library(ligandFinder)))
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
@@ -22,6 +37,7 @@ source(file.path(.lf_here, "lf_paths.R"))
 WP <- lf_src("inst/python")
 MODE <- Sys.getenv("MODE", "cv5"); stopifnot(MODE %in% c("2fold", "cv5"))
 SFX  <- Sys.getenv("NPZ_SFX", "")        # which per-gene xgb npz set (see arm_post.sh)
+ARMS_ONLY <- identical(Sys.getenv("ARMS_ONLY", "0"), "1")
 A2 <- path.expand("~/AF2_analysis")
 plot_dir <- Sys.getenv("LF_PLOT_DIR", if (MODE == "cv5") "~/AF2_analysis/pepend_pages_flatten_cv5"
                                       else "~/AF2_analysis/pepend_pages_flatten")
@@ -114,6 +130,7 @@ specs <- unlist(lapply(c("C", "N"), function(tm) c(
             popup = FALSE, group_ensemble = TRUE, cnn_label = "CNN linear head",
             run = file.path(A2, paste0(ens_run(tm), ".rds")),
             winxgb = file.path(A2, ens_npz(tm)))))), recursive = FALSE)
+if (ARMS_ONLY) specs <- list()   # the arms' own go in below
 for (s in specs) stopifnot(dir.exists(sub("\\.rds$", "_isolated", s$run)), file.exists(s$winxgb))
 
 ## held-out marks: the fold whose val split holds a known end is the honest
@@ -126,15 +143,18 @@ for (s in specs) stopifnot(dir.exists(sub("\\.rds$", "_isolated", s$run)), file.
 ## genes). Those series carry no seed spread and open no window popup. Labels
 ## are the arm galleries' own. With any arm drawn, the baseline group is named
 ## too ("curated", BASE_LABEL) -- "per-fold" described the series, not the arm.
-ARM_REG <- list(esmonly36      = list(label = "ESM-C only"),
-                curated_wAAid  = list(label = "curated + AA ID"),
+## plm: the arm's per-residue channels for every precursor, for ARMS_ONLY's
+## surfaces (plm_pagegenes.R GENES_FILE=all)
+ARM_REG <- list(esmonly36      = list(label = "ESM-C only", plm = "esm_c_pca36_allsec.rds"),
+                curated_wAAid  = list(label = "curated + AA ID", plm = "aa_onehot_allsec.rds"),
                 ## short: it is the axis title of a 0.77 in track, and
                 ## "curated, AA props -> one-hot" was clipped there
-                curated_AAswap = list(label = "AAswap"))
+                curated_AAswap = list(label = "AAswap", plm = "aa_onehot_allsec.rds"))
 ARMS <- Filter(nzchar, strsplit(Sys.getenv("ARMS", ""), ",")[[1]])
 if (length(setdiff(ARMS, names(ARM_REG))))
   stop("unknown arm(s): ", paste(setdiff(ARMS, names(ARM_REG)), collapse = ", "),
        "  -- add a row to ARM_REG")
+if (ARMS_ONLY && !length(ARMS)) stop("ARMS_ONLY=1 needs ARMS")
 ## ARM_SCAN_SFX: per-gene scans of the arms (arm_gene_scans.sh SFX=...), which
 ## add each fold's sd and the all-50's to the arm tracks; genes they lack keep
 ## the means-only rds
@@ -148,13 +168,34 @@ arm_tracks <- lapply(ARMS, function(a) list(
                                           tm, 1:5, a, ARM_SCAN_SFX)), paste0("f", 1:5)),
     all50 = file.path(A2, sprintf("lf_winxgb_scan_%s_cv5all50_nomask_flatten_%s%s.npz",
                                   tm, a, ARM_SCAN_SFX))), simplify = FALSE)))
-for (a in arm_tracks) stopifnot(file.exists(a$N), file.exists(a$C), all(file.exists(unlist(a$scan))))
+for (a in arm_tracks) stopifnot(file.exists(a$N), file.exists(a$C),
+                                is.null(a$scan) || all(file.exists(unlist(a$scan))))
 if (length(ARMS)) {
   BASE_LABEL <- Sys.getenv("BASE_LABEL", "curated")
   for (.i in seq_along(specs)) if (identical(specs[[.i]]$group, "per-fold")) {
     specs[[.i]]$group <- BASE_LABEL
     specs[[.i]]$cnn_label <- sprintf("CNN linear head (%s)", BASE_LABEL)
   }
+}
+## one all-50 surface per arm per terminus: class track + popup, no head series
+## (arm_tracks draws those). `winxgb` is read by the provenance check only.
+if (ARMS_ONLY) {
+  specs <- unlist(lapply(ARMS, function(a) {
+    lb <- ARM_REG[[a]]$label
+    lapply(c("N", "C"), function(tm) list(
+      name = sprintf("%s all 50, %s terminus", lb, tm), term = tm, group = lb,
+      surface_only = TRUE, popup = TRUE, per_residue = TRUE,
+      popup_title = sprintf("%s window (%s, all 50)", tm, lb),
+      popup_also = sprintf("%s %s fold", lb, tm),
+      class_label = sprintf("%s windows\nclass probability\n(%s)", tm, lb),
+      cnn_label = sprintf("CNN linear head (%s)", lb),
+      run = file.path(A2, sprintf("lf_pepend_run_%s_cv5all50_nomask_flatten_%s.rds", tm, a)),
+      plm_rds = file.path(A2, "lf_plm", ARM_REG[[a]]$plm),
+      winxgb = if (nzchar(ARM_SCAN_SFX))
+        file.path(A2, sprintf("lf_winxgb_scan_%s_cv5all50_nomask_flatten_%s%s.npz", tm, a, ARM_SCAN_SFX))))
+  }), recursive = FALSE)
+  for (s in specs) stopifnot(dir.exists(sub("\\.rds$", "_isolated", s$run)), file.exists(s$plm_rds))
+  arm_tracks <- lapply(arm_tracks, utils::modifyList, list(popup = TRUE))
 }
 ## held-out triangles are matched to a series BY NAME, so each arm needs its
 ## own copy of the same CV knowns under its own series names
@@ -226,12 +267,34 @@ options(lf.pepend_python_path = WP,
         lf.track_extra_win = specs,
         lf.track_arm_tracks = arm_tracks,
         lf.track_candidates = cand_specs)
+ENS_ONLY_MIN <- as.integer(Sys.getenv("LF_ENS_ONLY_MIN", "0"))
+NO_ALIGN_MIN <- as.integer(Sys.getenv("LF_NO_ALIGN_MIN", "0"))
+GENE_LEN <- if (ENS_ONLY_MIN > 0 || NO_ALIGN_MIN > 0) local({
+  d <- utils::read.delim(file.path(A2, "lf_nomask_scripts_20261021", "gene_lengths.txt"), header = FALSE,
+                         col.names = c("gene", "len"), colClasses = c("character", "integer"))
+  stats::setNames(as.list(d$len), d$gene)
+})
+if (ARMS_ONLY) options(lf.pepend_per_index = FALSE, lf.track_resid_models = "XGB",
+                       lf.cand_max_overlap = 20L, lf.cand_max_ends = 5L)
 dir.create(path.expand(plot_dir), showWarnings = FALSE, recursive = TRUE)
 want <- commandArgs(trailingOnly = TRUE)
 gs <- purrr::map_chr(the_input, \(x) x$gene)
 stopifnot(all(want %in% gs))
 for (i in which(gs %in% want)) {
   message("--- ", gs[i], " ---")
+  ## per gene: one chunk can mix a giant with ordinary precursors
+  .L <- GENE_LEN[[gs[i]]]
+  if (ENS_ONLY_MIN > 0) {
+    .ens <- !is.null(.L) && .L >= ENS_ONLY_MIN
+    ## an ARMS_ONLY page's specs are its surfaces; the arms' folds go in lf_track_arm_heads
+    options(lf.ens_only_page = .ens,
+            lf.track_extra_win = if (.ens && !ARMS_ONLY) Filter(function(s) isTRUE(s$group_ensemble), specs) else specs)
+    if (.ens) message(sprintf("    %d aa >= %d: pooled ensembles only", .L, ENS_ONLY_MIN))
+  }
+  if (NO_ALIGN_MIN > 0 && !is.null(.L) && .L >= NO_ALIGN_MIN && !is.null(the_input[[i]]$alignment_AA)) {
+    the_input[[i]]$alignment_AA <- list(NULL)
+    message(sprintf("    %d aa >= %d: species alignment panel dropped", .L, NO_ALIGN_MIN))
+  }
   ns <- never_seen[never_seen$accession == the_input[[i]]$accession, , drop = FALSE]
   if (nrow(ns)) {
     the_input[[i]]$features[[1]] <- dplyr::bind_rows(
@@ -249,7 +312,7 @@ for (i in which(gs %in% want)) {
 ## must agree, or the page drew some other model.
 np <- reticulate::import("numpy", convert = FALSE)
 fc <- .lf_tracks_env[["feat_cache"]]
-for (g in head(want, as.integer(Sys.getenv("PROV_N", "3")))) for (s in specs) {
+for (g in head(want, as.integer(Sys.getenv("PROV_N", "3")))) for (s in Filter(function(x) !is.null(x$winxgb), specs)) {
   i <- match(g, fc$prec$gene)
   ex <- lf_track_extra_head(modifyList(s, list(popup = FALSE)), fc$prec$accession[i],
                             fc$prec$n_prot[i], fc$prec$c_prot[i])

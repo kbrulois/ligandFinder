@@ -98,7 +98,8 @@ for arm in os.environ["ARMS_LIST"].split():
     for T in ("C", "N"):
         for k in range(1, 6):
             fs = np.load(f"{A2}/lf_winxgb_fullscan_{T}_cv5_f{k}{TAG}.npz", allow_pickle=True)
-            pi, an_all = fs["prot_idx"], fs["anchor"]
+            # read once: fs[...] decompresses the whole 3M array on every access
+            pi, an_all, xm, xs = fs["prot_idx"], fs["anchor"], fs["xgb_pm"], fs["xgb_pm_sd"]
             p = f"{A2}/lf_winxgb_scan_{T}_cv5_f{k}{TAG}{SFX}.npz"
             z = dict(np.load(p, allow_pickle=True))
             genes = [key[:-len("__anchor")] for key in z if key.endswith("__anchor")]
@@ -107,9 +108,9 @@ for arm in os.environ["ARMS_LIST"].split():
                 acc = str(z[f"{g}__accession"])
                 w = pi == order[acc]
                 assert np.array_equal(an_all[w], z[f"{g}__anchor"]), (arm, T, k, g)
-                drift = max(drift, float(np.abs(fs["xgb_pm"][w].astype("f8") - z[f"{g}__xgb_pm"]).max()))
-                z[f"{g}__xgb_pm"] = fs["xgb_pm"][w].astype("f4")
-                z[f"{g}__xgb_pm__sd"] = fs["xgb_pm_sd"][w].astype("f4")
+                drift = max(drift, float(np.abs(xm[w].astype("f8") - z[f"{g}__xgb_pm"]).max()))
+                z[f"{g}__xgb_pm"] = xm[w].astype("f4")
+                z[f"{g}__xgb_pm__sd"] = xs[w].astype("f4")
             tmp = p[:-4] + ".part.npz"
             np.savez_compressed(tmp, **z); os.replace(tmp, p)
             print(f"  {arm} {T} f{k}: xgb from the full scan for {len(genes)} genes (largest change {drift:.3g})")

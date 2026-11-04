@@ -16,6 +16,9 @@
 ##   OUT=~/AF2_analysis/lf_plm/aa_onehot_pagegenes.rds \
 ##   Rscript plm_pagegenes.R
 ##
+## GENES_FILE=all takes every precursor, both accessions of a repeated gene name
+## included: what final_pages.R ARMS_ONLY=1 reads, at OUT=<channels>_allsec.rds.
+##
 ## Residues the parquet does not cover get ZEROS -- the same policy 10_8 applies
 ## at training time and `plm_residues` applies to the scan table, so the page
 ## scores the same windows the scan did. The count is printed, not assumed.
@@ -31,12 +34,14 @@ GENES_F <- Sys.getenv("GENES_FILE", file.path(S, "page_genes.txt"))
 
 source(lf_src("R/plm_features.R"))   # lf_read_parquet
 
-genes <- readLines(GENES_F)
-genes <- genes[nzchar(genes)]
 prec  <- readRDS(file.path(A2, "lf_pepend_residue_cache.rds"))$prec
-i     <- match(genes, prec$gene)
-if (anyNA(i)) stop("genes not in the residue cache: ", paste(genes[is.na(i)], collapse = ", "))
-prec  <- prec[i, , drop = FALSE]
+if (GENES_F != "all") {
+  genes <- readLines(GENES_F)
+  genes <- genes[nzchar(genes)]
+  i     <- match(genes, prec$gene)
+  if (anyNA(i)) stop("genes not in the residue cache: ", paste(genes[is.na(i)], collapse = ", "))
+  prec  <- prec[i, , drop = FALSE]
+}
 message(sprintf("page genes: %d, %s residues", nrow(prec), format(sum(nchar(prec$seq)), big.mark = ",")))
 
 tbl  <- lf_read_parquet(PLM)

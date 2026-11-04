@@ -121,6 +121,56 @@ pending. `allsec_giants.sh`, `allsec_giants_after.sh` and `final_pages_giant.R`
 were committed beside this file on 2026-10-27, after this section. The measured
 per-gene table and the verdict replace this paragraph when those renders land.
 
+## The two-arm gallery (2026-11-03)
+
+`arms2_allsec.sh` renders the same secretome in the layout Kevin chose from the
+drafts: `final_pages.R ARMS_ONLY=1` with the AAswap and ESM-C only arms, into
+`pepend_pages_allsec_arms2/`. This gallery is left as it is. 5,178 pages: the
+5,176 here, plus COL18A1 and OTOA, which a page keeps apart by accession.
+
+| on a page | from |
+|---|---|
+| CNN linear and xgb window heads, per arm | per-gene scans (`SFX=_allsec_arms2`) for the sd bands |
+| N and C class probabilities, per arm | the arm's all-50 surface, scored on the page |
+| click popups | the same surfaces: 4 per page, so a fold's dot opens its arm's all-50 |
+| XGB per residue | `lf_resid_preds_v2.npz` (no MLP) |
+| end segments, candidates | `xgb_pm_T0.5_tol4_arms3`, which still includes the curated arm's cut |
+
+**Candidates are capped at 20 deep** (`lf_cand_rows`): 15 rows of best MultiPep,
+then the best end-score products. The cap is on the pile, because capping each
+group left 457 of 833 precursors more than 20 deep. Each pass places every
+group's best before any group's second: 99.8% of groups keep a bar, against 77.7%
+if the best scores simply go first. 14.5% of candidates are drawn, and a gene's
+top MultiPep and top end pair always are. Its top xgb_score is on 54% of genes.
+
+**Measured**: about 12 s + 0.026 s per residue per gene, 12.5 GB peak per process.
+Pages are 10-15% smaller than this gallery's.
+
+**Giants** go last and alone, with `LF_ENS_ONLY_MIN`, `LF_NO_ALIGN_MIN` and
+`CAP=500`, now in `final_pages.R`. The 33 precursors of 3,000-4,562 aa are ordinary
+pages. Two things were wrong for a page with no fold series, both fixed: the
+tracks did not draw at all, and `residueScale` read circles only, so clicks and
+fragment links did nothing on a track of squares.
+
+**It runs from a frozen copy**, `~/AF2_analysis/lf_src_arms2_20261103`
+(`SNAPSHOT_COMMIT`, `SNAPSHOT.diff`), so editing a checkout cannot touch it.
+
+```bash
+tail ~/AF2_analysis/arms2_allsec.log
+ls ~/AF2_analysis/pepend_pages_allsec_arms2/*.html | wc -l
+```
+
+To resume, or change PROCS: `touch <OUT>/.render/STOP`, let the chunks in flight
+finish, then from the frozen copy's script directory:
+
+```bash
+PROCS=3 caffeinate -is nohup ./arms2_allsec.sh >> ~/AF2_analysis/arms2_allsec.log 2>&1 &
+```
+
+Not drawn: the 431 precursors outside `plot_bundle.rds`, which also have no ESM-C
+embedding, so an ESM-C track there would be the model reading zeros; and five
+names with a `/`, which cannot be a file name.
+
 ## Checking on it
 
 ```bash

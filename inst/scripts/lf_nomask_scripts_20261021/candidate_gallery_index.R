@@ -32,6 +32,7 @@ key <- .opt("--key", "xgb_pm_T0.5_tol4_arms3")
 ttl <- .opt("--title", "LigandFinder — candidate peptides")
 foc_p <- .opt("--focus", NA_character_)
 sel_t <- .opt("--selection", "")
+arms_only <- "--arms-only" %in% .args     # pages drawn by final_pages.R ARMS_ONLY=1
 f_bg  <- file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s_best_per_group.csv", key))
 f_cd  <- file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s.csv", key))
 f_seg <- file.path(A2, "lf_headcmp", sprintf("end_segments_%s.csv", sub("_tol[0-9]+", "", key)))
@@ -150,11 +151,21 @@ writeLines(c(
   ' .kn{font-size:11px;margin-top:5px;color:#1B7837;font-weight:600}',
   ' .fs{font-size:11.5px;margin-top:6px;color:#0b0b0b;font-weight:600} table.pk tr.sel td{background:#f6f5f1}',
   '</style>',
+  if (arms_only) c(
+  'Each page carries, for two arms (<b>AAswap</b>, curated with the AA properties &rarr; one-hot, and',
+  '<b>ESM-C only</b>), the N and C window <b>class probabilities</b> per residue and the <b>CNN linear head</b>',
+  'and <b>xgb window head</b> (thin lines per fold, heavy line all 50; the all-50 alone on the 19 longest',
+  'precursors, which also drop the species alignment and keep 500 popups), the window-free <b>XGB per-residue</b> models, the',
+  '<b>end segments</b> (curated, ESM-C only and AAswap, each at its own threshold; the digit is how many arms',
+  'support a segment) and the <b>candidate peptides</b>, at most 20 deep: the best MultiPep calls, then the best',
+  'end scores. Clicking a dot on an xgb track opens that arm&rsquo;s all-50 window.')
+  else c(
   'Each page carries the class-probability tracks, the window-free residue models, the',
   '<b>CNN linear head</b> and <b>xgb window head</b> for three arms (<b>curated</b>, <b>ESM-C only</b>,',
   '<b>AAswap</b>, curated with the AA properties &rarr; one-hot; thin lines per fold, heavy line all 50), the <b>end segments</b>',
-  '(each arm at its own threshold; the digit is how many arms support a segment) and the <b>candidate',
-  'peptides</b>: left half coloured by the best MultiPep score, right half by MMseqs similarity to the',
+  '(each arm at its own threshold; the digit is how many arms support a segment) and the <b>candidate'),
+  if (arms_only) 'Candidates:' else 'peptides</b>:',
+  'left half coloured by the best MultiPep score, right half by MMseqs similarity to the',
   'closest known 8&ndash;60 aa peptide, the symbol is the MultiPep class, end caps white / grey / black for',
   '1 / 2 / 3 supporting arms, and the tooltip carries the xgboost global scores.',
   if (nrow(foc)) c(
@@ -175,8 +186,11 @@ writeLines(c(
   file.path(tmp, "blurb.html"))
 commit <- tryCatch(system2("git", c("-C", lf_src_root(), "rev-parse", "--short", "HEAD"), stdout = TRUE),
                    error = function(e) "?")
+## a frozen copy of the checkout is no repository: it says what it was copied from
+snap <- file.path(lf_src_root(), "SNAPSHOT_COMMIT")
+if (file.exists(snap)) commit <- readLines(snap, n = 1L)
 ## pages drawn from a checkout with uncommitted page code are not that commit
-dirty <- tryCatch(length(system2("git", c("-C", lf_src_root(), "status", "--porcelain", "--untracked-files=no",
+dirty <- !file.exists(snap) && tryCatch(length(system2("git", c("-C", lf_src_root(), "status", "--porcelain", "--untracked-files=no",
                                           "--", "R", "inst/scripts"),
                                  stdout = TRUE)) > 0, error = function(e) FALSE)
 if (dirty) commit <- paste(commit, "plus uncommitted changes")

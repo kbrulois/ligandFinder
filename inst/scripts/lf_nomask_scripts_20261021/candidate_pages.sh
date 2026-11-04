@@ -36,6 +36,11 @@
 #                  a forced pass has replaced them all, a page older than its
 #                  start does not count as done, so a re-run resumes the pass
 #   GENES=<file>   another gene list
+#   ARMS_ONLY=1    no curated baseline: every model track and popup from ARMS
+#                  (final_pages.R)
+#   PROV_N=3       check the page's scores against the scans on 3 genes per chunk
+#   CAP=500        the popup cap (LF_POPUP_MAX), default 2000
+#   touch $OUT/.render/STOP   chunks in flight finish, no new one starts
 # Chunk lists live in .render/lists; each chunk's log in .render/logs, appended
 # run after run under a dated header.
 set -u
@@ -55,6 +60,7 @@ from_out() {   # name, OUT's value, given value
 SEL=$OUT/selection.txt
 KEY=$(from_out KEY "$([[ -s $SEL ]] && sed -n 's/^key  *//p' $SEL)" "${KEY:-}") || exit 1
 KEY=${KEY:-xgb_pm_T0.5_tol4_arms3}
+ARMS_ONLY=${ARMS_ONLY:-0}
 LF_EXTRA_BUNDLE=$(from_out LF_EXTRA_BUNDLE \
   "$([[ -s $SEL ]] && sed -n 's/^extra  *\(.*\) (LF_EXTRA_BUNDLE):.*/\1/p' $SEL)" "${LF_EXTRA_BUNDLE:-}") || exit 1
 ARM_SCAN_SFX=$(from_out ARM_SCAN_SFX "$([[ -s $OUT/arm_scan_sfx.txt ]] && head -1 $OUT/arm_scan_sfx.txt)" \
@@ -63,7 +69,7 @@ ARMS=${ARMS:-esmonly36,curated_AAswap}
 PROCS=${PROCS:-3}
 CHUNK=${CHUNK:-10}
 RUN=$OUT/.render
-export OUT GENES KEY ARMS RUN LF_EXTRA_BUNDLE ARM_SCAN_SFX
+export OUT GENES KEY ARMS RUN LF_EXTRA_BUNDLE ARM_SCAN_SFX ARMS_ONLY PROV_N=${PROV_N:-0}
 # the five precursors every other gallery renders at a reduced popup cap; each
 # gets a chunk of its own so its cap does not spread to its chunk-mates
 BIG_CAP=600
@@ -86,10 +92,11 @@ page_ok() {
 done_ok() { page_ok $1 && { [[ ! -e $STAMP ]] || [[ $1 -nt $STAMP ]]; } }
 
 if [[ ${1:-} == chunk ]]; then
+  [[ -e $RUN/STOP ]] && exit 0
   f=$2
   genes=($(cat $f))
   (( ${#genes} )) || exit 0
-  cap=2000
+  cap=${CAP:-2000}
   for g in $genes; do (( ${BIG[(Ie)$g]} )) && cap=$BIG_CAP; done
   sfx=_all
   [[ ${f:t} == own_* ]] && sfx=${OWN_NPZ[${${f:t}#own_}]}
@@ -100,7 +107,7 @@ if [[ ${1:-} == chunk ]]; then
   mkdir -p $stage $RUN/logs
   log=$RUN/logs/${f:t}.log
   print -r -- "### $(date '+%F %H:%M:%S') ${genes[*]}" >> $log
-  MODE=cv5 NPZ_SFX=$sfx ARMS=$ARMS CAND_SETS=$KEY LF_PLOT_DIR=$stage LF_POPUP_MAX=$cap PROV_N=0 \
+  MODE=cv5 NPZ_SFX=$sfx ARMS=$ARMS CAND_SETS=$KEY LF_PLOT_DIR=$stage LF_POPUP_MAX=$cap \
     LF_SRC=$W LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $S/final_pages.R $genes >> $log 2>&1
   rc=$?
   # a page script exits 0 having written nothing when make_protein_plot_win
