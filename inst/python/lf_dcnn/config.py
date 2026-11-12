@@ -72,10 +72,14 @@ DEFAULT_CHANNEL_NAMES: tuple[str, ...] = (
 #: the AA_* property channels are excluded too: they are a deterministic lookup
 #: on the residue letter, so perturbing them yields amino acids that do not exist.
 #: ``plm_cons_msa`` is the MSA conservation channel that replaces ``cons_rs_n``
-#: (inst/scripts/msa_cons/); it is listed so the replacement is augmented exactly
-#: as the channel it replaces was. Names absent from a model's channels are ignored.
+#: (inst/scripts/msa_cons/). Kevin, 2026-11-12: it is now the only conservation
+#: channel augmented -- ``cons_rs_n`` (Aminode) and ``cons_rs`` came off the list,
+#: so an arm that still carries ``cons_rs_n`` trains without noise on it from here
+#: on. Trunks trained before keep the list they used in their own config.json
+#: (``cont_channel_names``); retraining one of them reproduces it only with that
+#: list passed explicitly. Names absent from a model's channels are ignored.
 DEFAULT_CONT_CHANNELS: tuple[str, ...] = (
-    "cons_rs", "cons_rs_n", "min_afm", "mean_afm", "relASA", "plm_cons_msa",
+    "min_afm", "mean_afm", "relASA", "plm_cons_msa",
 )
 
 
