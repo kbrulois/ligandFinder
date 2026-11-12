@@ -80,6 +80,14 @@ def main(argv=None):
     yc = {s: z[f"{a.term}__{s}__y_global"].reshape(-1).astype("float32")
           for s in ("train", "val")}
     gz = np.load(os.path.expanduser(a.groups), allow_pickle=True)
+    # the groups file must BE this run's training windows, row for row: a same-
+    # length table from other inputs would otherwise misalign the inner split silently
+    for _s in ("train", "val"):
+        _k = np.asarray(gz[f"{a.term}__{_s}__known"]).astype("float32")
+        if _k.shape[0] != yc[_s].shape[0] or not np.array_equal(_k, yc[_s]):
+            raise SystemExit(f"groups {a.groups} do not match arrays.npz on {_s} "
+                             f"({_k.shape[0]} vs {yc[_s].shape[0]} rows, or labels differ) "
+                             "-- export them from the run's own --input")
     acc_tr = np.asarray([str(v) for v in gz[f"{a.term}__train__accession"]])
     rng = np.random.default_rng(a.inner_seed)
     pos_acc = np.unique(acc_tr[yc["train"] == 1])

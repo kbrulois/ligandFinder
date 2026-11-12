@@ -100,17 +100,23 @@ lf_pepend_candidates <- function(seq, n_prot) {
 #' A coarse label for the plots and diagnostics: the two residues after a C
 #' terminus (three when the first is an amidation G), the two before an N
 #' terminus.
+#' Under `amid_g = TRUE` (training sets built with 10_7 `--amid-g-anchor`) an
+#' amidated C end is anchored ON its G: a C anchor that IS a G followed by a
+#' dibasic pair is `"G + dibasic"`, and the residue before such a G -- the old
+#' anchor, no longer an end -- is `"other"`. Everything else is unchanged.
+#' @param amid_g the G-anchor convention for C ends (default: the old one).
 #' @return one of `"dibasic"`, `"G + dibasic"`, `"monobasic"`, `"terminus"`,
 #'   `"other"` per row.
 #' @export
-lf_pepend_motif <- function(seq, term, anchor, n_prot) {
+lf_pepend_motif <- function(seq, term, anchor, n_prot, amid_g = FALSE) {
   vapply(seq_along(seq), function(i) {
     s <- seq[[i]]; a <- anchor[[i]]
     if (term[[i]] == "C") {
       if (a >= nchar(s)) return("terminus")
       nxt <- substring(s, a + 1L, a + 3L)
+      if (amid_g && substring(s, a, a) == "G" && grepl("^(KK|KR|RK|RR)", nxt)) return("G + dibasic")
       if (grepl("^(KK|KR|RK|RR)", nxt)) return("dibasic")
-      if (grepl("^G(KK|KR|RK|RR)", nxt)) return("G + dibasic")
+      if (grepl("^G(KK|KR|RK|RR)", nxt)) return(if (amid_g) "other" else "G + dibasic")
       if (grepl("^G?[KR]", nxt)) return("monobasic")
     } else {
       if (a <= n_prot[[i]]) return("terminus")
@@ -139,9 +145,10 @@ lf_pepend_motif <- function(seq, term, anchor, n_prot) {
 #' @param term `"N"` or `"C"`.
 #' @param anchor integer vector of anchors, in precursor coordinates.
 #' @param n_prot first residue of the mature precursor.
+#' @param amid_g the G-anchor convention for C ends, as in [lf_pepend_motif()].
 #' @return character vector, one label per `anchor`.
 #' @export
-lf_pepend_motif_vec <- function(seq, term, anchor, n_prot) {
+lf_pepend_motif_vec <- function(seq, term, anchor, n_prot, amid_g = FALSE) {
   a  <- as.integer(anchor)
   aa <- strsplit(seq, "", fixed = TRUE)[[1]]
   L  <- length(aa)
@@ -157,6 +164,15 @@ lf_pepend_motif_vec <- function(seq, term, anchor, n_prot) {
   if (identical(as.character(term), "C")) {
     b1 <- basic(a + 1L); b2 <- basic(a + 2L); b3 <- basic(a + 3L)
     g1 <- at(a + 1L) %in% "G"
+    if (amid_g) {
+      g0 <- at(a) %in% "G"
+      return(
+      ifelse(a >= L,            "terminus",
+      ifelse(g0 & b1 & b2,      "G + dibasic",
+      ifelse(b1 & b2,           "dibasic",
+      ifelse(g1 & b2 & b3,      "other",
+      ifelse(b1 | (g1 & b2),    "monobasic", "other"))))))
+    }
     ifelse(a >= L,            "terminus",
     ifelse(b1 & b2,           "dibasic",
     ifelse(g1 & b2 & b3,      "G + dibasic",
