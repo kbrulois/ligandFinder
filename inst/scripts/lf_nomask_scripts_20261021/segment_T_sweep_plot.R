@@ -8,6 +8,7 @@
 ##   METRIC=F1    Rscript segment_T_sweep_plot.R   # 2 P R / (P + R)
 ##   LEVEL=anchor METRIC=F1 Rscript segment_T_sweep_plot.R   # each anchor a call, not each segment
 ##   ARM2=esmonly36 TOL=4 (defaults)
+##   ARM1=curated_AAswap ARM2=esmonly36   # two arms, neither the curated model
 ##
 ## F1 is the detection F1 of segments_roc.R's own definitions: precision over
 ## the positive SEGMENTS at T (centre within TOL of an evaluation end), recall
@@ -20,8 +21,13 @@ LEVEL  <- Sys.getenv("LEVEL", "segment"); stopifnot(LEVEL %in% c("segment", "anc
 ARM2 <- Sys.getenv("ARM2", "esmonly36"); TOL <- as.integer(Sys.getenv("TOL", "4"))
 LABELS <- c(esmonly36 = "ESM-C only (36 PCA)", curated_AAswap = "AAswap", curated_wAAid = "curated + AA ID")
 lab2 <- if (ARM2 %in% names(LABELS)) LABELS[[ARM2]] else ARM2
+## ARM1 is the first curve; "" (the default) is the curated model, whose tables carry no arm token
+ARM1 <- Sys.getenv("ARM1", "")
+lab1 <- if (!nzchar(ARM1)) "curated (26 hand-built)" else if (ARM1 %in% names(LABELS)) LABELS[[ARM1]] else ARM1
+stopifnot(lab1 != lab2)
 H <- path.expand("~/AF2_analysis/lf_headcmp")
-cur <- fread(file.path(H, sprintf("%s_confusion_tol%d.csv", LEVEL, TOL)))[, arm := "curated (26 hand-built)"]
+cur <- fread(file.path(H, if (nzchar(ARM1)) sprintf("%s_confusion_%s_tol%d.csv", LEVEL, ARM1, TOL)
+                          else sprintf("%s_confusion_tol%d.csv", LEVEL, TOL)))[, arm := lab1]
 oth <- fread(file.path(H, sprintf("%s_confusion_%s_tol%d.csv", LEVEL, ARM2, TOL)))[, arm := lab2]
 D <- rbind(cur, oth, fill = TRUE)
 D[, panel := paste0(set, " — ", term, " ", head)]
@@ -31,7 +37,7 @@ opt <- D[, .SD[which.max(y)], by = .(arm, panel)]
 ## the lower of a panel's two optima is labelled under its ring, so labels at
 ## the same threshold do not overprint
 opt[, vj := fifelse(y == min(y) & .N > 1, 1.9, -0.9), by = panel]
-cols <- setNames(c("#3c63a0", "#c96a35"), c("curated (26 hand-built)", lab2))
+cols <- setNames(c("#3c63a0", "#c96a35"), c(lab1, lab2))
 p <- ggplot(D, aes(thr, y, colour = arm)) +
   (if (METRIC == "auc_T") geom_hline(yintercept = 0.5, linewidth = .3, colour = "grey75", linetype = "22")) +
   geom_vline(xintercept = 0.5, linewidth = .3, colour = "grey85") +
@@ -64,8 +70,9 @@ p <- ggplot(D, aes(thr, y, colour = arm)) +
   theme(legend.position = "top", panel.grid.minor = element_blank(),
         strip.text = element_text(face = "bold", size = 8.5),
         plot.title = element_text(face = "bold"))
-out <- file.path(H, sprintf("%s_T_sweep%s_curated_vs_%s_tol%d.png", LEVEL,
-                            if (METRIC == "auc_T") "" else paste0("_", METRIC), ARM2, TOL))
+out <- file.path(H, sprintf("%s_T_sweep%s_%s_vs_%s_tol%d.png", LEVEL,
+                            if (METRIC == "auc_T") "" else paste0("_", METRIC),
+                            if (nzchar(ARM1)) ARM1 else "curated", ARM2, TOL))
 out <- Sys.getenv("OUT", out)
 ggsave(out, p, width = 13, height = 7.5, dpi = 165, bg = "white")
 cat("wrote", out, "\n")
