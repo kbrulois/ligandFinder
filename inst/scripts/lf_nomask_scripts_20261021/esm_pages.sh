@@ -20,15 +20,32 @@ set -u
 . ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 S=${0:A:h}
-ARM=${ARM:-esmonly36}
+export ARM=${ARM:-esmonly36}          # exported: xargs re-enters this script
 OUT=${OUT:-$A2/pepend_pages_${ARM}}
 ## which page script, and which extra arms it draws. final_pages_arms.R
 ## takes any number of arms; final_pages_esm.R is the ESM-C-only record.
 export PAGES_R=${PAGES_R:-final_pages_arms.R}
-export ARMS=${ARMS:-esmonly36,curated_wAAid}
+## The arm's training-window suffix decides which never-seen set the pages
+## annotate from. Read (not sourced) out of arms/<arm>.sh so the arm file's
+## training-time guards do not run in a render script; EXPORTED because the
+## chunk children are re-entered through xargs and would otherwise silently
+## annotate from the full (mature) set.
+INPUT_SFX=$(sed -n 's/^INPUT_SFX=//p' $S/arms/$ARM.sh 2>/dev/null | head -1 | tr -d '"'"'"'"')
+export UNSEEN_SFX=${UNSEEN_SFX:-${INPUT_SFX:-}}
+export LF_SCRIPTS=${LF_SCRIPTS:-$S}
 ## the gallery title names the arms it actually drew, so a gallery cannot
 ## claim an arm set it does not have.
-TITLE=${TITLE:-"LigandFinder — peptide-end pages, linear window head (5-fold CV): curated, ESM-C only and curated + AA ID"}
+## A _padg arm is its own end convention (a C end before G + dibasic is anchored
+## ON THE G), so it does not belong beside the other extra arms: it is the only
+## extra arm drawn (the base curated arm is always there), and the title says so.
+## Both are still overridable.
+if [[ $ARM == *_padg ]]; then
+  export ARMS=${ARMS:-$ARM}
+  TITLE=${TITLE:-"LigandFinder — peptide-end pages, linear window head (5-fold CV): curated and $ARM (padg windows; C ends anchored on the amidation G)"}
+else
+  export ARMS=${ARMS:-esmonly36,curated_wAAid}
+  TITLE=${TITLE:-"LigandFinder — peptide-end pages, linear window head (5-fold CV): curated, ESM-C only and curated + AA ID"}
+fi
 PROCS=${PROCS:-4}
 CHUNK=${CHUNK:-6}
 # the precursors the curated gallery rendered at a reduced popup cap
@@ -43,14 +60,15 @@ if [[ ${1:-} == chunk ]]; then
   for g in $genes; do (( ${BIG[(Ie)$g]} )) && cap=$BIG_CAP; done
   MODE=cv5 LF_PLOT_DIR=$OUT LF_POPUP_MAX=$cap ARMS=$ARMS \
     LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $S/$PAGES_R $genes \
-    >> $S/esmpages_$(basename $f).log 2>&1
+    >> $S/esmpages_${ARM}_$(basename $f).log 2>&1
   echo "chunk $(basename $f): ${#genes} genes rc=$?"
   exit 0
 fi
 
-mkdir -p $OUT $S/esm_chunks
-rm -f $S/esm_chunks/*
-todo=$S/esm_chunks/todo.txt
+CH=$S/esm_chunks_${ARM}
+mkdir -p $OUT $CH
+rm -f $CH/*(N)
+todo=$CH/todo.txt
 : > $todo
 while read -r g; do
   [[ -z $g ]] && continue
@@ -62,8 +80,8 @@ echo "  $(wc -l < $S/page_genes.txt | tr -d ' ') known-peptide genes, $n to rend
 if [[ $n -eq 0 ]]; then
   echo "  nothing to render"
 else
-  split -l $CHUNK $todo $S/esm_chunks/c_
-  ls $S/esm_chunks/c_* 2>/dev/null | xargs -P $PROCS -n 1 ${0:A} chunk
+  split -l $CHUNK $todo $CH/c_
+  ls $CH/c_* 2>/dev/null | xargs -P $PROCS -n 1 ${0:A} chunk
 fi
 
 echo "--- gallery index over whatever is on disk"

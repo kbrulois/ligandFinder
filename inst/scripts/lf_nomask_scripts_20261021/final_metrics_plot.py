@@ -23,7 +23,7 @@ for f in ("Arial.ttf", "Arial Bold.ttf"):
 plt.rcParams["font.family"] = ["Arial", "DejaVu Sans"]
 
 A2 = pathlib.Path.home() / "AF2_analysis"
-D = A2 / "lf_headcmp"
+D = pathlib.Path(os.environ.get("HEADCMP", str(A2 / "lf_headcmp")))
 OUT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else A2
 INK, BODY, MUTED, RULE, GRID = "#0b0b0b", "#3F4A56", "#6B7784", "#C9D1D9", "#E6E5E1"
 TRUNK = os.environ.get("TRUNK", "flatten")   # "" default = the curated flatten arm

@@ -31,6 +31,7 @@
 #   0 channels  build the arm's extra per-residue parquet (skipped if it exists)
 #   1 trunks    train 5 folds x 2 termini                 (skipped per trunk)
 #   2 residues  the arm's own residue table + ORDER CHECK (skipped if it exists)
+#   2b groups   INPUT_SFX arms: own window groups + ROW CHECK (skipped per npz)
 #   3 scans     full-proteome scans, 10 of them           (skipped per npz)
 #   4 tracks    assemble the tracks rds                   (skipped if it exists)
 #   5 eval      segment confusion/ROC, motif, anchor metrics  (always re-runs)
@@ -66,6 +67,15 @@ export ARM=${ARM:-curated_wAAid}
 source $S/arms/$ARM.sh
 
 export THRESH=${THRESH:-${THRESH_DEFAULT:-0.5}}
+## an arm on its own training windows (INPUT_SFX) is evaluated on the never-seen
+## set that is clean of ITS negatives too (cv5_unseen_ends<sfx>.csv), and every
+## stage-5/6 file goes to its own directory so the shared lf_headcmp tables --
+## scored on the full set -- are never overwritten with a different end set.
+## UNSEEN_SFX=_padg on an OLD arm puts that arm on the same footing for a paired
+## comparison.
+export UNSEEN_SFX=${UNSEEN_SFX:-${INPUT_SFX:-}}
+export HEADCMP=$A2/lf_headcmp${UNSEEN_SFX:+/unseen${UNSEEN_SFX}}
+mkdir -p $HEADCMP
 export TOL=${TOL:-4}
 export PROCS=${PROCS:-4}
 STAGES=${STAGES:-all}
@@ -88,6 +98,8 @@ echo "    THRESH=$THRESH TOL=$TOL PROCS=$PROCS STAGES=$STAGES"
 echo "    channels : $N_CHAN_EXPECT expected"
 echo "    plm      : $PLM"
 echo "    tag      : $TAG"
+echo "    eval     : $HEADCMP (never-seen set cv5_unseen_ends${UNSEEN_SFX}.csv)"
+echo "    inputs   : lf_pepend_nn_input_cv5_f<k>${INPUT_SFX:-}.rds"
 echo "    pages    : $PAGES"
 
 # ---- 0. the arm's extra per-residue channels -------------------------------
@@ -116,6 +128,38 @@ if run 2 residues; then
   fi
   $PY_PLM $S/check_resid_order.py --arm $ARM --plm $PLM --residues-npz $RESID \
     || { say "STAGE 2: residue table does not match the trunks"; exit 1; }
+fi
+
+# ---- 2b. window groups, for an arm on its own training windows -------------
+## full_scan / scan_genes / shap_xgb_head take the xgb head's inner split from a
+## groups npz that must be the run's own training windows row for row. Arms on
+## the original cv5 inputs share the curated ones; an arm with INPUT_SFX (e.g.
+## _padg) exports its own from the SAME inputs it trained on, with an explicit
+## --out (10_9r's default would overwrite the shared unsuffixed file).
+if [[ -n ${INPUT_SFX:-} ]] && run 2b groups; then
+  say "stage 2b: window groups for inputs *${INPUT_SFX}"
+  for k in 1 2 3 4 5; do for T in C N; do
+    g=$A2/lf_pepend_window_groups_${T}_cv5_f${k}${INPUT_SFX}.npz
+    [[ -s $g ]] && continue
+    (cd $W && eval $R inst/scripts/10_9r_export_window_groups.R --term $T \
+       --input $A2/lf_pepend_nn_input_cv5_f${k}${INPUT_SFX}.rds --out $g) >> $S/pipe_groups_$ARM.log 2>&1 \
+      || { say "STAGE 2b FAILED ($T f$k), see pipe_groups_$ARM.log"; exit 1; }
+  done; done
+  $PY_PLM - $A2 $TAG ${INPUT_SFX} <<'PY' || { say "STAGE 2b: groups do not match the trunks"; exit 1; }
+import numpy as np, sys
+A2, TAG, SFX = sys.argv[1:4]
+bad = 0
+for k in range(1, 6):
+    for T in ("C", "N"):
+        g = np.load(f"{A2}/lf_pepend_window_groups_{T}_cv5_f{k}{SFX}.npz", allow_pickle=True)
+        z = np.load(f"{A2}/lf_pepend_run_{T}_cv5_f{k}{TAG}_isolated/in/arrays.npz")
+        for s in ("train", "val", "all"):
+            a = g[f"{T}__{s}__known"].astype("float32"); b = z[f"{T}__{s}__y_global"].reshape(-1).astype("float32")
+            if a.shape != b.shape or not np.array_equal(a, b):
+                bad += 1; print(f"  MISMATCH {T} f{k} {s}: groups {a.shape[0]} vs arrays {b.shape[0]}")
+print("  groups: all 30 splits match the trunks row for row" if not bad else f"  {bad} splits MISMATCH")
+sys.exit(1 if bad else 0)
+PY
 fi
 
 # ---- 3. full scans ---------------------------------------------------------
@@ -157,7 +201,7 @@ fi
 # ---- 6. plots --------------------------------------------------------------
 if run 6 plots; then
   say "stage 6: plots"
-  O=$A2/lf_headcmp
+  O=$HEADCMP
   SUF=_${ARM}$([[ $TOL == 2 ]] && echo "" || echo "_tol$TOL")
   ## stage 6 plots whatever stage 5 wrote AT THE SAME THRESH/TOL. Check first and
   ## name the stage that produces each file, instead of letting the plot script
@@ -221,5 +265,5 @@ say "=== PIPELINE DONE  ARM=$ARM ==="
 echo "    trunks : $(ls $A2/lf_pepend_run_[NC]_cv5_f*${TAG}.rds 2>/dev/null | wc -l | tr -d ' ')/10"
 echo "    scans  : $(ls $A2/lf_winxgb_fullscan_[NC]_cv5_f*${TAG}.npz 2>/dev/null | wc -l | tr -d ' ')/10"
 echo "    pages  : $(ls $PAGES/*.html 2>/dev/null | grep -vc index.html)"
-echo "    results: $A2/lf_headcmp/segment_*_${ARM}_tol${TOL}.csv"
+echo "    results: $HEADCMP/segment_*_${ARM}_tol${TOL}.csv"
 echo "    shap   : $A2/lf_headcmp/shap_position_${ARM}.csv"

@@ -15,12 +15,15 @@ for f in ("Arial.ttf", "Arial Bold.ttf"):
     except Exception: pass
 plt.rcParams["font.family"] = ["Arial", "DejaVu Sans"]
 
-A2 = os.path.expanduser("~/AF2_analysis"); D = A2 + "/lf_headcmp"
+A2 = os.path.expanduser("~/AF2_analysis"); D = os.environ.get("HEADCMP", A2 + "/lf_headcmp")
 THR = sys.argv[1] if len(sys.argv) > 1 else "0.3"
 TOL = int(sys.argv[2]) if len(sys.argv) > 2 else 2        # +/- residues for "on the end"
 ARM = os.environ.get("ARM", "")          # "" = curated; "_esmonly36" = the ESM-C arm
 SFX = ARM + ("" if TOL == 2 else f"_tol{TOL}")
-OUT = A2
+## the PNG goes to A2, as it always has, unless HEADCMP names an evaluation folder
+## of its own (the pipeline's lf_headcmp/unseen<sfx>): a table on another end set is
+## drawn beside its CSV, so it never replaces the full-set figure of the same name
+OUT = A2 if os.path.realpath(D) == os.path.realpath(A2 + "/lf_headcmp") else D
 INK, BODY, MUTED, RULE = "#0b0b0b", "#3F4A56", "#6B7784", "#C9D1D9"
 HEADS = ["cnn", "xgb_pm"]
 COL = {"cnn": "#2a78d6", "xgb_pm": "#eb6834"}

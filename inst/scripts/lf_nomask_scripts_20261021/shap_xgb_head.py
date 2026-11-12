@@ -37,6 +37,17 @@ import time
 
 import numpy as np
 
+
+def input_sfx(arm):
+    """The arm's training-window suffix (INPUT_SFX in arms/<arm>.sh; '' if none):
+    the window groups must come from the inputs the arm trained on."""
+    f = os.path.join(os.path.dirname(os.path.abspath(__file__)), "arms", f"{arm}.sh")
+    if arm and os.path.exists(f):
+        for line in open(f):
+            if line.startswith("INPUT_SFX="):
+                return line.split("=", 1)[1].split("#")[0].strip().strip("'\"")
+    return ""
+
 A2 = os.path.expanduser("~/AF2_analysis")
 ## lf_dcnn / lf_winxgb from the checkout this script sits in, or $LF_SRC (lf_paths.py)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -86,7 +97,7 @@ def main(argv=None):
         anchor = PEPEND_ANCHOR[term]
         for fold in [int(f) for f in a.folds.split(",")]:
             iso = f"{A2}/lf_pepend_run_{term}_cv5_f{fold}{tag}_isolated"
-            grp = f"{A2}/lf_pepend_window_groups_{term}_cv5_f{fold}.npz"
+            grp = f"{A2}/lf_pepend_window_groups_{term}_cv5_f{fold}{input_sfx(arm)}.npz"
             if not os.path.isdir(iso) or not os.path.exists(grp):
                 print(f"  {term} f{fold}: missing run or groups, skipping", flush=True)
                 continue
@@ -98,6 +109,9 @@ def main(argv=None):
             Xtr = np.ascontiguousarray(z[f"{term}__train__x"], dtype="float32")
             Xva = np.ascontiguousarray(z[f"{term}__val__x"], dtype="float32")
             ytr_all = z[f"{term}__train__y_global"].reshape(-1).astype("float32")
+            _gk = np.load(grp, allow_pickle=True)[f"{term}__train__known"].astype("float32")
+            if _gk.shape != ytr_all.shape or not np.array_equal(_gk, ytr_all):
+                raise SystemExit(f"{grp} does not match {iso}/in/arrays.npz row for row")
             yva = z[f"{term}__val__y_global"].reshape(-1).astype("float32")
 
             # full_scan's own inner split: held out BY ACCESSION, same seed

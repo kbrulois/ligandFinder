@@ -72,9 +72,11 @@ FAMILIES = (
     ## for an arm that has none. No other arm has a plm_is_* channel, so this
     ## changes nothing for curated_wAAid or esmonly36.
     ("motif indicators",      lambda c: c.startswith("plm_is_")),
+    ## the MSA conservation channel that replaces cons_rs_n (arm
+    ## curated_AAswap_msacons) is plm_* by necessity; it is conservation, not ESM-C
+    ("conservation",          lambda c: c in ("cons_rs_n", "plm_cons_msa")),
     ("PLM (ESM-C)",           lambda c: c.startswith("plm_") and not c.startswith("plm_AA_")),
     ("AA properties",         lambda c: c.startswith("AA_")),
-    ("conservation",          lambda c: c == "cons_rs_n"),
     ("AFM",                   lambda c: c.endswith("_afm")),
     ("relASA",                lambda c: c == "relASA"),
     ("secondary structure",   lambda c: c.startswith("SS_")),
