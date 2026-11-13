@@ -4,8 +4,8 @@ page from the members, must equal the scan's value at the same anchors.
 
 Checks per page: page present, payload present, file not truncated, the expected
 22 series, and every per-fold series of BOTH arms equal to its own scan npz. It
-does NOT check the held-out marks (each arm's on its own anchors, the G for an
-amidated C end): those were checked by hand, on ADCYAP1, 2026-11-11.
+does NOT check the held-out marks: those were checked by hand, on ADCYAP1,
+2026-11-11.
 
     ~/.virtualenvs/lf-plm/bin/python msacons_gallery_qc.py
 """

@@ -39,7 +39,8 @@
 ## Output: ~/AF2_analysis/lf_pepend_nn_input.rds
 ##   nn_input     list(N, C) of list(train, val, all), the 9.2 contract
 ##   all_params3  channel order
-##   class_names  LF_PEPEND_CLASSES -- pass to lf_dcnn_config(class_names = )
+##   class_names  LF_PEPEND_CLASSES (LF_PEPEND_CLASSES_GAP under --gap-class) --
+##                pass to lf_dcnn_config(class_names = )
 ##   knowns       one row per known window: peptide, anchor, split, motif,
 ##                insertion, AA and labels as 36-long vectors
 ## The first run reads secretome and secretome_aa whole (~16 GB of RAM, as 9.2
@@ -67,14 +68,6 @@ near_n      <- as.integer(.opt("--near-n", "0"))          # 0 = off, the old set
 near_lo     <- as.integer(.opt("--near-lo", "2"))         # |offset| range, inclusive
 near_hi     <- as.integer(.opt("--near-hi", "8"))
 val_frac    <- as.numeric(.opt("--val-frac", "0.34"))
-## --amid-g-anchor (Kevin, 2026-11-10): a C terminus followed by G + dibasic is
-## anchored ON THE G, and the G is labelled peptide, even though the mature
-## (amidated) peptide ends one residue earlier -- the G is the donor of the
-## amide and the residue the cleavage machinery actually leaves at the end.
-## The db candidate at a G-KR site already anchors on the G, so the `db_amid`
-## candidates (anchored before the G) are dropped: under this convention that
-## residue is not an end.
-amid_g      <- "--amid-g-anchor" %in% .args
 ## --pad-match / --mono-match (Kevin, 2026-11-10): TOP-UP negatives, added on
 ## top of n_ctrl, so that the negatives of each split carry padding, and sit at
 ## monobasic sites, at least as often as its positives do.
@@ -96,6 +89,24 @@ amid_g      <- "--amid-g-anchor" %in% .args
 ## AFTER the usual draws, so every window the old build drew is still drawn.
 pad_match   <- "--pad-match" %in% .args
 mono_match  <- "--mono-match" %in% .args
+## --db-match / --amid-match (Kevin, 2026-11-12: "both arms should have equal
+## representation of padded, monobasic, dibasic, amidation motif negative
+## windows"): the same top-up for the `dibasic` and `G + dibasic` motifs of
+## lf_pepend_motif() -- "G + dibasic" is a C end followed by G + KK/KR/RK/RR,
+## the amidation site -- so negatives sit at each of those sites at least as
+## often as positives do. With all four flags none of padding, monobasic,
+## dibasic or amidation is evidence of a peptide by itself.
+db_match    <- "--db-match" %in% .args
+amid_match  <- "--amid-match" %in% .args
+## --gap-class (Kevin, 2026-11-12): the residues between a known end and its
+## nearest dibasic site (lf_pepend_gap(): usually the amidation G) are labelled
+## "gap" instead of cleavage context, and the 7-class LF_PEPEND_CLASSES_GAP is
+## saved. Only labels change: every window, split and negative is the one the
+## build makes without it.
+gap_class   <- "--gap-class" %in% .args
+## --legacy-dssp-index: rebuild the feature cache with the pre-2026-11-12
+## (index, AA) join (see residue_matrix); only to reproduce an old cache.
+legacy_index <- "--legacy-dssp-index" %in% .args
 ct_pad      <- "--ct-pad" %in% .args
 nt_pad      <- "--nt-pad" %in% .args
 ## Swap the two sides after splitting. With --val-frac 0.5 this is the second
@@ -126,6 +137,7 @@ feat_cache  <- path.expand(.opt("--feature-cache", "~/AF2_analysis/lf_pepend_res
 .this <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
 ROOT  <- if (length(.this)) normalizePath(file.path(dirname(.this[[1]]), "..", "..")) else getwd()
 source(file.path(ROOT, "R", "pepend_windows.R"))
+pe_classes <- if (gap_class) LF_PEPEND_CLASSES_GAP else LF_PEPEND_CLASSES
 set.seed(seed)
 
 ## where a window's protein "ends" for padding: the real last residue, or under
@@ -184,6 +196,8 @@ if (file.exists(feat_cache) && !"--rebuild-features" %in% .args) {
   message("loading ", feat_cache)
   .fc <- readRDS(feat_cache)
   prec <- .fc$prec; feats <- .fc$feats; all_params3 <- .fc$all_params3
+  ## a cache from before 2026-11-12 carries no field: it used the old join
+  cache_dssp_index <- if (is.null(.fc$dssp_index)) "legacy" else .fc$dssp_index
   rm(.fc)
 } else {
   message("reading ", secretome_p, " ...")
@@ -226,26 +240,53 @@ if (file.exists(feat_cache) && !"--rebuild-features" %in% .args) {
 
   message("reading ", aa_p, " (~3 GB) ...")
   sa <- readRDS(aa_p)
-  sa <- as.data.frame(sa)[, c("accession", "index", "AA", scale_cols)]
+  sa <- as.data.frame(sa)[, c("accession", "index", "AA", "sequence_dssp", "sequence_uni", scale_cols)]
+  ## Kevin, 2026-11-12 (the residue-feature join). Each secretome_aa row IS one
+  ## UniProt residue -- the build aligned every source onto sequence_uni with
+  ## map_table() (4_integrate_dssp.R) -- but its `index` is inherited from the
+  ## DSSP table (9_expand_by_residue.R leaves out ref_index), so it counts in the
+  ## AlphaFold MODEL's sequence. Where the model was built on another sequence
+  ## (an older UniProt version: AGT's model has 9 more N-terminal residues; an
+  ## isoform: VEGFA's covers 232 of 395), joining on (index, AA) as if index were
+  ## the UniProt position kept only chance letter matches (~1 in 20) and put
+  ## them at shifted residues. Map index back to the UniProt position with the
+  ## SAME map_table() call the build made; identity wherever the sequences match.
+  first <- !duplicated(sa$accession)
+  dssp_seq <- setNames(sa$sequence_dssp[first], sa$accession[first])
+  uni_seq  <- setNames(sa$sequence_uni[first],  sa$accession[first])
+  sa$sequence_dssp <- NULL; sa$sequence_uni <- NULL
+  remap <- if (legacy_index) character(0) else
+    names(dssp_seq)[!is.na(dssp_seq) & nzchar(dssp_seq) & !is.na(uni_seq) & dssp_seq != uni_seq]
+  if (length(remap)) source(file.path(ROOT, "R", "residue_mapping.R"))
+  af_to_uni <- setNames(lapply(remap, function(acc) {
+    d <- dssp_seq[[acc]]
+    mp <- map_table(seq1 = d, seq2 = uni_seq[[acc]],
+                    to_map = tibble(AA = strsplit(d, "")[[1]], af = seq_len(nchar(d))))$ms
+    out <- rep(NA_integer_, nchar(d)); ok <- !is.na(mp$af); out[mp$af[ok]] <- which(ok)
+    out
+  }), remap)
+  message(sprintf("DSSP index -> UniProt position: %d precursors whose AlphaFold sequence differs%s",
+                  length(remap), if (legacy_index) " (--legacy-dssp-index: not remapped)" else ""))
   for (cn in scale_cols)
     sa[[cn]] <- pmin(pmax((sa[[cn]] - chan_range[1, cn]) / (chan_range[2, cn] - chan_range[1, cn]), 0), 1)
   sa_rows <- split(seq_len(nrow(sa)), sa$accession)
   invisible(gc())
 
   ## a residue scaffold from the sequence, with secretome_aa joined on
-  ## (index, AA) as 9.2 joins it: a residue whose letter disagrees, or that the
-  ## sparse table lacks, falls through to 0
+  ## (UniProt position, AA): a residue whose letter disagrees, that the sparse
+  ## table lacks, or that no AlphaFold residue aligns to, falls through to 0
   residue_matrix <- function(acc, seq) {
     aa <- strsplit(seq, "")[[1]]; n <- length(aa)
     m <- matrix(0, n, length(all_params3), dimnames = list(NULL, all_params3))
     r <- sa_rows[[acc]]
     if (length(r)) {
       s <- sa[r, , drop = FALSE]
-      s <- s[which(s$index >= 1 & s$index <= n), , drop = FALSE]
-      s <- s[which(s$AA == aa[s$index]), , drop = FALSE]
-      s <- s[!duplicated(s$index), , drop = FALSE]
+      s$pos <- if (acc %in% remap) af_to_uni[[acc]][s$index] else s$index
+      s <- s[which(s$pos >= 1 & s$pos <= n), , drop = FALSE]
+      s <- s[which(s$AA == aa[s$pos]), , drop = FALSE]
+      s <- s[!duplicated(s$pos), , drop = FALSE]
       v <- as.matrix(s[, scale_cols]); v[is.na(v)] <- 0
-      m[s$index, scale_cols] <- v
+      m[s$pos, scale_cols] <- v
     }
     p <- as.matrix(aa_props[match(aa, aa_props$AA), aa_prop_cols]); p[is.na(p)] <- 0
     m[, aa_prop_cols] <- p
@@ -262,6 +303,10 @@ if (file.exists(feat_cache) && !"--rebuild-features" %in% .args) {
     filter(map_lgl(meta_data, ~ !anyNA(.x$AA))) %>%
     left_join(prec %>% select(gene, accession), by = "gene", relationship = "many-to-many") %>%
     filter(!is.na(accession)) %>% distinct(peps, .keep_all = TRUE)
+  ## 9.2 joined with the old index, so its windows on remapped precursors carry
+  ## the shifted features this fixes: check every other one
+  n_skip <- sum(chk$accession %in% remap); chk <- chk %>% filter(!accession %in% remap)
+  if (n_skip) message(sprintf("feature check: %d window(s) on remapped precursors left out", n_skip))
   dev <- vapply(seq_len(nrow(chk)), function(i) {
     new <- feats[[chk$accession[i]]][chk$wN[i] + 0:35, , drop = FALSE]
     max(abs(new - as.matrix(chk$data[[i]][, all_params3])))
@@ -270,7 +315,9 @@ if (file.exists(feat_cache) && !"--rebuild-features" %in% .args) {
   if (max(dev) > 1e-6) stop("features do not reproduce 9.2's windows; see the check above")
   rm(old_known); invisible(gc())
 
-  saveRDS(list(prec = prec, feats = feats, all_params3 = all_params3), feat_cache)
+  cache_dssp_index <- if (legacy_index) "legacy" else "mapped"
+  saveRDS(list(prec = prec, feats = feats, all_params3 = all_params3,
+               dssp_index = if (legacy_index) "legacy" else "mapped", remapped = remap), feat_cache)
   message("cached precursor features to ", feat_cache)
 }
 prec_seq <- setNames(prec$seq, prec$accession)
@@ -281,20 +328,6 @@ if (length(miss)) message("dropping ", length(miss), " peptide(s) whose precurso
 con <- con %>% inner_join(prec %>% select(accession, seq, n_prot, c_prot), by = "accession") %>%
   ## 9.2: a peptide that starts inside the annotated signal peptide moves it
   mutate(n_prot = pmin(n_prot, pep_start))
-
-## --amid-g-anchor: move the C end of a G + dibasic peptide onto the G. pep_end
-## changes for EVERY use (the C anchor, and the peptide labels of both windows),
-## so the G reads as peptide in its N window too; the mature end is kept.
-con <- con %>%
-  mutate(pep_end_mature = pep_end,
-         g_amid = substr(seq, pep_end + 1L, pep_end + 1L) == "G" &
-                  grepl("^(KK|KR|RK|RR)", substr(seq, pep_end + 2L, pep_end + 3L)))
-con_mature <- con
-if (amid_g) {
-  con <- con %>% mutate(pep_end = pep_end + as.integer(g_amid))
-  message(sprintf("--amid-g-anchor: %d peptide(s) end at G + dibasic; C end moved onto the G",
-                  sum(con$g_amid)))
-}
 
 ## ---- 3. one window per peptide end ---------------------------------------------------
 ends <- bind_rows(con %>% mutate(term = "N", anchor = pep_start),
@@ -308,14 +341,17 @@ ends <- bind_rows(con %>% mutate(term = "N", anchor = pep_start),
          peps      = sprintf("%s_w%d-%d", gene, w_start, w_start + LF_PEPEND$seq_len - 1L),
          target    = term,
          win_type  = "known",
-         motif     = lf_pepend_motif(seq, term, anchor, n_prot, amid_g = amid_g),
+         motif     = lf_pepend_motif(seq, term, anchor, n_prot),
          insertion = case_when(ins_term == term & ins_ind < 3  ~ "end insertion",
                                ins_term == term & ins_ind < 16 ~ "loop insertion",
                                TRUE                            ~ "non-inserting end"))
 ends$known_idx <- pmap(list(ends$w_start, ends$pep_start, ends$pep_end,
                             nt_cut(ends$term, ends$anchor, ends$n_prot),
-                            ct_cut(ends$term, ends$anchor, ends$c_prot), ends$pocket),
-                       lf_pepend_labels)
+                            ct_cut(ends$term, ends$anchor, ends$c_prot), ends$pocket, ends$seq),
+                       lf_pepend_labels, gap = gap_class)
+if (gap_class) message(sprintf("--gap-class: gap residues in %d N and %d C known windows",
+                               sum(map_lgl(ends$known_idx[ends$term == "N"], ~ "gap" %in% .x)),
+                               sum(map_lgl(ends$known_idx[ends$term == "C"], ~ "gap" %in% .x))))
 message(sprintf("known windows: %d N, %d C (from %d peptides; %d ends shared by >1 peptide)",
                 sum(ends$term == "N"), sum(ends$term == "C"), nrow(con), sum(ends$n_sharing > 1)))
 print(table(term = ends$term, motif = ends$motif))
@@ -333,10 +369,6 @@ prec <- prec %>% filter(!is_chemokine(gene))
 cand <- prec %>%
   mutate(c = map2(seq, n_prot, lf_pepend_candidates)) %>%
   select(accession, gene, c) %>% unnest(c)
-## (under --amid-g-anchor the db_amid windows -- the residue before each G --
-## leave the TRAINING negatives only; `all` keeps them, so candidate-rank metrics
-## are taken over the same pool as before, now with them as the true end's
-## closest decoys)
 ## random anchors: the same number per terminus as there are db candidates,
 ## drawn uniformly over the mature residues of the non-ligand precursors
 pool_prec <- prec %>% filter(!gene %in% banned, c_prot - n_prot >= 10)
@@ -357,7 +389,7 @@ message("candidate windows:"); print(as.data.frame(count(cand, term, win_type)))
 near <- if (near_n > 0) {
   ends %>%
     select(accession, gene, term, parent = anchor, n_prot, c_prot,
-           pep_start, pep_end, pocket) %>%
+           pep_start, pep_end, pocket, seq) %>%
     tidyr::crossing(d = c(-rev(near_lo:near_hi), near_lo:near_hi)) %>%
     mutate(anchor = parent + d, win_type = "near_end") %>%
     filter(anchor >= n_prot, anchor <= c_prot) %>%
@@ -373,7 +405,7 @@ if (near_n > 0) {
   near$known_idx <- pmap(list(near$w_start, near$pep_start, near$pep_end,
                               nt_cut(near$term, near$anchor, near$n_prot),
                               ct_cut(near$term, near$anchor, near$c_prot),
-                              near$pocket), lf_pepend_labels)
+                              near$pocket, near$seq), lf_pepend_labels, gap = gap_class)
   message(sprintf("near-end anchors: %d (|offset| %d-%d, %d dropped as other known ends)",
                   nrow(near), near_lo, near_hi,
                   sum(duplicated(rbind(near[, c("accession","term","anchor")],
@@ -429,8 +461,7 @@ make_windows <- function(w) {
 }
 
 known_w <- make_windows(ends %>% select(accession, gene, term, anchor, win_type, n_prot, c_prot, known_idx,
-                                        pep_id, pep_ids, pep_name, pep_start, pep_end, pep_end_mature,
-                                        g_amid, len,
+                                        pep_id, pep_ids, pep_name, pep_start, pep_end, len,
                                         motif, insertion, at_candidate)) %>%
   mutate(known = 1)
 message("slicing ", nrow(cand), " candidate windows ...")
@@ -480,16 +511,17 @@ pad_key <- function(w) {
   R  <- pmax(0L, ws + LF_PEPEND$seq_len - 1L - ct_cut(w$term, w$anchor, w$c_prot))
   paste0("L", .pad_bin(L), "|R", .pad_bin(R))
 }
-mono_key <- function(w) {
-  s <- prec_seq[w$accession]
-  ifelse(lf_pepend_motif_vec_multi(s, w$term, w$anchor, w$n_prot) == "monobasic", "monobasic", "other")
-}
+## the motif each top-up matches, by its flag's name
+MATCH_MOTIF <- c(mono = "monobasic", db = "dibasic", amid = "G + dibasic")
+motif_match <- names(MATCH_MOTIF)[c(mono_match, db_match, amid_match)]
+motif_of  <- function(w) lf_pepend_motif_vec_multi(prec_seq[w$accession], w$term, w$anchor, w$n_prot)
+motif_key <- function(m) function(w) ifelse(motif_of(w) == m, m, "other")
 ## lf_pepend_motif_vec works within ONE precursor; this applies it per precursor
 lf_pepend_motif_vec_multi <- function(seq, term, anchor, n_prot) {
   out <- character(length(anchor))
   for (g in split(seq_along(anchor), paste(names(seq), term))) {
     i <- g[[1]]
-    out[g] <- lf_pepend_motif_vec(unname(seq[[i]]), term[[i]], anchor[g], n_prot[[i]], amid_g = amid_g)
+    out[g] <- lf_pepend_motif_vec(unname(seq[[i]]), term[[i]], anchor[g], n_prot[[i]])
   }
   out
 }
@@ -524,21 +556,39 @@ overlaps_annot <- function(w) {
     !is.null(a) && any(a$lo <= hi[i] & lo[i] <= a$hi)
   }, logical(1))
 }
+## every mature anchor of the pool precursors, with its motif -- once per
+## terminus, shared by the motif pools
+.all_anchors <- list()
+all_anchors <- function(t) {
+  if (is.null(.all_anchors[[t]])) {
+    pp <- pool_prec %>% filter(!is_chemokine(gene))
+    a <- bind_rows(lapply(seq_len(nrow(pp)), function(i)
+      tibble(accession = pp$accession[i], gene = pp$gene[i], term = t, anchor = pp$n_prot[i]:pp$c_prot[i],
+             n_prot = pp$n_prot[i], c_prot = pp$c_prot[i])))
+    a$motif <- motif_of(a)
+    .all_anchors[[t]] <<- a
+  }
+  .all_anchors[[t]]
+}
 build_pool <- function(t, what) {
-  pp <- pool_prec %>% filter(!is_chemokine(gene))
-  out <- bind_rows(lapply(seq_len(nrow(pp)), function(i) {
-    np <- pp$n_prot[i]; cp <- pp$c_prot[i]
-    a <- if (what == "pad") unique(c(np:min(cp, np + 35L), max(np, cp - 35L):cp)) else np:cp
-    tibble(accession = pp$accession[i], gene = pp$gene[i], term = t, anchor = a,
-           n_prot = np, c_prot = cp)
-  }))
-  out <- if (what == "pad") out[pad_key(out) != "L0|R0", ] else out[mono_key(out) == "monobasic", ]
+  if (what == "pad") {
+    pp <- pool_prec %>% filter(!is_chemokine(gene))
+    out <- bind_rows(lapply(seq_len(nrow(pp)), function(i) {
+      np <- pp$n_prot[i]; cp <- pp$c_prot[i]
+      tibble(accession = pp$accession[i], gene = pp$gene[i], term = t,
+             anchor = unique(c(np:min(cp, np + 35L), max(np, cp - 35L):cp)), n_prot = np, c_prot = cp)
+    }))
+    out <- out[pad_key(out) != "L0|R0", ]
+  } else {
+    out <- all_anchors(t) %>% filter(motif == MATCH_MOTIF[[what]]) %>% select(-motif)
+  }
   out <- out[!is_excluded(out$accession, out$anchor), ]
   n0 <- nrow(out); out <- out[!overlaps_annot(out), ]
   message(sprintf("  pool %s %s: %d anchors dropped for overlapping an annotated end", t, what, n0 - nrow(out)))
   out %>% mutate(w_start = lf_pepend_start(term, anchor),
                  peps = sprintf("%s_w%d-%d", gene, w_start, w_start + LF_PEPEND$seq_len - 1L),
-                 win_type = if (what == "pad") "pad_match" else "monobasic")
+                 win_type = switch(what, pad = "pad_match", mono = "monobasic",
+                                   db = "dibasic_match", amid = "amidation_match"))
 }
 ## add negatives from `pool` until, for every bin in `bins`, the bin's share of
 ## the negatives is at least its share of the positives
@@ -566,58 +616,66 @@ with_seed <- function(s, expr) {
   old <- .Random.seed; on.exit(assign(".Random.seed", old, envir = globalenv()))
   set.seed(s); expr
 }
-pools <- list()
-if (pad_match || mono_match) for (t in c("N", "C")) {
-  if (pad_match)  pools[[paste(t, "pad")]]  <- build_pool(t, "pad")
-  if (mono_match) pools[[paste(t, "mono")]] <- build_pool(t, "mono")
-  message(sprintf("top-up pools %s: pad %d, monobasic %d anchors", t,
-                  NROW(pools[[paste(t, "pad")]]), NROW(pools[[paste(t, "mono")]])))
+pools <- list(); amid_half <- list()
+if (pad_match || length(motif_match)) for (t in c("N", "C")) {
+  if (pad_match) pools[[paste(t, "pad")]] <- build_pool(t, "pad")
+  for (mm in motif_match) pools[[paste(t, mm)]] <- build_pool(t, mm)
+  ## The amidation pool is SMALL -- ~1,100 G + dibasic sites in the whole
+  ## non-ligand proteome, against positives that are a third amidated -- and the
+  ## train top-up, drawn first, would take all of it and leave val none. Split
+  ## it by precursor, balanced on site count, half for each split; the large
+  ## pools need no such thing.
+  if ("amid" %in% motif_match && NROW(pools[[paste(t, "amid")]])) {
+    n_site <- sort(table(pools[[paste(t, "amid")]]$accession), decreasing = TRUE)
+    h <- integer(length(n_site)); tot <- c(0, 0)
+    for (i in seq_along(n_site)) { j <- which.min(tot); h[i] <- j; tot[j] <- tot[j] + n_site[[i]] }
+    amid_half[[t]] <- setNames(h, names(n_site))
+    message(sprintf("  amidation pool %s: %d sites, split %d / %d by precursor", t, sum(n_site), tot[1], tot[2]))
+  }
+  message(sprintf("top-up pools %s: %s", t, paste(sprintf("%s %d", c(if (pad_match) "pad", motif_match),
+                  vapply(paste(t, c(if (pad_match) "pad", motif_match)), function(k) NROW(pools[[k]]), 0L)),
+                  collapse = ", ")))
 }
 ## positives and negatives carry n_prot/c_prot once sliced; the keys need them
-add_tops <- function(t, pos, neg, exclude, s) with_seed(s, {
+add_tops <- function(t, pos, neg, exclude, s, half) with_seed(s, {
   extra <- NULL
-  ## two rounds of monobasic then padding: each top-up dilutes the other's share
-  ## (the padded windows are mostly not monobasic and vice versa), and the
-  ## second round restores it. Each step only ever adds.
-  for (round in 1:2) {
-    if (mono_match) {
+  ## three rounds of the motif top-ups then padding: each top-up dilutes the
+  ## others' shares (a padded window is rarely at a motif, a dibasic one never at
+  ## a monobasic site), and the next round restores most of it. NOT more: the
+  ## positives' categories overlap (a dibasic end next to a precursor terminus is
+  ## both) and top-ups of one kind do not, so where the positives' shares sum
+  ## past 1 no number of rounds meets them all and every extra round only
+  ## inflates the set (six rounds took one fold's N val from 2,979 to 8,408
+  ## windows). Three lands the train shares within a few points (2026-11-12,
+  ## fold 1). Exact matching would need stratified top-ups, and since ~92% of
+  ## positives sit at a motif or a terminus, either ~10k negatives per split or
+  ## far fewer generic ones. Each step only ever adds. `half` is the split's
+  ## half of the amidation pool (1 train, 2 val).
+  for (round in 1:3) {
+    n_before <- NROW(extra)
+    for (mm in motif_match) {
       cur <- bind_rows(neg, extra)
-      extra <- bind_rows(extra, top_up(cur, pos, pools[[paste(t, "mono")]] %>% filter(!peps %in% pos$peps),
-                                       mono_key, "monobasic", c(exclude, cur$peps)))
+      pl <- pools[[paste(t, mm)]] %>% filter(!peps %in% pos$peps)
+      if (mm == "amid" && !is.null(amid_half[[t]])) pl <- pl[amid_half[[t]][pl$accession] %in% half, ]
+      extra <- bind_rows(extra, top_up(cur, pos, pl,
+                                       motif_key(MATCH_MOTIF[[mm]]), MATCH_MOTIF[[mm]], c(exclude, cur$peps)))
     }
     if (pad_match) {
       cur <- bind_rows(neg, extra)
       extra <- bind_rows(extra, top_up(cur, pos, pools[[paste(t, "pad")]] %>% filter(!peps %in% pos$peps),
                                        pad_key, setdiff(unique(pad_key(pos)), "L0|R0"), c(exclude, cur$peps)))
     }
+    if (NROW(extra) == n_before) break
   }
   if (is.null(extra) || !nrow(extra)) return(NULL)
   make_windows(extra %>% select(accession, gene, term, anchor, win_type, n_prot, c_prot)) %>%
     mutate(known = 0)
 })
 
-## --amid-g-anchor: the C folds are the OLD convention's folds. Clustering the
-## shifted set reshuffles them -- GLP-1's two C ends merge on the G, one end
-## fewer moves hclust's cluster order, and folds are dealt every n_folds-th
-## cluster -- so ~20 of 85 C ends would change fold and no comparison with an
-## old arm would be paired. Cluster the mature-end set exactly as the old build
-## did, then give every new end the split of its mature end.
-split_by_mature <- function(k) {
-  em <- con_mature %>% mutate(term = "C", anchor = pep_end, len = pep_end - pep_start + 1L) %>%
-    group_by(accession, term, anchor) %>% arrange(len, .by_group = TRUE) %>% slice(1) %>% ungroup() %>%
-    mutate(w_start = lf_pepend_start(term, anchor))
-  sp_m <- split_knowns(em)
-  val_key <- paste(em$accession[sp_m$val], em$anchor[sp_m$val])
-  key <- paste(k$accession, k$pep_end_mature)
-  stopifnot(all(key %in% paste(em$accession, em$anchor)))
-  list(train = which(!key %in% val_key), val = which(key %in% val_key))
-}
-
 nn_input <- lapply(c(N = "N", C = "C"), function(t) {
   k   <- known_w %>% filter(term == t)
-  sp  <- if (amid_g && t == "C") split_by_mature(k) else split_knowns(k)
-  neg_c <- cand_w %>% filter(term == t, !gene %in% banned, !peps %in% k$peps,
-                            !(amid_g & win_type == "db_amid"))
+  sp  <- split_knowns(k)
+  neg_c <- cand_w %>% filter(term == t, !gene %in% banned, !peps %in% k$peps)
   neg_r <- rand_w %>% filter(term == t, !peps %in% k$peps)
   n_r <- round(n_ctrl * random_frac)
   n_n <- if (is.null(near_w)) 0L else min(near_n, n_ctrl - n_r)
@@ -638,18 +696,20 @@ nn_input <- lapply(c(N = "N", C = "C"), function(t) {
   va_neg <- bind_rows(draw_negatives(neg_c, n_ctrl - n_r - n_n, tr_neg$peps),
                       draw_negatives(neg_r, n_r, tr_neg$peps),
                       if (n_n > 0) draw_negatives(near_va, n_n, tr_neg$peps))
-  if (pad_match || mono_match) {
+  if (pad_match || length(motif_match)) {
     s0 <- seed + 1000L + if (t == "C") 100L else 0L
-    tr_top <- add_tops(t, k[sp$train, ], tr_neg, k$peps, s0 + 1L)
+    tr_top <- add_tops(t, k[sp$train, ], tr_neg, k$peps, s0 + 1L, half = 1L)
     tr_neg <- bind_rows(tr_neg, tr_top)
-    va_top <- add_tops(t, k[sp$val, ], va_neg, c(k$peps, tr_neg$peps), s0 + 2L)
+    va_top <- add_tops(t, k[sp$val, ], va_neg, c(k$peps, tr_neg$peps), s0 + 2L, half = 2L)
     va_neg <- bind_rows(va_neg, va_top)
     for (s in c("train", "val")) {
       pos <- k[sp[[s]], ]; neg <- if (s == "train") tr_neg else va_neg
-      message(sprintf("%s %-5s top-up: +%d negatives | padded windows pos %.2f neg %.2f | monobasic pos %.2f neg %.2f",
+      mp <- motif_of(pos); mn <- motif_of(neg)
+      message(sprintf("%s %-5s top-up: +%d negatives | share pos / neg: padded %.2f / %.2f%s",
                       t, s, NROW(if (s == "train") tr_top else va_top),
                       mean(pad_key(pos) != "L0|R0"), mean(pad_key(neg) != "L0|R0"),
-                      mean(mono_key(pos) == "monobasic"), mean(mono_key(neg) == "monobasic")))
+                      paste(sprintf(" | %s %.2f / %.2f", MATCH_MOTIF, vapply(MATCH_MOTIF, function(m) mean(mp == m), 0),
+                                    vapply(MATCH_MOTIF, function(m) mean(mn == m), 0)), collapse = "")))
     }
   }
   list(train = bind_rows(k[sp$train, ], tr_neg),
@@ -666,22 +726,23 @@ knowns <- bind_rows(lapply(names(nn_input), function(t) {
 })) %>%
   mutate(AA = map(meta_data, "AA")) %>%
   select(peps, gene, accession, term, anchor, w_start, pep_id, pep_ids, pep_name, pep_start, pep_end,
-         pep_end_mature, g_amid, len, motif, insertion, at_candidate, split, AA, known_idx)
+         len, motif, insertion, at_candidate, split, AA, known_idx)
 
 for (t in names(nn_input)) for (s in c("train", "val", "all")) {
   x <- nn_input[[t]][[s]]
   stopifnot(all(map_int(x$data, nrow) == 36L), all(lengths(x$known_idx) == 36L),
-            all(unlist(x$known_idx) %in% LF_PEPEND_CLASSES))
+            all(unlist(x$known_idx) %in% pe_classes))
   message(sprintf("%s %-5s %6d windows, %3d known", t, s, nrow(x), sum(x$known)))
 }
 
-saveRDS(list(nn_input = nn_input, all_params3 = all_params3, class_names = LF_PEPEND_CLASSES,
+saveRDS(list(nn_input = nn_input, all_params3 = all_params3, class_names = pe_classes,
              knowns = knowns,
              params = list(n_ctrl = n_ctrl, random_frac = random_frac, val_frac = val_frac,
                            n_folds = n_folds, fold = if (n_folds > 0) fold_k else NA_integer_,
                            swap_splits = swap_splits, ct_pad = ct_pad, nt_pad = nt_pad,
                            near_n = near_n, near_lo = near_lo, near_hi = near_hi,
-                           amid_g = amid_g, pad_match = pad_match, mono_match = mono_match,
+                           pad_match = pad_match, mono_match = mono_match, db_match = db_match,
+                           amid_match = amid_match, gap_class = gap_class, dssp_index = cache_dssp_index,
                            code_md5 = unname(tools::md5sum(c(file.path(ROOT, "inst/scripts/10_7_pepend_windows.R"),
                                                              file.path(ROOT, "R/pepend_windows.R")))),
                            git_rev = tryCatch(system2("git", c("-C", ROOT, "rev-parse", "HEAD"), stdout = TRUE),

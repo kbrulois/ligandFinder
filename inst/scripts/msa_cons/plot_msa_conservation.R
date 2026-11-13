@@ -5,15 +5,14 @@
 ## a per-residue score from each precursor's ColabFold MSA. Two figures:
 ##
 ##   msacons_examples     six precursors, both channels on one 0-1 axis, the
-##                        known peptides and their ends (G + dibasic C ends on
-##                        the G, as the _padg windows anchor them)
+##                        known peptides and their ends
 ##   msacons_end_summary  both channels at residues near known ends against
 ##                        every other scored residue, AUC with a gene bootstrap
 ##
 ## EXAMPLES, BY RULE (lf_msacons_select in R/plot_msa_conservation.R):
-##   3 classics -- of ADCYAP1, GCG, POMC, NPY, CALCA, PENK: the most G + dibasic
-##     trained C ends (where the _padg convention moved the end onto the G),
-##     then the most trained ends, then the deeper MSA;
+##   3 classics -- of ADCYAP1, GCG, POMC, NPY, CALCA, PENK: the most trained C
+##     ends followed by G + dibasic (amidated peptides), then the most trained
+##     ends, then the deeper MSA;
 ##   1 never-seen gene -- the most ends in the never-seen peptide set (< 60 aa),
 ##     ties to the deeper MSA;
 ##   1 more never-seen peptide gene, so the excluded-by-design band has an
@@ -46,7 +45,7 @@ dpi     <- as.integer(.opt("--dpi", "170"))
 
 .this <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
 ROOT  <- if (length(.this)) normalizePath(file.path(dirname(.this[[1]]), "..", "..", "..")) else getwd()
-## pepend_windows.R: lf_pepend_motif_vec (amid_g); plot_proteins_win_new.R:
+## pepend_windows.R: lf_pepend_motif_vec; plot_proteins_win_new.R:
 ## nn_class_cols; viz_theme.R: LF_VIZ + lf_viz_theme; pepend_tracks.R: LF_TERM_COLS
 for (f in c("pepend_windows.R", "plot_proteins_win_new.R", "viz_theme.R", "pepend_tracks.R",
             "plot_msa_conservation.R"))
@@ -178,7 +177,7 @@ top_txt <- paste(c(top_old[top > 0, sprintf("%s %.2f", gene, top)],
                  collapse = ", ")
 top_all <- res[excluded == FALSE & old > 0, .(top = max(old)), by = accession]$top
 ## the listed peptides drawn with grey ends, by gene in figure order, for the caption
-unl <- lf_msacons_unlisted(spans, ends, prec)
+unl <- lf_msacons_unlisted(spans, ends)
 unl[, gene := factor(prec$gene[match(accession, prec$accession)], levels = sel$gene)]
 unl_txt <- unl[order(gene), .(n = paste(name, collapse = ", ")), by = gene][, paste(gene, n, collapse = "; ")]
 
@@ -215,8 +214,8 @@ fig <- patchwork::wrap_plots(c(list(key), plots),
       paste0(
         if (nzchar(genes)) "Examples asked for with --genes; one the rule also picks keeps the rule's reason in its subtitle. "
         else paste0(
-          "Examples by rule. CLASSICS: of ADCYAP1, GCG, POMC, NPY, CALCA and PENK, the three with the most G + dibasic ",
-          "trained C ends (where the _padg windows moved the end onto the G), then the most trained ends, then neff. ",
+          "Examples by rule. CLASSICS: of ADCYAP1, GCG, POMC, NPY, CALCA and PENK, the three with the most trained C ends ",
+          "followed by G + dibasic (amidated peptides), then the most trained ends, then neff. ",
           "NEVER-SEEN (genes no fold trained on): the most ends in the never-seen peptide set (< 60 aa), ties to the deeper ",
           "MSA; and, so the excluded-by-design band has an example, the most never-seen peptide ends among precursors with ",
           "excluded residues, ties to the shorter one. SHALLOW: the lowest neff of any gene with a known end. "),
@@ -224,9 +223,9 @@ fig <- patchwork::wrap_plots(c(list(key), plots),
           "Dashed = the same score with the prior switched off (msa_conservation.py's score_one at prior 0, same min-max)",
           if (length(deep)) sprintf("; on the other %d the prior moves no residue's raw score by more than %.3f, so they get no dashed line",
                                     length(deep), max(prior_shift[deep])), ".")),
-      paste0("Ends: trained = lf_pepend_cv5_knowns_{N,C}_padg.csv; never-seen = cv5_unseen_ends_padg.csv, C ends moved onto ",
-             "the G where G + dibasic follows. Spans: ligand_list.rds (mature peptides). MSA depth = sequences incl. the ",
-             "query; neff = exp(entropy of the Henikoff weights)."),
+      paste0("Ends: trained = ", basename(sprintf(LF_MSACONS_PATHS$knowns, "{N,C}")), "; never-seen = ",
+             basename(LF_MSACONS_PATHS$unseen), ". Spans: ligand_list.rds (mature peptides). MSA depth = sequences ",
+             "incl. the query; neff = exp(entropy of the Henikoff weights)."),
       if (nzchar(unl_txt)) paste0(
         "Grey ends (", unl_txt, ") belong to listed peptides that neither end table holds: the trained ends are 10_7's ",
         "DOCKED peptides (knowns.rds), so on a trained gene a listed peptide that was never docked has none."),
@@ -295,7 +294,7 @@ p2 <- lf_msacons_summary_plot(es, cols) +
                         "WHICH PROTEIN, the new one which residue."),
                  es$spearman, 100 * es$between[["old"]], 100 * es$between[["new"]]),
          model_txt,
-         paste0("Ends at the windows' anchors (G + dibasic C ends on the G). Large cleavage products = the never-seen set's ",
+         paste0("Large cleavage products = the never-seen set's ",
                 "longer chains: chemokines, interleukins, TNF family, WNTs, BMPs, growth factors ..."),
          sprintf("Built %s by inst/scripts/msa_cons/plot_msa_conservation.R; numbers in msacons_end_summary.csv.",
                  format(Sys.Date())))) +

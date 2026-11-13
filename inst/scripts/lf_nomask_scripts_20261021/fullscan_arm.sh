@@ -66,8 +66,12 @@ for k in 1 2 3 4 5; do for T in C N; do
 done; done
 [[ $missing -eq 0 ]] || exit 1
 
-## the check that stands between a mis-ordered table and a proteome of nonsense
+## the check that stands between a mis-ordered table and a proteome of nonsense.
+## RESID_BASE (arm file): the curated table the arm's channels come from, as in
+## stage 2 -- without it an arm on the v2 feature join (2026-11-12) is checked
+## against the old table and fails on the remapped precursors (relASA).
 $PY_PLM $S/check_resid_order.py --arm $ARM --plm $PLM --residues-npz $RESID \
+  ${RESID_BASE:+--curated-npz=$RESID_BASE} \
   || { echo "residue table does not match the trunks -- not scanning"; exit 1; }
 
 echo "FULL SCAN arm=$ARM start $(date '+%F %H:%M:%S')  ($PROCS at a time)"

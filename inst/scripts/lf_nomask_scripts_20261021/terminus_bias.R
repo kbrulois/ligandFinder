@@ -29,11 +29,15 @@
 ##   3 AFTER    the share scoring CNN > 0.5 by distance bin, every arm in ARMS:
 ##     at the terminus N 17.5% -> 5.7%, C 16.8% -> 3.3%; 1-3 residues in
 ##     N 9.7% -> 1.3%, C 5.2% -> 1.2%; a terminus/interior ratio of 38-99x stays,
-##     because real peptide ends do concentrate there.
+##     because real peptide ends do concentrate there. (Those AFTER numbers are
+##     the two _padg arms', whose arm files are gone since 2026-11-12:
+##     ARM_PIPELINE_README.md, history.)
 ##
-## "Unlabelled" = not a known end of the arm's own fold input (so at the arm's
-## own anchor convention, arm_conv.R), on a gene outside that input's `banned`
-## list (the known ligands; every known end's gene is on it). Residues excluded
+## Each arm's training windows are its INPUT_SFX in arms/<arm>.sh, so an arm
+## with no arm file (other than the curated baseline) is refused.
+## "Unlabelled" = not a known end of the arm's own fold input, on a gene outside
+## that input's `banned` list (the known ligands; every known end's gene is on
+## it). Residues excluded
 ## BY DESIGN -- cons_rs_n, min_afm, mean_afm and relASA all exactly 0 at the
 ## anchor, i.e. intracellular / TM -- are left out of 2 and 3; those zeros are
 ## topology, not missing data. Distance = anchor - n_prot (N), c_prot - anchor
@@ -46,8 +50,7 @@
 ## 2026-11-10/11 numbers were; nothing here is a held-out metric.
 ##
 ##   LC_ALL=en_US.UTF-8 Rscript terminus_bias.R
-##   ARMS=curated_AAswap,curated_AAswap_padg BEFORE_ARM=curated_AAswap_padg \
-##     HEADCMP=/tmp/tb LC_ALL=en_US.UTF-8 Rscript terminus_bias.R
+##   ARMS=curated_AAswap,msa BEFORE_ARM=msa HEADCMP=/tmp/tb LC_ALL=en_US.UTF-8 Rscript terminus_bias.R
 ##
 ## Writes to HEADCMP (default ~/AF2_analysis/lf_headcmp):
 ##   terminus_bias_windows.csv          1: window counts by set x term x split x
@@ -55,27 +58,34 @@
 ##   terminus_bias_before_<arm>.csv     2: by distance bin, CNN and xgb
 ##   terminus_bias.csv                  3: term x arm x distance bin
 ##   terminus_bias.png                  1 above 3, on the same distance bins
-## ~2.5 GB of RAM and under a minute: the residue cache, two fold inputs, then
-## six 150 MB track files one at a time.
+## ~2.5 GB of RAM and under a minute: the residue cache, one fold input per
+## window set, then two 150 MB track files per arm, one at a time.
 suppressMessages({library(dplyr); library(data.table); library(ggplot2); library(patchwork)})
 A2 <- path.expand("~/AF2_analysis")
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
 source(file.path(.lf_here, "lf_paths.R"))
-## arm_var() / arm_amid_g(): each arm's training windows and C-end convention
-source(file.path(Sys.getenv("LF_SCRIPTS", .lf_here), "arm_conv.R"))
+## arm_var(): each arm's training windows (INPUT_SFX in arms/<arm>.sh)
+source(file.path(Sys.getenv("LF_SCRIPTS", .lf_here), "arm_vars.R"))
 source(lf_src("R/pepend_windows.R"))   # lf_pepend_motif, lf_pepend_motif_vec
 source(lf_src("R/viz_theme.R"))        # LF_VIZ, lf_viz_theme
 
-ARMS <- strsplit(Sys.getenv("ARMS", "curated_AAswap,curated_AAswap_padg,curated_AAswap_msacons_padg"), ",")[[1]]
+ARMS <- strsplit(Sys.getenv("ARMS", "curated_AAswap"), ",")[[1]]
 if (length(ARMS) > 3) stop("the figure has three colour slots; pass at most three ARMS", call. = FALSE)
 BEFORE_ARM <- Sys.getenv("BEFORE_ARM", "curated_AAswap")
+## an arm's training windows are its INPUT_SFX in arms/<arm>.sh: an arm with no
+## arm file (other than the curated baseline) stops here, before anything is
+## read, rather than being read on the original windows
+is_base <- function(arm) arm %in% c("", "curated", "flatten")
+for (a in union(ARMS, BEFORE_ARM))
+  if (!is_base(a) && !file.exists(file.path(.lf_scripts, "arms", paste0(a, ".sh"))))
+    stop("no arms/", a, ".sh: its training windows are unknown, and reading it on the original ",
+         "ones would misdescribe it", call. = FALSE)
 FOLD <- as.integer(Sys.getenv("FOLD", "1"))   # any fold: all five hold the same knowns
 HC <- path.expand(Sys.getenv("HEADCMP", file.path(A2, "lf_headcmp")))
 dir.create(HC, showWarnings = FALSE, recursive = TRUE)
-## the 2026-11-11 table's names for the three arms; any other arm keeps its own
-LAB <- c(curated_AAswap = "old windows", curated_AAswap_padg = "padg",
-         curated_AAswap_msacons_padg = "padg + MSA cons")
+## the 2026-11-11 table's name for the original-windows arm; any other arm keeps its own
+LAB <- c(curated_AAswap = "old windows")
 lab <- function(a) unname(ifelse(a %in% names(LAB), LAB[a], a))
 BINS <- c("0 (terminus)", "1-3", "4-7", "8-15", ">15")
 bin5 <- function(d) cut(d, c(-Inf, 0, 3, 7, 15, Inf), labels = BINS)
@@ -88,19 +98,14 @@ excl  <- rbindlist(lapply(names(cache$feats), function(a) { m <- cache$feats[[a]
 rm(cache); invisible(gc())
 
 ## An arm's fold input (its INPUT_SFX, arms/<arm>.sh): the train + val windows,
-## the known ends at the arm's own anchor convention and the banned genes. The
-## inputs are ~90 MB each, so each window set is read once and only this kept.
+## the known ends and the banned genes. The inputs are ~90 MB each, so each
+## window set is read once and only this kept.
 .inputs <- list()
 fold_input <- function(arm) {
   sfx <- arm_var(arm, "INPUT_SFX"); key <- paste0("f", sfx)
   if (is.null(.inputs[[key]])) {
     f <- file.path(A2, sprintf("lf_pepend_nn_input_cv5_f%d%s.rds", FOLD, sfx))
     x <- readRDS(f)
-    ## an arm file pointing at another convention's windows would grade every
-    ## moved C end one residue off
-    if (!identical(isTRUE(x$params$amid_g), arm_amid_g(arm)))
-      stop(basename(f), " has amid_g=", isTRUE(x$params$amid_g), " but arms/", arm,
-           ".sh says ", arm_amid_g(arm), call. = FALSE)
     win <- rbindlist(lapply(c("N", "C"), function(t) rbindlist(lapply(c("train", "val"), function(s) {
       d <- x$nn_input[[t]][[s]]
       data.table(term = t, split = s, accession = d$accession, anchor = as.integer(d$anchor),
@@ -109,7 +114,7 @@ fold_input <- function(arm) {
     }))))
     .inputs[[key]] <<- list(windows = sub("\\.rds$", "", sub("^lf_pepend_nn_input_", "", basename(f))),
                             name = if (nzchar(sfx)) paste(sub("^_", "", sfx), "windows") else "old windows",
-                            amid_g = isTRUE(x$params$amid_g), win = win, banned = x$params$banned,
+                            win = win, banned = x$params$banned,
                             known = paste(x$knowns$accession, x$knowns$term, x$knowns$anchor))
     rm(x); invisible(gc())
   }
@@ -123,7 +128,7 @@ W1 <- rbindlist(lapply(win_arms, function(a) {
   d <- merge(fi$win, prec[, .(accession, seq, n_prot, c_prot)], by = "accession", sort = FALSE)
   stopifnot(nrow(d) == nrow(fi$win))
   d[, `:=`(windows = fi$windows, name = fi$name,
-           motif   = lf_pepend_motif(seq, term, anchor, n_prot, amid_g = fi$amid_g),
+           motif   = lf_pepend_motif(seq, term, anchor, n_prot),
            dist    = ifelse(term == "N", anchor - n_prot, c_prot - anchor),
            group   = ifelse(known == 1, "POS", paste0("neg_", win_type)))][, seq := NULL]
 }))
@@ -181,7 +186,7 @@ scored <- function(t, arm) {
 
 before <- function(tr, t, arm) {
   fi <- fold_input(arm)
-  tr[, motif := lf_pepend_motif_vec(seq[1], t, anchor, n_prot[1], amid_g = fi$amid_g), by = accession]
+  tr[, motif := lf_pepend_motif_vec(seq[1], t, anchor, n_prot[1]), by = accession]
   neg <- tr[!known & !gene %in% fi$banned & dist >= 0]
   neg[, dbin := cut(dist, c(-Inf, 0, 3, 7, 15, 40, Inf), labels = c("0 (terminus)", "1-3", "4-7", "8-15", "16-40", ">40"))]
   cat("\n=====", arm, t, "unlabelled anchors of non-ligand precursors, NOT excluded;",
@@ -232,7 +237,7 @@ sets <- unique(W1$name)
 arm_set <- vapply(ARMS, function(a) fold_input(a)$name, "")
 pal <- setNames(c(LF_VIZ$s1, LF_VIZ$s2, LF_VIZ$s3)[seq_along(ARMS)], lab(ARMS))
 set_col <- setNames(pal[lab(ARMS[match(sets, arm_set)])], paste("negatives,", sets))
-pos_set <- tail(sets, 1)       # the knowns of the newest set: they differ only by the C G shift
+pos_set <- tail(sets, 1)       # the known ends of the last set read (every set holds the same ends)
 c1 <- W1[known == 0, .(n = .N), keyby = .(name, term, bin = bin5(dist))]
 c1 <- rbind(c1[, .(series = paste("negatives,", name), term, bin, n)],
             W1[known == 1 & name == pos_set, .(n = .N), keyby = .(term, bin = bin5(dist))][, series := "known ends"])
@@ -266,10 +271,13 @@ p2 <- ggplot(R, aes(bin, frac_gt_0.5, colour = label, group = label)) +
                          "each anchor scored by the mean of the five per-fold trunks"),
        x = "distance of the anchor from the precursor's mature terminus (residues)",
        y = "share scoring CNN > 0.5 (log)",
-       caption = if ("padg windows" %in% sets)
-         paste0("padg windows: 10_7 --pad-match --mono-match --amid-g-anchor -- negatives topped up to ",
-                "the positives' padding and monobasic shares per split,\nC ends followed by G + dibasic ",
-                "anchored on the G. Known ends drawn from the ", pos_set, ".")) +
+       ## each window set other than the original, with the 10_7 params its arm asserts
+       caption = if (length(sets) > 1) paste(strwrap(paste0(
+         paste(vapply(win_arms[nzchar(vapply(win_arms, arm_var, "", var = "INPUT_SFX"))], function(a) {
+           fl <- arm_var(a, "INPUT_FLAGS")
+           paste0(fold_input(a)$name, if (nzchar(fl)) sprintf(" (10_7 params %s)", fl) else "")
+         }, ""), collapse = "; "),
+         ". Known ends drawn from the ", pos_set, "."), 130), collapse = "\n")) +
   lf_viz_theme(10) + theme(legend.position = "top", legend.justification = "left")
 png_f <- file.path(HC, "terminus_bias.png")
 ggsave(png_f, p1 / p2 + plot_layout(heights = c(1, 1.15)), width = 9, height = 8.5, dpi = 200, bg = LF_VIZ$surface)

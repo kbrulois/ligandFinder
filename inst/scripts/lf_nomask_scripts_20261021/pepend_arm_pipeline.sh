@@ -126,7 +126,10 @@ if run 2 residues; then
     say "stage 2: building the arm's $N_CHAN_EXPECT-channel residue table"
     mk_resid || { say "STAGE 2 FAILED"; exit 1; }
   fi
+  ## RESID_BASE (arm file): the curated table the arm's channels come from, when it
+  ## is not the default lf_pepend_residues.npz (the v2 feature join, 2026-11-12)
   $PY_PLM $S/check_resid_order.py --arm $ARM --plm $PLM --residues-npz $RESID \
+    ${RESID_BASE:+--curated-npz=$RESID_BASE} \
     || { say "STAGE 2: residue table does not match the trunks"; exit 1; }
 fi
 

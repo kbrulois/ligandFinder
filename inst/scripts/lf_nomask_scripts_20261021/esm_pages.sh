@@ -29,19 +29,18 @@ export PAGES_R=${PAGES_R:-final_pages_arms.R}
 ## annotate from. Read (not sourced) out of arms/<arm>.sh so the arm file's
 ## training-time guards do not run in a render script; EXPORTED because the
 ## chunk children are re-entered through xargs and would otherwise silently
-## annotate from the full (mature) set.
+## annotate from the full set.
 INPUT_SFX=$(sed -n 's/^INPUT_SFX=//p' $S/arms/$ARM.sh 2>/dev/null | head -1 | tr -d '"'"'"'"')
 export UNSEEN_SFX=${UNSEEN_SFX:-${INPUT_SFX:-}}
-export LF_SCRIPTS=${LF_SCRIPTS:-$S}
 ## the gallery title names the arms it actually drew, so a gallery cannot
 ## claim an arm set it does not have.
-## A _padg arm is its own end convention (a C end before G + dibasic is anchored
-## ON THE G), so it does not belong beside the other extra arms: it is the only
-## extra arm drawn (the base curated arm is always there), and the title says so.
-## Both are still overridable.
-if [[ $ARM == *_padg ]]; then
+## An arm on its own training windows (INPUT_SFX) is the only extra arm drawn
+## (the base curated arm is always there): the default extra arms below were
+## trained on the original windows. The title names its windows. Both are
+## still overridable; final_pages_arms.R needs an ARM_REG row for the arm.
+if [[ -n ${INPUT_SFX:-} ]]; then
   export ARMS=${ARMS:-$ARM}
-  TITLE=${TITLE:-"LigandFinder — peptide-end pages, linear window head (5-fold CV): curated and $ARM (padg windows; C ends anchored on the amidation G)"}
+  TITLE=${TITLE:-"LigandFinder — peptide-end pages, linear window head (5-fold CV): curated and $ARM (${INPUT_SFX#_} windows)"}
 else
   export ARMS=${ARMS:-esmonly36,curated_wAAid}
   TITLE=${TITLE:-"LigandFinder — peptide-end pages, linear window head (5-fold CV): curated, ESM-C only and curated + AA ID"}
