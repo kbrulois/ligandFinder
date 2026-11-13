@@ -74,7 +74,7 @@ lf_pepend_labels <- function(w_start, pep_start, pep_end, n_prot, c_prot,
          ifelse(r %in% pocket, "pep_pocket", "pep_other")))
   if (gap) {
     if (is.null(seq)) stop("lf_pepend_labels(gap = TRUE) needs the precursor sequence", call. = FALSE)
-    lab[r %in% lf_pepend_gap(seq, pep_start, pep_end, min(r), max(r))] <- "gap"
+    lab[r %in% lf_pepend_gap(seq, pep_start, pep_end)] <- "gap"
   }
   lab[r < n_prot | r > c_prot] <- "padding"
   lab
@@ -84,29 +84,34 @@ lf_pepend_labels <- function(w_start, pep_start, pep_end, n_prot, c_prot,
 #'
 #' Kevin, 2026-11-12: "any residue between a dibasic site and the peptide
 #' (usually just a single G residue)". On each side, the nearest pair of basic
-#' residues (KK/KR/RK/RR) that starts within `[lo, hi]` -- the window -- and the
-#' residues between it and the peptide are the gap; a pair right next to the
-#' peptide leaves no gap, and a side with no pair in the window has none. On the
-#' 2026-11-12 known ends that is 30 C ends with one residue (always G), one with
-#' three (GFL), and 3 of 92 N ends (FA, QGP, HDEFER).
+#' residues (KK/KR/RK/RR) that starts within the 7 residues of cleavage context
+#' next to the peptide -- at most `max_gap` residues away -- and the residues
+#' between it and the peptide are the gap; a pair right next to the peptide
+#' leaves no gap, and a side with no such pair has none. The reach is fixed
+#' from the peptide, NOT the window: a C window also covers a short peptide's N
+#' side, up to 27 residues back, and a search to the window edge labelled 15
+#' residues of KNG1's bradykinin gap there (a KK pair at its edge) but none in
+#' the same peptide's N window. On the 2026-11-12 known ends: 30 C ends with one
+#' residue (always G), one with three (GFL), and 3 of 92 N ends (FA, QGP, HDEFER).
 #'
 #' @param seq precursor sequence.
 #' @param pep_start,pep_end the peptide, in precursor coordinates.
-#' @param lo,hi the precursor coordinates the search may reach (the window).
+#' @param max_gap the most residues a gap can have (6: the pair starts inside
+#'   the 7-residue context).
 #' @return integer precursor coordinates of the gap residues (possibly none).
 #' @export
-lf_pepend_gap <- function(seq, pep_start, pep_end, lo, hi) {
+lf_pepend_gap <- function(seq, pep_start, pep_end, max_gap = 6L) {
   aa <- strsplit(seq, "", fixed = TRUE)[[1]]
   basic <- function(i) i >= 1L && i <= length(aa) && aa[[i]] %in% c("K", "R")
   out <- integer(0)
   ## C side: the pair at (pep_end + g + 1, pep_end + g + 2), g residues after the end
-  for (g in seq_len(max(0L, hi - pep_end)) - 1L)
+  for (g in 0:max_gap)
     if (basic(pep_end + g + 1L) && basic(pep_end + g + 2L)) {
       if (g > 0L) out <- c(out, pep_end + seq_len(g))
       break
     }
   ## N side: the pair at (pep_start - g - 2, pep_start - g - 1), g residues before the start
-  for (g in seq_len(max(0L, pep_start - lo)) - 1L)
+  for (g in 0:max_gap)
     if (basic(pep_start - g - 2L) && basic(pep_start - g - 1L)) {
       if (g > 0L) out <- c(out, pep_start - seq_len(g))
       break

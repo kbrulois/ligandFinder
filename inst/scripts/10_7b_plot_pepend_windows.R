@@ -31,6 +31,10 @@ suppressMessages({ library(dplyr); library(tidyr); library(ggplot2) })
 }
 in_path <- path.expand(.opt("--in", "~/AF2_analysis/lf_pepend_nn_input.rds"))
 out_dir <- path.expand(.opt("--out-dir", "~/AF2_analysis"))
+## --term C (or N): draw one terminus's panel alone (Kevin, 2026-11-12: "a plot of
+## the new 7 class training set of c terminal known peptides aligned at their anchor")
+terms   <- toupper(strsplit(.opt("--term", "N,C"), ",")[[1]])
+stopifnot(length(terms) > 0, all(terms %in% c("N", "C")))
 stamp   <- format(Sys.time(), "%Y%m%d_%H%M%S")
 
 .this <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
@@ -91,6 +95,10 @@ k <- k %>%
                          ifelse(grepl(";", pep_ids), " | shared", ""))) %>%
   arrange(term, ins_class, len, gene) %>%
   group_by(term) %>% mutate(y = rev(row_number())) %>% ungroup()
+## the panels to draw; the factor keeps both levels, so `cut` below still pairs
+## each terminus with its own cut position
+drawn <- levels(k$term)[c("N", "C") %in% terms]
+k <- k %>% filter(term %in% drawn)
 
 tiles <- k %>%
   select(term, y, row, split, AA, known_idx) %>%
@@ -141,10 +149,12 @@ mk <- function(t) {
           legend.position = "bottom")
 }
 
-p <- patchwork::wrap_plots(lapply(levels(k$term), mk), nrow = 1, guides = "collect") +
+p <- patchwork::wrap_plots(lapply(drawn, mk), nrow = 1, guides = "collect") +
   patchwork::plot_annotation(
-    title = sprintf("Peptide-end training windows: %d N and %d C, from %d docked peptides (chemokines excluded)",
-                    sum(k$term == levels(k$term)[1]), sum(k$term == levels(k$term)[2]),
+    title = sprintf("Peptide-end training windows%s: %s, from %d docked peptides (chemokines excluded)",
+                    if (gap_class) " (7 classes, with gap)" else "",
+                    paste(sprintf("%d %s", vapply(drawn, function(l) sum(k$term == l), 0L),
+                                  substr(drawn, 1, 1)), collapse = " and "),
                     length(unique(unlist(strsplit(k$pep_ids, ";"))))),
     subtitle = paste0(if (ct_pad) "CT-PADDED: every C window is cut at its anchor, so positions 29-36 are padding whatever follows the peptide.\n" else "",
                       if (gap_class) paste0("Labels: before the peptide = NT context, after it = CT context (DB merged ",
@@ -167,9 +177,20 @@ p <- patchwork::wrap_plots(lapply(levels(k$term), mk), nrow = 1, guides = "colle
 
 n_rows <- max(table(k$term))
 h <- 2 + 0.115 * n_rows
-f <- file.path(out_dir, sprintf("pepend_windows_aligned_%s%s.svg", if (ct_pad) "ctpad_" else "", stamp))
-ggsave(f, p, width = 20, height = h, limitsize = FALSE)
+## one panel is half as wide, so the subtitle's long lines must wrap; the plot
+## grows by the lines that adds
+if (length(drawn) == 1) {
+  st <- p$patches$annotation$subtitle
+  st_w <- unlist(lapply(strsplit(st, "\n", fixed = TRUE)[[1]], strwrap, width = 125))
+  p <- p + patchwork::plot_annotation(subtitle = paste(st_w, collapse = "\n"))
+  h <- h + 0.17 * (length(st_w) - length(strsplit(st, "\n", fixed = TRUE)[[1]]))
+}
+f <- file.path(out_dir, sprintf("pepend_windows_aligned_%s%s%s%s.svg", if (ct_pad) "ctpad_" else "",
+                                 if (gap_class) "gap_" else "",
+                                 if (length(drawn) == 1) paste0(substr(drawn, 1, 1), "_") else "", stamp))
+w <- 10 * length(drawn) + if (length(drawn) == 1) 1.5 else 0
+ggsave(f, p, width = w, height = h, limitsize = FALSE)
 ## and a PNG to look at; 200 dpi keeps the 1.7 mm residue letters readable
-ggsave(sub("\\.svg$", ".png", f), p, width = 20, height = h, dpi = 200,
+ggsave(sub("\\.svg$", ".png", f), p, width = w, height = h, dpi = 200,
        bg = "white", limitsize = FALSE)
 message("wrote ", f, " (+ .png)")
