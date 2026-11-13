@@ -26,6 +26,11 @@
 #   PROCS     parallel jobs                               4
 #   STAGES    comma list of numbers or names, or "all"    all
 #   SHAP_ARMS which arms to attribute in stage 8          "$ARM curated"
+#   CMP_ARMS  stage 6's comparison figures (viz_pipeline.sh): the arms this one
+#             is drawn against, comma-separated; the LAST is the paired one
+#                                                                 curated_AAswap
+#   FIG_OUT   where those figures go                    ~/AF2_analysis/lf_viz_<today>
+#   FIGS      0 = skip them; VIZ_STAGES = which; VIZ_SHAP=0 = no TensorFlow   1
 #
 # STAGES (number or name; both are accepted)
 #   0 channels  build the arm's extra per-residue parquet (skipped if it exists)
@@ -35,7 +40,8 @@
 #   3 scans     full-proteome scans, 10 of them           (skipped per npz)
 #   4 tracks    assemble the tracks rds                   (skipped if it exists)
 #   5 eval      segment confusion/ROC, motif, anchor metrics  (always re-runs)
-#   6 plots     threshold scan, motif table, metrics       (always re-runs)
+#   6 plots     threshold scan, motif table, metrics, and the comparison
+#               figures against CMP_ARMS                   (always re-runs)
 #   7 pages     per-gene scans, known-peptide pages, gallery (skipped per page)
 #   8 shap      per-residue-position attribution + plots   (always re-runs)
 #
@@ -218,6 +224,19 @@ if run 6 plots; then
   ARM=_$ARM $PY_PLM $S/segments_motif_plot.py $THRESH $TOL      >> $S/pipe_plots_$ARM.log 2>&1
   TRUNK=$ARM $PY_PLM $S/final_metrics_plot.py $O                >> $S/pipe_plots_$ARM.log 2>&1
   ARMS=flatten,$ARM $PY_PLM $S/final_metrics_plot_trunks.py $O  >> $S/pipe_plots_$ARM.log 2>&1
+  ## ---- the comparison figures, by default (Kevin, 2026-11-13: "for all these
+  ## plots, have it be default that it's produced" / "all these scripts should be
+  ## part of a visualization pipeline"): viz_pipeline.sh, this arm against
+  ## CMP_ARMS (default curated_AAswap, the site's model; the last is the paired
+  ## one), on this arm's never-seen set, into FIG_OUT (default
+  ## ~/AF2_analysis/lf_viz_<today>). FIGS=0 skips; VIZ_STAGES picks stages;
+  ## VIZ_SHAP=0 plots saved attributions only, without running TensorFlow.
+  if [[ ${FIGS:-1} != 0 ]]; then
+    say "  comparison figures: $ARM against ${CMP_ARMS:-curated_AAswap} (viz_pipeline.sh)"
+    ARMS=${CMP_ARMS:-curated_AAswap},$ARM UNSEEN_SETS=$UNSEEN_SFX HEADCMP=$O OUT=${FIG_OUT:-$A2/lf_viz_$(date +%Y%m%d)} \
+      STAGES=${VIZ_STAGES:-all} SHAP_RUN=${VIZ_SHAP:-1} zsh $S/viz_pipeline.sh > $S/pipe_figs_$ARM.log 2>&1 \
+      || say "  viz_pipeline FAILED, see pipe_figs_$ARM.log"
+  fi
   say "stage 6 done; see pipe_plots_$ARM.log"
 fi
 

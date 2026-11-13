@@ -112,3 +112,31 @@ which now names the arm "AAswap (43 ch)". With no `ARM1` or `ARMS`,
 `segment_T_sweep_plot.R` and `final_metrics_plot_trunks.py` give the same output,
 under the same file names, as before the changes. `neverseen_examples_rebuilt.R`
 differs from `esmonly36_neverseen_examples.png` only in the title.
+
+## The default comparison figures (stage 6, 2026-11-13)
+
+Kevin, 2026-11-13: "for all these plots, have it be default that it's produced".
+Stage 6 of `pepend_arm_pipeline.sh` now draws every arm against `CMP_ARMS`
+(default `curated_AAswap`, the site's model; the last one named is the paired
+one) into `FIG_OUT` (default `~/AF2_analysis/lf_viz_<today>`); `FIGS=0` skips it.
+`run_msa_arms.sh` adds the cross-arm set for msa / msa_gap at the end of phase 3,
+`cv_metrics_old_vs_new_conservation` among them.
+
+| script | draws |
+|---|---|
+| `arm_metrics_compare_plot.R` | `cv_metrics_<name>`: normalised PR AUC, ROC AUC, best F1, n50 |
+| `arm_compare_metrics_table.R` | the same numbers as a table, best arm per row in bold |
+| `arm_compare_scan_tables.R` | one pass over the tracks -> `end_ranks.csv`, `fp_top.csv`, `tracks_examples.csv` |
+| `arm_compare_scan_plots.R` | `recall_rank_*`, `fp_motif_*_{held_out,all50}`, `tracks_examples_*` |
+| `arm_compare_paired_ranks.R` | `paired_ranks_*`: each known end, one arm against another, by flanking motif |
+| `arm_compare_gap_class.R` | `gap_class_*`: per-residue class probabilities at held-out ends (gap arms) |
+
+Two rankings sit side by side in `end_ranks.csv`. `rank_std` is
+`metrics_final.R`'s and reproduces its n50 exactly. `rank_ho` ranks the same ends
+against held-out negatives only: anchors that no training window of any compared
+arm reaches (no shared residue), per fold for the cross-validated ends and over
+all folds for the never-seen ones, with UniProt peptide / propeptide ends out of
+the pool too. Arms trained on motif-matched negatives have seen many more hard
+negatives, and a negative a member trained on is a memorised low score; if an
+arm's lead survives `rank_ho`, it is not that. `fp_motif_*_held_out` scores each
+anchor by the folds that never trained near it, for the same reason.
