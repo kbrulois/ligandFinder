@@ -2,7 +2,7 @@
 ## ---- a gallery index of the known peptides, with a score chip per arm ---------
 ## The thin command-line face of lf_gallery_known_index(). See R/gallery_known.R.
 ##
-##   Rscript inst/scripts/make_known_index.R --dir ~/AF2_analysis/pepend_pages_allsec_arms2
+##   Rscript inst/scripts/visualization/make_known_index.R --dir ~/AF2_analysis/pepend_pages_allsec_arms2
 ##
 ## Options
 ##   --dir       the gallery of <GENE>.html pages

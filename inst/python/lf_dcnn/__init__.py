@@ -2,7 +2,7 @@
 
 Two models (terminus ``N`` and ``C``) each carry a global ranking head and a
 supervised per-index class head.  Ported from
-``inst/scripts/10_1dcnn_new6.R``; see ``README.md`` for the R <-> Python
+``inst/scripts/analysis/archive/window_model/10_1dcnn_new6.R``; see ``README.md`` for the R <-> Python
 boundary and the two documented-intent switches on :class:`Config`.
 """
 

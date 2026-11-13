@@ -31,9 +31,8 @@
 # _esmonly36's members, train nothing, and report the OLD model as the new arm.
 # The suffix is the only thing keeping them apart. Do not remove it.
 set -u
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
-S=${0:A:h}
 PLM=$A2/lf_plm/esm_c_pca36.parquet
 PROCS=${PROCS:-2}
 
@@ -45,13 +44,13 @@ if [[ ${1:-} == one ]]; then
   out=$A2/lf_pepend_run_${T}_cv5_f${k}_nomask_flatten_esmonly36x.rds
   {
     echo "### $T f$k start $(date '+%F %H:%M:%S')"
-    cd $W && LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript inst/scripts/10_8_pepend_train.R \
+    cd $W && LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript inst/scripts/modeling/10_8_pepend_train.R \
       --term $T --n-seeds 10 --no-mask --global-head flatten \
       --plm $PLM --drop-channels $DROP \
       --input $A2/lf_pepend_nn_input_cv5_f${k}_esmcov.rds \
       --out $out
     echo "### $T f$k rc=$? $(date '+%F %H:%M:%S')"
-  } >> $S/trainesm36x_${T}_f$k.log 2>&1
+  } >> $LF_RUN/trainesm36x_${T}_f$k.log 2>&1
   exit 0
 fi
 

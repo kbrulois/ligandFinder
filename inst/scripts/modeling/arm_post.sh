@@ -2,9 +2,8 @@
 # For one trained arm (tag $1, e.g. _nomask_flatten): xgb window heads on each fold for the four page
 # genes, then both folds pooled into one 10-member ensemble per terminus.
 set -eu
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
-S=${0:A:h}
 GENES=CXCL14,CXCL17,ANO8,NPPA
 export TAG=$1
 
@@ -26,7 +25,7 @@ for T in C N; do for F in A B; do
       --groups $A2/lf_pepend_window_groups_${T}_fold${F}.npz \
       --pm-rounds 100 --skip-stacked \
       --out $A2/lf_winxgb_scan_${T}_fold${F}${TAG}.npz \
-      > $S/scan_${T}_fold${F}${TAG}.log 2>&1
+      > $LF_RUN/scan_${T}_fold${F}${TAG}.log 2>&1
     echo "scan $T fold$F rc=$?" ) &
 done; done
 wait

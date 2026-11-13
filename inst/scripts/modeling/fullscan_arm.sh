@@ -20,17 +20,16 @@
 # against the wrong channels and yields a full proteome of plausible nonsense.
 # check_resid_order.py is run before the queue starts for exactly that reason.
 set -u
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
-S=${0:A:h}
 PY_PLM=~/.virtualenvs/lf-plm/bin/python
 PY_TF=~/.virtualenvs/r-tensorflow/bin/python
 export ARM=${ARM:-curated_wAAid}      # exported: xargs re-enters this script
 PROCS=${PROCS:-4}
 TAG=_nomask_flatten_${ARM}
 
-[[ -r $S/arms/$ARM.sh ]] || { echo "no arm definition at arms/$ARM.sh"; exit 1; }
-source $S/arms/$ARM.sh
+[[ -r $LF_MOD/arms/$ARM.sh ]] || { echo "no arm definition at arms/$ARM.sh"; exit 1; }
+source $LF_MOD/arms/$ARM.sh
 RESID=${RESID:-$A2/lf_pepend_residues_${ARM}.npz}
 GROUPS_OF() { echo $A2/lf_pepend_window_groups_$1_cv5_f$2${INPUT_SFX:-}.npz }
 
@@ -42,14 +41,14 @@ if [[ ${1:-} == one ]]; then
   [[ -s $RUN ]] || { echo "$T f$k SKIPPED: no trunk at $(basename $RUN)"; exit 0; }
   source ~/.virtualenvs/r-tensorflow/bin/activate
   cd $W/inst/python
-  echo "### $T f$k start $(date '+%F %H:%M:%S')" > $S/fs_${ARM}_${T}_f$k.log
+  echo "### $T f$k start $(date '+%F %H:%M:%S')" > $LF_RUN/fs_${ARM}_${T}_f$k.log
   python -m lf_winxgb.full_scan --term $T \
     --run $RUN \
     --residues-npz $RESID \
     --groups $(GROUPS_OF $T $k) \
-    --pm-rounds 100 --skip-stacked --out $OUT >> $S/fs_${ARM}_${T}_f$k.log 2>&1
+    --pm-rounds 100 --skip-stacked --out $OUT >> $LF_RUN/fs_${ARM}_${T}_f$k.log 2>&1
   rc=$?
-  echo "### $T f$k rc=$rc $(date '+%F %H:%M:%S')" >> $S/fs_${ARM}_${T}_f$k.log
+  echo "### $T f$k rc=$rc $(date '+%F %H:%M:%S')" >> $LF_RUN/fs_${ARM}_${T}_f$k.log
   echo "scan $T f$k rc=$rc"
   exit 0
 fi
@@ -70,7 +69,7 @@ done; done
 ## RESID_BASE (arm file): the curated table the arm's channels come from, as in
 ## stage 2 -- without it an arm on the v2 feature join (2026-11-12) is checked
 ## against the old table and fails on the remapped precursors (relASA).
-$PY_PLM $S/check_resid_order.py --arm $ARM --plm $PLM --residues-npz $RESID \
+$PY_PLM $LF_RDB/check_resid_order.py --arm $ARM --plm $PLM --residues-npz $RESID \
   ${RESID_BASE:+--curated-npz=$RESID_BASE} \
   || { echo "residue table does not match the trunks -- not scanning"; exit 1; }
 

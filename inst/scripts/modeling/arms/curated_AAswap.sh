@@ -41,14 +41,14 @@ mk_plm() {
                   path.expand("~/AF2_analysis/lf_plm/precursor_seqs.tsv"),
                   sep="\t", quote=FALSE, row.names=FALSE)'\' || return 1
   fi
-  $PY_PLM $S/aa_onehot_build.py --out $PLM
+  $PY_PLM $LF_RDB/aa_onehot_build.py --out $PLM
 }
 
 # This arm CANNOT use lf_winxgb.plm_residues: that appends the parquet to ALL 26
 # curated channels and gives 47, while these trunks expect 43 with the four
 # properties gone. residues_arm.py resolves each channel by NAME against the
 # trained trunk's own channel_names, so it handles a drop and an add together.
-mk_resid() { $PY_TF $S/residues_arm.py --arm $ARM --plm $PLM }
+mk_resid() { $PY_TF $LF_RDB/residues_arm.py --arm $ARM --plm $PLM }
 
 # No sweep yet; the curated model's conventional cut, matching curated_wAAid so
 # the two identity arms are compared at the same T rather than a measured

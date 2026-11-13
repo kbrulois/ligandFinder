@@ -28,7 +28,7 @@
 ## k/P, and precision there is k over the rank of the k-th positive, so all seeds
 ## share a recall grid with no interpolation.
 ##
-##   Rscript inst/scripts/10_9h_pr_all_sets.R
+##   Rscript inst/scripts/evaluation/10_9h_pr_all_sets.R
 ##
 ## Output: ~/AF2_analysis/lf_pr_all_sets_<term>.{csv,svg,png}
 ## ------------------------------------------------------------------------------

@@ -44,8 +44,7 @@
 # Chunk lists live in .render/lists; each chunk's log in .render/logs, appended
 # run after run under a dated header.
 set -u
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
-S=${0:A:h}
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 OUT=${OUT:?set OUT to the page directory (candidate_select.R writes its genes.txt)}
 OUT=${~OUT}
 GENES=${GENES:-$OUT/genes.txt}
@@ -108,7 +107,7 @@ if [[ ${1:-} == chunk ]]; then
   log=$RUN/logs/${f:t}.log
   print -r -- "### $(date '+%F %H:%M:%S') ${genes[*]}" >> $log
   MODE=cv5 NPZ_SFX=$sfx ARMS=$ARMS CAND_SETS=$KEY LF_PLOT_DIR=$stage LF_POPUP_MAX=$cap \
-    LF_SRC=$W LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $S/final_pages.R $genes >> $log 2>&1
+    LF_SRC=$W LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $LF_VIZ/final_pages.R $genes >> $log 2>&1
   rc=$?
   # a page script exits 0 having written nothing when make_protein_plot_win
   # fails inside its own tryCatch: judge the files, not the exit code
@@ -175,7 +174,7 @@ if [[ ${SKIP_INDEX:-0} != 1 ]]; then
   sel=""
   [[ -s $SEL ]] && sel=$(sed -n 's/^filter  *//p' $SEL)
   fo=(); [[ -s $OUT/focus.csv ]] && fo=(--focus $OUT/focus.csv)
-  LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $S/candidate_gallery_index.R --dir $OUT --key $KEY \
+  LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $LF_VIZ/candidate_gallery_index.R --dir $OUT --key $KEY \
     $fo --selection "$sel" \
     --title "${TITLE:-LigandFinder — selected candidate peptides}" \
     || echo "INDEX FAILED (pages are fine; rerun candidate_gallery_index.R)"

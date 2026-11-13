@@ -24,7 +24,7 @@
 ## scored one residue off its own convention (Spearman 0.996 vs aligned, so the
 ## cost is small). See 10_9f.
 ##
-##   Rscript inst/scripts/10_9g_pr_curves.R
+##   Rscript inst/scripts/analysis/pepend_vs_db_model/10_9g_pr_curves.R
 ##
 ## Output: ~/AF2_analysis/lf_pr_curves_<term>.{csv,svg,png}
 ## ------------------------------------------------------------------------------

@@ -15,7 +15,7 @@
 # It touches nothing in the existing pipeline: new --out names (_esmonly36), a
 # new cache, a new log prefix. The curated-channel models are untouched.
 set -u
-S=${0:A:h}
+. ${0:A:h:h}/lf_paths.sh   # LF_SRC, the script folders, LF_RUN
 A2=~/AF2_analysis
 PLM=$A2/lf_plm/esm_c_pca36.parquet
 say() { echo "[$(date '+%F %H:%M:%S')] $*"; }
@@ -45,16 +45,16 @@ fi
 
 # ---- stage 2: prove one job runs -------------------------------------------
 say "stage 2: one job (C fold 1) to prove the path executes"
-$S/train_esmonly36.sh one 1 C
+$LF_MOD/train_esmonly36.sh one 1 C
 one=$A2/lf_pepend_run_C_cv5_f1_nomask_flatten_esmonly36.rds
 if [[ ! -s $one ]]; then
   say "stage 2 FAILED: no rds produced. tail of the log:"
-  tail -25 $S/trainesm36_C_f1.log; exit 1
+  tail -25 $LF_RUN/trainesm36_C_f1.log; exit 1
 fi
 say "stage 2: ok, $(du -h $one | cut -f1)"
-grep -h 'channels:' $S/trainesm36_C_f1.log | tail -1 | sed "s/^/[$(date '+%H:%M:%S')] stage 2: /"
+grep -h 'channels:' $LF_RUN/trainesm36_C_f1.log | tail -1 | sed "s/^/[$(date '+%H:%M:%S')] stage 2: /"
 
 # ---- stage 3: the rest ------------------------------------------------------
 say "stage 3: the remaining nine jobs"
-PROCS=${PROCS:-2} $S/train_esmonly36.sh
+PROCS=${PROCS:-2} $LF_MOD/train_esmonly36.sh
 say "=== ESM-C-ONLY ARM DONE ==="

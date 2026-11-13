@@ -6,9 +6,9 @@
 ## mask, one terminus. The method, and what is held out from what, is in the
 ## docstring of inst/python/lf_dcnn/tune.py; read it before reading the numbers.
 ##
-##   inst/scripts/10_8t_pepend_tune.sh                     # everything, terminus C
-##   STAGES=run,report inst/scripts/10_8t_pepend_tune.sh   # resume
-##   STAGES=report inst/scripts/10_8t_pepend_tune.sh       # re-aggregate only
+##   inst/scripts/modeling/10_8t_pepend_tune.sh                     # everything, terminus C
+##   STAGES=run,report inst/scripts/modeling/10_8t_pepend_tune.sh   # resume
+##   STAGES=report inst/scripts/modeling/10_8t_pepend_tune.sh       # re-aggregate only
 ##   EXTEND="5:2,3" STAGES=extend,run,report ...           # seeds 2,3 for the top 5
 ##   N_CONFIGS=32 WORKERS=6 THREADS=2 ROOT=~/AF2_analysis/lf_tune_C2 ...
 ##   EXTRA="--plm ~/AF2_analysis/lf_plm/aa_onehot.parquet" ROOT=... ...   # another arm
@@ -69,7 +69,7 @@ if has export; then
     echo "  export f$k <- $in"
     ## ${=VAR}: zsh does not word-split a plain $VAR, and a flag string passed
     ## as ONE argument is silently ignored by 10_8's .opt() (see train_arm.sh)
-    (cd $W && LC_ALL=en_US.UTF-8 $RSCRIPT inst/scripts/10_8_pepend_train.R \
+    (cd $W && LC_ALL=en_US.UTF-8 $RSCRIPT inst/scripts/modeling/10_8_pepend_train.R \
         --term $T ${=BASE_FLAGS} ${=EXTRA} --input $in --export-only $d) \
       > $ROOT/export_f$k.log 2>&1 || { print -u2 "export f$k failed; see $ROOT/export_f$k.log"; exit 1 }
     tail -1 $ROOT/export_f$k.log

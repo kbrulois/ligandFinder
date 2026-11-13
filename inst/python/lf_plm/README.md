@@ -54,7 +54,7 @@ checking the residue letters against the table (a mismatch means a different
 sequence version and is an error, not a silent misalignment), with 0 at
 padding rows like every other channel. It returns the extended `nn_input`
 and channel list, ready for `lf_dcnn_export()` / `lf_dcnn_run()`.
-`inst/scripts/10_5_benchmark_window_model.R --preset t5` is the with/without
+`inst/scripts/analysis/archive/window_model/10_5_benchmark_window_model.R --preset t5` is the with/without
 comparison.
 
 The PCA channels are deliberately NOT in `Config.cont_channel_names`, so they

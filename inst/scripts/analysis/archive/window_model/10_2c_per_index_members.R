@@ -11,7 +11,7 @@
 ## (<arm>/members/member_NNN_<term>.npz, which carry the full per_index softmax),
 ## so it needs no retraining and no `models` in the session.
 ##
-##   /usr/local/bin/Rscript inst/scripts/10_2c_per_index_members.R \
+##   /usr/local/bin/Rscript inst/scripts/analysis/archive/window_model/10_2c_per_index_members.R \
 ##      --cache-dir ~/AF2_analysis/lf_dcnn_bench_none20 --arm unet_none_w1 \
 ##      --peps ANO8_w12-47
 ##   ... --members good     # only the members scoring the window above --threshold

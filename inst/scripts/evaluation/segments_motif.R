@@ -28,10 +28,10 @@
 ##   THRESH=0.1,0.3,0.5,0.7 TOL=2 Rscript segments_motif.R
 ##   THRESH=0.5 TOL=4,6     Rscript segments_motif.R
 suppressMessages({library(data.table)})
-A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
+A2 <- path.expand("~/AF2_analysis"); S <- path.expand(Sys.getenv("LF_RUN", file.path(A2, "lf_run")))
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "lf_paths.R"))
 source(lf_src("R/pepend_windows.R"))     # lf_pepend_motif_vec
 TOLS <- as.integer(strsplit(Sys.getenv("TOL", "4"), ",")[[1]])
 THRESH <- as.numeric(strsplit(Sys.getenv("THRESH", "0.5"), ",")[[1]])

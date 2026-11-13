@@ -22,7 +22,7 @@ class_cols <- setNames(c("#FED439FF", "#370335FF", "#8A9197FF", "#D2AF81FF",
 ## ---- train both terminus models and score every window ----------------------
 ## Config defaults are the production architecture: the U-Net trunk
 ## (unet@16-32-64, ~21.4k params) with NO position-ramp input, chosen 2026-09-18
-## on inst/scripts/10_5_benchmark_window_model.R, and since 2026-09-25 a
+## on inst/scripts/analysis/archive/window_model/10_5_benchmark_window_model.R, and since 2026-09-25 a
 ## per-index head that TRAINS on the `none` positions (none_in_loss = TRUE,
 ## pi_weight_none = 1.0) rather than masking them out -- chosen on that
 ## script's none20 preset (20 seeds, C terminus). NOTE the cache fingerprint
@@ -229,10 +229,10 @@ nn_input_comb %>% filter(known == 0 & win_type == "db") %>%
 ## retraining. Needs nn_input_comb (above) plus secretome, secretome_aa and
 ## peps_tp in the session.
 ##
-##   source("inst/scripts/10_4_plot_proteins.R")
+##   source("inst/scripts/visualization/10_4_plot_proteins.R")
 ##
 ## and, once that has written the bundle, a fresh session can re-render with no
-## keras and no secretome_aa:  Rscript inst/scripts/plot_only.R
+## keras and no secretome_aa:  Rscript inst/scripts/visualization/plot_only.R
 
 
 p <- yardstick::roc_curve(data = df, truth = "truth", ".pred_1",

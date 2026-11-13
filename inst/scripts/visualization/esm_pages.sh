@@ -17,9 +17,8 @@
 # PLM-aware R/pepend_tracks.R live there, and final_pages.R is the record of
 # what produced the curated galleries.
 set -u
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
-S=${0:A:h}
 export ARM=${ARM:-esmonly36}          # exported: xargs re-enters this script
 OUT=${OUT:-$A2/pepend_pages_${ARM}}
 ## which page script, and which extra arms it draws. final_pages_arms.R
@@ -30,7 +29,7 @@ export PAGES_R=${PAGES_R:-final_pages_arms.R}
 ## training-time guards do not run in a render script; EXPORTED because the
 ## chunk children are re-entered through xargs and would otherwise silently
 ## annotate from the full set.
-INPUT_SFX=$(sed -n 's/^INPUT_SFX=//p' $S/arms/$ARM.sh 2>/dev/null | head -1 | tr -d '"'"'"'"')
+INPUT_SFX=$(sed -n 's/^INPUT_SFX=//p' $LF_MOD/arms/$ARM.sh 2>/dev/null | head -1 | tr -d '"'"'"'"')
 export UNSEEN_SFX=${UNSEEN_SFX:-${INPUT_SFX:-}}
 ## the gallery title names the arms it actually drew, so a gallery cannot
 ## claim an arm set it does not have.
@@ -58,13 +57,13 @@ if [[ ${1:-} == chunk ]]; then
   cap=2000
   for g in $genes; do (( ${BIG[(Ie)$g]} )) && cap=$BIG_CAP; done
   MODE=cv5 LF_PLOT_DIR=$OUT LF_POPUP_MAX=$cap ARMS=$ARMS \
-    LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $S/$PAGES_R $genes \
-    >> $S/esmpages_${ARM}_$(basename $f).log 2>&1
+    LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $LF_VIZ/$PAGES_R $genes \
+    >> $LF_RUN/esmpages_${ARM}_$(basename $f).log 2>&1
   echo "chunk $(basename $f): ${#genes} genes rc=$?"
   exit 0
 fi
 
-CH=$S/esm_chunks_${ARM}
+CH=$LF_RUN/esm_chunks_${ARM}
 mkdir -p $OUT $CH
 rm -f $CH/*(N)
 todo=$CH/todo.txt
@@ -72,10 +71,10 @@ todo=$CH/todo.txt
 while read -r g; do
   [[ -z $g ]] && continue
   [[ -s $OUT/$g.html ]] || echo $g >> $todo
-done < $S/page_genes.txt
+done < $LF_RUN/page_genes.txt
 n=$(wc -l < $todo | tr -d ' ')
 echo "ESM-C PAGES start $(date '+%F %H:%M:%S')"
-echo "  $(wc -l < $S/page_genes.txt | tr -d ' ') known-peptide genes, $n to render, $PROCS at a time"
+echo "  $(wc -l < $LF_RUN/page_genes.txt | tr -d ' ') known-peptide genes, $n to render, $PROCS at a time"
 if [[ $n -eq 0 ]]; then
   echo "  nothing to render"
 else
@@ -84,13 +83,13 @@ else
 fi
 
 echo "--- gallery index over whatever is on disk"
-LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $W/inst/scripts/make_gallery_index.R \
+LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $W/inst/scripts/visualization/make_gallery_index.R \
   --dir $OUT \
   --title "$TITLE" \
-  --blurb $S/final_blurb_tpfn.html --footer $S/final_footer.html --no-stock-desc \
+  --blurb $LF_RUN/final_blurb_tpfn.html --footer $LF_RUN/final_footer.html --no-stock-desc \
   || echo "INDEX FAILED (pages are fine; rerun make_gallery_index.R)"
 
 echo "ESM-C PAGES DONE $(date '+%F %H:%M:%S')"
 echo "  rendered: $(ls $OUT/*.html 2>/dev/null | grep -vc index.html) pages, $(du -sh $OUT | cut -f1)"
-missing=$(comm -23 <(sort $S/page_genes.txt) <(ls $OUT | sed 's/\.html$//' | sort) | grep -v '^index$' | wc -l | tr -d ' ')
+missing=$(comm -23 <(sort $LF_RUN/page_genes.txt) <(ls $OUT | sed 's/\.html$//' | sort) | grep -v '^index$' | wc -l | tr -d ' ')
 echo "  still missing: $missing  (re-run esm_pages.sh to resume)"

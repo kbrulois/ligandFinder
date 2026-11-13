@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 ## ---- attach EEC (HPA single-cell) expression to the peptide-end windows --------
 ## Adds the enteroendocrine-cell expression block from
-## inst/scripts/enteroendocrine_expression.R's classification to every window of
+## inst/scripts/generate_residue_db/enteroendocrine_expression.R's classification to every window of
 ## 10_9b's table, one row per window.
 ##
 ## THE JOIN IS ON GENE SYMBOL, and it has to be. Verified on this data:
@@ -23,7 +23,7 @@
 ## Reconciliation lives in R/eec_expression.R, including the guard that stops
 ## HLA-H being handed HFE's profile via a stale synonym.
 ##
-##   Rscript inst/scripts/10_9c_pepend_add_eec.R --term C
+##   Rscript inst/scripts/modeling/10_9c_pepend_add_eec.R --term C
 ##
 ## Output: ~/AF2_analysis/lf_pepend_all_windows_<term>_eec.csv
 ## ------------------------------------------------------------------------------

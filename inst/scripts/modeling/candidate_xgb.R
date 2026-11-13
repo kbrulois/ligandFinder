@@ -58,7 +58,7 @@
 suppressMessages({library(data.table); library(xgboost)})
 A2 <- path.expand("~/AF2_analysis")
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "lf_paths.R"))
 HEAD <- Sys.getenv("HEAD", "xgb_pm"); ARM <- Sys.getenv("ARM", "")
 thr  <- as.numeric(Sys.getenv("THRESH", "0.5")); TOL <- as.integer(Sys.getenv("TOL", "4"))
 LABEL_TOL <- as.integer(Sys.getenv("LABEL_TOL", "2"))

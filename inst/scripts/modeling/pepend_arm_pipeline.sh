@@ -49,9 +49,8 @@
 # against the wrong channels. Stage 2 runs check_resid_order.py, which compares
 # the table against the trained trunk's own channel_names, name for name.
 set -u
-S=${0:A:h}
 A2=~/AF2_analysis
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 R="LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript"
 PY_PLM=~/.virtualenvs/lf-plm/bin/python
 PY_TF=~/.virtualenvs/r-tensorflow/bin/python
@@ -61,10 +60,10 @@ export ARM=${ARM:-curated_wAAid}
 ## the arm file comes FIRST, because the segment threshold is a property of the
 ## arm (ESM-C's optimum is 0.65, the curated model's is nowhere near it) and
 ## belongs with the channel set, not in this script's defaults.
-[[ -r $S/arms/$ARM.sh ]] || {
-  echo "no arm definition at arms/$ARM.sh; have:"; ls $S/arms/*.sh 2>/dev/null | sed 's|.*/|  |'
+[[ -r $LF_MOD/arms/$ARM.sh ]] || {
+  echo "no arm definition at arms/$ARM.sh; have:"; ls $LF_MOD/arms/*.sh 2>/dev/null | sed 's|.*/|  |'
   exit 1; }
-source $S/arms/$ARM.sh
+source $LF_MOD/arms/$ARM.sh
 
 export THRESH=${THRESH:-${THRESH_DEFAULT:-0.5}}
 ## an arm on its own training windows (INPUT_SFX) is evaluated on the never-seen
@@ -114,7 +113,7 @@ fi
 # ---- 1. trunks -------------------------------------------------------------
 if run 1 trunks; then
   say "stage 1: training trunks (resumable)"
-  $S/train_arm.sh || { say "STAGE 1 FAILED"; exit 1; }
+  $LF_MOD/train_arm.sh || { say "STAGE 1 FAILED"; exit 1; }
   n=$(ls $A2/lf_pepend_run_[NC]_cv5_f*${TAG}.rds 2>/dev/null | wc -l | tr -d ' ')
   [[ $n -eq 10 ]] || { say "STAGE 1: only $n/10 trunks, stopping"; exit 1; }
 fi
@@ -128,7 +127,7 @@ if run 2 residues; then
   fi
   ## RESID_BASE (arm file): the curated table the arm's channels come from, when it
   ## is not the default lf_pepend_residues.npz (the v2 feature join, 2026-11-12)
-  $PY_PLM $S/check_resid_order.py --arm $ARM --plm $PLM --residues-npz $RESID \
+  $PY_PLM $LF_RDB/check_resid_order.py --arm $ARM --plm $PLM --residues-npz $RESID \
     ${RESID_BASE:+--curated-npz=$RESID_BASE} \
     || { say "STAGE 2: residue table does not match the trunks"; exit 1; }
 fi
@@ -144,8 +143,8 @@ if [[ -n ${INPUT_SFX:-} ]] && run 2b groups; then
   for k in 1 2 3 4 5; do for T in C N; do
     g=$A2/lf_pepend_window_groups_${T}_cv5_f${k}${INPUT_SFX}.npz
     [[ -s $g ]] && continue
-    (cd $W && eval $R inst/scripts/10_9r_export_window_groups.R --term $T \
-       --input $A2/lf_pepend_nn_input_cv5_f${k}${INPUT_SFX}.rds --out $g) >> $S/pipe_groups_$ARM.log 2>&1 \
+    (cd $W && eval $R inst/scripts/modeling/10_9r_export_window_groups.R --term $T \
+       --input $A2/lf_pepend_nn_input_cv5_f${k}${INPUT_SFX}.rds --out $g) >> $LF_RUN/pipe_groups_$ARM.log 2>&1 \
       || { say "STAGE 2b FAILED ($T f$k), see pipe_groups_$ARM.log"; exit 1; }
   done; done
   $PY_PLM - $A2 $TAG ${INPUT_SFX} <<'PY' || { say "STAGE 2b: groups do not match the trunks"; exit 1; }
@@ -168,21 +167,21 @@ fi
 # ---- 3. full scans ---------------------------------------------------------
 if run 3 scans; then
   say "stage 3: full-proteome scans (resumable)"
-  $S/fullscan_arm.sh || { say "STAGE 3 FAILED"; exit 1; }
+  $LF_MOD/fullscan_arm.sh || { say "STAGE 3 FAILED"; exit 1; }
 fi
 
 # ---- 4. tracks -------------------------------------------------------------
 if run 4 tracks; then
   say "stage 4: assembling the tracks rds"
-  eval TAG=$TAG $R $S/tracks_esmonly36.R || { say "STAGE 4 FAILED"; exit 1; }
+  eval TAG=$TAG $R $LF_MOD/tracks_esmonly36.R || { say "STAGE 4 FAILED"; exit 1; }
 fi
 
 # ---- 5. evaluation ---------------------------------------------------------
 if run 5 eval; then
   say "stage 5: segment confusion + ROC, by motif, and the anchor ranking metrics"
-  eval ARM=_$ARM TOL=$TOL $R $S/segments_roc.R   > $S/pipe_segroc_$ARM.log 2>&1 \
+  eval ARM=_$ARM TOL=$TOL $R $LF_EVAL/segments_roc.R   > $LF_RUN/pipe_segroc_$ARM.log 2>&1 \
     || { say "  segments_roc FAILED, see pipe_segroc_$ARM.log"; }
-  eval ARM=_$ARM TOL=$TOL THRESH=$THRESH $R $S/segments_motif.R > $S/pipe_segmotif_$ARM.log 2>&1 \
+  eval ARM=_$ARM TOL=$TOL THRESH=$THRESH $R $LF_EVAL/segments_motif.R > $LF_RUN/pipe_segmotif_$ARM.log 2>&1 \
     || { say "  segments_motif FAILED, see pipe_segmotif_$ARM.log"; }
   ## lf_headcmp/final_metrics.csv is ONE SHARED FILE keyed by the ARMS list:
   ## an arm left off a run DISAPPEARS from it. That has already happened once,
@@ -196,7 +195,7 @@ if run 5 eval; then
   done
   MARMS=${METRIC_ARMS:-${(j:,:)found}}
   say "  metrics arms: $MARMS"
-  eval ARMS=$MARMS $R $S/metrics_final.R $S > $S/pipe_metrics_$ARM.log 2>&1 \
+  eval ARMS=$MARMS $R $LF_EVAL/metrics_final.R $LF_RUN > $LF_RUN/pipe_metrics_$ARM.log 2>&1 \
     || { say "  metrics_final FAILED, see pipe_metrics_$ARM.log"; }
   say "stage 5 done"
 fi
@@ -214,31 +213,31 @@ if run 6 plots; then
     [[ -s $f ]] || { say "  MISSING $(basename $f) -- run STAGES=5 at THRESH=$THRESH TOL=$TOL first"; miss=1 }
   done
   [[ $miss -eq 0 ]] || { say "stage 6: inputs missing, not plotting"; exit 1 }
-  SUF=$SUF TOL=$TOL $PY_PLM $S/segments_roc_plot.py $O          >> $S/pipe_plots_$ARM.log 2>&1
-  ARM=_$ARM $PY_PLM $S/segments_motif_plot.py $THRESH $TOL      >> $S/pipe_plots_$ARM.log 2>&1
-  TRUNK=$ARM $PY_PLM $S/final_metrics_plot.py $O                >> $S/pipe_plots_$ARM.log 2>&1
-  ARMS=flatten,$ARM $PY_PLM $S/final_metrics_plot_trunks.py $O  >> $S/pipe_plots_$ARM.log 2>&1
+  SUF=$SUF TOL=$TOL $PY_PLM $LF_VIZ/segments_roc_plot.py $O          >> $LF_RUN/pipe_plots_$ARM.log 2>&1
+  ARM=_$ARM $PY_PLM $LF_VIZ/segments_motif_plot.py $THRESH $TOL      >> $LF_RUN/pipe_plots_$ARM.log 2>&1
+  TRUNK=$ARM $PY_PLM $LF_VIZ/final_metrics_plot.py $O                >> $LF_RUN/pipe_plots_$ARM.log 2>&1
+  ARMS=flatten,$ARM $PY_PLM $LF_VIZ/final_metrics_plot_trunks.py $O  >> $LF_RUN/pipe_plots_$ARM.log 2>&1
   say "stage 6 done; see pipe_plots_$ARM.log"
 fi
 
 # ---- 7. pages --------------------------------------------------------------
 if run 7 pages; then
   say "stage 7: per-gene scans, pages and the gallery index"
-  $S/cv5_post_esmonly36.sh > $S/pipe_cv5post_$ARM.log 2>&1 \
+  $LF_MOD/cv5_post_esmonly36.sh > $LF_RUN/pipe_cv5post_$ARM.log 2>&1 \
     || { say "  cv5_post FAILED, see pipe_cv5post_$ARM.log"; exit 1; }
-  $S/esm_pages.sh || { say "STAGE 7 FAILED"; exit 1; }
+  $LF_VIZ/esm_pages.sh || { say "STAGE 7 FAILED"; exit 1; }
   ## the TP/FN gallery index needs end calls for BOTH arms, each at its own
   ## threshold. They are cheap next to the pages, so make them here rather than
   ## leaving the index to a manual step that gets forgotten.
   say "stage 7: end calls for both arms, then the TP/FN index"
-  eval THRESH=$THR_CUR TOL=$TOL $R $S/end_calls.R              >> $S/pipe_endcalls_$ARM.log 2>&1
-  eval THRESH=$THRESH ARM=_$ARM TOL=$TOL $R $S/end_calls.R     >> $S/pipe_endcalls_$ARM.log 2>&1
+  eval THRESH=$THR_CUR TOL=$TOL $R $LF_EVAL/end_calls.R              >> $LF_RUN/pipe_endcalls_$ARM.log 2>&1
+  eval THRESH=$THRESH ARM=_$ARM TOL=$TOL $R $LF_EVAL/end_calls.R     >> $LF_RUN/pipe_endcalls_$ARM.log 2>&1
   ## the index is PACKAGE code now (R/gallery_tpfn.R + inst/scripts/
   ## make_tpfn_index.R); an arm is an lf_tpfn_arm() entry in
   ## lf_tpfn_default_arms(), so adding one does not touch this pipeline.
-  eval $R $W/inst/scripts/make_tpfn_index.R --dir $PAGES --tol $TOL \
-       --blurb $S/final_blurb.html --footer $S/final_footer.html \
-    >> $S/pipe_index_$ARM.log 2>&1 || say "  make_tpfn_index FAILED, see pipe_index_$ARM.log"
+  eval $R $W/inst/scripts/visualization/make_tpfn_index.R --dir $PAGES --tol $TOL \
+       --blurb $LF_RUN/final_blurb.html --footer $LF_RUN/final_footer.html \
+    >> $LF_RUN/pipe_index_$ARM.log 2>&1 || say "  make_tpfn_index FAILED, see pipe_index_$ARM.log"
 fi
 
 # ---- 8. per-residue-position attribution -----------------------------------
@@ -254,13 +253,13 @@ if run 8 shap; then
     ## the xgb head reads 48 pooled summaries of the trunk surface, so it gets
     ## exact TreeSHAP over those, four of which are positional regions. Both,
     ## because the comparison the user asked for covers both heads.
-    $PY_TF $S/shap_positions.py --arm "$AA" >> $S/pipe_shap_$ARM.log 2>&1 \
+    $PY_TF $LF_EVAL/shap_positions.py --arm "$AA" >> $LF_RUN/pipe_shap_$ARM.log 2>&1 \
       || { say "  shap_positions FAILED for '${AA:-curated}', see pipe_shap_$ARM.log"; }
-    $PY_TF $S/shap_xgb_head.py  --arm "$AA" >> $S/pipe_shap_$ARM.log 2>&1 \
+    $PY_TF $LF_EVAL/shap_xgb_head.py  --arm "$AA" >> $LF_RUN/pipe_shap_$ARM.log 2>&1 \
       || { say "  shap_xgb_head FAILED for '${AA:-curated}', see pipe_shap_$ARM.log"; }
   done
-  $PY_PLM $S/shap_positions_plot.py $A2/lf_headcmp ${=SHAP_ARMS} \
-    >> $S/pipe_shap_$ARM.log 2>&1 || say "  shap plot FAILED, see pipe_shap_$ARM.log"
+  $PY_PLM $LF_VIZ/shap_positions_plot.py $A2/lf_headcmp ${=SHAP_ARMS} \
+    >> $LF_RUN/pipe_shap_$ARM.log 2>&1 || say "  shap plot FAILED, see pipe_shap_$ARM.log"
   say "stage 8 done; see pipe_shap_$ARM.log"
 fi
 

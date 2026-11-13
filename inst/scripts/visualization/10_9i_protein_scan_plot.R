@@ -15,7 +15,7 @@
 ## hypothesis "the peptide ends at r", which is why the known peptide's C
 ## terminus is the thing to look for, not its span.
 ##
-##   Rscript inst/scripts/10_9i_protein_scan_plot.R --gene NPY
+##   Rscript inst/scripts/visualization/10_9i_protein_scan_plot.R --gene NPY
 ##   ... --genes NPY,KNG1,CXCL14 --group train --no-png
 ##
 ## Several genes in one call share the loaded caches -- the residue cache and the

@@ -36,8 +36,8 @@
 ##
 ## Run from the repo root, in a fresh session:
 ##
-##   /usr/local/bin/Rscript inst/scripts/10_5_benchmark_window_model.R --preset position_ramp
-##   /usr/local/bin/Rscript inst/scripts/10_5_benchmark_window_model.R --preset t5
+##   /usr/local/bin/Rscript inst/scripts/analysis/archive/window_model/10_5_benchmark_window_model.R --preset position_ramp
+##   /usr/local/bin/Rscript inst/scripts/analysis/archive/window_model/10_5_benchmark_window_model.R --preset t5
 ##   ... --refresh --n-seeds 5 --terms C
 ##
 ## or source() it after 9.2 has put nn_input + all_params3 in the session.
@@ -228,7 +228,7 @@ if (!exists("nn_input") || !exists("all_params3")) {
     .cc <- readRDS(nn_cache); nn_input <- .cc$nn_input; all_params3 <- .cc$all_params3
   } else {
     message("building nn_input via 9.2_add_contact_data.R (needs ~/AF2_analysis/nn_dat_cache.rds) ...")
-    source(file.path(ROOT, "inst/scripts/putative_peptide/generate_residue_db_untested/9.2_add_contact_data.R"))
+    source(file.path(ROOT, "inst/scripts/generate_residue_db/9.2_add_contact_data.R"))
     saveRDS(list(nn_input = nn_input, all_params3 = all_params3), nn_cache)
   }
 }

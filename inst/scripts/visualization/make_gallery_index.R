@@ -7,7 +7,7 @@
 ## Regenerate it whenever pages are added -- it reads the directory, so nothing
 ## is hardcoded and a gene cannot go missing from the list.
 ##
-##   Rscript inst/scripts/make_gallery_index.R
+##   Rscript inst/scripts/visualization/make_gallery_index.R
 ##   ... --dir ~/AF2_analysis/v2_test --title "..." --out index.html
 ## ------------------------------------------------------------------------------
 suppressMessages({ library(dplyr) })

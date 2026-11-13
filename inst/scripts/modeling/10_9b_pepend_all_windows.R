@@ -27,7 +27,7 @@
 ## summaries is exact where a counterpart exists; scoring member 0 alone would be
 ## a different, weaker number wearing the same name.
 ##
-##   Rscript inst/scripts/10_9b_pepend_all_windows.R --term C
+##   Rscript inst/scripts/modeling/10_9b_pepend_all_windows.R --term C
 ##
 ## Output: ~/AF2_analysis/lf_pepend_all_windows_C.csv
 ## ------------------------------------------------------------------------------

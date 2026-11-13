@@ -2,7 +2,7 @@
 
 library(tidyverse)
 library(ligandFinder)
-residue_db_scripts <- system.file("/scripts/putative_peptide/generate_residue_db_untested", package = "ligandFinder")
+residue_db_scripts <- system.file("scripts/generate_residue_db", package = "ligandFinder")
 
 sorce <- function(x) {source(fs::path(residue_db_scripts, x))}
 

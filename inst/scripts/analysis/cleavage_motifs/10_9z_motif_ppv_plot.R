@@ -4,8 +4,8 @@
 ## PPV of "flag every anchor in this class". Panel 2 adds the model: the PPV of
 ## "flag the top k of this class".
 ##
-##   python  inst/scripts/10_9z_motif_ppv.py --tables <tables> --term C
-##   Rscript inst/scripts/10_9z_motif_ppv_plot.R
+##   python  inst/scripts/analysis/cleavage_motifs/10_9z_motif_ppv.py --tables <tables> --term C
+##   Rscript inst/scripts/analysis/cleavage_motifs/10_9z_motif_ppv_plot.R
 ##
 ## Run it in a UTF-8 locale, or R drops the non-ASCII labels without a warning.
 ## ------------------------------------------------------------------------------

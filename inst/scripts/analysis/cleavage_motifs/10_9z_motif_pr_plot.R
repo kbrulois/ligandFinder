@@ -4,9 +4,9 @@
 ## coverage that normalisation hides, and precision at a matched within-group
 ## recall.
 ##
-##   Rscript inst/scripts/10_9z_motif_codes.R --term C --tables <tables>
-##   python  inst/scripts/10_9z_motif_pr.py   --term C --tables <tables>
-##   Rscript inst/scripts/10_9z_motif_pr_plot.R
+##   Rscript inst/scripts/analysis/cleavage_motifs/10_9z_motif_codes.R --term C --tables <tables>
+##   python  inst/scripts/analysis/cleavage_motifs/10_9z_motif_pr.py   --term C --tables <tables>
+##   Rscript inst/scripts/analysis/cleavage_motifs/10_9z_motif_pr_plot.R
 ##
 ## Run it in a UTF-8 locale: R in a bare "C" locale drops the middle dots and
 ## curly quotes from the labels without a warning.

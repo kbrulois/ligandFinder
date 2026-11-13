@@ -24,7 +24,7 @@
 ##     reproduced the parquet.
 ## On 2026-11-12 that is POMC, ADCYAP1, GCG | INS | TGFA | MT-RNR2.
 ##
-##   LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript inst/scripts/msa_cons/plot_msa_conservation.R
+##   LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript inst/scripts/visualization/plot_msa_conservation.R
 ##   ... --genes POMC,INS (skip the rule)  --k 3  --out-dir ~/AF2_analysis/lf_viz_20261112
 ##
 ## Output, in --out-dir: msacons_examples.{png,pdf}, msacons_end_summary.{png,pdf}
@@ -229,7 +229,7 @@ fig <- patchwork::wrap_plots(c(list(key), plots),
       if (nzchar(unl_txt)) paste0(
         "Grey ends (", unl_txt, ") belong to listed peptides that neither end table holds: the trained ends are 10_7's ",
         "DOCKED peptides (knowns.rds), so on a trained gene a listed peptide that was never docked has none."),
-      sprintf("Built %s by inst/scripts/msa_cons/plot_msa_conservation.R.", format(Sys.Date()))),
+      sprintf("Built %s by inst/scripts/visualization/plot_msa_conservation.R.", format(Sys.Date()))),
     theme = lf_viz_theme(base_size = 9) +
       theme(plot.title = element_text(size = 11, face = "bold", colour = cols$ink),
             plot.subtitle = element_text(size = 8.5, colour = cols$ink2, lineheight = 1.15),
@@ -296,7 +296,7 @@ p2 <- lf_msacons_summary_plot(es, cols) +
          model_txt,
          paste0("Large cleavage products = the never-seen set's ",
                 "longer chains: chemokines, interleukins, TNF family, WNTs, BMPs, growth factors ..."),
-         sprintf("Built %s by inst/scripts/msa_cons/plot_msa_conservation.R; numbers in msacons_end_summary.csv.",
+         sprintf("Built %s by inst/scripts/visualization/plot_msa_conservation.R; numbers in msacons_end_summary.csv.",
                  format(Sys.Date())))) +
   theme(plot.title = element_text(size = 10.5),
         plot.subtitle = element_text(size = 8.5),

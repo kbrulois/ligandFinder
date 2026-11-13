@@ -26,7 +26,7 @@
 ##   cd <scripts dir> && INPUT_SFX=_msa LC_ALL=en_US.UTF-8 Rscript cv5_unseen_sfx.R
 ##     -> $S/cv5_unseen_ends_msa.csv   (OUT overrides the output path)
 suppressMessages({library(data.table)})
-S  <- path.expand("~/AF2_analysis/lf_nomask_scripts_20261021")   # the end tables (data)
+S  <- path.expand(Sys.getenv("LF_RUN", "~/AF2_analysis/lf_run"))   # the end tables (data)
 A2 <- path.expand("~/AF2_analysis")
 ## required: "" would read the shared inputs and write over cv5_unseen_ends.csv
 SFX <- Sys.getenv("INPUT_SFX", "")

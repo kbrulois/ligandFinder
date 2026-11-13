@@ -7,7 +7,7 @@ suppressMessages({library(tidyverse); library(ggiraph); library(patchwork)})
 suppressWarnings(suppressMessages(library(ligandFinder)))
 ## package source tree: $LF_SRC, or the checkout this script sits in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "..", "lf_paths.R"))
 A2 <- path.expand("~/AF2_analysis"); S2 <- Sys.getenv("SCRATCH2")
 out_dir <- file.path(A2, "seed_pages"); dir.create(out_dir, showWarnings = FALSE)
 .b <- readRDS(file.path(A2, "plot_bundle.rds"))

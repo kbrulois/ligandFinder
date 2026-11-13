@@ -60,7 +60,7 @@ import numpy as np
 
 A2 = os.path.expanduser("~/AF2_analysis")
 ## lf_dcnn / lf_winxgb from the checkout this script sits in, or $LF_SRC (lf_paths.py)
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import lf_paths  # noqa: E402
 
 # how channels are grouped in the per-position x family table. Order is the

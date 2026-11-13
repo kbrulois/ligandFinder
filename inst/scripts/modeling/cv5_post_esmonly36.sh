@@ -20,19 +20,18 @@
 #    fullscan_arm.sh, and a missing file stops the run rather than being offered
 #    to scan_genes.py (which now asserts the match and would raise anyway).
 set -eu
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
-S=${0:A:h}
 export ARM=${ARM:-esmonly36}          # exported: xargs re-enters this script
 TAG=_nomask_flatten_${ARM}
-if [[ -r $S/arms/$ARM.sh ]]; then source $S/arms/$ARM.sh; fi   # INPUT_SFX, if this arm has its own windows
+if [[ -r $LF_MOD/arms/$ARM.sh ]]; then source $LF_MOD/arms/$ARM.sh; fi   # INPUT_SFX, if this arm has its own windows
 GROUPS_OF() { echo $A2/lf_pepend_window_groups_$1_cv5_f$2${INPUT_SFX:-}.npz }
 RESID=${RESID:-$A2/lf_pepend_residues_${ARM}.npz}
 PROCS=${PROCS:-4}
 ## GENES is overridable so a single gene can be scanned as a test
 ## (GENES=CXCL14 ...); unset it means all 104 page genes. A one-gene run
 ## REPLACES the npz, so re-run with the full list before rendering a gallery.
-export GENES=${GENES:-$(paste -sd, $S/page_genes.txt)}
+export GENES=${GENES:-$(paste -sd, $LF_RUN/page_genes.txt)}
 
 if [[ ${1:-} == scan ]]; then          # one fold/terminus scan (what xargs calls)
   k=$2 T=$3
@@ -46,7 +45,7 @@ if [[ ${1:-} == scan ]]; then          # one fold/terminus scan (what xargs call
     --residues-npz $RESID \
     --groups $G \
     --pm-rounds 100 --skip-stacked \
-    --out $A2/lf_winxgb_scan_${T}_cv5_f${k}${TAG}.npz > $S/cv5scan_${ARM}_${T}_f$k.log 2>&1
+    --out $A2/lf_winxgb_scan_${T}_cv5_f${k}${TAG}.npz > $LF_RUN/cv5scan_${ARM}_${T}_f$k.log 2>&1
   echo "scan $T f$k rc=$?"
   exit 0
 fi

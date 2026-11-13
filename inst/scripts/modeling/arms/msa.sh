@@ -24,7 +24,7 @@
 # conservation channel is re-masked against it, on the SCALE the _padg msacons
 # trunks used (aa_onehot_msacons.parquet.scale.json, pinned).
 #
-# THE SCORE and THE MSA: as inst/scripts/msa_cons/ documents (ColabFold MSAs,
+# THE SCORE and THE MSA: as inst/scripts/generate_residue_db/msa_cons/ documents (ColabFold MSAs,
 # Capra-Singh JSD, Henikoff weights, BLOSUM62 background, a 10-pseudo-sequence
 # prior; 0 on residues excluded by design).
 
@@ -44,11 +44,11 @@ N_CHAN_EXPECT=43
 RESID_BASE=$A2/lf_pepend_residues_v2.npz
 
 mk_plm() {
-  $PY_PLM $W/inst/scripts/msa_cons/build_msacons_parquet.py --residues-npz $RESID_BASE \
+  $PY_PLM $W/inst/scripts/generate_residue_db/msa_cons/build_msacons_parquet.py --residues-npz $RESID_BASE \
     --scale-from $A2/lf_plm/aa_onehot_msacons.parquet.scale.json --out $PLM
 }
 
-mk_resid() { $PY_TF $S/residues_arm.py --arm $ARM --plm $PLM --residues-npz $RESID_BASE }
+mk_resid() { $PY_TF $LF_RDB/residues_arm.py --arm $ARM --plm $PLM --residues-npz $RESID_BASE }
 
 THRESH_DEFAULT=0.5
 

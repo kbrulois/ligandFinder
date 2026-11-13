@@ -20,7 +20,7 @@
 ##   Rscript neverseen_examples_pair.R
 ##   N_EACH=3 TOL=4 OUT=<png>
 suppressMessages({library(data.table); library(ggplot2)})
-A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
+A2 <- path.expand("~/AF2_analysis"); S <- path.expand(Sys.getenv("LF_RUN", file.path(A2, "lf_run")))
 ARMS <- list(list(key = "_curated_AAswap", lab = "AAswap (43 ch)", short = "AAswap", thr = 0.5),
              list(key = "_esmonly36", lab = "ESM-C only (37 ch)", short = "ESM-C", thr = 0.65))
 N_EACH <- as.integer(Sys.getenv("N_EACH", "3")); TOL <- as.integer(Sys.getenv("TOL", "4"))

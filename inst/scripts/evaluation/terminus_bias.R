@@ -64,9 +64,9 @@ suppressMessages({library(dplyr); library(data.table); library(ggplot2); library
 A2 <- path.expand("~/AF2_analysis")
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "lf_paths.R"))
 ## arm_var(): each arm's training windows (INPUT_SFX in arms/<arm>.sh)
-source(file.path(Sys.getenv("LF_SCRIPTS", .lf_here), "arm_vars.R"))
+source(lf_src("inst/scripts/modeling/arm_vars.R"))
 source(lf_src("R/pepend_windows.R"))   # lf_pepend_motif, lf_pepend_motif_vec
 source(lf_src("R/viz_theme.R"))        # LF_VIZ, lf_viz_theme
 

@@ -10,7 +10,7 @@ import csv, json, os
 import numpy as np
 from sklearn.decomposition import PCA
 
-A2 = os.path.expanduser("~/AF2_analysis"); S = A2 + "/lf_nomask_scripts_20261021"
+A2 = os.path.expanduser("~/AF2_analysis"); S = os.environ.get("LF_RUN", A2 + "/lf_run")
 PAGES = "pepend_pages_flatten_cv5"
 pages = {f[:-5] for f in os.listdir(f"{A2}/{PAGES}") if f.endswith(".html") and f != "index.html"}
 seqs = {r["accession"]: r["seq"] for r in csv.DictReader(open(S + "/end_window_seqs.csv"))}

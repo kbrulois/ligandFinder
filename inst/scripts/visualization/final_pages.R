@@ -33,7 +33,7 @@ suppressMessages({library(tidyverse); library(ggiraph); library(patchwork)})
 suppressWarnings(suppressMessages(library(ligandFinder)))
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "lf_paths.R"))
 WP <- lf_src("inst/python")
 MODE <- Sys.getenv("MODE", "cv5"); stopifnot(MODE %in% c("2fold", "cv5"))
 SFX  <- Sys.getenv("NPZ_SFX", "")        # which per-gene xgb npz set (see arm_post.sh)
@@ -45,7 +45,7 @@ plot_dir <- Sys.getenv("LF_PLOT_DIR", if (MODE == "cv5") "~/AF2_analysis/pepend_
 list2env(Filter(Negate(is.null), .b), .GlobalEnv)
 ## LF_EXTRA_BUNDLE: the_input / pep_input entries for genes plot_bundle.rds
 ## lacks -- it holds only the genes the old dibasic-window model scored -- built
-## by inst/scripts/plot_bundle_extra.R and appended here. pred_to_plot stays the
+## by inst/scripts/visualization/plot_bundle_extra.R and appended here. pred_to_plot stays the
 ## bundle's: these genes have no old-model windows, so make_protein_plot_win
 ## draws them through its no-window branch.
 .xb <- Sys.getenv("LF_EXTRA_BUNDLE", "")
@@ -77,7 +77,7 @@ local({
 ## (cv5_unseen_ends.csv -- ends whose gene no fold trained a window on), one row
 ## per END; rebuilt here into one span per peptide.
 never_seen <- local({
-  u <- utils::read.csv(path.expand("~/AF2_analysis/lf_nomask_scripts_20261021/cv5_unseen_ends.csv"),
+  u <- utils::read.csv(file.path(path.expand(Sys.getenv("LF_RUN", "~/AF2_analysis/lf_run")), "cv5_unseen_ends.csv"),
                        stringsAsFactors = FALSE)
   u$start <- ifelse(u$term == "N", u$anchor, u$anchor - u$len + 1L)
   u$end   <- ifelse(u$term == "N", u$anchor + u$len - 1L, u$anchor)
@@ -89,7 +89,7 @@ never_seen <- local({
 })
 ## the ChimeraX helpers, definitions only (sourcing the file whole runs a batch)
 local({
-  e <- parse(lf_src("inst/scripts/generate_cm_sct.R"))
+  e <- parse(lf_src("inst/scripts/visualization/generate_cm_sct.R"))
   isfn <- vapply(e, function(x) {
     if (!is.call(x) || length(x) < 3) return(FALSE)
     op <- tryCatch(as.character(x[[1]])[1], error = function(...) "")
@@ -270,7 +270,7 @@ options(lf.pepend_python_path = WP,
 ENS_ONLY_MIN <- as.integer(Sys.getenv("LF_ENS_ONLY_MIN", "0"))
 NO_ALIGN_MIN <- as.integer(Sys.getenv("LF_NO_ALIGN_MIN", "0"))
 GENE_LEN <- if (ENS_ONLY_MIN > 0 || NO_ALIGN_MIN > 0) local({
-  d <- utils::read.delim(file.path(A2, "lf_nomask_scripts_20261021", "gene_lengths.txt"), header = FALSE,
+  d <- utils::read.delim(file.path(Sys.getenv("LF_RUN", file.path(A2, "lf_run")), "gene_lengths.txt"), header = FALSE,
                          col.names = c("gene", "len"), colClasses = c("character", "integer"))
   stats::setNames(as.list(d$len), d$gene)
 })

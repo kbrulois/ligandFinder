@@ -17,9 +17,8 @@
 # -- swap grows on demand and nothing gets OOM-killed, but drop PROCS if a large
 # render is running at the same time.
 set -u
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
-S=${0:A:h}
 ARM=${ARM:-esmonly36}
 TAG=_nomask_flatten_${ARM}
 PROCS=${PROCS:-4}
@@ -40,14 +39,14 @@ if [[ ${1:-} == one ]]; then
   [[ -s $RESID ]] || { echo "$T f$k SKIPPED: no $(basename $RESID), run residues_esmonly36.py"; exit 1; }
   source ~/.virtualenvs/r-tensorflow/bin/activate
   cd $W/inst/python
-  echo "### $T f$k start $(date '+%F %H:%M:%S')" > $S/fsesm36_${T}_f$k.log
+  echo "### $T f$k start $(date '+%F %H:%M:%S')" > $LF_RUN/fsesm36_${T}_f$k.log
   python -m lf_winxgb.full_scan --term $T \
     --run $RUN \
     --residues-npz $RESID \
     --groups $A2/lf_pepend_window_groups_${T}_cv5_f${k}.npz \
-    --pm-rounds 100 --skip-stacked --out $OUT >> $S/fsesm36_${T}_f$k.log 2>&1
+    --pm-rounds 100 --skip-stacked --out $OUT >> $LF_RUN/fsesm36_${T}_f$k.log 2>&1
   rc=$?
-  echo "### $T f$k rc=$rc $(date '+%F %H:%M:%S')" >> $S/fsesm36_${T}_f$k.log
+  echo "### $T f$k rc=$rc $(date '+%F %H:%M:%S')" >> $LF_RUN/fsesm36_${T}_f$k.log
   echo "scan $T f$k rc=$rc"
   exit 0
 fi

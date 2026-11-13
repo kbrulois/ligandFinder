@@ -32,7 +32,7 @@
 #                                    a row of its own (the HLA-H / HFE trap).
 #
 # Usage:
-#   Rscript inst/scripts/hpa_top_celltype.R [out_dir] [cache_dir] [--append predictions.csv]
+#   Rscript inst/scripts/generate_residue_db/hpa_top_celltype.R [out_dir] [cache_dir] [--append predictions.csv]
 #   defaults: out_dir ~/AF2_analysis, cache_dir <out_dir>/hpa_cache
 
 suppressPackageStartupMessages({

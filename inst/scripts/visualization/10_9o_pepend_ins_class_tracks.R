@@ -14,7 +14,7 @@
 ## windows only, whose softmax must still sum to 1 at an anchor the global head
 ## rejects outright. Read the class panels where the score panel is high.
 ##
-##   Rscript inst/scripts/10_9o_pepend_ins_class_tracks.R --gene NPY
+##   Rscript inst/scripts/visualization/10_9o_pepend_ins_class_tracks.R --gene NPY
 ##
 ## Output: <out-dir>/lf_ins_class_tracks_<gene>_<term>.svg (+ .png unless
 ##         --no-png) and the matching .csv

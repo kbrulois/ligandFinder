@@ -12,7 +12,7 @@
 # Safe to start, stop and restart: it only ever waits and then calls
 # allsec_giants.sh, which skips any gene whose .html already exists.
 set -u
-S=${0:A:h}
+. ${0:A:h:h}/lf_paths.sh   # LF_SRC, the script folders, LF_RUN
 A2=~/AF2_analysis
 POLL=${POLL:-120}
 GIANT_PROCS=${GIANT_PROCS:-1}
@@ -23,7 +23,7 @@ say() { echo "[$(date '+%F %H:%M:%S')] $*" }
 # closing line. Both, because there is a gap between the last worker exiting
 # and the driver finishing its index.
 main_running() {
-  ps aux | grep -q "[-]-file=$A2/lf_nomask_scripts_20261021/final_pages.R"
+  ps aux | grep -q "[-]-file=.*/final_pages.R"
 }
 
 say "waiting for the main render to finish (polling every ${POLL}s)"
@@ -40,5 +40,5 @@ say "main render done: $(ls $A2/pepend_pages_allsec/*.html | grep -vc index.html
 say "free swap before the giants: $(sysctl -n vm.swapusage | sed -E 's/.*free = ([0-9.]+M).*/\1/')"
 say "starting allsec_giants.sh PROCS=$GIANT_PROCS"
 
-PROCS=$GIANT_PROCS $S/allsec_giants.sh
+PROCS=$GIANT_PROCS $LF_VIZ/allsec_giants.sh
 say "allsec_giants.sh exited rc=$?"

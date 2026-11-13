@@ -3,7 +3,7 @@
 ## What is running
 
 ```
-nohup ./allsec_overnight.sh > allsec_overnight.log 2>&1 &
+nohup visualization/allsec_overnight.sh > allsec_overnight.log 2>&1 &
 ```
 
 Two stages, **both resumable**. If it dies, the machine sleeps, or you kill it,
@@ -164,7 +164,7 @@ To resume, or change PROCS: `touch <OUT>/.render/STOP`, let the chunks in flight
 finish, then from the frozen copy's script directory:
 
 ```bash
-PROCS=3 caffeinate -is nohup ./arms2_allsec.sh >> ~/AF2_analysis/arms2_allsec.log 2>&1 &
+PROCS=3 caffeinate -is nohup visualization/arms2_allsec.sh >> ~/AF2_analysis/arms2_allsec.log 2>&1 &
 ```
 
 Not drawn: the 431 precursors outside `plot_bundle.rds`, which also have no ESM-C
@@ -174,7 +174,7 @@ names with a `/`, which cannot be a file name.
 ## Checking on it
 
 ```bash
-tail -20 ~/AF2_analysis/lf_nomask_scripts_20261021/allsec_overnight.log
+tail -20 ~/AF2_analysis/lf_run/allsec_overnight.log
 ls ~/AF2_analysis/pepend_pages_allsec/*.html | wc -l
 du -sh ~/AF2_analysis/pepend_pages_allsec
 ```
@@ -189,7 +189,7 @@ resolve that checkout in one place for every script here:
 
 1. `$LF_SRC`, if set
 2. otherwise the checkout this script directory sits in — these scripts are
-   committed at `inst/scripts/lf_nomask_scripts_20261021/`, so a copy that
+   committed under `inst/scripts/<folder>/`, so a copy that
    travels with the repository needs no configuration
 
 A working copy kept **outside** a checkout (the one in `~/AF2_analysis`, say)

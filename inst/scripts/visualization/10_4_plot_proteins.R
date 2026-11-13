@@ -5,17 +5,17 @@
 ## plots can be regenerated without retraining anything.
 ##
 ##   # in the session that has nn_input_comb (i.e. after 10_1dcnn_new6.R):
-##   source("inst/scripts/10_4_plot_proteins.R")
+##   source("inst/scripts/visualization/10_4_plot_proteins.R")
 ##
 ##   # only some genes:
-##   plot_genes <- c("NPY", "ANO8", "TAC1"); source("inst/scripts/10_4_plot_proteins.R")
+##   plot_genes <- c("NPY", "ANO8", "TAC1"); source("inst/scripts/visualization/10_4_plot_proteins.R")
 ##
 ## Needs in the session: nn_input_comb, secretome, secretome_aa, peps_tp.
 ## Writes the plot bundle at the end, so afterwards a FRESH session can re-render
 ## with no keras, no secretome_aa and no training:
 ##
-##   Rscript inst/scripts/plot_only.R            # every gene in the bundle
-##   Rscript inst/scripts/plot_only.R ANO8 NPY
+##   Rscript inst/scripts/visualization/plot_only.R            # every gene in the bundle
+##   Rscript inst/scripts/visualization/plot_only.R ANO8 NPY
 ##
 ## Knobs (set before sourcing, otherwise these defaults apply):
 ##   plot_dir     where the .html files go
@@ -203,10 +203,10 @@ local({
   ## the_input over hardcoded indices (`the_input[c(1:5435, 5441:5614)]`), which
   ## errors on any other gene set and would regenerate thousands of .cxc files
   ## as a side effect. Cut at the driver, by content rather than line number.
-  .cand <- file.path(.roots, "inst/scripts/generate_cm_sct.R")
+  .cand <- file.path(.roots, "inst/scripts/visualization/generate_cm_sct.R")
   .hit  <- .cand[file.exists(path.expand(.cand))]
   if (!length(.hit))
-    stop("inst/scripts/generate_cm_sct.R not found -- the ChimeraX script ",
+    stop("inst/scripts/visualization/generate_cm_sct.R not found -- the ChimeraX script ",
          "would be omitted from every page.", call. = FALSE)
   .src  <- readLines(path.expand(.hit[[1]]))
   .stop <- grep("^start <- Sys.time\\(\\)", .src)[1]
@@ -265,4 +265,4 @@ local({
 })
 
 ## ---- bundle for re-rendering without a training session ---------------------
-if (isTRUE(write_bundle)) source("inst/scripts/save_plot_bundle.R")
+if (isTRUE(write_bundle)) source("inst/scripts/visualization/save_plot_bundle.R")

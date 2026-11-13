@@ -31,7 +31,7 @@
 ## `offset[i] + r - 1` is residue r of precursor i -- so python can use the
 ## labels and the features by index with no join at all.
 ##
-##   Rscript inst/scripts/10_9p_export_residue_labels.R
+##   Rscript inst/scripts/modeling/10_9p_export_residue_labels.R
 ##   ... --ctx 8 --out ~/AF2_analysis/lf_resid_labels.npz
 ##
 ## Output: an npz of flat arrays, plus a csv of per-precursor counts.

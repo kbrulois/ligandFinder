@@ -18,7 +18,7 @@ suppressMessages({library(data.table); library(dplyr); library(reticulate)})
 S <- commandArgs(TRUE)[1]; A2 <- path.expand("~/AF2_analysis")
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "lf_paths.R"))
 np <- import("numpy", convert = TRUE)
 ll <- as.data.frame(readRDS(lf_src("inst/extdata/ligand_list.rds")))
 un <- fread(file.path(S, paste0("cv5_unseen_ends", Sys.getenv("UNSEEN_SFX", ""), ".csv")))

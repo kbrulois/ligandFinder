@@ -6,10 +6,10 @@
 ## 10_4_plot_proteins.R expects, so the full annotated page renders with the
 ## peptide-end model's windows in place of the production ones.
 ##
-##   Rscript inst/scripts/10_9j_scan_peaks_as_nn_input.R --gene NPY
+##   Rscript inst/scripts/visualization/10_9j_scan_peaks_as_nn_input.R --gene NPY
 ##   LF_NN_INPUT_COMB=~/AF2_analysis/lf_scan_peaks_nn_input_NPY.rds \
 ##     LF_PLOT_DIR=~/AF2_analysis/scan_peak_plots \
-##     Rscript inst/scripts/plot_all.R NPY
+##     Rscript inst/scripts/visualization/plot_all.R NPY
 ##
 ## TWO GEOMETRY CAVEATS, since the page was written for the dibasic-anchored set:
 ##
@@ -200,4 +200,4 @@ print(as.data.frame(nn %>% mutate(anchor = pk$anchor) %>%
       row.names = FALSE, digits = 3)
 message("\nnow run:\n  LF_NN_INPUT_COMB=", out_p,
         " \\\n    LF_PLOT_DIR=~/AF2_analysis/scan_peak_plots \\\n",
-        "    Rscript inst/scripts/plot_all.R ", gene)
+        "    Rscript inst/scripts/visualization/plot_all.R ", gene)

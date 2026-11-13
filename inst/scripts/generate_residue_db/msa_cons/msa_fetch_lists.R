@@ -35,7 +35,7 @@
 ## The manifest lives on `main`, so a fresh download can differ; point MANIFEST
 ## at a saved copy to rebuild those lists exactly.
 ##
-## Then, from inst/scripts/msa_cons/:
+## Then, from inst/scripts/generate_residue_db/msa_cons/:
 ##   D=$D P=2 ./fetch_hf_msas.sh                 # HF rate-limits; P=8 drew 429s
 ##   ~/.virtualenvs/lf-plm/bin/python -I fetch_colabfold_api.py $D/api_needed.tsv $D/api_colabfold --workers 3
 ##   ~/.virtualenvs/lf-plm/bin/python msa_conservation.py --workers 4 [--allow-missing]
@@ -43,7 +43,7 @@
 ## the default D; for any other, pass --msa-dirs $D/hf_colabfold $D/api_colabfold
 ## --alias $D/hf_needed_alias.tsv and an --out / --per-protein of your choosing.
 ##
-##   LC_ALL=en_US.UTF-8 Rscript inst/scripts/msa_cons/msa_fetch_lists.R
+##   LC_ALL=en_US.UTF-8 Rscript inst/scripts/generate_residue_db/msa_cons/msa_fetch_lists.R
 ##   D=/tmp/msa MANIFEST=~/AF2_analysis/lf_msa/manifest.tsv LC_ALL=en_US.UTF-8 Rscript msa_fetch_lists.R
 ##
 ## D        output directory (default ~/AF2_analysis/lf_msa, fetch_hf_msas.sh's D)

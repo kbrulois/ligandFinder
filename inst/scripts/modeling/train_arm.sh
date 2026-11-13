@@ -18,9 +18,8 @@
 # PROCS defaults to 4, matching train_final.sh. This machine is memory-bound
 # rather than CPU-bound; drop it if something large is rendering at the time.
 set -u
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
-S=${0:A:h}
 R="LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript"
 PY_PLM=~/.virtualenvs/lf-plm/bin/python
 PY_TF=~/.virtualenvs/r-tensorflow/bin/python
@@ -31,8 +30,8 @@ export ARM=${ARM:-curated_wAAid}
 PROCS=${PROCS:-4}
 TAG=_nomask_flatten_${ARM}
 
-[[ -r $S/arms/$ARM.sh ]] || { echo "no arm definition at arms/$ARM.sh"; exit 1; }
-source $S/arms/$ARM.sh
+[[ -r $LF_MOD/arms/$ARM.sh ]] || { echo "no arm definition at arms/$ARM.sh"; exit 1; }
+source $LF_MOD/arms/$ARM.sh
 
 ## ZSH TRAP, and it cost a whole mis-trained arm: zsh does NOT word-split an
 ## unquoted parameter expansion, so `${DROP:+--drop-channels $DROP}` is ONE
@@ -48,13 +47,13 @@ if [[ ${1:-} == one ]]; then
   out=$A2/lf_pepend_run_${T}_cv5_f${k}${TAG}.rds
   {
     echo "### $T f$k start $(date '+%F %H:%M:%S')"
-    cd $W && LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript inst/scripts/10_8_pepend_train.R \
+    cd $W && LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript inst/scripts/modeling/10_8_pepend_train.R \
       --term $T --n-seeds 10 --no-mask --global-head flatten \
       --plm $PLM ${DROP:+--drop-channels} $DROP \
       --input $A2/lf_pepend_nn_input_cv5_f$k${INPUT_SFX:-}.rds \
       --out $out
     echo "### $T f$k rc=$? $(date '+%F %H:%M:%S')"
-  } >> $S/train_${ARM}_${T}_f$k.log 2>&1
+  } >> $LF_RUN/train_${ARM}_${T}_f$k.log 2>&1
   exit 0
 fi
 

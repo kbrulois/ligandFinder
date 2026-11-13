@@ -3,7 +3,7 @@
 ## The thin command-line face of lf_gallery_candidate_plot(). See
 ## R/gallery_candidate_plot.R; the drawing is inst/templates/candidate_plot.html.
 ##
-##   Rscript inst/scripts/make_candidate_plot.R --dir ~/AF2_analysis/pepend_pages_allsec_arms2
+##   Rscript inst/scripts/visualization/make_candidate_plot.R --dir ~/AF2_analysis/pepend_pages_allsec_arms2
 ##
 ## Options
 ##   --dir   the gallery of <GENE>.html pages

@@ -13,7 +13,7 @@
 # from "not_expressed": no measurement is not the same as a measured zero.
 #
 # Usage:
-#   Rscript inst/scripts/merge_eec_with_predictions.R <predictions.csv> \
+#   Rscript inst/scripts/generate_residue_db/merge_eec_with_predictions.R <predictions.csv> \
 #           <eec_gene_classification.tsv> <out_dir> [proteinatlas.tsv]
 
 suppressPackageStartupMessages({

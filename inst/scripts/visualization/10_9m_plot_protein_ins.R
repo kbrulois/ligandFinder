@@ -15,7 +15,7 @@
 ## keeps NA and renders exactly as before, and
 ## options(lf.nn_show_ins = FALSE) turns the whole thing off.
 ##
-##   Rscript inst/scripts/10_9m_plot_protein_ins.R NPY
+##   Rscript inst/scripts/visualization/10_9m_plot_protein_ins.R NPY
 ##   ... --ins <csv> --out-dir <dir> --bundle <rds>
 ##
 ## The insertion csv is written by the step that reads the 20 members of

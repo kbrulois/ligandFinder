@@ -6,7 +6,8 @@
 # MultiPep wants ONE BARE SEQUENCE PER LINE (not FASTA -- it reads ">" headers
 # as sequences), 2-200 residues, the 20 standard amino acids only.
 set -u
-S=${0:A:h}; A2=~/AF2_analysis; M=$A2/multipep_ext
+. ${0:A:h:h}/lf_paths.sh   # LF_SRC, the script folders, LF_RUN
+A2=~/AF2_analysis; M=$A2/multipep_ext
 PY=~/.virtualenvs/multipep/bin/python
 REPO=$M/MultiPep
 CACHE=$M/multipep_scores.csv
@@ -43,4 +44,4 @@ else
   echo "  nothing new to score"
 fi
 rm -f $M/todo_in.txt $M/todo_out.csv
-LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $S/candidate_multipep_merge.R
+LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $LF_MOD/candidate_multipep_merge.R

@@ -13,14 +13,14 @@
 ## file when LF_EXTRA_BUNDLE points at it. plot_bundle.rds is never read or
 ## written. Run from the repo root:
 ##
-##   LF_PLOT_DIR=<scratch dir> /usr/local/bin/Rscript inst/scripts/plot_bundle_extra.R CD24 DEFB1 PRAP1 TCTA
+##   LF_PLOT_DIR=<scratch dir> /usr/local/bin/Rscript inst/scripts/visualization/plot_bundle_extra.R CD24 DEFB1 PRAP1 TCTA
 ##   (writes LF_EXTRA_OUT, default ~/AF2_analysis/plot_bundle_extra.rds)
 ##
 ## It loads what plot_all.R loads (secretome.rds and secretome_aa_1.rds, ~3 GB
 ## on disk): minutes, and well over 10 GB of RAM -- not beside page renders.
 ## LF_PLOT_DIR: 10_4 creates its plot_dir even though nothing is drawn.
 ## =============================================================================
-if (!file.exists("inst/scripts/10_4_plot_proteins.R"))
+if (!file.exists("inst/scripts/visualization/10_4_plot_proteins.R"))
   stop("run this from the repo root (", getwd(), " is not it)", call. = FALSE)
 .extra_genes <- commandArgs(trailingOnly = TRUE)
 if (!length(.extra_genes)) stop("name the genes to build entries for", call. = FALSE)
@@ -34,12 +34,12 @@ if (!length(.extra_genes)) stop("name the genes to build entries for", call. = F
 }
 ## plot_all.R without its last step, the source() of 10_4 (which renders). Its
 ## own gene-argument handling makes plot_genes these genes and write_bundle FALSE.
-eval(parse(text = .upto("inst/scripts/plot_all.R", '^source\\("inst/scripts/10_4_plot_proteins.R"\\)')),
+eval(parse(text = .upto("inst/scripts/visualization/plot_all.R", '^source\\("inst/scripts/visualization/10_4_plot_proteins.R"\\)')),
      envir = globalenv())
 stopifnot(identical(plot_genes, .extra_genes), isFALSE(write_bundle))
 ## 10_4 up to its render section: the_input / pep_input, built and paired as
 ## for every bundled gene
-eval(parse(text = .upto("inst/scripts/10_4_plot_proteins.R", "^## ---- render")), envir = globalenv())
+eval(parse(text = .upto("inst/scripts/visualization/10_4_plot_proteins.R", "^## ---- render")), envir = globalenv())
 
 .got <- vapply(the_input, function(x) as.character(x$gene)[1], "")
 if (length(setdiff(.extra_genes, .got)))

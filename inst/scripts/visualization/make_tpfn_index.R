@@ -4,7 +4,7 @@
 ## R/gallery_tpfn.R, so a new arm is one more entry in --arms and not another
 ## copy of a script.
 ##
-##   Rscript inst/scripts/make_tpfn_index.R --dir ~/AF2_analysis/pepend_pages_arms
+##   Rscript inst/scripts/visualization/make_tpfn_index.R --dir ~/AF2_analysis/pepend_pages_arms
 ##
 ## Options
 ##   --dir       the gallery of <GENE>.html pages        (required in practice)

@@ -11,7 +11,7 @@
 ## and lf_dcnn_align_terms() refuses to widen it. Training both from one Config
 ## would score one terminus through the other's mask.
 ##
-##   Rscript inst/scripts/10_8_pepend_train.R --term C
+##   Rscript inst/scripts/modeling/10_8_pepend_train.R --term C
 ##   ... --n-seeds 20 --refresh
 ##   ... --mask-slack 8     (default: the largest near-end offset in the set)
 ##   ... --learning-rate 1e-3 --unet-filters 24,48,96 --conv-kernel 5 \
@@ -19,7 +19,7 @@
 ##                          (the knobs `python -m lf_dcnn tune` searches; each one
 ##                           given lands in the cache name)
 ##   ... --export-only DIR  (write the tuner's input for this fold and stop; see
-##                           inst/scripts/10_8t_pepend_tune.sh)
+##                           inst/scripts/modeling/10_8t_pepend_tune.sh)
 ##
 ## Reports, for the held-out (validation) known peptide ends, where they rank
 ## among the candidate windows the set scores -- the same currency as
@@ -313,7 +313,7 @@ if (!is.na(pos_cls)) {
 ## lf_dcnn_config call), plus per-window metadata -- for val, what the tuner
 ## needs to split it into parts that keep a precursor and an end's near-end
 ## negatives together; for `all`, what it needs to rank held-out ends among the
-## candidates. Trains nothing. See inst/scripts/10_8t_pepend_tune.sh.
+## candidates. Trains nothing. See inst/scripts/modeling/10_8t_pepend_tune.sh.
 export_dir <- .opt("--export-only", NA_character_)
 if (!is.na(export_dir)) {
   export_dir <- path.expand(export_dir)

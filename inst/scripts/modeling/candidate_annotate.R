@@ -37,7 +37,7 @@
 ##                         gene and overlap nothing here, or overlap a known
 ##                         propeptide and resemble nothing.
 suppressMessages({library(data.table)})
-A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
+A2 <- path.expand("~/AF2_analysis"); S <- path.expand(Sys.getenv("LF_RUN", file.path(A2, "lf_run")))
 HEAD    <- Sys.getenv("HEAD", "xgb_pm")
 ARM     <- Sys.getenv("ARM", "")      # "" = curated, else e.g. "_esmonly36"
 thr     <- as.numeric(Sys.getenv("THRESH", "0.5"))

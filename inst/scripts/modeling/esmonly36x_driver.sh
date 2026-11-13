@@ -24,10 +24,10 @@
 #      and a byte-identity check that the KEEP parameterisation left the default
 #      path alone
 set -u
-S=${0:A:h}
+. ${0:A:h:h}/lf_paths.sh   # LF_SRC, the script folders, LF_RUN
 A2=~/AF2_analysis
 HC=$A2/lf_headcmp
-KEEPF=$S/zero_esm_covered.csv
+KEEPF=$LF_RUN/zero_esm_covered.csv
 PROCS=${PROCS:-2}
 say() { echo "[$(date '+%F %H:%M:%S')] $*"; }
 
@@ -56,13 +56,13 @@ if [[ -s $one ]]; then
   say "stage 1: $(basename $one) already present, skipping the proof job"
 else
   say "stage 1: one job (C fold 1) to prove the path executes"
-  $S/train_esmonly36x.sh one 1 C
-  [[ -s $one ]] || { say "stage 1 FAILED: no rds. tail:"; tail -25 $S/trainesm36x_C_f1.log; exit 1; }
+  $LF_MOD/train_esmonly36x.sh one 1 C
+  [[ -s $one ]] || { say "stage 1 FAILED: no rds. tail:"; tail -25 $LF_RUN/trainesm36x_C_f1.log; exit 1; }
   say "stage 1: ok, $(du -h $one | cut -f1)"
 fi
 # the decisive check: 10_8 prints the train/val counts it actually fitted on.
 # _esmonly36 fitted C f1 on train 469 / val 417; this arm must be 461 / 413.
-nw=$(grep -h '^terminus C:' $S/trainesm36x_C_f1.log | tail -1)
+nw=$(grep -h '^terminus C:' $LF_RUN/trainesm36x_C_f1.log | tail -1)
 say "stage 1: $nw"
 if [[ "$nw" != *"train 461"* || "$nw" != *"val 413"* ]]; then
   say "stage 1 FAILED: expected 'train 461, val 413' (see nn_input_esmcov_report.csv)."
@@ -75,7 +75,7 @@ say "stage 1: train/val counts confirm the covered-only input took effect"
 
 # ---- stage 2: the rest ------------------------------------------------------
 say "stage 2: the remaining nine training jobs (PROCS=$PROCS)"
-PROCS=$PROCS $S/train_esmonly36x.sh
+PROCS=$PROCS $LF_MOD/train_esmonly36x.sh
 for k in 1 2 3 4 5; do for T in C N; do
   [[ -s $A2/lf_pepend_run_${T}_cv5_f${k}_nomask_flatten_esmonly36x.rds ]] || { say "stage 2 FAILED: $T f$k missing"; exit 1; }
 done; done
@@ -92,7 +92,7 @@ say "stage 3: $cmp_rc"
 
 # ---- stage 4: the scans -----------------------------------------------------
 say "stage 4: ten full scans (PROCS=$PROCS)"
-PROCS=$PROCS $S/fullscan_esmonly36x.sh
+PROCS=$PROCS $LF_MOD/fullscan_esmonly36x.sh
 for k in 1 2 3 4 5; do for T in C N; do
   [[ -f $A2/lf_winxgb_fullscan_${T}_cv5_f${k}_nomask_flatten_esmonly36x.npz ]] || { say "stage 4 FAILED: scan $T f$k missing"; exit 1; }
 done; done
@@ -100,7 +100,7 @@ say "stage 4: all 10 scans present"
 
 # ---- stage 5: tracks --------------------------------------------------------
 say "stage 5: tracks"
-cd $S && LC_ALL=en_US.UTF-8 TAG=_nomask_flatten_esmonly36x /usr/local/bin/Rscript tracks_esmonly36.R
+cd $LF_RUN && LC_ALL=en_US.UTF-8 TAG=_nomask_flatten_esmonly36x /usr/local/bin/Rscript $LF_MOD/tracks_esmonly36.R
 for T in C N; do
   [[ -s $A2/lf_pepend_cv5_tracks_${T}_flatten_esmonly36x.rds ]] || { say "stage 5 FAILED: tracks $T missing"; exit 1; }
 done
@@ -109,14 +109,14 @@ say "stage 5: tracks built"
 # ---- stage 6: the evaluations ----------------------------------------------
 # Back up the curated TOL-4 files on record BEFORE the byte-identity run, which
 # rewrites them in place. If they come back different, the originals are here.
-mkdir -p $S/segroc_backup
-cp -f $HC/segment_confusion_tol4.csv $HC/segment_roc_auc_tol4.csv $S/segroc_backup/ 2>/dev/null
+mkdir -p $LF_RUN/segroc_backup
+cp -f $HC/segment_confusion_tol4.csv $HC/segment_roc_auc_tol4.csv $LF_RUN/segroc_backup/ 2>/dev/null
 
 run_eval() {  # label, ARM, KEEP
   local label=$1 arm=$2 keep=$3
   say "stage 6: $label"
-  cd $S && LC_ALL=en_US.UTF-8 TOL=4 ARM=$arm KEEP=$keep \
-    /usr/local/bin/Rscript segments_roc.R > $S/segroc_${label}.log 2>&1
+  cd $LF_RUN && LC_ALL=en_US.UTF-8 TOL=4 ARM=$arm KEEP=$keep \
+    /usr/local/bin/Rscript $LF_EVAL/segments_roc.R > $LF_RUN/segroc_${label}.log 2>&1
   local rc=$?
   say "stage 6: $label rc=$rc"
 }
@@ -140,9 +140,9 @@ run_eval curated_identity  ""          ""
 
 say "stage 6: byte-identity check of the KEEP parameterisation's default path"
 for f in segment_confusion_tol4.csv segment_roc_auc_tol4.csv; do
-  a=$(md5 -q $S/segroc_backup/$f 2>/dev/null); b=$(md5 -q $HC/$f 2>/dev/null)
+  a=$(md5 -q $LF_RUN/segroc_backup/$f 2>/dev/null); b=$(md5 -q $HC/$f 2>/dev/null)
   if [[ "$a" == "$b" ]]; then say "  $f IDENTICAL ($b)"
-  else say "  $f DIFFERS -- backup $a, new $b -- restoring the original"; cp -f $S/segroc_backup/$f $HC/$f; fi
+  else say "  $f DIFFERS -- backup $a, new $b -- restoring the original"; cp -f $LF_RUN/segroc_backup/$f $HC/$f; fi
 done
 
 say "=== ESM-C-ONLY (COVERED) ARM DONE ==="

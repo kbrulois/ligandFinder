@@ -2,7 +2,7 @@
 
 Everything the model, the losses and the sampler need to agree on lives here:
 class order, the position masks, the per-index class weights and the training
-hyper-parameters.  The R original (``inst/scripts/10_1dcnn_new6.R``) states all
+hyper-parameters.  The R original (``inst/scripts/analysis/archive/window_model/10_1dcnn_new6.R``) states all
 of these in 1-based, column-major terms; the translation to 0-based numpy
 indices is done once, here, and nowhere else.
 """
@@ -33,7 +33,7 @@ CLASS_NAMES: tuple[str, ...] = (
     "none",
 )
 
-#: class vocabulary of the peptide-END set (inst/scripts/10_7_pepend_windows.R).
+#: class vocabulary of the peptide-END set (inst/scripts/modeling/10_7_pepend_windows.R).
 #: No ``DB`` and no ``gap``: both were defined relative to the dibasic slot that
 #: set does not anchor on, so whatever precedes the peptide is NT context and
 #: whatever follows it CT context, dibasic or not.  Mirrors
@@ -72,7 +72,7 @@ DEFAULT_CHANNEL_NAMES: tuple[str, ...] = (
 #: the AA_* property channels are excluded too: they are a deterministic lookup
 #: on the residue letter, so perturbing them yields amino acids that do not exist.
 #: ``plm_cons_msa`` is the MSA conservation channel that replaces ``cons_rs_n``
-#: (inst/scripts/msa_cons/). Kevin, 2026-11-12: it is now the only conservation
+#: (inst/scripts/generate_residue_db/msa_cons/). Kevin, 2026-11-12: it is now the only conservation
 #: channel augmented -- ``cons_rs_n`` (Aminode) and ``cons_rs`` came off the list,
 #: so an arm that still carries ``cons_rs_n`` trains without noise on it from here
 #: on. Trunks trained before keep the list they used in their own config.json
@@ -164,7 +164,7 @@ class Config:
     #: scored on, and whether the global head's attention sees that column.
     #: ``False`` drops it: ``K_cat`` 7 -> 6, ``K_pi`` 8 -> 7, and a ``none``
     #: position becomes an all-zero label row, which is what the loss then masks
-    #: on. See inst/scripts/10_5_benchmark_window_model.R --preset none_class.
+    #: on. See inst/scripts/analysis/archive/window_model/10_5_benchmark_window_model.R --preset none_class.
     include_none: bool = True
     #: train on the ``none`` positions instead of masking them out of the
     #: per-index loss.
@@ -359,7 +359,7 @@ class Config:
 
     @classmethod
     def pepend(cls, term: str, slack: int = 0, **kwargs) -> "Config":
-        """Config for the peptide-END set of ``inst/scripts/10_7_pepend_windows.R``.
+        """Config for the peptide-END set of ``inst/scripts/modeling/10_7_pepend_windows.R``.
 
         That set anchors on the peptide's own terminal residue -- its last
         residue at position 28 for a C window, its first at position 8 for an N

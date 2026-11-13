@@ -43,7 +43,7 @@ lf_known_peptides <- function(a2 = "~/AF2_analysis") {
   tr$name <- ifelse(is.na(tr$name), tr$gene, tr$name)
   tr$set <- "training"
 
-  un <- data.table::fread(file.path(a2, "lf_nomask_scripts_20261021", "cv5_unseen_ends.csv"))
+  un <- data.table::fread(file.path(Sys.getenv("LF_RUN", file.path(a2, "lf_run")), "cv5_unseen_ends.csv"))
   un <- un[grepl("^never", un$set), ]
   un$start <- ifelse(un$term == "N", un$anchor, un$anchor - un$len + 1L)
   un$end   <- ifelse(un$term == "N", un$anchor + un$len - 1L, un$anchor)

@@ -2,12 +2,12 @@
 ## The arms msa and msa_gap, end to end, unattended (Kevin, 2026-11-12: "set two
 ## new arms to run over night"; arms/msa.sh and arms/msa_gap.sh say what they are).
 ##
-## Run it from a CHECKOUT, not from the ~/AF2_analysis working copy: it copies
-## this directory's code into the working copy before each phase (the pipeline
-## runs there, beside its data files), and a script must not be overwritten
-## while zsh is still reading it.
+## It runs every script straight from this checkout (LF_SRC), from the folders
+## PACKAGE_MAP.md lists; the pipeline's input lists, blurbs and logs are in
+## $LF_RUN (~/AF2_analysis/lf_run, see lf_paths.sh). Do not edit a script in
+## this checkout while the run is using it: zsh and Rscript read files as they go.
 ##
-##   zsh inst/scripts/lf_nomask_scripts_20261021/run_msa_arms.sh > ~/AF2_analysis/run_msa_arms.out 2>&1 &
+##   zsh inst/scripts/modeling/run_msa_arms.sh > ~/AF2_analysis/run_msa_arms.out 2>&1 &
 ##
 ## Phases, each skipping what already exists, the log in ~/AF2_analysis/run_msa_arms.log:
 ##   0 inputs   the v2 feature cache (10_7 --rebuild-features, the 2026-11-12
@@ -23,8 +23,8 @@ SRC=${0:A:h}
 W=${SRC:h:h:h}
 [[ -f $W/DESCRIPTION && -d $W/R ]] || { print -u2 "not inside a ligandFinder checkout: $SRC"; exit 1 }
 export LF_SRC=$W
+. ${0:A:h:h}/lf_paths.sh
 A2=~/AF2_analysis
-S=$A2/lf_nomask_scripts_20261021
 PROCS=${PROCS:-3}
 R=(env LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript)
 PY_TF=~/.virtualenvs/r-tensorflow/bin/python
@@ -38,31 +38,16 @@ FLAGS=(--n-folds 5 --near-n 100 --seed 42 --pad-match --mono-match --db-match --
 
 say()  { print -r -- "[$(date '+%F %H:%M:%S')] $*" | tee -a $LOG }
 die()  { say "STOPPED: $*"; exit 1 }
-## the code of this checkout into the working copy (code only; data untouched)
-sync_code() {
-  rsync -a --exclude='__pycache__/' --include='*/' --include='*.R' --include='*.sh' \
-        --include='*.py' --include='*.md' --exclude='*' $SRC/ $S/ || die "rsync to $S"
-  ## rsync adds and replaces but never deletes: a script this checkout removed
-  ## (against origin/master) would linger in the working copy and could still be
-  ## found there. Move such copies aside, beside the 2026-11-12 archive.
-  local rel f gone=$A2/_archived_code_20261112/removed_from_package
-  for rel in ${(f)"$(git -C $W diff --name-only --diff-filter=D origin/master -- inst/scripts/lf_nomask_scripts_20261021)"}; do
-    f=$S/${rel#inst/scripts/lf_nomask_scripts_20261021/}
-    [[ -e $f ]] || continue
-    mkdir -p $gone/${${f#$S/}:h} && mv -n $f $gone/${f#$S/} && say "  moved aside (removed from the package): ${f#$S/}"
-  done
-  say "code synced: $SRC -> $S (git $(git -C $W rev-parse --short HEAD)$(git -C $W diff --quiet || echo ', with uncommitted edits'))"
-}
 
 say "=== run_msa_arms: LF_SRC=$W PROCS=$PROCS ==="
 
 ## ---- 0. inputs ----------------------------------------------------------------
-sync_code
+say "code: $W (git $(git -C $W rev-parse --short HEAD)$(git -C $W diff --quiet || echo ', with uncommitted edits')); run directory: $LF_RUN"
 build() {   # $1 fold, $2 sfx, rest: extra flags
   local k=$1 sfx=$2; shift 2
   local out=$A2/lf_pepend_nn_input_cv5_f${k}${sfx}.rds
   [[ -s $out ]] && { say "  have $(basename $out)"; return 0 }
-  $R $W/inst/scripts/10_7_pepend_windows.R $FLAGS --fold $k "$@" --out $out \
+  $R $W/inst/scripts/modeling/10_7_pepend_windows.R $FLAGS --fold $k "$@" --out $out \
     > $A2/build${sfx}_f$k.log 2>&1 || { say "  BUILD FAILED $(basename $out), see build${sfx}_f$k.log"; return 1 }
   say "  built $(basename $out)"
 }
@@ -111,7 +96,7 @@ if [[ ! -s $RESID_V2 ]]; then
 fi
 if [[ ! -s $PLM_V2 ]]; then
   say "phase 0: MSA channel re-masked on the v2 table, scale pinned"
-  $PY_PLM $W/inst/scripts/msa_cons/build_msacons_parquet.py --residues-npz $RESID_V2 \
+  $PY_PLM $W/inst/scripts/generate_residue_db/msa_cons/build_msacons_parquet.py --residues-npz $RESID_V2 \
     --scale-from $A2/lf_plm/aa_onehot_msacons.parquet.scale.json --out $PLM_V2 >> $LOG 2>&1 \
     || die "the v2 MSA parquet"
 fi
@@ -125,7 +110,7 @@ fi
 for ARM in msa msa_gap; do
   for attempt in 1 2 3; do
     say "phase 1: training $ARM (attempt $attempt)"
-    (cd $S && ARM=$ARM STAGES=1 PROCS=$PROCS zsh ./pepend_arm_pipeline.sh) >> $A2/run_msa_arms_$ARM.log 2>&1
+    (cd $LF_RUN && ARM=$ARM STAGES=1 PROCS=$PROCS zsh $LF_MOD/pepend_arm_pipeline.sh) >> $A2/run_msa_arms_$ARM.log 2>&1
     n=$(ls $A2/lf_pepend_run_[NC]_cv5_f*_nomask_flatten_${ARM}.rds 2>/dev/null | wc -l | tr -d ' ')
     [[ $n -eq 10 ]] && break
     say "  $ARM: $n of 10 trunks after attempt $attempt"
@@ -137,20 +122,19 @@ done
 ## ---- 2. residues, groups, scans, tracks ------------------------------------------
 for ARM in msa msa_gap; do
   say "phase 2: residues, groups, scans, tracks for $ARM"
-  (cd $S && ARM=$ARM STAGES=2,2b,3,4 PROCS=$PROCS zsh ./pepend_arm_pipeline.sh) >> $A2/run_msa_arms_$ARM.log 2>&1 \
+  (cd $LF_RUN && ARM=$ARM STAGES=2,2b,3,4 PROCS=$PROCS zsh $LF_MOD/pepend_arm_pipeline.sh) >> $A2/run_msa_arms_$ARM.log 2>&1 \
     || die "stages 2-4 of $ARM, see run_msa_arms_$ARM.log"
 done
 
 ## ---- 3. evaluation --------------------------------------------------------------
-sync_code    # any fix to the evaluation scripts made since launch
 say "phase 3: never-seen set of the _msa windows"
-if [[ ! -s $S/cv5_unseen_ends_msa.csv ]]; then
-  [[ -s $S/cv5_unseen_sfx.R ]] || die "no cv5_unseen_sfx.R in $S"
-  (cd $S && INPUT_SFX=_msa $R cv5_unseen_sfx.R) >> $LOG 2>&1 || die "cv5_unseen_sfx.R"
+if [[ ! -s $LF_RUN/cv5_unseen_ends_msa.csv ]]; then
+  [[ -s $LF_EVAL/cv5_unseen_sfx.R ]] || die "no cv5_unseen_sfx.R in $LF_EVAL"
+  (cd $LF_RUN && INPUT_SFX=_msa $R $LF_EVAL/cv5_unseen_sfx.R) >> $LOG 2>&1 || die "cv5_unseen_sfx.R"
 fi
 for ARM in msa msa_gap; do
   say "phase 3: evaluation of $ARM on cv5_unseen_ends_msa.csv"
-  (cd $S && ARM=$ARM UNSEEN_SFX=_msa STAGES=5,6 PROCS=$PROCS zsh ./pepend_arm_pipeline.sh) >> $A2/run_msa_arms_$ARM.log 2>&1 \
+  (cd $LF_RUN && ARM=$ARM UNSEEN_SFX=_msa STAGES=5,6 PROCS=$PROCS zsh $LF_MOD/pepend_arm_pipeline.sh) >> $A2/run_msa_arms_$ARM.log 2>&1 \
     || say "  stages 5-6 of $ARM FAILED, see run_msa_arms_$ARM.log (trunks and scans are complete)"
 done
 M=$A2/lf_headcmp/unseen_msa/final_metrics.csv
@@ -164,7 +148,7 @@ if [[ -s $M ]]; then
     LABELS="original windows, Aminode cons. (AAswap); MSA; MSA + gap class" \
     OUT=$A2/lf_viz_20261113 NAME=cv_metrics_msa_arms \
     TITLE="MSA arms (motif-matched negatives, mature anchors, v2 features): full-proteome scan metrics" \
-    $R $S/arm_metrics_compare_plot.R >> $LOG 2>&1 && say "figure: $A2/lf_viz_20261113/cv_metrics_msa_arms.png" \
+    $R $LF_VIZ/arm_metrics_compare_plot.R >> $LOG 2>&1 && say "figure: $A2/lf_viz_20261113/cv_metrics_msa_arms.png" \
     || say "  the metrics figure FAILED (the CSVs are fine)"
 fi
 say "=== done ==="

@@ -19,7 +19,7 @@
 # ORDER: the residue cache's accession order (prot_idx), one per line.
 import numpy as np, os, sys
 A2 = os.path.expanduser("~/AF2_analysis"); TAG = "_nomask_flatten"
-ORDER = os.environ.get("ORDER", f"{A2}/lf_nomask_scripts_20261021/residues_accession_order.txt")
+ORDER = os.environ.get("ORDER", os.path.join(os.environ.get("LF_RUN", f"{A2}/lf_run"), "residues_accession_order.txt"))
 n, K = 10, 5   # seeds per fold, folds
 
 def prot_idx(acc):

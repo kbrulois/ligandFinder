@@ -27,7 +27,7 @@
 ## are shuffled WITHIN each amino acid, which holds residue identity fixed and
 ## asks whether the embedding carries anything about the peptide class beyond it.
 ##
-##   /usr/local/bin/Rscript inst/scripts/10_6_plm_residue_umap.R
+##   /usr/local/bin/Rscript inst/scripts/analysis/archive/window_model/10_6_plm_residue_umap.R
 ##   ... --backends prot_t5 --n-background 50000
 ##
 ## The hand-built per-residue channels (relASA, cons_rs_n, min/mean_afm, DSSP

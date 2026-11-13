@@ -21,7 +21,7 @@ credited for ends it trained on. `heldout` is the honest arm -- positives are
 the 29 held-out ends, and train and unlabelled ends are dropped from the
 ranking rather than counted against it, as in 10_9z_locus_pr.py.
 
-  python inst/scripts/10_9z_motif_ppv.py --tables <tables> --term C
+  python inst/scripts/analysis/cleavage_motifs/10_9z_motif_ppv.py --tables <tables> --term C
 """
 from __future__ import annotations
 import argparse, csv, json, math, os

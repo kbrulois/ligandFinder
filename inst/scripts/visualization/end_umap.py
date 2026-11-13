@@ -30,7 +30,7 @@ for f in ("Arial.ttf", "Arial Bold.ttf"):
     except Exception: pass
 plt.rcParams["font.family"] = ["Arial", "DejaVu Sans"]
 
-A2 = os.path.expanduser("~/AF2_analysis"); S = A2 + "/lf_nomask_scripts_20261021"
+A2 = os.path.expanduser("~/AF2_analysis"); S = os.environ.get("LF_RUN", A2 + "/lf_run")
 INK, BODY, MUTED, RULE, BG = "#0b0b0b", "#3F4A56", "#6B7784", "#C9D1D9", "#DCE1E6"
 TPC, FNC = "#4a3aa7", "#eda100"          # violet / amber: apart in lightness as well as hue
 SETS = ["seen", "never seen: peptides", "never seen: large products"]

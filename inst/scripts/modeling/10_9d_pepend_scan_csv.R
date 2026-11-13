@@ -20,7 +20,7 @@
 ## A .csv.gz is written alongside; it is ~5x smaller and fread/pandas read it
 ## directly.
 ##
-##   Rscript inst/scripts/10_9d_pepend_scan_csv.R --term C
+##   Rscript inst/scripts/modeling/10_9d_pepend_scan_csv.R --term C
 ##   ... --min-score 0.05        # drop the background, far smaller file
 ##   ... --peaks-only            # just the local maxima
 ##

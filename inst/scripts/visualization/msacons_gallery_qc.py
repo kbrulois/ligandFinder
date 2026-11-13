@@ -19,7 +19,7 @@ import numpy as np
 A2 = os.path.expanduser("~/AF2_analysis")
 ARM = "curated_AAswap_msacons_padg"
 OUT = f"{A2}/pepend_pages_{ARM}"
-S = f"{A2}/lf_nomask_scripts_20261021"
+S = os.environ.get("LF_RUN", f"{A2}/lf_run")
 ARMS = {"curated": "", "MSA conservation": f"_{ARM}"}   # label -> npz suffix
 TOL = 1.5e-4
 

@@ -29,7 +29,7 @@
 ## than silently misaligned -- ~8% of windows are clipped by the precursor
 ## boundary, and the two datasets do not always agree on the signal-peptide end.
 ##
-##   Rscript inst/scripts/10_9_pepend_vs_db_windows.R
+##   Rscript inst/scripts/analysis/pepend_vs_db_model/10_9_pepend_vs_db_windows.R
 ##   ... --arm ~/AF2_analysis/lf_dcnn_bench_none20/unet_none_w1 --thresh 0.2 --top-k 5
 ##
 ## Per model, per window: mean over ALL seeds, mean over the top-k seeds for THAT

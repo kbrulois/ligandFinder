@@ -24,7 +24,7 @@ suppressMessages({library(dplyr); library(data.table); library(reticulate)})
 A2 <- path.expand("~/AF2_analysis")
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "lf_paths.R"))
 out <- file.path(A2, "lf_headcmp", "asa_afm_depth.csv")
 np <- import("numpy", convert = TRUE)
 

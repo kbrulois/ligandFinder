@@ -11,7 +11,7 @@
 ## Walks the scan's own prot_idx/anchor arrays, so the codes come back in the
 ## scan's row order and can be used as a mask over it with no further joining.
 ##
-##   Rscript inst/scripts/10_9z_motif_codes.R --term C
+##   Rscript inst/scripts/analysis/cleavage_motifs/10_9z_motif_codes.R --term C
 ##
 ## Writes ~/AF2_analysis/lf_pepend_motif_<term>.npz (motif, levels) and, for the
 ## python half, <tables>/prec_order.csv.

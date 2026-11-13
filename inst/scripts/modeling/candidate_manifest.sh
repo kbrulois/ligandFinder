@@ -4,15 +4,14 @@
 # later stage (e.g. candidate_annotate.R added columns):
 #   HEAD=xgb_pm THRESH=0.5 TOL=4 ./candidate_manifest.sh
 set -u
-S=${0:A:h}
-. $S/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 HEAD=${HEAD:-xgb_pm}; THRESH=${THRESH:-0.5}; TOL=${TOL:-4}
 LEN_MIN=${LEN_MIN:-8}; LEN_MAX=${LEN_MAX:-60}; ARM=${ARM:-}; ARMS_MAX=${ARMS_MAX:-}
 KNOWN_LEN_MIN=${KNOWN_LEN_MIN:-8}; KNOWN_LEN_MAX=${KNOWN_LEN_MAX:-60}
 OUT=$A2/lf_headcmp/candidate_peptides_${HEAD}_T${THRESH}_tol${TOL}${ARM}.csv
 MAN=$A2/lf_headcmp/candidate_peptides_${HEAD}_T${THRESH}_tol${TOL}${ARM}.manifest.txt
-. $S/candidate_mmseqs_args.sh     # MMSEQS_ARGS, the settings the pipeline ran
+. $LF_MOD/candidate_mmseqs_args.sh     # MMSEQS_ARGS, the settings the pipeline ran
 stat_line() { [[ -e $1 ]] && echo "    $(basename $1)  $(stat -f '%z bytes, modified %Sm' -t '%F %T' $1)" || echo "    $(basename $1)  MISSING" }
 {
   echo "candidate peptide table -- how it was built"

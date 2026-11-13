@@ -4,11 +4,11 @@
 ## keeping (whole scan, amidation motif) crossed with a floor on the mean relASA
 ## over +/-3 residues around the anchor.
 ##
-##   Rscript inst/scripts/10_9z_relasa_window.R --term C
-##   python  inst/scripts/10_9z_motif_pr.py --term C --tables <tables> \
+##   Rscript inst/scripts/analysis/cleavage_motifs/10_9z_relasa_window.R --term C
+##   python  inst/scripts/analysis/cleavage_motifs/10_9z_motif_pr.py --term C --tables <tables> \
 ##             --asa-thresholds 0,0.2,0.4,0.6,0.8 \
 ##             --only-groups "all anchors,G-dibasic (amidation)" --prefix asa
-##   Rscript inst/scripts/10_9z_motif_asa_plot.R
+##   Rscript inst/scripts/analysis/cleavage_motifs/10_9z_motif_asa_plot.R
 ##
 ## Run it in a UTF-8 locale, or R drops the non-ASCII labels without a warning.
 ## ------------------------------------------------------------------------------

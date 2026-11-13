@@ -9,7 +9,7 @@
 ## deleting the gallery leaves the source directories intact. Re-run after adding
 ## pages; it relinks everything and rebuilds the index.
 ##
-##   zsh inst/scripts/build_cv_gallery.sh
+##   zsh inst/scripts/visualization/build_cv_gallery.sh
 ## ------------------------------------------------------------------------------
 set -e
 set -o pipefail
@@ -60,7 +60,7 @@ Trunks: <code>lf_pepend_run_{N,C}_fold{A,B}</code>, 20 members each; xgb heads
 (their own split, chosen per gene so they too are held out).
 HTML
 
-Rscript $ROOT/inst/scripts/make_gallery_index.R --dir $G \
+Rscript $ROOT/inst/scripts/visualization/make_gallery_index.R --dir $G \
   --title "LigandFinder — cross-validated, held-out predictions" \
   --notes $T/notes.rds --blurb $T/blurb.html --footer $T/footer.html
 rm -rf $T

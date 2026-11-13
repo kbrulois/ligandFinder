@@ -1,11 +1,11 @@
 ## ---- MSA conservation along the precursor -------------------------------------
 ## The `curated_AAswap_msacons*` arms replace the Aminode conservation channel
 ## (`cons_rs_n`) with a per-residue score from each precursor's ColabFold MSA
-## (inst/scripts/msa_cons/msa_conservation.py), min-max scaled into the channel
+## (inst/scripts/generate_residue_db/msa_cons/msa_conservation.py), min-max scaled into the channel
 ## `plm_cons_msa` (build_msacons_parquet.py). These functions draw that channel
 ## along a precursor beside the old one, with the known peptides and their ends,
 ## and summarise how both channels sit at known ends against every other
-## residue. Driver: inst/scripts/msa_cons/plot_msa_conservation.R.
+## residue. Driver: inst/scripts/visualization/plot_msa_conservation.R.
 ##
 ## Three things every figure here has to keep straight:
 ##   * residues EXCLUDED BY DESIGN (cons_rs_n, min_afm, mean_afm and relASA all
@@ -27,7 +27,7 @@
 ##     INS, NPY, CALCA; 0.97 in POMC, ADCYAP1, PENK; 0.74 in GCG; 0.013-1.00
 ##     overall (a quarter of precursors below 0.38). The top value is the
 ##     precursor's species_limit: cons_rs_n = cons_rs x species_limit
-##     (putative_peptide/generate_residue_db_untested/9_expand_by_residue.R),
+##     (inst/scripts/generate_residue_db/9_expand_by_residue.R),
 ##     where cons_rs is the rate reversed and rescaled to 0-1 across genes and
 ##     species_limit is the largest myo_sim among the species in the gene's
 ##     Aminode alignment (2.1_parse_aminode_new.R) -- how far back in time the
@@ -51,7 +51,7 @@ LF_MSACONS_PATHS <- list(
   channel     = "~/AF2_analysis/lf_plm/aa_onehot_msacons.parquet",
   cache       = "~/AF2_analysis/lf_pepend_residue_cache.rds",
   knowns      = "~/AF2_analysis/lf_pepend_cv5_knowns_%s.csv",
-  unseen      = "~/AF2_analysis/lf_nomask_scripts_20261021/cv5_unseen_ends.csv",
+  unseen      = "~/AF2_analysis/lf_run/cv5_unseen_ends.csv",
   python      = "~/.virtualenvs/lf-plm/bin/python",
   ## the two _padg arms' scan metrics (old channel vs new), for the summary's caption
   arm_metrics = "~/AF2_analysis/lf_headcmp/unseen_padg/final_metrics.csv"
@@ -280,7 +280,7 @@ lf_msacons_select <- function(ends, res, prec, per,
 #' @param source the per-protein table's `source` ("hf_colabfold",
 #'   "hf_colabfold (via P04001)", ...): the directory, and the accession whose
 #'   file holds an identical sequence's MSA.
-#' @param script_dir the checkout's inst/scripts/msa_cons.
+#' @param script_dir the checkout's inst/scripts/generate_residue_db/msa_cons.
 #' @return data.table: index, jsd, gap_frac, n_cov.
 #' @export
 lf_msacons_rescore <- function(accession, seq, source, prior, script_dir,

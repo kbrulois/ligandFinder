@@ -17,7 +17,7 @@ import numpy as np
 ## inst/python from the checkout this script sits in, or $LF_SRC (lf_paths.py).
 ## The installed package has no lf_winxgb and no lf_dcnn/scan.py, so it cannot
 ## stand in here; this used to be a hardcoded throwaway git worktree.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import lf_paths; lf_paths.add_python()
 from lf_winxgb.__main__ import _iso, pool_features
 
