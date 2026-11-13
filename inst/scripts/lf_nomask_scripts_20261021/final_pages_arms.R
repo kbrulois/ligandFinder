@@ -68,14 +68,11 @@ local({
   stopifnot("never seen" %in% anno_feats$feature)
   message("annotation helpers from the checkout: ", sum(hit), " definitions")
 })
-## Per-arm end conventions (arm_amid_g / arm_anchor / arm_fix_knowns): a _padg
-## arm anchors a G + dibasic C end ON THE G, while every shared end table is in
-## the mature convention. Same source line the evaluators use.
-source(file.path(Sys.getenv("LF_SCRIPTS", .lf_here), "arm_conv.R"))
 ## The never-seen peptides: the evaluation set the window metrics use
 ## (cv5_unseen_ends.csv -- ends whose gene no fold trained a window on), one row
 ## per END; rebuilt here into one span per peptide. UNSEEN_SFX picks the variant
-## set the evaluators use (_padg: minus the ends the new negatives overlap).
+## set the evaluators use (<sfx>: minus the ends that window set's negatives
+## overlap, cv5_unseen_sfx.R).
 never_seen <- local({
   u <- utils::read.csv(file.path(path.expand("~/AF2_analysis/lf_nomask_scripts_20261021"),
                                  paste0("cv5_unseen_ends", Sys.getenv("UNSEEN_SFX", ""), ".csv")),
@@ -146,9 +143,6 @@ specs <- unlist(lapply(c("C", "N"), function(tm) c(
 ##
 ## No SFX here: cv5_post_esmonly36.sh writes the plain per-gene scan names, the
 ## same way the 104-gene gallery's own npz are named.
-##
-## A _padg arm (INPUT_FLAGS amid_g=TRUE in arms/<arm>.sh) carries its own end
-## convention; nothing here says so -- arm_conv.R reads it from the arm file.
 ARM_REG <- list(
   esmonly36     = list(label = "ESM-C only",      plm = "esm_c_pca36_pagegenes.rds"),
   curated_wAAid = list(label = "curated + AA ID", plm = "aa_onehot_pagegenes.rds"),
@@ -204,14 +198,6 @@ for (s in specs) stopifnot(dir.exists(sub("\\.rds$", "_isolated", s$run)), file.
 ## lf.heldout_extra is the hook for exactly this -- same CV knowns, renamed.
 ## ONE BLOCK PER ARM: a triangle is matched to a series by NAME, so every arm
 ## whose series are renamed needs its own copy of the same CV knowns.
-##
-## THE CONVENTION: the knowns csv is MATURE, so for a _padg arm the triangles
-## would sit one residue off that arm's own curve. arm_anchor() moves each end
-## onto the arm's anchor and arm_fix_knowns() re-reads the fold from that arm's
-## own inputs (one row per mapped end: GLP-1's two C ends merge onto one
-## residue, which is val in one fold only). Identity for every arm without
-## amid_g / INPUT_SFX, so the existing arms are untouched. The baseline tracks
-## keep mature anchors -- they come from lf.cv_knowns below, not from here.
 arm_held <- do.call(rbind, lapply(ARMS, function(arm) {
   grp <- ARM_REG[[arm]]$label
   do.call(rbind, lapply(c("C", "N"), function(tm) {
@@ -220,8 +206,6 @@ arm_held <- do.call(rbind, lapply(ARMS, function(arm) {
     d <- utils::read.csv(p, stringsAsFactors = FALSE)
     d <- d[!is.na(d$fold), , drop = FALSE]
     if (!nrow(d)) return(NULL)
-    d$anchor <- arm_anchor(arm, d$accession, tm, d$anchor)
-    d <- as.data.frame(arm_fix_knowns(arm, d[, c("accession", "anchor", "fold")], tm))
     data.frame(term = sprintf("%s %s fold %d", grp, tm, as.integer(d$fold)),
                terminus = tm, accession = d$accession,
                residue = as.integer(d$anchor), stringsAsFactors = FALSE)
@@ -245,10 +229,6 @@ options(lf.pepend_python_path = WP,
         ## no scan-backed own window series: those were the attention trunk's
         lf.track_scan_C = "none", lf.track_scan_N = "none",
         lf.track_winxgb_C = "none", lf.track_winxgb_N = "none",
-        ## baseline only: lf_track_heldout_marks names its series "<tm> fold <k>",
-        ## which is the baseline's own naming, and the baseline is mature. Every
-        ## arm's marks come through lf.heldout_extra (arm_held) with that arm's
-        ## anchors, so no per-arm convention is needed here.
         lf.cv_knowns = if (MODE == "cv5") list(N = file.path(A2, "lf_pepend_cv5_knowns_N.csv"),
                                                C = file.path(A2, "lf_pepend_cv5_knowns_C.csv")),
         lf.heldout_extra = held,

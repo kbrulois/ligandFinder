@@ -11,19 +11,14 @@
 ##   * the held-out knowns' rank among the arm's candidate pool (rank_cand,
 ##     ~40,000 candidate windows per terminus), every known end ranked once, by
 ##     the fold that held it out
-##   * PAIR: the same ends, arm by arm, matched on gene + anchor -- so two arms
-##     on different C conventions pair only the C ends that did not move
-##   * the C ends anchored on the G (g_amid, arms built with --amid-g-anchor)
-##     against the rest
+##   * PAIR: the same ends, arm by arm, matched on gene + anchor
 ##
 ## READ WITH CARE. Val AP is NOT comparable across window sets: the _padg val
 ## splits carry about twice the negatives (the top-ups), so curated_AAswap's N
 ## 0.552 against the _padg arms' 0.450 / 0.475 is a harder set, not a worse
-## model. rank_cand is over the same candidate pool for every arm (N identical;
-## C the same ~41,800 windows but for ~30 the G convention moves by a residue).
-## On C much of the _padg gain is the G re-anchoring: the 30 moved ends have
-## median rank 17 / 22, the 55 unmoved 313 / 248 -- a G next to a dibasic pair
-## is intrinsically easier to find. No N end moved, so N's gain is the windows'.
+## model. rank_cand is over the same candidate pool for every arm. The _padg
+## arms' C numbers below are not comparable with the old windows' either
+## (ARM_PIPELINE_README.md, history 2026-11-12); N's gain is the windows'.
 ## 2026-11-10 (C / N): val AP 0.616 / 0.552 (old windows), 0.693 / 0.450 (padg),
 ## 0.689 / 0.475 (padg + MSA cons); median rank 337 / 409, 103 / 178.5, 77 / 191.5.
 ##
@@ -62,7 +57,6 @@ for (a in ARMS) for (tm in c("C", "N")) for (k in 1:5) {
                                        val_ap = ap(v$score, y), val_auc = auc(v$score, y))
   kr <- as.data.table(s$knowns_ranked)[split == "val"]
   rk[[length(rk) + 1]] <- data.table(arm = short(a), term = tm, fold = k, gene = kr$gene, anchor = kr$anchor,
-                                     g_amid = if ("g_amid" %in% names(kr)) kr$g_amid else NA,
                                      rank = as.double(kr$rank_cand), pred = kr$pred)
 }
 R <- rbindlist(out); K <- rbindlist(rk, fill = TRUE)
@@ -83,11 +77,6 @@ if (length(PAIR) == 2 && all(short(PAIR) %in% K$arm)) {
   setnames(w, c(p0, p1), c("r0", "r1"))
   print(w[!is.na(r0) & !is.na(r1), .(n = .N, better = sum(r1 < r0), worse = sum(r1 > r0), tied = sum(r1 == r0),
                                      median_delta = median(r1 - r0)), keyby = term])
-}
-if (any(!is.na(K$g_amid))) {
-  cat("\n=== C ends anchored on the G (arms built with --amid-g-anchor) ===\n")
-  print(K[!is.na(g_amid) & term == "C", .(n = .N, median_rank = as.double(median(rank)), top10 = round(mean(rank <= 10), 3)),
-          keyby = .(arm, g_amid)])
 }
 fwrite(R, file.path(HC, "trunk_val_metrics.csv"))
 fwrite(K, file.path(HC, "trunk_val_ranks.csv"))

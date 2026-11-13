@@ -3,7 +3,7 @@
 ## figure", then "add f1 score and roc auc").
 ##
 ## Reads metrics_final.R's two outputs from one HEADCMP directory -- every arm
-## scored on ONE never-seen set, each at its own anchor convention -- and draws,
+## scored on ONE never-seen set, at the anchors the end tables carry -- and draws,
 ## per terminus x evaluation set x window head, four panels: normalised PR AUC,
 ## ROC AUC, best F1 and anchors to scan for 50% recall. The LAST arm in ARMS is
 ## the one under test (red), the one before it its comparator (dark grey, joined

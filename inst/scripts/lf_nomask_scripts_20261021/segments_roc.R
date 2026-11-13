@@ -31,10 +31,6 @@ A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
 source(file.path(.lf_here, "lf_paths.R"))
-## arm_anchor(): an amid_g arm (arms/*_padg.sh) scores amidated C ends on the
-## G, so the mature-convention end tables are mapped to the arm's convention;
-## identity for every other arm
-source(file.path(Sys.getenv("LF_SCRIPTS", .lf_here), "arm_conv.R"))
 ## TOL and ARM are read from the environment so a second arm can be scored with
 ## the SAME code rather than a divergent copy. TOL=2 WITH ARM UNSET REPRODUCES
 ## THE ORIGINAL BEHAVIOUR EXACTLY -- the curated tracks, the unsuffixed output
@@ -110,9 +106,9 @@ confusion <- function(b, s, thr, ev, oth) {
 
 ll <- as.data.table(readRDS(lf_src("inst/extdata/ligand_list.rds")))[!is.na(start) & !is.na(end)]
 up <- fread(file.path(A2, "pepend_locus", "uniprot_peptides.csv"))[type %in% c("peptide", "propeptide")]
+## every arm is scored at the anchors the end tables carry; UNSEEN_SFX picks
+## the never-seen set
 un <- fread(file.path(S, paste0("cv5_unseen_ends", Sys.getenv("UNSEEN_SFX", ""), ".csv")))
-## anchor0 keeps the mature anchor: held-out sets exclude BOTH conventions
-un[, anchor0 := anchor][, anchor := arm_anchor(ARM, accession, term, anchor)]
 un[, set := ifelse(grepl("^never seen", set), "never seen: peptides", "never seen: large products")]
 if (nzchar(KEEP)) {
   keep_acc <- fread(path.expand(KEEP))$accession
@@ -137,29 +133,24 @@ for (tm in c("C", "N")) {
   setorder(b, accession, anchor)
   b[, brk0 := c(TRUE, accession[-1] != accession[-.N] | diff(anchor) != 1L)]
   kn <- fread(file.path(A2, sprintf("lf_pepend_cv5_knowns_%s.csv", tm)))[, .(accession, anchor, fold)]
-  kn[, anchor0 := anchor][, anchor := arm_anchor(ARM, accession, tm, anchor)]
-  kn <- arm_fix_knowns(ARM, kn, tm)   # one row per mapped end, its own inputs' fold
   if (nzchar(KEEP)) {
     n0 <- nrow(kn); kn <- kn[accession %in% keep_acc]
     message(sprintf("%s: knowns %d -> %d", tm, n0, nrow(kn)))
   }
   ann <- unique(rbind(ll[, .(accession, anchor = if (tm == "N") start else end)],
                       up[, .(accession, anchor = if (tm == "N") start else end)]))
-  ann <- unique(rbind(ann, ann[, .(accession, anchor = arm_anchor(ARM, accession, tm, anchor))]))
   for (hd in c("cnn", "xgb_pm")) {
     for (thr in GRID) {
       ## cross-validated: per fold, summed
       cv <- Reduce(`+`, lapply(1:5, function(k) {
         ev  <- kn[fold == k, .(accession, anchor)]
-        oth <- unique(rbind(ann, kn[fold != k, .(accession, anchor)], un[, .(accession, anchor)],
-                            kn[fold != k, .(accession, anchor = anchor0)], un[, .(accession, anchor = anchor0)]))
+        oth <- unique(rbind(ann, kn[fold != k, .(accession, anchor)], un[, .(accession, anchor)]))
         confusion(b, b[[sprintf("%s__f%d", hd, k)]], thr, ev, oth)
       }))
       out[[length(out) + 1]] <- data.table(term = tm, set = "cross-validated", head = hd, thr = thr, t(cv))
       for (st in c("never seen: peptides", "never seen: large products")) {
         ev  <- unique(un[set == st & term == tm, .(accession, anchor)])
-        oth <- unique(rbind(ann, kn[, .(accession, anchor)], un[set != st, .(accession, anchor)],
-                            kn[, .(accession, anchor = anchor0)], un[set != st, .(accession, anchor = anchor0)]))
+        oth <- unique(rbind(ann, kn[, .(accession, anchor)], un[set != st, .(accession, anchor)]))
         cf <- confusion(b, b[[paste0(hd, "__all50")]], thr, ev, oth)
         out[[length(out) + 1]] <- data.table(term = tm, set = st, head = hd, thr = thr, t(cf))
       }

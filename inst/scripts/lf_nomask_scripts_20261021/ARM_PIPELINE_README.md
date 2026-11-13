@@ -1,10 +1,10 @@
 # The arm pipeline, and how to add an arm
 
-Updated 2026-10-25; arms on their own training windows (the two `_padg` arms
-of 2026-11-10/11) are the last section. **The defaults are current practice**,
-so the bare command is the right command. This supersedes the "how to run it"
-half of `ESMONLY36_README.md`, which stays as the record of the ESM-C arm's
-results and its five traps.
+Updated 2026-10-25; arms on their own training windows (2026-11-10/12) are the
+last section. **The defaults are current practice**, so the bare command is the
+right command. This supersedes the "how to run it" half of
+`ESMONLY36_README.md`, which stays as the record of the ESM-C arm's results and
+its five traps.
 
 ## What an arm is
 
@@ -24,7 +24,7 @@ An arm lives in **one file**, `arms/<ARM>.sh`:
 | `mk_plm()` | how to build `$PLM` if it is missing |
 | `mk_resid()` | how to build the arm's residue table |
 | `INPUT_SFX` | *optional*: train on `lf_pepend_nn_input_cv5_f<k>${INPUT_SFX}.rds` instead of the shared windows (last section) |
-| `INPUT_FLAGS` | *optional*: `key=value ...` that every one of those inputs' `params` must hold — asserted before training; `amid_g=TRUE` there also puts the arm's C ends on the G in evaluation (`arm_conv.R`) |
+| `INPUT_FLAGS` | *optional*: `key=value ...` that every one of those inputs' `params` must hold — asserted before training |
 | `CONT_EXPECT` | *optional*: channels the trunks must noise-augment — checked in the first trunk's `config.json` |
 
 ### The arms that exist
@@ -36,8 +36,8 @@ An arm lives in **one file**, `arms/<ARM>.sh`:
 | `curated_wAAid` | 47 | all 26 curated **plus** a 21-letter one-hot of the residue's own identity |
 | `curated_AAswap` | 43 | the four AA property channels **replaced** by that one-hot |
 | `motifind` | 29 | all 26 curated plus three identity indicators: G, basic (K/R), P |
-| `curated_AAswap_padg` | 43 | `curated_AAswap`'s channels on the `_padg` windows; only the windows differ |
-| `curated_AAswap_msacons_padg` | 43 | the same, with `cons_rs_n` (Aminode) replaced by `plm_cons_msa`, MSA conservation |
+| `msa` | 43 | `curated_AAswap` with `cons_rs_n` replaced by `plm_cons_msa`, the only conservation channel; on the `_msa` windows (all four motif top-ups) and the v2 features (below). Kevin, 2026-11-12 |
+| `msa_gap` | 43 | `msa` exactly, plus a `gap` class (7 classes); its `_msagap` windows are `_msa`'s with gap labels, nothing else. Evaluate it on `_msa`'s never-seen set (`UNSEEN_SFX=_msa`) |
 
 `curated_wAAid` is the file-name token for what Kevin called **curated-wAAid**;
 the display label is `curated + AA one-hot`. Underscore rather than hyphen
@@ -240,55 +240,78 @@ argument named `set` silently compares the column with itself and matches every
 row. The deciding set's argument is called `eval_set`, and masks are computed
 outside the `[`.
 
-## Arms on their own windows: the `_padg` set and MSA conservation (2026-11-10/11)
+## Arms on their own windows (2026-11-10/12)
 
 **Kevin, 2026-11-10,** suspected the negatives lacked windows anchored at a
 precursor terminus or at a monobasic site, so that the model learned "padding
 present = peptide". It had: ~45% of positive windows carry padding against ~20%
 of negatives, and the AAswap trunks scored 17% of unlabelled extracellular
 anchors AT a precursor terminus > 0.5, against 0.1–0.2% of interior ones. He
-also asked to "move G-dibasic C-termini so that G is the peptide end, even if
-the final mature known peptide boundary excludes the G", and, the same day, to
-replace Aminode conservation (`cons_rs_n`) with conservation scored from each
-precursor's MSA (`inst/scripts/msa_cons/`; AFDB's MSAs are 403, so ColabFold's).
+asked, the same day, to replace Aminode conservation (`cons_rs_n`) with
+conservation scored from each precursor's MSA (`inst/scripts/msa_cons/`;
+AFDB's MSAs are 403, so ColabFold's).
 
-Two arms, so each change is measured alone: `curated_AAswap_padg` against
-`curated_AAswap` is the windows, `curated_AAswap_msacons_padg` against
-`curated_AAswap_padg` the conservation source. All three share one CV partition.
+The first two such arms, `curated_AAswap_padg` (the windows alone) and
+`curated_AAswap_msacons_padg` (the windows and MSA conservation), were trained
+on the `_padg` windows on 2026-11-10/11; their arm files are gone (History,
+below), their trunks, scans, tables and gallery remain in `~/AF2_analysis`.
 
-### The windows: three `10_7` flags
+### The windows: `10_7` flags
 
 All off by default; a build without them reproduces the old windows, their data
 and their labels exactly (checked on fold 1).
 
 | flag | `params` | what it does |
 |---|---|---|
-| `--amid-g-anchor` | `amid_g` | a C end followed by G + KK/KR/RK/RR is anchored on the G, labelled peptide; `db_amid` leaves the training negatives (it stays in `all`). C folds are pinned to the mature-end clustering (`split_by_mature`), so every fold is the old one |
 | `--pad-match` | `pad_match` | negatives topped up, per split, until each padding-profile bin is as common among them as among the positives; a negative's padded positions are labelled `padding`, as a positive's are |
 | `--mono-match` | `mono_match` | the same for monobasic-anchored windows |
+| `--db-match` | `db_match` | the same for dibasic-anchored windows (Kevin, 2026-11-12) |
+| `--amid-match` | `amid_match` | the same for amidation (`G + dibasic`) windows; the pool is small (~1,100 non-ligand sites), so it is split by precursor between train and val |
+| `--gap-class` | `gap_class` | the residues between a known end and its nearest dibasic site (`lf_pepend_gap()`: usually the amidation G) are `gap`, not cleavage context, and the vocabulary is `LF_PEPEND_CLASSES_GAP`; labels only, windows unchanged |
+| `--feature-cache <rds>` | `dssp_index` | the per-residue feature cache to read (default the original); with `--rebuild-features` it is rebuilt there. A rebuild places each `secretome_aa` row at its UniProt position, not at the AlphaFold model's `index` (2026-11-12; `--legacy-dssp-index` for the old join) |
+
+The motif top-ups run three rounds, motifs then padding; matching is close, not
+exact. About 92% of positives sit at a motif or a precursor terminus and their
+categories overlap, while one category's top-ups do not; on fold 1 the train
+negatives land within 2-4 points of the positives (amidation short where the pool
+runs out). Exact matching would take stratified top-ups and either ~10k negatives
+per split or far fewer generic ones.
+
+**The v2 features** (`~/AF2_analysis/lf_pepend_residue_cache_v2.rds`,
+`lf_pepend_residues_v2.npz`, `lf_plm/aa_onehot_msacons_v2.parquet`): the rebuild
+above. 215 precursors whose AlphaFold model was built on another sequence are
+remapped; 53 gain 15,062 residues (AGT 29 -> 476 of 476), every other precursor
+is bit-identical. An arm on them names its curated table with `RESID_BASE` (stage 2
+checks the arm's table against it); the MSA channel is re-masked on it at the
+original pinned scale. `run_msa_arms.sh` builds all of it, then trains, scans and
+evaluates `msa` and `msa_gap`.
 
 Top-up negatives come only from anchors whose window overlaps no annotated end.
-The five fold inputs were built from the checkout root with
+The five fold inputs of a window set are built from the checkout root, e.g.
 
 ```bash
 for k in 1 2 3 4 5; do
   LC_ALL=en_US.UTF-8 Rscript inst/scripts/10_7_pepend_windows.R --n-folds 5 --fold $k \
-    --near-n 100 --seed 42 --amid-g-anchor --pad-match --mono-match \
-    --out ~/AF2_analysis/lf_pepend_nn_input_cv5_f${k}_padg.rds
+    --near-n 100 --seed 42 --pad-match --mono-match \
+    --out ~/AF2_analysis/lf_pepend_nn_input_cv5_f${k}<sfx>.rds
 done
 ```
+
+and the arm that trains on them says so with `INPUT_SFX=<sfx>` and the
+`INPUT_FLAGS` its inputs must carry (`arms/msa.sh` lists its own build).
 
 ### What `INPUT_SFX` changes downstream
 
 | name | set by | effect |
 |---|---|---|
 | `INPUT_SFX` | the arm file | trunks train on `lf_pepend_nn_input_cv5_f<k>${INPUT_SFX}.rds`; every scan, per-gene scan and xgb attribution reads `lf_pepend_window_groups_<T>_cv5_f<k>${INPUT_SFX}.npz` |
-| `UNSEEN_SFX` | env, default `INPUT_SFX` | the never-seen set, `cv5_unseen_ends${UNSEEN_SFX}.csv`. `cv5_unseen_ends_padg.csv` (`cv5_unseen_padg.R`) is the old set minus every end a `_padg` negative overlaps, at its mature or its G anchor |
+| `UNSEEN_SFX` | env, default `INPUT_SFX` | the never-seen set, `cv5_unseen_ends${UNSEEN_SFX}.csv`: the old set minus every end whose window a negative of those inputs overlaps, written by `INPUT_SFX=<sfx> Rscript cv5_unseen_sfx.R` (run from the scripts directory; `OUT` overrides the path). It stops unless the ends those inputs hold out, and in which fold, are `lf_pepend_cv5_knowns_<T>.csv`'s (`KNOWNS_DIFFER_OK=1` writes the set anyway; `_padg` needs it) |
 | `HEADCMP` | the pipeline | where stages 5–6 write: `lf_headcmp`, or `lf_headcmp/unseen${UNSEEN_SFX}`, so tables on another end set never overwrite the shared ones |
 
-`UNSEEN_SFX=_padg` on an old arm puts it on the same footing for a paired
+`UNSEEN_SFX=<sfx>` on an old arm puts it on the same footing for a paired
 comparison (`UNSEEN_SFX=_padg STAGES=5,6 ARM=curated_AAswap ./pepend_arm_pipeline.sh`).
-The paired tables of 2026-11-11 are in `~/AF2_analysis/lf_headcmp/unseen_padg/`.
+The paired tables of 2026-11-11 are in `~/AF2_analysis/lf_headcmp/unseen_padg/`
+(written before 2026-11-12: History, below).
 
 **Stage 2b, `groups`.** `full_scan`, `scan_genes` and `shap_xgb_head.py` take the
 xgb head's inner split from a groups npz that must be the run's own training
@@ -300,44 +323,47 @@ the shared unsuffixed file), then checks all 30 splits against the trunks'
 assert the same, and `fullscan_arm.sh` and `cv5_post_esmonly36.sh` will not
 start without all ten.
 
-**Anchor conventions: `arm_conv.R`.** Every shared end table — the cv5 knowns,
-`cv5_unseen_ends*.csv`, `ligand_list`, UniProt peptides — is in the MATURE
-convention. `arm_anchor(arm, accession, term, anchor)` maps it to the arm's:
-identity unless the arm's `INPUT_FLAGS` holds `amid_g=TRUE`, when a C end
-followed by G + dibasic moves onto the G. `arm_fix_knowns()` then collapses the
-knowns that land on one residue (GLP-1's two C ends) onto the fold that held
-them out, from the cached `lf_pepend_cv5_knowns_<T>_padg.csv`
-(`arm_knowns_cache.R`; the inputs are 92 MB each, and rebuilt inputs need the
-cache rebuilt). `segments_roc.R`, `segments_motif.R`, `end_calls.R`,
-`metrics_final.R` and `final_pages_arms.R` call both, so each arm is scored, and
-its held-out marks drawn, at its own anchors. The never-seen spans on a page
-stay on the mature peptide.
+**Every arm is scored at the anchors the shared end tables carry** — the cv5
+knowns, `cv5_unseen_ends*.csv`, `ligand_list`, UniProt peptides — by
+`segments_roc.R`, `segments_motif.R`, `end_calls.R` and `metrics_final.R`, and
+its held-out marks are drawn there by `final_pages_arms.R`, each end held out by
+the fold those tables give it. That is exact only for a window set whose
+held-out ends and folds ARE the tables' — `cv5_unseen_sfx.R` checks it; the
+`_msa` and `_msagap` sets pass, and `_padg` (30 C ends anchored one past the
+mature end, GLP-1's two C ends merged) does not, so its arms are scored one
+residue off on those ends, as accepted on 2026-11-12. Two helpers read an
+arm's own settings and windows: `arm_vars.R` (`arm_var(arm, var)`: one setting
+out of `arms/<arm>.sh`, read as text, so the arm's training guards do not run;
+`end_score_cards.R`, `terminus_bias.R`), and `arm_knowns_cache.R`
+(`INPUT_SFX=<sfx>`: that window set's known ends with the fold that holds each
+out, `lf_pepend_cv5_knowns_<T><sfx>.csv`, for `end_score_cards.R`; the inputs
+are 92 MB each, and rebuilt inputs need the cache rebuilt).
 
 ### Pages
 
 `cv5_post_esmonly36.sh` sources the arm file for its groups and names its logs
 per arm. `esm_pages.sh` READS `INPUT_SFX` out of the arm file with sed —
 sourcing would run the arm's training guards in a render — and EXPORTS
-`UNSEEN_SFX` and `LF_SCRIPTS`, or the xargs children would mark never-seen ends
-from the full set. A `_padg` arm is drawn alone beside the curated baseline.
-The MSA-conservation gallery (104 pages, 2026-11-11):
+`UNSEEN_SFX`, or the xargs children would mark never-seen ends from the full
+set. An arm with its own windows is drawn alone beside the curated baseline;
+`final_pages_arms.R` needs an `ARM_REG` row for it. A gallery for such an arm:
 
 ```bash
-PLM=~/AF2_analysis/lf_plm/aa_onehot_msacons.parquet LC_ALL=en_US.UTF-8 Rscript plm_pagegenes.R  # -> *_pagegenes.rds
-ARM=curated_AAswap_msacons_padg PROCS=3 ./cv5_post_esmonly36.sh
-ARM=curated_AAswap_msacons_padg ARMS=curated_AAswap_msacons_padg PROCS=3 \
-  TITLE="LigandFinder — known-peptide pages, 5-fold CV: curated baseline and MSA conservation (padg windows; C ends anchored on the amidation G)" \
-  ./esm_pages.sh
+PLM=<the arm's PLM parquet> LC_ALL=en_US.UTF-8 Rscript plm_pagegenes.R  # -> *_pagegenes.rds
+ARM=<arm> PROCS=3 ./cv5_post_esmonly36.sh
+ARM=<arm> PROCS=3 TITLE="..." ./esm_pages.sh
 ```
 
-`msacons_gallery_qc.py` then checks every page's live CNN series, both arms,
-against the per-gene scans (not the held-out marks).
+The MSA-conservation gallery of 2026-11-11
+(`~/AF2_analysis/pepend_pages_curated_AAswap_msacons_padg/`, 104 pages) was
+built this way. `msacons_gallery_qc.py` then checks every page's live CNN
+series, both arms, against the per-gene scans (not the held-out marks).
 
 Not stage 7: after the pages it rewrites `index.html` as the TP/FN index of
-`lf_tpfn_default_arms()` over the tables in `lf_headcmp`, and neither holds a
-`_padg` arm.
+`lf_tpfn_default_arms()` over the tables in `lf_headcmp`, and neither holds an
+arm on its own windows.
 
-### The source tree, and the two guards
+### The source tree, and the capability guard
 
 The working copy in `~/AF2_analysis` ran these as `W=<worktree> ./...`. Here
 every runner sources `lf_paths.sh`, so the same thing is `LF_SRC=<checkout>`,
@@ -347,25 +373,28 @@ blurb and footer html, and (stage 5 hands it to `metrics_final.R`)
 `cv5_unseen_ends*.csv` — which a checkout does not hold, so they run from the
 working copy; a copy there without `LF_SRC` is refused by `lf_paths.sh`.
 
-Both arm files refuse a source tree that predates them, and they test the
-capability, not the checkout's name: `curated_AAswap_padg` wants a `10_7` that
-knows `--amid-g-anchor`; `curated_AAswap_msacons_padg` wants `plm_cons_msa`
-inside the `DEFAULT_CONT_CHANNELS` of `$W/inst/python/lf_dcnn/config.py`.
-Without it the channel is not noise-augmented as `cons_rs_n` was, and the
-comparison with the baseline differs in one more way than intended. The arm's
-`CONT_EXPECT` checks the same thing again in the trunks' own `config.json`.
+An arm file may refuse a source tree that predates what it needs, testing the
+capability, not the checkout's name: `arms/msa.sh` and `arms/msa_gap.sh` want
+`plm_cons_msa` inside the `DEFAULT_CONT_CHANNELS` of
+`$W/inst/python/lf_dcnn/config.py`. Without it the channel is not
+noise-augmented as `cons_rs_n` was, and the comparison with the baseline
+differs in one more way than intended. The arm's `CONT_EXPECT` checks the same
+thing again in the trunks' own `config.json`.
 
-### The deferred scan: `padg_rescore_and_scan.sh`
+### The MSA channel's pinned scale
 
-Kevin, 2026-11-10: "train both arms now, scan after the API finishes". Training
-and scanning are separate stages, so the scan needs no retrain. The script
-waits until all 388 API alignments are on disk (`MIN_A3M`), rescores every MSA
-and rebuilds the channel with the raw-JSD min/max PINNED to the build the
-trunks trained on (`--scale-from`), checks that only the precursors that had no
-MSA changed (`check_msacons_rebuild.py`), then runs stages `2b,2,3` for both
-arms. Not pages.
+Kevin, 2026-11-10: "train both arms now, scan after the API finishes". The
+`curated_AAswap_msacons_padg` trunks trained on a partial build of the channel:
+176 precursors still had no MSA and an all-zero channel. None holds a known
+peptide, but they supply 4.5–5.4% of each fold's training negatives, a weak
+"zero conservation = negative" cue open to that arm only; retraining would not
+reproduce them. Once all 388 API alignments were on disk the channel was
+rescored and rebuilt with the raw-JSD min/max PINNED to the build those trunks
+trained on (`build_msacons_parquet.py --scale-from`), and
+`check_msacons_rebuild.py` confirmed that only the precursors that had had no
+MSA changed. That pinned scale (`aa_onehot_msacons.parquet.scale.json`) is the
+one later arms reuse (`arms/msa.sh`).
 
-So the conservation trunks on disk trained on the partial build: 176 precursors
-still had no MSA and an all-zero channel. None holds a known peptide, but they
-supply 4.5–5.4% of each fold's training negatives, a weak "zero conservation =
-negative" cue open to this arm only; retraining now would not reproduce them.
+## History
+
+- 2026-11-12: the G-anchored C end convention (--amid-g-anchor, arms curated_AAswap_padg / curated_AAswap_msacons_padg) was removed; their artifacts remain in ~/AF2_analysis and now evaluate at mature anchors.

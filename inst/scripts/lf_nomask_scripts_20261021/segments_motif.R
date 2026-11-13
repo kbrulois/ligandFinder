@@ -32,7 +32,6 @@ A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
 source(file.path(.lf_here, "lf_paths.R"))
-source(file.path(Sys.getenv("LF_SCRIPTS", .lf_here), "arm_conv.R"))
 source(lf_src("R/pepend_windows.R"))     # lf_pepend_motif_vec
 TOLS <- as.integer(strsplit(Sys.getenv("TOL", "4"), ",")[[1]])
 THRESH <- as.numeric(strsplit(Sys.getenv("THRESH", "0.5"), ",")[[1]])
@@ -41,15 +40,6 @@ THRESH <- as.numeric(strsplit(Sys.getenv("THRESH", "0.5"), ",")[[1]])
 ## names the already-drawn tables use (TOL=2 THRESH=0.3 reproduces those).
 ##   THRESH=0.5 TOL=4 ARM=_esmonly36 Rscript segments_motif.R
 ARM <- Sys.getenv("ARM", "")
-## an amid_g arm (arm_conv.R) anchors G + dibasic C ends on the G: the mature
-## end tables are mapped onto that with arm_anchor, and the motif rule must know
-AMID_G <- arm_amid_g(ARM)
-if (AMID_G && !"amid_g" %in% names(formals(lf_pepend_motif_vec)))
-  stop("ARM ", ARM, " is an amid_g arm but ", lf_src("R/pepend_windows.R"), " has no amid_g argument; ",
-       "set LF_SRC to a ligandFinder checkout whose lf_pepend_motif_vec has it")
-## amid_g is passed only when TRUE: an older source tree's (LF_SRC) lf_pepend_motif_vec
-## has no such argument, and an old arm must still run against it
-motif_vec <- if (AMID_G) function(...) lf_pepend_motif_vec(..., amid_g = TRUE) else lf_pepend_motif_vec
 CLASSES <- c("terminus", "dibasic", "G + dibasic", "monobasic", "other")
 
 fc <- readRDS(file.path(A2, "lf_pepend_residue_cache.rds")); prec <- as.data.table(fc$prec); rm(fc)
@@ -96,6 +86,8 @@ confusion <- function(b, s, thr, tol, ev, oth) {
 
 ll <- as.data.table(readRDS(lf_src("inst/extdata/ligand_list.rds")))[!is.na(start) & !is.na(end)]
 up <- fread(file.path(A2, "pepend_locus", "uniprot_peptides.csv"))[type %in% c("peptide", "propeptide")]
+## every arm is scored at the anchors the end tables carry; UNSEEN_SFX picks
+## the never-seen set
 un <- fread(file.path(S, paste0("cv5_unseen_ends", Sys.getenv("UNSEEN_SFX", ""), ".csv")))
 un[, set := ifelse(grepl("^never seen", set), "never seen: peptides", "never seen: large products")]
 
@@ -106,38 +98,30 @@ for (tm in c("C", "N")) {
   b[, brk0 := c(TRUE, accession[-1] != accession[-.N] | diff(anchor) != 1L)]
   ## motif of every anchor, one precursor at a time
   b[prec, on = "accession", `:=`(seq = i.seq, n_prot = i.n_prot)]
-  b[, motif := motif_vec(seq[1], tm, anchor, n_prot[1]), by = accession]
+  b[, motif := lf_pepend_motif_vec(seq[1], tm, anchor, n_prot[1]), by = accession]
   b[, c("seq", "n_prot") := NULL]
   message(sprintf("%s: %s anchors; motif %s", tm, format(nrow(b), big.mark = ","),
                   paste(sprintf("%s %s", b[, .N, by = motif]$motif,
                                 format(b[, .N, by = motif]$N, big.mark = ",")), collapse = ", ")))
   kn <- fread(file.path(A2, sprintf("lf_pepend_cv5_knowns_%s.csv", tm)))[, .(accession, anchor, fold)]
-  ## end tables are mature-convention; `mature` keeps that anchor for the exclusions
-  kn[, mature := anchor][, anchor := arm_anchor(ARM, accession, tm, anchor)]
-  kn <- arm_fix_knowns(ARM, kn, tm)   # one row per mapped end, its own inputs' fold
   ## the knowns' own motif comes from the same rule, so a page and this table agree
   kn[b, on = .(accession, anchor), motif := i.motif]
   unm <- unique(un[term == tm, .(set, accession, anchor)])
-  unm[, mature := anchor][, anchor := arm_anchor(ARM, accession, tm, anchor)]
   unm[b, on = .(accession, anchor), motif := i.motif]
   ann <- unique(rbind(ll[, .(accession, anchor = if (tm == "N") start else end)],
                       up[, .(accession, anchor = if (tm == "N") start else end)]))
-  ## held out at both the mature and the arm's anchor
-  ann <- unique(rbind(ann, ann[, .(accession, anchor = arm_anchor(ARM, accession, tm, anchor))]))
   for (hd in c("cnn", "xgb_pm")) {
     for (thr in THRESH) for (tol in TOLS) {
       cv <- rbindlist(lapply(1:5, function(k) {
         ev  <- kn[fold == k, .(accession, anchor, motif)]
-        oth <- unique(rbind(ann, kn[fold != k, .(accession, anchor)], unm[, .(accession, anchor)],
-                            kn[fold != k, .(accession, anchor = mature)], unm[, .(accession, anchor = mature)]))
+        oth <- unique(rbind(ann, kn[fold != k, .(accession, anchor)], unm[, .(accession, anchor)]))
         confusion(b, b[[sprintf("%s__f%d", hd, k)]], thr, tol, ev, oth)
       }))[, lapply(.SD, sum), by = motif]
       res[[length(res) + 1]] <- data.table(term = tm, set = "cross-validated", head = hd,
                                            thr = thr, tol = tol, cv)
       for (st in c("never seen: peptides", "never seen: large products")) {
         ev  <- unm[set == st, .(accession, anchor, motif)]
-        oth <- unique(rbind(ann, kn[, .(accession, anchor)], unm[set != st, .(accession, anchor)],
-                            kn[, .(accession, anchor = mature)], unm[set != st, .(accession, anchor = mature)]))
+        oth <- unique(rbind(ann, kn[, .(accession, anchor)], unm[set != st, .(accession, anchor)]))
         res[[length(res) + 1]] <- data.table(term = tm, set = st, head = hd, thr = thr, tol = tol,
                                              confusion(b, b[[paste0(hd, "__all50")]], thr, tol, ev, oth))
       }

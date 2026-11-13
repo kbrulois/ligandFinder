@@ -7,7 +7,7 @@
 ## and summarise how both channels sit at known ends against every other
 ## residue. Driver: inst/scripts/msa_cons/plot_msa_conservation.R.
 ##
-## Four things every figure here has to keep straight:
+## Three things every figure here has to keep straight:
 ##   * residues EXCLUDED BY DESIGN (cons_rs_n, min_afm, mean_afm and relASA all
 ##     exactly 0: not extracellular in the topology table, or past AF fragment
 ##     1) are 0 in BOTH channels. That zero encodes topology, not conservation,
@@ -38,10 +38,8 @@
 ##     stretches of the old line are invariant residues at that ceiling. That
 ##     goes with the old channel's 87% per-protein variance share, and is why the
 ##     summary also reports each AUC against the same precursors' own residues.
-##   * a C end followed by G + a dibasic pair sits ON THE G in the _padg windows
-##     (10_7 --amid-g-anchor), one past the mature end. Of the end tables only
-##     lf_pepend_cv5_knowns_<T>_padg.csv is already in that convention; the
-##     never-seen ends are moved by arm_conv.R's arm_anchor() rule.
+## Ends are drawn and counted at the anchors the shared end tables carry: a C
+## end on its last residue, an N end on its first.
 ## ------------------------------------------------------------------------------
 
 #' Where the MSA-conservation inputs live
@@ -52,8 +50,8 @@ LF_MSACONS_PATHS <- list(
   msa_dir     = "~/AF2_analysis/lf_msa",
   channel     = "~/AF2_analysis/lf_plm/aa_onehot_msacons.parquet",
   cache       = "~/AF2_analysis/lf_pepend_residue_cache.rds",
-  knowns      = "~/AF2_analysis/lf_pepend_cv5_knowns_%s_padg.csv",
-  unseen      = "~/AF2_analysis/lf_nomask_scripts_20261021/cv5_unseen_ends_padg.csv",
+  knowns      = "~/AF2_analysis/lf_pepend_cv5_knowns_%s.csv",
+  unseen      = "~/AF2_analysis/lf_nomask_scripts_20261021/cv5_unseen_ends.csv",
   python      = "~/.virtualenvs/lf-plm/bin/python",
   ## the two _padg arms' scan metrics (old channel vs new), for the summary's caption
   arm_metrics = "~/AF2_analysis/lf_headcmp/unseen_padg/final_metrics.csv"
@@ -144,66 +142,37 @@ lf_msacons_residues <- function(paths = LF_MSACONS_PATHS) {
        scale = list(lo = sc$lo, hi = sc$hi, n_covered = sc$n_covered, max_dev = dev))
 }
 
-#' A mature C end moved onto the G of a G + dibasic site
-#'
-#' The _padg convention (10_7 --amid-g-anchor), with arm_conv.R's
-#' `arm_anchor()` rule: a C end followed by G + KK/KR/RK/RR moves one residue
-#' right, onto the G. N ends never move. Vectorised.
-#' @param seq_of named character vector, sequence by accession.
-#' @return integer anchors in the windows' convention.
-#' @keywords internal
-lf_msacons_g_anchor <- function(seq_of, accession, term, mature) {
-  mature <- as.integer(mature)
-  s <- unname(seq_of[as.character(accession)])
-  nxt <- substr(s, mature + 1L, mature + 3L)
-  mature + as.integer(term == "C" & !is.na(s) & grepl("^G(KK|KR|RK|RR)", nxt))
-}
-
 #' Known peptide ends, at the anchors the window models score
 #'
 #' \describe{
-#'   \item{`trained`}{every known end of the five _padg folds
-#'     (`lf_pepend_cv5_knowns_<T>_padg.csv`: each end is `val` in exactly one
-#'     fold, so together they are all of them), already G-anchored.}
+#'   \item{`trained`}{every known end of the five cross-validation folds
+#'     (`lf_pepend_cv5_knowns_<T>.csv`: each end is `val` in exactly one fold,
+#'     so together they are all of them).}
 #'   \item{`never-seen peptide`, `never-seen large product`}{the two parts of
-#'     `cv5_unseen_ends_padg.csv` -- annotated ends of genes no fold trained on
-#'     -- moved onto the G where the _padg convention puts them.}
+#'     `cv5_unseen_ends.csv` -- annotated ends of genes no fold trained on.}
 #' }
-#' `motif` is [lf_pepend_motif_vec()] at the model anchor under the G
-#' convention, so "G + dibasic" marks exactly the C ends that moved.
+#' `motif` is [lf_pepend_motif_vec()] at the end's anchor.
 #' @param prec the `prec` table of [lf_msacons_residues()].
-#' @return data.table: accession, gene, term, anchor, mature, set, motif; one
-#'   row per distinct end and set.
+#' @return data.table: accession, gene, term, anchor, set, motif; one row per
+#'   distinct end and set.
 #' @export
 lf_msacons_ends <- function(prec, paths = LF_MSACONS_PATHS) {
-  if (!"amid_g" %in% names(formals(lf_pepend_motif_vec)))
-    stop("lf_pepend_motif_vec() predates the G-anchor convention; source this checkout's R/pepend_windows.R")
-  seq_of <- stats::setNames(prec$seq, prec$accession)
   kn <- data.table::rbindlist(lapply(c("N", "C"), function(tm) {
     d <- data.table::fread(sprintf(path.expand(paths$knowns), tm))
-    ## an N row's pep_end_mature is the peptide's OTHER end; N anchors never move
     data.table::data.table(accession = d$accession, term = tm, anchor = as.integer(d$anchor),
-                           mature = if (tm == "C") as.integer(d$pep_end_mature) else as.integer(d$anchor),
                            set = "trained")
   }))
-  ## the rule below must BE the training convention, or the never-seen ends
-  ## would be marked on a different residue from the trained ones
-  moved <- lf_msacons_g_anchor(seq_of, kn$accession, kn$term, kn$mature)
-  if (any(moved != kn$anchor))
-    stop(sum(moved != kn$anchor), " trained ends disagree with the G-anchor rule, e.g. ",
-         kn$accession[which(moved != kn$anchor)[1]])
   un <- data.table::fread(path.expand(paths$unseen))
   un <- data.table::data.table(
-    accession = un$accession, term = un$term, mature = as.integer(un$anchor),
+    accession = un$accession, term = un$term, anchor = as.integer(un$anchor),
     set = ifelse(grepl("^never seen", un$set), "never-seen peptide", "never-seen large product"))
-  un$anchor <- lf_msacons_g_anchor(seq_of, un$accession, un$term, un$mature)
   ## the never-seen table has a row per PEPTIDE, so an end two peptides share is
-  ## listed twice (hepcidin-20/-25 at C 84, CXCL12's four isoforms at N 22): 88
-  ## rows are 87 peptide ends, 585 are 578. Count and select on distinct ends.
+  ## listed twice (hepcidin-20/-25 at C 84, CXCL12's four isoforms at N 22): 90
+  ## rows are 89 peptide ends, 611 are 604. Count and select on distinct ends.
   un <- unique(un, by = c("accession", "term", "anchor", "set"))
   e <- rbind(kn, un[, names(kn), with = FALSE])
   e <- merge(e, prec[, .(accession, gene, seq, n_prot)], by = "accession")
-  e[, motif := lf_pepend_motif_vec(seq[[1]], term[[1]], anchor, n_prot[[1]], amid_g = TRUE),
+  e[, motif := lf_pepend_motif_vec(seq[[1]], term[[1]], anchor, n_prot[[1]]),
     by = .(accession, term)]
   e[, set := factor(set, levels = LF_MSACONS_SETS)]
   e[, c("seq", "n_prot") := NULL][order(accession, term, anchor)]
@@ -215,7 +184,7 @@ lf_msacons_ends <- function(prec, paths = LF_MSACONS_PATHS) {
 #' ligand_list does not cover, the never-seen set's own peptides (an N row
 #' spans `anchor .. anchor + len - 1`, a C row `anchor - len + 1 .. anchor`).
 #' One row per distinct (accession, start, end): ligand_list's name wins.
-#' Spans are MATURE peptides; a G-anchored C end sits one residue past its span.
+#' Spans are mature peptides.
 #' @param ll `inst/extdata/ligand_list.rds`.
 #' @return data.table: accession, start, end, name.
 #' @export
@@ -236,29 +205,25 @@ lf_msacons_spans <- function(accessions, ll, paths = LF_MSACONS_PATHS) {
 #' Listed peptides with an end that neither end table holds
 #'
 #' The peptides whose ends [lf_msacons_protein_plot()] draws in grey: the N end
-#' is the span's start, the C end its end moved onto the G by
-#' [lf_msacons_g_anchor()], and an end is listed when `ends` has that terminus
-#' at that anchor. On a trained gene this is a peptide never docked -- the
-#' trained ends are 10_7's docked peptides (knowns.rds, relevant site) --
-#' e.g. POMC's beta-endorphin and GCG's GLP-2.
-#' @param spans [lf_msacons_spans()]; `ends` [lf_msacons_ends()]; `prec` the
-#'   `prec` table of [lf_msacons_residues()].
+#' is the span's start, the C end its end, and an end is listed when `ends` has
+#' that terminus at that anchor. On a trained gene this is a peptide never
+#' docked -- the trained ends are 10_7's docked peptides (knowns.rds, relevant
+#' site) -- e.g. POMC's beta-endorphin and GCG's GLP-2.
+#' @param spans [lf_msacons_spans()]; `ends` [lf_msacons_ends()].
 #' @return the rows of `spans` with an unlisted end.
 #' @keywords internal
-lf_msacons_unlisted <- function(spans, ends, prec) {
+lf_msacons_unlisted <- function(spans, ends) {
   if (!nrow(spans)) return(spans)
-  seq_of <- stats::setNames(prec$seq, prec$accession)
   key <- paste(ends$accession, ends$term, ends$anchor)
-  c_at <- lf_msacons_g_anchor(seq_of, spans$accession, "C", spans$end)
-  spans[!paste(accession, "N", start) %in% key | !paste(accession, "C", c_at) %in% key]
+  spans[!paste(accession, "N", start) %in% key | !paste(accession, "C", end) %in% key]
 }
 
 #' Pick the example precursors, by a stated rule
 #'
 #' \enumerate{
-#'   \item `n_classic` classics, from `classics`: the most G + dibasic trained C
-#'     ends (where the _padg convention moved the end onto the G), then the
-#'     most trained ends, then the deeper MSA (neff).
+#'   \item `n_classic` classics, from `classics`: the most trained C ends
+#'     followed by G + dibasic (amidated peptides), then the most trained ends,
+#'     then the deeper MSA (neff).
 #'   \item one never-seen gene: from the never-seen peptide set (< 60 aa), the
 #'     gene with the most ends there, ties to the deeper MSA.
 #'   \item one more never-seen peptide gene, chosen so the excluded-by-design
@@ -390,7 +355,6 @@ lf_msacons_keys <- function() list(
              old = "OLD: Aminode cons_rs_n (the channel it replaced)",
              noprior = "NEW without the evidence prior (shallow example only)"),
   mark   = c(N = "N end", C = "C end",
-             G = "C end on the G of a G + dibasic site (_padg anchor = mature end + 1)",
              u = "grey: end of a listed peptide in neither end table",
              z = "cons_rs_n = 0 on a scored residue: no Aminode value"),
   region = c(pep = "known peptide (mature span)",
@@ -408,7 +372,7 @@ lf_msacons_scales <- function(cols = lf_msacons_cols()) {
     ggplot2::scale_linewidth_manual(values = c(new = 0.65, old = 0.45, noprior = 0.5),
                                     labels = k$series, limits = names(k$series), name = NULL),
     ## all characters: one numeric shape would turn the whole vector into text
-    ggplot2::scale_shape_manual(values = c(N = "[", C = "]", G = "G", u = "]", z = "x"),
+    ggplot2::scale_shape_manual(values = c(N = "[", C = "]", u = "]", z = "x"),
                                 labels = k$mark, limits = names(k$mark), name = NULL),
     ggplot2::scale_fill_manual(values = c(pep = cols$peptide, excl = cols$excluded),
                                labels = k$region, limits = names(k$region), name = NULL))
@@ -437,7 +401,7 @@ lf_msacons_legend <- function(cols = lf_msacons_cols(), text_size = 7.5) {
       linetype = ggplot2::guide_legend(order = 1, ncol = 1),
       linewidth = ggplot2::guide_legend(order = 1, ncol = 1),
       shape = ggplot2::guide_legend(order = 2, ncol = 1, override.aes = list(
-        colour = c(cols$N, cols$C, cols$C, cols$other_end, cols$old), size = c(3.4, 3.4, 3.4, 3.4, 2.2))),
+        colour = c(cols$N, cols$C, cols$other_end, cols$old), size = c(3.4, 3.4, 3.4, 2.2))),
       fill = ggplot2::guide_legend(order = 3, ncol = 1)) +
     ggplot2::theme_void() +
     ggplot2::theme(legend.position = "top", legend.justification = "left",
@@ -454,9 +418,8 @@ lf_msacons_legend <- function(cols = lf_msacons_cols(), text_size = 7.5) {
 
 #' One precursor: both conservation channels on one 0-1 axis
 #'
-#' Above the 0-1 score area: the end marks (`[` N end, `]` C end, `G` a C end
-#' on the G of a G + dibasic site -- the _padg anchor, one past the mature end;
-#' in grey where the end is a listed peptide's but in neither end table) and
+#' Above the 0-1 score area: the end marks (`[` N end, `]` C end; in grey
+#' where the end is a listed peptide's but in neither end table) and
 #' the known peptides in lanes, each labelled. In the score area: the
 #' peptides shaded, dotted guides down from every end, residues excluded by
 #' design as a band with no value drawn, and residues the old channel has no
@@ -504,20 +467,16 @@ lf_msacons_protein_plot <- function(r, spans, ends, meta, noprior = NULL, panel_
   ## end marks, one per residue and terminus (ACTH and alpha-MSH share N 138):
   ## the end tables' ends in the terminus colours, then -- in grey, so every
   ## shaded span shows its ends -- a listed peptide's ends that neither table
-  ## holds (POMC's beta-endorphin, GCG's GLP-2), moved onto the G by the same
-  ## rule
-  em <- as.data.frame(ends)[, c("term", "anchor", "motif")]
+  ## holds (POMC's beta-endorphin, GCG's GLP-2)
+  em <- as.data.frame(ends)[, c("term", "anchor")]
   em$col <- ifelse(em$term == "N", cols$N, cols$C)
   if (nrow(sp)) {
-    sq <- paste(r$AA, collapse = "")
-    c_at <- lf_msacons_g_anchor(stats::setNames(sq, "p"), rep("p", nrow(sp)), "C", sp$end)
-    oe <- data.frame(term = rep(c("N", "C"), each = nrow(sp)), anchor = c(sp$start, c_at))
-    oe$motif <- ifelse(oe$term == "C", lf_pepend_motif_vec(sq, "C", oe$anchor, 1L, amid_g = TRUE), "")
+    oe <- data.frame(term = rep(c("N", "C"), each = nrow(sp)), anchor = c(sp$start, sp$end))
     oe$col <- cols$other_end
     em <- rbind(em, oe)
   }
   em <- em[!duplicated(em[, c("term", "anchor")]), ]
-  em$mark <- ifelse(em$term == "N", "N", ifelse(em$motif == "G + dibasic", "G", "C"))
+  em$mark <- em$term
 
   brk <- if (L <= 40) c(1, seq(5, L, 5)) else if (L <= 200) c(1, seq(25, L, 25)) else c(1, seq(50, L, 50))
   ttl <- sprintf("%s   %s, %d aa   |   MSA depth %s, neff %s, %s", meta$gene, meta$accession, L,
@@ -577,8 +536,8 @@ lf_msacons_source_label <- function(source) {
 
 #' Both channels at known ends against every other residue
 #'
-#' For each end set: the residues within `k` of any of its ends (at the model's
-#' anchors), against the background of every other scored residue -- scored =
+#' For each end set: the residues within `k` of any of its ends (at the end
+#' tables' anchors), against the background of every other scored residue -- scored =
 #' not excluded by design, and "other" = not within `k` of an end of ANY set.
 #' The SAME residues go into both channels, including the residues the old
 #' channel has no value for (it is 0 there, and the model saw that 0).
