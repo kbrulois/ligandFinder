@@ -51,7 +51,7 @@ if [[ ${1:-} == one ]]; then
     cd $W && LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript inst/scripts/10_8_pepend_train.R \
       --term $T --n-seeds 10 --no-mask --global-head flatten \
       --plm $PLM ${DROP:+--drop-channels} $DROP \
-      --input $A2/lf_pepend_nn_input_cv5_f$k.rds \
+      --input $A2/lf_pepend_nn_input_cv5_f$k${INPUT_SFX:-}.rds \
       --out $out
     echo "### $T f$k rc=$? $(date '+%F %H:%M:%S')"
   } >> $S/train_${ARM}_${T}_f$k.log 2>&1
@@ -59,6 +59,20 @@ if [[ ${1:-} == one ]]; then
 fi
 
 [[ -s $PLM ]] || { echo "MISSING $PLM -- run stage 0 (mk_plm) first"; exit 1; }
+## the arm's training windows (INPUT_SFX, default the original cv5 inputs) must
+## exist and must have been BUILT the way the arm says (INPUT_FLAGS vs each
+## input's own params): a wrong input trains silently under the right name
+for k in 1 2 3 4 5; do
+  inp=$A2/lf_pepend_nn_input_cv5_f$k${INPUT_SFX:-}.rds
+  [[ -s $inp ]] || { echo "MISSING $inp"; exit 1; }
+  if [[ -n ${INPUT_FLAGS:-} ]]; then
+    eval $R -e \''p <- readRDS("'$inp'")$params; for (kv in strsplit("'"$INPUT_FLAGS"'", " ")[[1]]) {
+      f <- strsplit(kv, "=")[[1]]; v <- p[[f[1]]]
+      if (is.null(v) || as.character(v) != f[2]) stop(sprintf("%s: %s is %s, arm wants %s", "'$inp'", f[1], format(v), f[2])) }'\' \
+      >/dev/null 2>&1 || { echo "INPUT FLAGS MISMATCH in $inp (want $INPUT_FLAGS)"; exit 1; }
+  fi
+done
+echo "  input    : lf_pepend_nn_input_cv5_f<k>${INPUT_SFX:-}.rds ${INPUT_FLAGS:+($INPUT_FLAGS, checked)}"
 echo "TRAINING arm=$ARM ($ARM_LABEL) start $(date '+%F %H:%M:%S')"
 echo "  plm      : $(basename $PLM) ($(du -h $PLM | cut -f1))"
 if [[ -n $DROP ]]; then
@@ -98,6 +112,13 @@ else
         elif [[ -n $n ]]; then
           echo "  early check: $n channels, as expected"
         fi
+        ## an arm may name channels that MUST be noise-augmented (CONT_EXPECT,
+        ## comma-separated); the list comes from whichever lf_dcnn $W holds
+        for c in ${(s:,:)${CONT_EXPECT:-}}; do
+          $PY_PLM -c "import json,sys;sys.exit(sys.argv[2] not in json.load(open(sys.argv[1]))['cont_channel_names'])" $cj $c 2>/dev/null \
+            && echo "  early check: $c is noise-augmented" \
+            || echo "!!! WIRING ERROR: $c is NOT in cont_channel_names of $cj (W=$W). Stop the queue."
+        done
         break
       fi
       sleep 10

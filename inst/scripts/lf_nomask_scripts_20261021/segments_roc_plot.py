@@ -20,7 +20,7 @@ for f in ("Arial.ttf", "Arial Bold.ttf"):
     except Exception: pass
 plt.rcParams["font.family"] = ["Arial", "DejaVu Sans"]
 
-A2 = pathlib.Path.home() / "AF2_analysis"; D = A2 / "lf_headcmp"
+A2 = pathlib.Path.home() / "AF2_analysis"; D = pathlib.Path(os.environ.get("HEADCMP", str(A2 / "lf_headcmp")))
 OUT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else A2
 SUF = os.environ.get("SUF", "_tol4")     # matches segments_roc.R's own default (TOL 4)
 TOL = int(os.environ.get("TOL", "4"))   # only labels the caption; the CSV already encodes it

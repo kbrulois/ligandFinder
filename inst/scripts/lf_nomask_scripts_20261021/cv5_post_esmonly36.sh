@@ -12,12 +12,21 @@
 #    scan silently against the wrong channels.
 #  * PROCS defaults to 4. Drop it if a large render is running: this machine is
 #    memory-bound, so concurrent heavy jobs halve each other's throughput.
+#
+#  * THE --groups NPZ ARE THE ARM'S OWN. They carry the fold/member structure of
+#    the TRAINING WINDOWS, so arms on the same windows share them, but an arm on
+#    other windows (INPUT_SFX, e.g. _padg) has its own set and a same-length
+#    wrong file misaligns row for row. The suffix comes from arms/$ARM.sh, as in
+#    fullscan_arm.sh, and a missing file stops the run rather than being offered
+#    to scan_genes.py (which now asserts the match and would raise anyway).
 set -eu
 . ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 S=${0:A:h}
-ARM=${ARM:-esmonly36}
+export ARM=${ARM:-esmonly36}          # exported: xargs re-enters this script
 TAG=_nomask_flatten_${ARM}
+if [[ -r $S/arms/$ARM.sh ]]; then source $S/arms/$ARM.sh; fi   # INPUT_SFX, if this arm has its own windows
+GROUPS_OF() { echo $A2/lf_pepend_window_groups_$1_cv5_f$2${INPUT_SFX:-}.npz }
 RESID=${RESID:-$A2/lf_pepend_residues_${ARM}.npz}
 PROCS=${PROCS:-4}
 ## GENES is overridable so a single gene can be scanned as a test
@@ -27,15 +36,17 @@ export GENES=${GENES:-$(paste -sd, $S/page_genes.txt)}
 
 if [[ ${1:-} == scan ]]; then          # one fold/terminus scan (what xargs calls)
   k=$2 T=$3
+  G=$(GROUPS_OF $T $k)
+  [[ -s $G ]] || { echo "scan $T f$k ABORTED: no groups at $(basename $G)"; exit 1; }
   set +e                               # report a failed scan, don't abort the queue
   source ~/.virtualenvs/r-tensorflow/bin/activate
   cd $W/inst/python
   python -m lf_winxgb.scan_genes --genes $GENES --term $T \
     --run $A2/lf_pepend_run_${T}_cv5_f${k}${TAG}.rds \
     --residues-npz $RESID \
-    --groups $A2/lf_pepend_window_groups_${T}_cv5_f${k}.npz \
+    --groups $G \
     --pm-rounds 100 --skip-stacked \
-    --out $A2/lf_winxgb_scan_${T}_cv5_f${k}${TAG}.npz > $S/cv5scan_${T}_f$k.log 2>&1
+    --out $A2/lf_winxgb_scan_${T}_cv5_f${k}${TAG}.npz > $S/cv5scan_${ARM}_${T}_f$k.log 2>&1
   echo "scan $T f$k rc=$?"
   exit 0
 fi
@@ -49,6 +60,14 @@ for T in C N; do for k in 1 2 3 4 5; do
   [[ $n -eq 10 ]] || { echo "$T f$k has $n members, want 10"; exit 1; }
 done; done
 echo "configs OK: flatten head, x1 lr, mask off, 10 members x 5 folds x 2 termini"
+
+## this arm's own window groups, all ten of them, before any scan starts
+missing=0
+for T in C N; do for k in 1 2 3 4 5; do
+  [[ -s $(GROUPS_OF $T $k) ]] || { echo "MISSING $(basename $(GROUPS_OF $T $k)) -- run stage groups"; missing=1; }
+done; done
+[[ $missing -eq 0 ]] || { echo "no window groups for arm $ARM -- not scanning"; exit 1; }
+echo "groups OK: $(basename $(GROUPS_OF C 1)) ... (INPUT_SFX='${INPUT_SFX:-}')"
 
 for T in C N; do
   E=$A2/lf_pepend_run_${T}_cv5all50${TAG}_isolated

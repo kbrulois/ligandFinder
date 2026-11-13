@@ -17,7 +17,7 @@ for f in ("Arial.ttf", "Arial Bold.ttf"):
 plt.rcParams["font.family"] = ["Arial", "DejaVu Sans"]
 
 A2 = pathlib.Path.home() / "AF2_analysis"
-D = A2 / "lf_headcmp"
+D = pathlib.Path(os.environ.get("HEADCMP", str(A2 / "lf_headcmp")))
 OUT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else A2
 INK, BODY, MUTED, RULE, GRID = "#0b0b0b", "#3F4A56", "#6B7784", "#C9D1D9", "#E6E5E1"
 ## ARMS picks which two arms the figure compares; the default is the original
@@ -30,17 +30,18 @@ SUF = "_" + "_vs_".join(ARMS)
 ## gets a readable name derived from its own token and the next validated
 ## colour slot.
 _COL = {"flatten": "#2a78d6", "attention": "#eb6834", "esmonly36": "#1b9e77",
-        "curated_wAAid": "#eb6834"}
+        "curated_wAAid": "#eb6834", "curated_AAswap": "#9467bd", "motifind": "#7f5539"}
 _SLOTS = ["#eb6834", "#1b9e77", "#9467bd", "#7f5539"]
 DASH = {"cnn": "-", "xgb_pm": (0, (4, 2.5))}
 HEAD = {"cnn": "CNN head", "xgb_pm": "xgb head"}
 ## short enough for the trunk column, which sits 1.55 units before the head
 ## column; the title carries the full names.
 _TRUNK = {"flatten": "curated", "attention": "attention", "esmonly36": "ESM-C only",
-          "curated_wAAid": "curated+AAid"}
+          "curated_wAAid": "curated+AAid", "curated_AAswap": "AAswap"}
 _TRUNK_LONG = {"flatten": "curated (26 hand-built channels)", "attention": "attention trunk",
                "esmonly36": "ESM-C only (36 PCA channels)",
-               "curated_wAAid": "curated + AA one-hot (47 channels)"}
+               "curated_wAAid": "curated + AA one-hot (47 channels)",
+               "curated_AAswap": "AAswap (AA properties -> 21-letter one-hot)"}
 
 
 def _name(arm):
@@ -61,7 +62,12 @@ class _Fallback(dict):
 
 TRUNK = _Fallback(_TRUNK, _name)
 TRUNK_LONG = _Fallback(_TRUNK_LONG, _long)
-COL = _Fallback(_COL, lambda k: _SLOTS[(abs(hash(k)) % len(_SLOTS))])
+## an arm with no fixed colour takes the next slot no arm of ARMS holds, in ARMS
+## order: the same every run (hash() is salted per process), and never the other
+## arm's colour, even when neither arm has a fixed one (the two _padg arms)
+_FREE = [c for c in _SLOTS + ["#555555"] if c not in {_COL.get(a) for a in ARMS}]
+_NEW = [a for a in ARMS if a not in _COL]
+COL = _Fallback(_COL, lambda k: _FREE[_NEW.index(k) % len(_FREE)] if k in _NEW else _FREE[0])
 SETS = ["cross-validated", "never seen: peptides", "never seen: large products"]
 SETNOTE = {"cross-validated": "each end scored only by the fold that held it out",
            "never seen: peptides": "products < 60 aa; no fold trained on the gene (all 50)",
@@ -103,7 +109,7 @@ for st in SETS:
             for tr in ARMS:
                 r = pair[tr]
                 if r is None: continue
-                if hd == "cnn" and tr == "flatten":
+                if hd == "cnn" and tr == ARMS[0]:
                     T(X[0], y, st, 10, INK, "bold"); T(X[1], y, term, 10, INK, "bold")
                 # a small swatch carries the trunk's identity; the text stays ink
                 ax.plot([X[2], X[2] + 0.28], [y, y], color=COL[tr], lw=2.2,

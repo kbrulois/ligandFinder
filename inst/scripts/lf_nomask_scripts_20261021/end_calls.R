@@ -14,6 +14,12 @@ A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261
 TOL <- as.integer(Sys.getenv("TOL", "4"))
 ARM <- Sys.getenv("ARM", "")
 thr <- as.numeric(Sys.getenv("THRESH", "0.2"))
+## end tables are in the mature convention; arm_anchor() moves them to ARM's
+## (an amid_g arm calls a G + dibasic C end on the G). Identity for other arms.
+## arm_conv.R is code, beside this script (LF_SCRIPTS overrides the directory);
+## the end tables are data, in S.
+.lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
+source(file.path(Sys.getenv("LF_SCRIPTS", .lf_here), "arm_conv.R"))
 
 segments <- function(b, s, thr) {
   up <- !is.na(s) & s >= thr
@@ -43,7 +49,8 @@ call_ends <- function(b, s, ev) {
   cbind(ev, out)
 }
 
-un <- fread(file.path(S, "cv5_unseen_ends.csv"))
+un <- fread(file.path(S, paste0("cv5_unseen_ends", Sys.getenv("UNSEEN_SFX", ""), ".csv")))
+un[, anchor := arm_anchor(ARM, accession, term, anchor)]
 un[, set := ifelse(grepl("^never seen", set), "never seen: peptides", "never seen: large products")]
 out <- list()
 for (tm in c("C", "N")) {
@@ -51,6 +58,8 @@ for (tm in c("C", "N")) {
   setDT(b); setorder(b, accession, anchor)
   b[, brk0 := c(TRUE, accession[-1] != accession[-.N] | diff(anchor) != 1L)]
   kn <- fread(file.path(A2, sprintf("lf_pepend_cv5_knowns_%s.csv", tm)))
+  kn[, anchor := arm_anchor(ARM, accession, tm, anchor)]
+  kn <- arm_fix_knowns(ARM, kn, tm)   # one row per mapped end, its own inputs' fold
   kn[, gene := sub("_w-?[0-9]+--?[0-9]+$", "", peps)]
   for (hd in c("cnn", "xgb_pm")) {
     ev <- unique(un[term == tm, .(set, gene, accession, name, len, term, anchor)])
@@ -66,7 +75,7 @@ for (tm in c("C", "N")) {
 R <- rbindlist(out, fill = TRUE)
 R[, thr := thr]
 SUF <- paste0(ARM, if (TOL == 2L) "" else paste0("_tol", TOL))
-fwrite(R, file.path(A2, "lf_headcmp", sprintf("end_calls_T%s%s.csv", thr, SUF)))
+fwrite(R, file.path(Sys.getenv("HEADCMP", file.path(A2, "lf_headcmp")), sprintf("end_calls_T%s%s.csv", thr, SUF)))
 print(R[, .(ends = .N, TP = sum(call == "TP"), below_T = sum(reason == "below T"),
             off_centre = sum(reason == "off-centre peak"), unscored = sum(reason == "unscored")),
         by = .(set, term, head)][order(set, term, head)], row.names = FALSE)

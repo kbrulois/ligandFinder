@@ -286,6 +286,9 @@ def main(argv=None):
         if acc.size != X["train"].shape[0]:
             raise SystemExit(f"groups have {acc.size} train rows, arrays have "
                              f"{X['train'].shape[0]} -- different nn_input")
+        if not np.array_equal(np.asarray(gz[f"{a.term}__train__known"]).astype(float),
+                              np.asarray(y["train"]).reshape(-1).astype(float)):
+            raise SystemExit("groups train labels differ from the arrays' -- different nn_input")
         rng = np.random.default_rng(a.inner_seed)
         # stratify the PRECURSORS by whether they carry a positive, so the
         # stopping set cannot come out with no positives to stop on

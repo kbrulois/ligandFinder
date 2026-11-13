@@ -19,9 +19,11 @@ S <- commandArgs(TRUE)[1]; A2 <- path.expand("~/AF2_analysis")
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
 source(file.path(.lf_here, "lf_paths.R"))
+## arm_anchor(): mature-convention end tables -> each arm's anchor convention
+source(file.path(Sys.getenv("LF_SCRIPTS", .lf_here), "arm_conv.R"))
 np <- import("numpy", convert = TRUE)
 ll <- as.data.frame(readRDS(lf_src("inst/extdata/ligand_list.rds")))
-un <- fread(file.path(S, "cv5_unseen_ends.csv"))
+un <- fread(file.path(S, paste0("cv5_unseen_ends", Sys.getenv("UNSEEN_SFX", ""), ".csv")))
 prec <- fread(file.path(A2, "pepend_locus", "prec_order.csv"))
 
 fast_auc <- function(score, y) {
@@ -60,16 +62,26 @@ ARMS <- strsplit(Sys.getenv("ARMS", "flatten,esmonly36"), ",")[[1]]   # attentio
 NGRID <- unique(round(10^seq(0, 6.48, length.out = 150)))
 res <- list(); curves <- list()
 for (tm in c("C", "N")) {
-  kn <- fread(file.path(A2, sprintf("lf_pepend_cv5_knowns_%s.csv", tm)))
-  kn[, key := paste(accession, anchor)]
-  ann <- ll %>% filter(!is.na(start), !is.na(end)) %>%
-    transmute(key = paste(accession, if (tm == "N") start else end)) %>% pull(key) %>% unique()
-  u <- un[term == tm]; u[, key := paste(accession, anchor)]
-  all_ends <- unique(c(ann, kn$key, u$key))
+  kn0 <- fread(file.path(A2, sprintf("lf_pepend_cv5_knowns_%s.csv", tm)))
+  ann0 <- ll %>% filter(!is.na(start), !is.na(end)) %>%
+    transmute(accession, anchor = if (tm == "N") start else end)
+  u0 <- un[term == tm]
+  ## every annotated end in the MATURE convention, excluded for every arm
+  mat_ends <- unique(c(paste(ann0$accession, ann0$anchor), paste(kn0$accession, kn0$anchor),
+                       paste(u0$accession, u0$anchor)))
   ## ARMS is comma-separated so a new arm is an env var, not an edit. The ESM-C
   ## arm reads the tracks rds tracks_esmonly36.R already built from its full
   ## scans -- nothing is rescanned here.
   for (trunk in ARMS) {
+    ## the end tables are mature-convention: an amid_g arm is scored at ITS anchor
+    ## (C end + G + dibasic -> the G); identity for every other arm
+    kn <- copy(kn0)[, anchor := arm_anchor(trunk, accession, tm, anchor)]
+    kn <- arm_fix_knowns(trunk, kn, tm)   # one row per mapped end, its own inputs' fold
+    kn[, key := paste(accession, anchor)]
+    ann <- unique(paste(ann0$accession, arm_anchor(trunk, ann0$accession, tm, ann0$anchor)))
+    u <- copy(u0)[, anchor := arm_anchor(trunk, accession, tm, anchor)]
+    u[, key := paste(accession, anchor)]
+    all_ends <- unique(c(ann, kn$key, u$key, mat_ends))
     cols <- c("accession", "anchor", sprintf("cnn__f%d", 1:5), sprintf("xgb_pm__f%d", 1:5),
               "cnn__all50", "xgb_pm__all50")
     b <- if (trunk == "attention")
@@ -121,8 +133,9 @@ for (tm in c("C", "N")) {
   }
 }
 R <- rbindlist(res); Cv <- rbindlist(curves)
-fwrite(R, file.path(A2, "lf_headcmp", "final_metrics.csv"))
-fwrite(Cv, file.path(A2, "lf_headcmp", "final_recall_rank.csv"))
+HC <- Sys.getenv("HEADCMP", file.path(A2, "lf_headcmp"))
+fwrite(R, file.path(HC, "final_metrics.csv"))
+fwrite(Cv, file.path(HC, "final_recall_rank.csv"))
 options(width = 200)
 print(R[, .(term, set, trunk, head, n, roc_auc = round(roc_auc, 4), ap = round(ap, 4),
             norm_pr_auc = round(norm_pr_auc, 3), prev_per_M = round(prev_per_M, 1), n50, n80)][

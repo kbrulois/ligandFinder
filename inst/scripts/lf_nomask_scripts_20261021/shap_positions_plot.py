@@ -43,7 +43,7 @@ NEG, MID, POS = "#2166ac", "#f2f2f0", "#b2182b"
 MINW = int(os.environ.get("MIN_WINDOWS", "8"))   # support floor for a letter x offset cell
 LABEL = {"curated": "curated (26 ch)", "curated_wAAid": "curated + AA one-hot (47 ch)",
          "motifind": "curated + motif indicators (29 ch)",
-         "esmonly36": "ESM-C only (37 ch)"}
+         "esmonly36": "ESM-C only (37 ch)", "curated_AAswap": "AAswap (43 ch)"}
 
 
 def sfx(arm):
@@ -120,7 +120,7 @@ for ti, term in enumerate(TERMS):
     ax.set_title(f"{term} terminus - signed contribution per position",
                  fontsize=11.5, color=INK, loc="left", pad=7)
     ax.set_ylabel("logit contribution", fontsize=9.5, color=BODY)
-    ax.legend(frameon=False, fontsize=8.4, labelcolor=BODY, loc="upper left",
+    ax.legend(frameon=False, fontsize=8.4, labelcolor=BODY, loc="upper left" if term == "C" else "upper right",
               handlelength=1.8)
     # -- total magnitude
     ax2 = fig.add_subplot(GS[1, ti])

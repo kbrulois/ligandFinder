@@ -67,6 +67,35 @@ near_n      <- as.integer(.opt("--near-n", "0"))          # 0 = off, the old set
 near_lo     <- as.integer(.opt("--near-lo", "2"))         # |offset| range, inclusive
 near_hi     <- as.integer(.opt("--near-hi", "8"))
 val_frac    <- as.numeric(.opt("--val-frac", "0.34"))
+## --amid-g-anchor (Kevin, 2026-11-10): a C terminus followed by G + dibasic is
+## anchored ON THE G, and the G is labelled peptide, even though the mature
+## (amidated) peptide ends one residue earlier -- the G is the donor of the
+## amide and the residue the cleavage machinery actually leaves at the end.
+## The db candidate at a G-KR site already anchors on the G, so the `db_amid`
+## candidates (anchored before the G) are dropped: under this convention that
+## residue is not an end.
+amid_g      <- "--amid-g-anchor" %in% .args
+## --pad-match / --mono-match (Kevin, 2026-11-10): TOP-UP negatives, added on
+## top of n_ctrl, so that the negatives of each split carry padding, and sit at
+## monobasic sites, at least as often as its positives do.
+##
+## Why: ~20% of known ends sit AT a precursor terminus and more near one, so
+## ~45% of positive windows contain padding, against ~20% of negatives. The
+## trained AAswap trunks learned it: 17% of the unlabelled extracellular anchors
+## AT a terminus of a non-ligand precursor score > 0.5, against 0.1-0.2% of
+## interior ones, and a third of the top-1000 non-known N anchors are termini.
+## Padding (where the precursor starts or ends) is not evidence of a peptide.
+##
+## --pad-match bins every window by how much padding it has on each side
+## (0, 1-3, 4-7, 8-15, 16+ positions before / after) and, for every padded bin,
+## adds negatives until the bin's share of the negatives reaches its share of
+## the positives. --mono-match does the same for the `monobasic` motif. The
+## pools are anchors of non-ligand precursors (the negatives' usual rule) on
+## residues that are NOT excluded by design, so these are hard negatives in the
+## compartment the scan cares about. They are drawn from a separate RNG stream
+## AFTER the usual draws, so every window the old build drew is still drawn.
+pad_match   <- "--pad-match" %in% .args
+mono_match  <- "--mono-match" %in% .args
 ct_pad      <- "--ct-pad" %in% .args
 nt_pad      <- "--nt-pad" %in% .args
 ## Swap the two sides after splitting. With --val-frac 0.5 this is the second
@@ -253,6 +282,20 @@ con <- con %>% inner_join(prec %>% select(accession, seq, n_prot, c_prot), by = 
   ## 9.2: a peptide that starts inside the annotated signal peptide moves it
   mutate(n_prot = pmin(n_prot, pep_start))
 
+## --amid-g-anchor: move the C end of a G + dibasic peptide onto the G. pep_end
+## changes for EVERY use (the C anchor, and the peptide labels of both windows),
+## so the G reads as peptide in its N window too; the mature end is kept.
+con <- con %>%
+  mutate(pep_end_mature = pep_end,
+         g_amid = substr(seq, pep_end + 1L, pep_end + 1L) == "G" &
+                  grepl("^(KK|KR|RK|RR)", substr(seq, pep_end + 2L, pep_end + 3L)))
+con_mature <- con
+if (amid_g) {
+  con <- con %>% mutate(pep_end = pep_end + as.integer(g_amid))
+  message(sprintf("--amid-g-anchor: %d peptide(s) end at G + dibasic; C end moved onto the G",
+                  sum(con$g_amid)))
+}
+
 ## ---- 3. one window per peptide end ---------------------------------------------------
 ends <- bind_rows(con %>% mutate(term = "N", anchor = pep_start),
                   con %>% mutate(term = "C", anchor = pep_end)) %>%
@@ -265,7 +308,7 @@ ends <- bind_rows(con %>% mutate(term = "N", anchor = pep_start),
          peps      = sprintf("%s_w%d-%d", gene, w_start, w_start + LF_PEPEND$seq_len - 1L),
          target    = term,
          win_type  = "known",
-         motif     = lf_pepend_motif(seq, term, anchor, n_prot),
+         motif     = lf_pepend_motif(seq, term, anchor, n_prot, amid_g = amid_g),
          insertion = case_when(ins_term == term & ins_ind < 3  ~ "end insertion",
                                ins_term == term & ins_ind < 16 ~ "loop insertion",
                                TRUE                            ~ "non-inserting end"))
@@ -290,6 +333,10 @@ prec <- prec %>% filter(!is_chemokine(gene))
 cand <- prec %>%
   mutate(c = map2(seq, n_prot, lf_pepend_candidates)) %>%
   select(accession, gene, c) %>% unnest(c)
+## (under --amid-g-anchor the db_amid windows -- the residue before each G --
+## leave the TRAINING negatives only; `all` keeps them, so candidate-rank metrics
+## are taken over the same pool as before, now with them as the true end's
+## closest decoys)
 ## random anchors: the same number per terminus as there are db candidates,
 ## drawn uniformly over the mature residues of the non-ligand precursors
 pool_prec <- prec %>% filter(!gene %in% banned, c_prot - n_prot >= 10)
@@ -365,13 +412,25 @@ make_windows <- function(w) {
     }
   }
   w$data <- data; w$meta_data <- meta
-  if (!"known_idx" %in% names(w)) w$known_idx <- rep(list(rep("none", LF_PEPEND$seq_len)), nrow(w))
+  if (!"known_idx" %in% names(w)) {
+    w$known_idx <- rep(list(rep("none", LF_PEPEND$seq_len)), nrow(w))
+    ## under --pad-match a negative's padded positions are "padding", as a
+    ## positive's are (lf_pepend_labels). Left "none", the per-index target
+    ## would say padding-vs-none = negative-vs-positive: the very shortcut the
+    ## padding-matched negatives exist to remove.
+    if (pad_match) w$known_idx <- map(seq_len(nrow(w)), function(i) {
+      r <- w$w_start[i] + 0:35
+      ifelse(r < nt_cut(w$term[i], w$anchor[i], w$n_prot[i]) |
+             r > ct_cut(w$term[i], w$anchor[i], w$c_prot[i]), "padding", "none")
+    })
+  }
   w$meta_data <- map2(w$meta_data, w$known_idx, ~ mutate(.x, known_idx = .y))
   w
 }
 
 known_w <- make_windows(ends %>% select(accession, gene, term, anchor, win_type, n_prot, c_prot, known_idx,
-                                        pep_id, pep_ids, pep_name, pep_start, pep_end, len,
+                                        pep_id, pep_ids, pep_name, pep_start, pep_end, pep_end_mature,
+                                        g_amid, len,
                                         motif, insertion, at_candidate)) %>%
   mutate(known = 1)
 message("slicing ", nrow(cand), " candidate windows ...")
@@ -411,10 +470,154 @@ draw_negatives <- function(pool, n, exclude = character(0)) {
   slice_sample(pool, n = min(n, nrow(pool)))
 }
 
+## ---- top-up pools (--pad-match / --mono-match) ------------------------------------------
+## how many window positions are padding before / after the protein, binned
+.pad_bin <- function(x) as.character(cut(x, c(-Inf, 0, 3, 7, 15, Inf),
+                                         labels = c("0", "1-3", "4-7", "8-15", "16+")))
+pad_key <- function(w) {
+  ws <- lf_pepend_start(w$term, w$anchor)
+  L  <- pmax(0L, nt_cut(w$term, w$anchor, w$n_prot) - ws)
+  R  <- pmax(0L, ws + LF_PEPEND$seq_len - 1L - ct_cut(w$term, w$anchor, w$c_prot))
+  paste0("L", .pad_bin(L), "|R", .pad_bin(R))
+}
+mono_key <- function(w) {
+  s <- prec_seq[w$accession]
+  ifelse(lf_pepend_motif_vec_multi(s, w$term, w$anchor, w$n_prot) == "monobasic", "monobasic", "other")
+}
+## lf_pepend_motif_vec works within ONE precursor; this applies it per precursor
+lf_pepend_motif_vec_multi <- function(seq, term, anchor, n_prot) {
+  out <- character(length(anchor))
+  for (g in split(seq_along(anchor), paste(names(seq), term))) {
+    i <- g[[1]]
+    out[g] <- lf_pepend_motif_vec(unname(seq[[i]]), term[[i]], anchor[g], n_prot[[i]], amid_g = amid_g)
+  }
+  out
+}
+## a residue excluded by design: the four channels all exactly 0
+.excl_ch <- c("cons_rs_n", "min_afm", "mean_afm", "relASA")
+is_excluded <- function(acc, a) {
+  vapply(seq_along(acc), function(i) {
+    f <- feats[[acc[[i]]]]
+    a[[i]] > nrow(f) || all(f[a[[i]], .excl_ch] == 0)
+  }, logical(1))
+}
+## every anchor of the non-ligand pool precursors that is padded (near a
+## terminus, or anywhere in a short precursor) / that sits at a monobasic site
+## annotated ends (ligand_list, UniProt peptide/propeptide features): a top-up
+## negative whose window overlaps one would train a true end as a negative and
+## dirty the never-seen evaluation set (cv5_sets.R's rule is window overlap)
+annot <- local({
+  ll <- as.data.frame(readRDS(file.path(ROOT, "inst/extdata/ligand_list.rds")))[, c("accession", "start", "end")]
+  ## plain data.frame: data.table's `[` NSE is off in a script that never attaches it
+  up <- as.data.frame(data.table::fread(path.expand("~/AF2_analysis/pepend_locus/uniprot_peptides.csv")))
+  up <- up[up$type %in% c("peptide", "propeptide"), c("accession", "start", "end")]
+  e <- bind_rows(ll, up) %>% filter(!is.na(start), !is.na(end))
+  bind_rows(e %>% transmute(accession, lo = lf_pepend_start("N", start)),
+            e %>% transmute(accession, lo = lf_pepend_start("C", end))) %>%
+    mutate(hi = lo + LF_PEPEND$seq_len - 1L) %>% distinct()
+})
+overlaps_annot <- function(w) {
+  lo <- lf_pepend_start(w$term, w$anchor); hi <- lo + LF_PEPEND$seq_len - 1L
+  by <- split(annot, annot$accession)
+  vapply(seq_len(nrow(w)), function(i) {
+    a <- by[[w$accession[i]]]
+    !is.null(a) && any(a$lo <= hi[i] & lo[i] <= a$hi)
+  }, logical(1))
+}
+build_pool <- function(t, what) {
+  pp <- pool_prec %>% filter(!is_chemokine(gene))
+  out <- bind_rows(lapply(seq_len(nrow(pp)), function(i) {
+    np <- pp$n_prot[i]; cp <- pp$c_prot[i]
+    a <- if (what == "pad") unique(c(np:min(cp, np + 35L), max(np, cp - 35L):cp)) else np:cp
+    tibble(accession = pp$accession[i], gene = pp$gene[i], term = t, anchor = a,
+           n_prot = np, c_prot = cp)
+  }))
+  out <- if (what == "pad") out[pad_key(out) != "L0|R0", ] else out[mono_key(out) == "monobasic", ]
+  out <- out[!is_excluded(out$accession, out$anchor), ]
+  n0 <- nrow(out); out <- out[!overlaps_annot(out), ]
+  message(sprintf("  pool %s %s: %d anchors dropped for overlapping an annotated end", t, what, n0 - nrow(out)))
+  out %>% mutate(w_start = lf_pepend_start(term, anchor),
+                 peps = sprintf("%s_w%d-%d", gene, w_start, w_start + LF_PEPEND$seq_len - 1L),
+                 win_type = if (what == "pad") "pad_match" else "monobasic")
+}
+## add negatives from `pool` until, for every bin in `bins`, the bin's share of
+## the negatives is at least its share of the positives
+top_up <- function(neg, pos, pool, key, bins, exclude) {
+  if (!nrow(pool)) return(pool[0, ])
+  fp  <- prop.table(table(key(pos)))
+  fp  <- fp[names(fp) %in% bins]
+  if (!length(fp)) return(pool[0, ])
+  cur <- as.integer(table(factor(key(neg), levels = names(fp))))
+  add <- integer(length(fp))
+  for (it in 1:50) {                      # the share is of the FINAL count, so iterate
+    new <- pmax(0L, as.integer(ceiling(fp * (nrow(neg) + sum(add)))) - cur)
+    if (all(new == add)) break
+    add <- new
+  }
+  pk <- key(pool)
+  bind_rows(lapply(seq_along(fp), function(j) {
+    p <- pool[pk == names(fp)[j] & !pool$peps %in% exclude, ]
+    if (add[j] > nrow(p)) message(sprintf("  top-up %s: want %d, pool has %d", names(fp)[j], add[j], nrow(p)))
+    slice_sample(p, n = min(add[j], nrow(p)))
+  }))
+}
+## the top-ups use their own RNG stream, so the usual draws are exactly the old build's
+with_seed <- function(s, expr) {
+  old <- .Random.seed; on.exit(assign(".Random.seed", old, envir = globalenv()))
+  set.seed(s); expr
+}
+pools <- list()
+if (pad_match || mono_match) for (t in c("N", "C")) {
+  if (pad_match)  pools[[paste(t, "pad")]]  <- build_pool(t, "pad")
+  if (mono_match) pools[[paste(t, "mono")]] <- build_pool(t, "mono")
+  message(sprintf("top-up pools %s: pad %d, monobasic %d anchors", t,
+                  NROW(pools[[paste(t, "pad")]]), NROW(pools[[paste(t, "mono")]])))
+}
+## positives and negatives carry n_prot/c_prot once sliced; the keys need them
+add_tops <- function(t, pos, neg, exclude, s) with_seed(s, {
+  extra <- NULL
+  ## two rounds of monobasic then padding: each top-up dilutes the other's share
+  ## (the padded windows are mostly not monobasic and vice versa), and the
+  ## second round restores it. Each step only ever adds.
+  for (round in 1:2) {
+    if (mono_match) {
+      cur <- bind_rows(neg, extra)
+      extra <- bind_rows(extra, top_up(cur, pos, pools[[paste(t, "mono")]] %>% filter(!peps %in% pos$peps),
+                                       mono_key, "monobasic", c(exclude, cur$peps)))
+    }
+    if (pad_match) {
+      cur <- bind_rows(neg, extra)
+      extra <- bind_rows(extra, top_up(cur, pos, pools[[paste(t, "pad")]] %>% filter(!peps %in% pos$peps),
+                                       pad_key, setdiff(unique(pad_key(pos)), "L0|R0"), c(exclude, cur$peps)))
+    }
+  }
+  if (is.null(extra) || !nrow(extra)) return(NULL)
+  make_windows(extra %>% select(accession, gene, term, anchor, win_type, n_prot, c_prot)) %>%
+    mutate(known = 0)
+})
+
+## --amid-g-anchor: the C folds are the OLD convention's folds. Clustering the
+## shifted set reshuffles them -- GLP-1's two C ends merge on the G, one end
+## fewer moves hclust's cluster order, and folds are dealt every n_folds-th
+## cluster -- so ~20 of 85 C ends would change fold and no comparison with an
+## old arm would be paired. Cluster the mature-end set exactly as the old build
+## did, then give every new end the split of its mature end.
+split_by_mature <- function(k) {
+  em <- con_mature %>% mutate(term = "C", anchor = pep_end, len = pep_end - pep_start + 1L) %>%
+    group_by(accession, term, anchor) %>% arrange(len, .by_group = TRUE) %>% slice(1) %>% ungroup() %>%
+    mutate(w_start = lf_pepend_start(term, anchor))
+  sp_m <- split_knowns(em)
+  val_key <- paste(em$accession[sp_m$val], em$anchor[sp_m$val])
+  key <- paste(k$accession, k$pep_end_mature)
+  stopifnot(all(key %in% paste(em$accession, em$anchor)))
+  list(train = which(!key %in% val_key), val = which(key %in% val_key))
+}
+
 nn_input <- lapply(c(N = "N", C = "C"), function(t) {
   k   <- known_w %>% filter(term == t)
-  sp  <- split_knowns(k)
-  neg_c <- cand_w %>% filter(term == t, !gene %in% banned, !peps %in% k$peps)
+  sp  <- if (amid_g && t == "C") split_by_mature(k) else split_knowns(k)
+  neg_c <- cand_w %>% filter(term == t, !gene %in% banned, !peps %in% k$peps,
+                            !(amid_g & win_type == "db_amid"))
   neg_r <- rand_w %>% filter(term == t, !peps %in% k$peps)
   n_r <- round(n_ctrl * random_frac)
   n_n <- if (is.null(near_w)) 0L else min(near_n, n_ctrl - n_r)
@@ -435,6 +638,20 @@ nn_input <- lapply(c(N = "N", C = "C"), function(t) {
   va_neg <- bind_rows(draw_negatives(neg_c, n_ctrl - n_r - n_n, tr_neg$peps),
                       draw_negatives(neg_r, n_r, tr_neg$peps),
                       if (n_n > 0) draw_negatives(near_va, n_n, tr_neg$peps))
+  if (pad_match || mono_match) {
+    s0 <- seed + 1000L + if (t == "C") 100L else 0L
+    tr_top <- add_tops(t, k[sp$train, ], tr_neg, k$peps, s0 + 1L)
+    tr_neg <- bind_rows(tr_neg, tr_top)
+    va_top <- add_tops(t, k[sp$val, ], va_neg, c(k$peps, tr_neg$peps), s0 + 2L)
+    va_neg <- bind_rows(va_neg, va_top)
+    for (s in c("train", "val")) {
+      pos <- k[sp[[s]], ]; neg <- if (s == "train") tr_neg else va_neg
+      message(sprintf("%s %-5s top-up: +%d negatives | padded windows pos %.2f neg %.2f | monobasic pos %.2f neg %.2f",
+                      t, s, NROW(if (s == "train") tr_top else va_top),
+                      mean(pad_key(pos) != "L0|R0"), mean(pad_key(neg) != "L0|R0"),
+                      mean(mono_key(pos) == "monobasic"), mean(mono_key(neg) == "monobasic")))
+    }
+  }
   list(train = bind_rows(k[sp$train, ], tr_neg),
        val   = bind_rows(k[sp$val, ],   va_neg),
        ## every candidate window of the terminus, knowns first so a candidate
@@ -449,7 +666,7 @@ knowns <- bind_rows(lapply(names(nn_input), function(t) {
 })) %>%
   mutate(AA = map(meta_data, "AA")) %>%
   select(peps, gene, accession, term, anchor, w_start, pep_id, pep_ids, pep_name, pep_start, pep_end,
-         len, motif, insertion, at_candidate, split, AA, known_idx)
+         pep_end_mature, g_amid, len, motif, insertion, at_candidate, split, AA, known_idx)
 
 for (t in names(nn_input)) for (s in c("train", "val", "all")) {
   x <- nn_input[[t]][[s]]
@@ -464,6 +681,12 @@ saveRDS(list(nn_input = nn_input, all_params3 = all_params3, class_names = LF_PE
                            n_folds = n_folds, fold = if (n_folds > 0) fold_k else NA_integer_,
                            swap_splits = swap_splits, ct_pad = ct_pad, nt_pad = nt_pad,
                            near_n = near_n, near_lo = near_lo, near_hi = near_hi,
+                           amid_g = amid_g, pad_match = pad_match, mono_match = mono_match,
+                           code_md5 = unname(tools::md5sum(c(file.path(ROOT, "inst/scripts/10_7_pepend_windows.R"),
+                                                             file.path(ROOT, "R/pepend_windows.R")))),
+                           git_rev = tryCatch(system2("git", c("-C", ROOT, "rev-parse", "HEAD"), stdout = TRUE),
+                                              error = function(e) NA_character_),
+                           residue_cache_mtime = file.mtime(feat_cache),
                            sim_h = sim_h, seed = seed, banned = banned, built = Sys.time())),
         out_path)
 message("wrote ", out_path)
