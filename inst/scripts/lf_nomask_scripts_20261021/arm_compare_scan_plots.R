@@ -1,7 +1,7 @@
-## The msa-arm figures drawn from msa_arms_scan_tables.R's tables (Kevin,
+## The msa-arm figures drawn from arm_compare_scan_tables.R's tables (Kevin,
 ## 2026-11-13: are msa / msa_gap better than the site's curated_AAswap, and why):
 ##
-##   recall_rank_<head>   recall of the known ends against the number of non-end
+##   recall_rank_<TAG>_<head>   recall of the known ends against the number of non-end
 ##                        anchors one would have to scan, per set and terminus;
 ##                        metrics_final.R's ranking (left) and the same ends against
 ##                        held-out negatives only (right)
@@ -11,16 +11,17 @@
 ##   tracks_examples      end-score tracks along example precursors, as proteome
 ##                        ranks, with each known end's held-out score marked
 ##
-##   LC_ALL=en_US.UTF-8 Rscript msa_arms_scan_plots.R
+##   LC_ALL=en_US.UTF-8 Rscript arm_compare_scan_plots.R
 ## env: DATA   ~/AF2_analysis/lf_viz_20261113/msa_arms_data   OUT  ~/AF2_analysis/lf_viz_20261113
 ##      ARMS   the arms to draw, in order (default: every arm in the tables)
-##      TRACK_ARMS  curated_AAswap,msa,msa_gap      HEAD  cnn
+##      TRACK_ARMS  curated_AAswap,msa,msa_gap      HEAD  cnn      TAG  msa_arms (in the file names)
 ##      LABELS arm=label pairs separated by ";"
 suppressMessages({library(data.table); library(ggplot2); library(patchwork)})
 A2 <- path.expand("~/AF2_analysis")
 DATA <- path.expand(Sys.getenv("DATA", file.path(A2, "lf_viz_20261113/msa_arms_data")))
 OUT <- path.expand(Sys.getenv("OUT", file.path(A2, "lf_viz_20261113")))
 HEAD <- Sys.getenv("HEAD", "cnn")
+TAG <- Sys.getenv("TAG", "msa_arms")                   # in every output name
 er <- fread(file.path(DATA, "end_ranks.csv"))
 ARMS <- strsplit(Sys.getenv("ARMS", paste(unique(er$arm), collapse = ",")), ",")[[1]]
 TRACK_ARMS <- strsplit(Sys.getenv("TRACK_ARMS", "curated_AAswap,msa,msa_gap"), ",")[[1]]
@@ -71,7 +72,7 @@ g2 <- ggplot(rc, aes(N, recall, colour = arm)) +
                          paste(sprintf("%s: %s of %s anchors", ps$term, comma(ps$pool_all), comma(ps$scanned)), collapse = ", "),
                          " reached by none); UniProt peptide/propeptide ends excluded too.")) +
   th
-ggsave(file.path(OUT, sprintf("recall_rank_msa_arms_%s.png", HEAD)), g2, width = 15, height = 10, dpi = 170, bg = "white")
+ggsave(file.path(OUT, sprintf("recall_rank_%s_%s.png", TAG, HEAD)), g2, width = 15, height = 10, dpi = 170, bg = "white")
 
 ## ---- 4. what the top non-end anchors are --------------------------------------------
 fp <- fread(file.path(DATA, "fp_top.csv"))[head == HEAD & arm %in% ARMS]
@@ -118,9 +119,9 @@ for (sc in c("held_out", "all50")) {
                            "Annotated ends (ligand list, knowns, never-seen sets, UniProt peptides/propeptides) excluded; ",
                            "the two reference bars give the make-up of every such anchor and of the known ends.")) +
     th + theme(legend.position = "top")
-  ggsave(file.path(OUT, sprintf("fp_motif_msa_arms_%s_%s.png", HEAD, sc)), g4, width = 15, height = 6.5, dpi = 170, bg = "white")
+  ggsave(file.path(OUT, sprintf("fp_motif_%s_%s_%s.png", TAG, HEAD, sc)), g4, width = 15, height = 6.5, dpi = 170, bg = "white")
   fwrite(dcast(d, term + Kf + bar ~ cat, value.var = "share", fill = 0),
-         file.path(OUT, sprintf("fp_motif_msa_arms_%s_%s.csv", HEAD, sc)))
+         file.path(OUT, sprintf("fp_motif_%s_%s_%s.csv", TAG, HEAD, sc)))
 }
 
 ## ---- 6. tracks along example precursors ------------------------------------------------
@@ -159,7 +160,7 @@ if (all(rcols %in% names(tx))) {
                                       "(intracellular / TM)."),
                     theme = theme(plot.title = element_text(face = "bold", size = 13))) &
     theme(legend.position = "top") & guides(colour = guide_legend(override.aes = list(linewidth = 1.2)))
-  ggsave(file.path(OUT, sprintf("tracks_examples_msa_arms_%s.png", HEAD)), g6, width = 14, height = 2.4 * ceiling(length(gl) / 2) + 1.4,
+  ggsave(file.path(OUT, sprintf("tracks_examples_%s_%s.png", TAG, HEAD)), g6, width = 14, height = 2.4 * ceiling(length(gl) / 2) + 1.4,
          dpi = 170, bg = "white")
 } else message("tracks_examples.csv lacks ", paste(setdiff(rcols, names(tx)), collapse = ", "), ": no track figure")
 message("wrote the figures to ", OUT)

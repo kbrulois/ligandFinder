@@ -7,7 +7,7 @@
 ## final_metrics.csv and final_recall_rank.csv from ONE HEADCMP directory, so every
 ## arm is scored on the same never-seen set; best F1 from the recall-vs-rank curve).
 ##
-##   LC_ALL=en_US.UTF-8 Rscript msa_arms_metrics_table.R
+##   LC_ALL=en_US.UTF-8 Rscript arm_compare_metrics_table.R
 ## env: HEADCMP ~/AF2_analysis/lf_headcmp/unseen_msa   ARMS curated_AAswap,msa,msa_gap
 ##      LABELS  one per arm, ";"-separated               OUT ~/AF2_analysis/lf_viz_20261113
 ##      NAME    cv_metrics_msa_arms_table

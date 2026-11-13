@@ -37,13 +37,15 @@
 ##   pool_summary.csv    anchors per term: scanned, non-end, in the held-out pool
 ##
 ##   LF_SRC=<checkout> LC_ALL=en_US.UTF-8 RETICULATE_PYTHON=~/.virtualenvs/lf-plm/bin/python \
-##     Rscript msa_arms_scan_tables.R
+##     Rscript arm_compare_scan_tables.R
 ## env: ARMS         curated,curated_AAswap,curated_AAswap_msacons_padg,msa,msa_gap
 ##                   ("curated" = the original flatten trunk, tracks without suffix)
 ##      UNSEEN_SETS  _msa[,_padg]: the never-seen set is the INTERSECTION of
 ##                   cv5_unseen_ends<sfx>.csv over these (default _msa, plus _padg
 ##                   when a _padg arm is compared), so every arm is scored on the
-##                   same ends and none of them overlaps any arm's negatives
+##                   same ends and none of them overlaps any arm's negatives;
+##                   "" = the original set
+##      GROUPS       arm:sfx[,...] window suffixes of arms the table below lacks
 ##      GENES        POMC,GCG,KNG1,AGT,NPY,CARTPT,PENK,TAC1    TOPK  10000    SPAN  35
 ## Memory: one arm's tracks at a time (~1 GB); the run reads ~10 tracks files.
 suppressMessages({library(data.table); library(reticulate)})
@@ -52,12 +54,19 @@ source(file.path(.lf_here, "lf_paths.R"))
 source(lf_src("R/pepend_windows.R"))
 A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
 ARMS <- strsplit(Sys.getenv("ARMS", "curated,curated_AAswap,curated_AAswap_msacons_padg,msa,msa_gap"), ",")[[1]]
-## each arm's training windows (its window-groups npz suffix)
-GSFX <- c(curated = "", curated_AAswap = "", curated_wAAid = "", curated_AAswap_padg = "_padg",
+## each arm's training windows (its window-groups npz suffix, = its INPUT_SFX);
+## GROUPS=arm:sfx[,arm:sfx] adds or overrides, an arm not named anywhere is taken
+## to be on the original windows ("")
+GSFX <- c(curated = "", flatten = "", curated_AAswap = "", curated_wAAid = "", curated_AAswap_padg = "_padg",
           curated_AAswap_msacons_padg = "_padg", msa = "_msa", msa_gap = "_msagap")
-stopifnot(all(ARMS %in% names(GSFX)))
-US <- strsplit(Sys.getenv("UNSEEN_SETS", paste(unique(c("_msa", if (any(GSFX[ARMS] == "_padg")) "_padg")),
-                                               collapse = ",")), ",")[[1]]
+for (kv in strsplit(strsplit(Sys.getenv("GROUPS", ""), ",")[[1]], ":")) GSFX[kv[1]] <- if (length(kv) > 1) kv[2] else ""
+if (length(new <- setdiff(ARMS, names(GSFX)))) {
+  message("no window suffix known for ", paste(new, collapse = ", "), ": taken to be the original windows")
+  GSFX[new] <- ""
+}
+## UNSEEN_SETS="" = the original never-seen set (cv5_unseen_ends.csv)
+us_env <- Sys.getenv("UNSEEN_SETS", paste(unique(c("_msa", if (any(GSFX[ARMS] == "_padg")) "_padg")), collapse = ","))
+US <- if (nzchar(us_env)) strsplit(us_env, ",")[[1]] else ""
 GENES <- strsplit(Sys.getenv("GENES", "POMC,GCG,KNG1,AGT,NPY,CARTPT,PENK,TAC1"), ",")[[1]]
 TOPK <- as.integer(Sys.getenv("TOPK", "10000")); SPAN <- as.integer(Sys.getenv("SPAN", "35"))
 OUT <- path.expand(Sys.getenv("OUT", file.path(A2, "lf_viz_20261113/msa_arms_data")))
@@ -82,7 +91,7 @@ message("never-seen set = intersection of ", paste0("cv5_unseen_ends", US, ".csv
         paste(un[, .N, by = .(term, set)][, sprintf("%s %s %d", term, set, N)], collapse = "; "))
 
 rank_in <- function(sp, neg) findInterval(-sp, -sort(neg, decreasing = TRUE)) + 1L
-tracks_path <- function(tm, a) file.path(A2, if (a == "curated") sprintf("lf_pepend_cv5_tracks_%s_flatten.rds", tm)
+tracks_path <- function(tm, a) file.path(A2, if (a %in% c("curated", "flatten")) sprintf("lf_pepend_cv5_tracks_%s_flatten.rds", tm)
                                          else sprintf("lf_pepend_cv5_tracks_%s_flatten_%s.rds", tm, a))
 ## train-split window anchors of one arm's fold
 train_windows <- function(tm, a, k) {

@@ -12,7 +12,7 @@
 ## gap residue (30 single G, one GFL), the other C ends, and N ends (3 of 92 have
 ## a gap); msa, which has no gap class, is drawn on the same ends.
 ##
-##   LC_ALL=en_US.UTF-8 Rscript msa_arms_gap_class.R
+##   LC_ALL=en_US.UTF-8 Rscript arm_compare_gap_class.R
 ## env: ARMS  msa_gap,msa (the first must carry the gap class: its labels are drawn)
 ##      OUT   ~/AF2_analysis/lf_viz_20261113     NAME  gap_class_msa_arms
 ## Writes <OUT>/<NAME>.png and <OUT>/<NAME>.csv (mean probability per group,

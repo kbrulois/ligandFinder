@@ -26,6 +26,10 @@
 #   PROCS     parallel jobs                               4
 #   STAGES    comma list of numbers or names, or "all"    all
 #   SHAP_ARMS which arms to attribute in stage 8          "$ARM curated"
+#   CMP_ARMS  stage 6's comparison figures: the arms this one is drawn against,
+#             comma-separated; the LAST is the paired one        curated_AAswap
+#   FIG_OUT   where those figures go                    ~/AF2_analysis/lf_viz_<today>
+#   FIGS      0 = skip them                                       1
 #
 # STAGES (number or name; both are accepted)
 #   0 channels  build the arm's extra per-residue parquet (skipped if it exists)
@@ -35,7 +39,8 @@
 #   3 scans     full-proteome scans, 10 of them           (skipped per npz)
 #   4 tracks    assemble the tracks rds                   (skipped if it exists)
 #   5 eval      segment confusion/ROC, motif, anchor metrics  (always re-runs)
-#   6 plots     threshold scan, motif table, metrics       (always re-runs)
+#   6 plots     threshold scan, motif table, metrics, and the comparison
+#               figures against CMP_ARMS                   (always re-runs)
 #   7 pages     per-gene scans, known-peptide pages, gallery (skipped per page)
 #   8 shap      per-residue-position attribution + plots   (always re-runs)
 #
@@ -218,6 +223,38 @@ if run 6 plots; then
   ARM=_$ARM $PY_PLM $S/segments_motif_plot.py $THRESH $TOL      >> $S/pipe_plots_$ARM.log 2>&1
   TRUNK=$ARM $PY_PLM $S/final_metrics_plot.py $O                >> $S/pipe_plots_$ARM.log 2>&1
   ARMS=flatten,$ARM $PY_PLM $S/final_metrics_plot_trunks.py $O  >> $S/pipe_plots_$ARM.log 2>&1
+  ## ---- the comparison figures, by default (Kevin, 2026-11-13: "for all these
+  ## plots, have it be default that it's produced"): this arm against CMP_ARMS
+  ## (default curated_AAswap, the site's model; the LAST of them is the paired
+  ## one), on this arm's never-seen set, into FIG_OUT (~/AF2_analysis/lf_viz_<today>):
+  ##   cv_metrics_<ARM>.png, cv_metrics_<ARM>_table.png   headline metrics, figure + table
+  ##   <ARM>_data/                     per-end ranks, top false positives, example tracks
+  ##   recall_rank_<ARM>_cnn.png       recall against anchors scanned, two rankings
+  ##   fp_motif_<ARM>_cnn_{held_out,all50}.png   what the top non-end anchors are
+  ##   tracks_examples_<ARM>_cnn.png   end-score tracks along example precursors
+  ##   paired_ranks_<ARM>{,_by_motif}.png        each known end, paired arm -> this arm
+  ##   gap_class_<ARM>.png             arms with a gap class only
+  if [[ ${FIGS:-1} != 0 ]]; then
+    F=${FIG_OUT:-$A2/lf_viz_$(date +%Y%m%d)}; mkdir -p $F
+    CMP=${CMP_ARMS:-curated_AAswap}; REF=${CMP##*,}; LAB="${CMP//,/;};$ARM"
+    FL=$S/pipe_figs_$ARM.log; : > $FL
+    say "  comparison figures: $ARM against $CMP -> $F (log pipe_figs_$ARM.log)"
+    eval HEADCMP=$O ARMS=$CMP,$ARM "LABELS='$LAB'" OUT=$F NAME=cv_metrics_$ARM \
+      "TITLE='$ARM against ${CMP//,/, }: full-proteome scan metrics'" $R $S/arm_metrics_compare_plot.R >> $FL 2>&1 \
+      || say "  cv_metrics_$ARM FAILED"
+    eval HEADCMP=$O ARMS=$CMP,$ARM "LABELS='$LAB'" OUT=$F NAME=cv_metrics_${ARM}_table \
+      $R $S/arm_compare_metrics_table.R >> $FL 2>&1 || say "  cv_metrics_${ARM}_table FAILED"
+    eval RETICULATE_PYTHON=$PY_PLM ARMS=$CMP,$ARM "UNSEEN_SETS='$UNSEEN_SFX'" GROUPS=$ARM:${INPUT_SFX:-} \
+      OUT=$F/${ARM}_data $R $S/arm_compare_scan_tables.R >> $FL 2>&1 || say "  arm_compare_scan_tables FAILED"
+    eval DATA=$F/${ARM}_data OUT=$F TAG=$ARM ARMS=$CMP,$ARM TRACK_ARMS=$REF,$ARM \
+      $R $S/arm_compare_scan_plots.R >> $FL 2>&1 || say "  arm_compare_scan_plots FAILED"
+    eval RANKS=$F/${ARM}_data/end_ranks.csv PAIRS=$REF:$ARM ARMS=$CMP,$ARM OUT=$F NAME=paired_ranks_$ARM \
+      $R $S/arm_compare_paired_ranks.R >> $FL 2>&1 || say "  paired_ranks_$ARM FAILED"
+    if grep -q '"gap"' $A2/lf_pepend_run_C_cv5_f1_nomask_flatten_${ARM}_isolated/in/config.json 2>/dev/null; then
+      eval RETICULATE_PYTHON=$PY_PLM ARMS=$ARM,$REF OUT=$F NAME=gap_class_$ARM \
+        $R $S/arm_compare_gap_class.R >> $FL 2>&1 || say "  gap_class_$ARM FAILED"
+    fi
+  fi
   say "stage 6 done; see pipe_plots_$ARM.log"
 fi
 

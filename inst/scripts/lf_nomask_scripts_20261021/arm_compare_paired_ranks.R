@@ -9,12 +9,13 @@
 ## G + dibasic ends something and buy the padded / "other" ends something.
 ##
 ##   RANKS=~/AF2_analysis/lf_viz_20261113/msa_arms_data/end_ranks.csv \
-##   PAIRS=curated_AAswap:msa,msa:msa_gap LC_ALL=en_US.UTF-8 Rscript msa_arms_paired_ranks.R
+##   PAIRS=curated_AAswap:msa,msa:msa_gap LC_ALL=en_US.UTF-8 Rscript arm_compare_paired_ranks.R
 ##
 ## env: RANKS   csv with term, arm, gene, anchor, rank [, head, set]: either
 ##              trunk_val_compare.R's trunk_val_ranks.csv (rank among the ~40k
-##              candidate windows) or msa_arms_scan_tables.R's end_ranks.csv (rank
+##              candidate windows) or arm_compare_scan_tables.R's end_ranks.csv (rank
 ##              among every non-end anchor of the proteome)
+##      RANK_COL  rank_std (default when present), rank_ho, or rank
 ##      HEAD    the head to plot when RANKS has a head column (cnn)
 ##      SET     the set to plot when RANKS has a set column (cross-validated)
 ##      PAIRS   x:y arm pairs, comma-separated; y is the arm under test
@@ -42,7 +43,11 @@ ARMS <- strsplit(Sys.getenv("ARMS", paste(unique(unlist(PAIRS)), collapse = ",")
 r <- fread(RANKS)
 if ("head" %in% names(r)) r <- r[head == Sys.getenv("HEAD", "cnn")]
 if ("set" %in% names(r)) r <- r[set == Sys.getenv("SET", "cross-validated")]
-r[, `:=`(arm = as.character(arm), rank = as.double(rank))]
+## end_ranks.csv carries two rankings (rank_std = metrics_final.R's, rank_ho =
+## against held-out negatives); trunk_val_ranks.csv one (rank)
+RANK_COL <- Sys.getenv("RANK_COL", if ("rank_std" %in% names(r)) "rank_std" else "rank")
+r[, `:=`(arm = as.character(arm), rank = as.double(get(RANK_COL)))]
+r <- r[!is.na(rank)]
 
 ## the motif flanking each end, from the shared knowns tables (terminus = the
 ## end is the precursor's own end, so its window is padded)
