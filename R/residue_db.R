@@ -47,3 +47,22 @@ download_residue_db <- function(dest_dir = get_db_path()) {
 }
 
 
+
+## Download one file into the residue-db directory (moved from afpd_submit_model_jobs.R
+## when the AlphaPulldown code became the fap package; the residue-db scripts use it).
+download_roi_data <- function(url,
+                              dest_dir = get_db_path()) {
+
+  downloaded_path <- paste0(dest_dir, "/", stringr::str_extract(url, "[^/]+$"))
+
+
+  if (!file.exists(downloaded_path)) {
+    message("Downloading data...")
+    download.file(url, downloaded_path, mode = "wb")
+    message("data downloaded to: ", downloaded_path)
+  } else {
+    message("data already exists at: ", downloaded_path)
+  }
+
+  return(invisible(downloaded_path))
+}

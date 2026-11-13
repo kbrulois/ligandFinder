@@ -38,7 +38,8 @@ f_cd  <- file.path(A2, "lf_headcmp", sprintf("candidate_peptides_%s.csv", key))
 f_seg <- file.path(A2, "lf_headcmp", sprintf("end_segments_%s.csv", sub("_tol[0-9]+", "", key)))
 for (f in c(f_bg, f_cd)) if (!file.exists(f)) stop("missing ", f, " -- run candidate_pipeline.sh (stages 6-7) first")
 
-genes <- sub("\\.html$", "", setdiff(list.files(dir, "\\.html$"), "index.html"))
+## index.html, and any other index a gallery carries (index_known.html, ...), is not a page
+genes <- grep("^index(_|$)", sub("\\.html$", "", list.files(dir, "\\.html$")), value = TRUE, invert = TRUE)
 if (!length(genes)) stop("no pages in ", dir)
 bg  <- fread(f_bg)
 cdg <- fread(f_cd, select = c("gene", "accession", "group_id", "peptide_id"))
