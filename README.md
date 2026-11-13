@@ -131,14 +131,20 @@ python -m lf_dcnn train --input-dir arrays/ --output-dir results/
 
 ## Repository layout
 
+Where each kind of code lives and where new code goes: **[PACKAGE_MAP.md](PACKAGE_MAP.md)**.
+
 | path | what |
 |---|---|
-| `R/` | package functions: residue database, peptide-end windows and tracks, plotting, the Python bridge. The AlphaPulldown / AlphaFold-metrics code is now the separate package fap |
-| `inst/python/lf_dcnn/` | the 1-D CNN: config, model, losses, sampler, calibration |
-| `inst/scripts/generate_residue_db/` | the residue database pipeline, in run order |
-| `inst/scripts/analysis/archive/window_model/10_1dcnn_new6.R` | window scoring + downstream analysis |
-| `inst/scripts/visualization/10_3_peptide_umap.R` | the UMAP figure pipeline |
+| `R/` | package functions: residue database, peptide-end windows and tracks, plotting, the Python bridge |
+| `inst/python/` | `lf_dcnn` (the 1-D CNN), `lf_winxgb` (xgboost window head, full scans), `lf_resid` (window-free models), `lf_plm` (language-model embeddings) |
+| `inst/scripts/generate_residue_db/` | the residue database pipeline, in run order, and the per-residue channels |
+| `inst/scripts/modeling/` | training windows, training, the arm pipeline (`pepend_arm_pipeline.sh`), scans, candidate peptides |
+| `inst/scripts/evaluation/` | end calls, metrics, segments, attribution |
+| `inst/scripts/visualization/` | protein pages, gallery indexes, figures, site deploy |
+| `inst/scripts/analysis/` | one-off questions, and the archive of retired code |
 | `terraform/` | S3 + CloudFront hosting for the generated pages |
+
+The AlphaPulldown / AlphaFold complex-model code is a separate package, fap.
 
 ## Tests
 

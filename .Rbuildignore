@@ -1,2 +1,10 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^\.claude$
+^\.gitattributes$
+^\.gitignore$
+^terraform$
+^PACKAGE_MAP\.md$
+^CLAUDE\.md$
+^PYTHON_PORT_BRIEF\.md$
+^inst/scripts/analysis$
