@@ -150,9 +150,11 @@ source(file.path(ROOT, "R", "plm_features.R"))    # lf_plm_read / lf_plm_attach
 
 message("reading ", in_path, " ...")
 x <- readRDS(in_path)
-stopifnot(identical(as.character(x$class_names),
-                    c("CT_cleavage_context", "NT_cleavage_context",
-                      "pep_other", "pep_pocket", "padding", "none")))
+## the vocabulary 10_7 saved: the six peptide-end classes, or seven with `gap`
+## (10_7 --gap-class, Kevin 2026-11-12). It is handed to the Config below, whose
+## Config.pepend() would otherwise assume the six.
+pe_classes <- as.character(x$class_names)
+stopifnot(identical(pe_classes, LF_PEPEND_CLASSES) || identical(pe_classes, LF_PEPEND_CLASSES_GAP))
 
 ## ONE terminus: the Config's masks are specific to it (see the header)
 nn_input <- x$nn_input[term]
@@ -183,7 +185,7 @@ if (slack > 0 && !grepl(sprintf("_slack%d\\.rds$", slack), out_p)) {
 if (no_mask) {
   message("class-position mask OFF: every class allowed at every position")
 } else {
-  .cfg_chk <- lf_dcnn_config(x$all_params3, pepend = term, slack = slack,
+  .cfg_chk <- lf_dcnn_config(x$all_params3, pepend = term, slack = slack, class_names = pe_classes,
                              mod = lf_dcnn_python(path = file.path(ROOT, "inst", "python")))
   .span <- list(NT_cleavage_context = .cfg_chk$nt_span, CT_cleavage_context = .cfg_chk$ct_span,
                 pep_other = .cfg_chk$mid_span, pep_pocket = .cfg_chk$mid_span)
@@ -298,7 +300,8 @@ if (!is.na(pos_cls)) {
 ## `path`: lf_dcnn_path() prefers system.file("python", package = "ligandFinder"),
 ## i.e. the INSTALLED copy, which silently shadows this checkout -- pin it to the
 ## tree this script came from, or Config.pepend() is simply not there.
-.extra <- c(if (ins_head && !is.na(ins_w)) list(loss_weight_ins = ins_w),
+.extra <- c(list(class_names = pe_classes),
+            if (ins_head && !is.na(ins_w)) list(loss_weight_ins = ins_w),
             if (no_mask) list(class_position_mask = FALSE),
             if (!is.na(g_head)) list(global_head = g_head),
             if (head_lr != 1) list(head_lr_mult = head_lr),

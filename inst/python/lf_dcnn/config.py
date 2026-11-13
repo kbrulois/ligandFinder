@@ -502,16 +502,20 @@ class Config:
             "CT_cleavage_context": self.ct_mask,
             "pep_other": self.mid_mask,
             "pep_pocket": self.mid_mask,
+            ## Kevin, 2026-11-12: the peptide-end "gap" (10_7 --gap-class) is the
+            ## residue(s) between a peptide end and its dibasic site, so it sits
+            ## where the cleavage contexts sit, on either side.
+            "gap": np.maximum(self.nt_mask, self.ct_mask),
             "none": np.ones(self.seq_len, dtype="float32"),
         }
         ## A class with no rule used to fall back to an all-zero column, which
         ## silently forbids it everywhere. Be loud instead: that is how a stale
-        ## vocabulary (one still carrying DB or gap) would otherwise get through.
+        ## vocabulary (one still carrying DB) would otherwise get through.
         missing = [self.class_names[c] for c in self.cat_cols if self.class_names[c] not in by_class]
         if missing:
             raise ValueError(
                 f"no position rule for class(es) {missing}. The vocabulary is "
-                f"{list(self.class_names)}; DB and gap were removed with the "
+                f"{list(self.class_names)}; DB was removed with the "
                 "dibasic-anchored set.")
         cols = [by_class[self.class_names[c]] for c in self.cat_cols]
         return np.stack(cols, axis=1).astype("float32")

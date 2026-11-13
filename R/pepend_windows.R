@@ -26,6 +26,17 @@ LF_PEPEND <- list(seq_len = 36L, anchor = c(N = 8L, C = 28L))
 LF_PEPEND_CLASSES <- c("CT_cleavage_context", "NT_cleavage_context",
                        "pep_other", "pep_pocket", "padding", "none")
 
+#' The class vocabulary with a `gap` class (10_7 `--gap-class`)
+#'
+#' Kevin, 2026-11-12: "gap" is any residue between a dibasic site and the
+#' peptide -- usually the single G an amidated peptide is cut from, so a C window
+#' then reads peptide | gap | CT context. It takes those residues from the
+#' cleavage context; see [lf_pepend_gap()]. lf_dcnn finds `none` and `padding` by
+#' name, so where `gap` sits in the order does not matter to it.
+#' @export
+LF_PEPEND_CLASSES_GAP <- c("CT_cleavage_context", "NT_cleavage_context", "gap",
+                           "pep_other", "pep_pocket", "padding", "none")
+
 #' First precursor residue of a peptide-end window
 #'
 #' @param term `"N"` or `"C"` (vectorised).
@@ -50,16 +61,57 @@ lf_pepend_start <- function(term, anchor) {
 #' @param pep_start,pep_end the peptide, in precursor coordinates.
 #' @param n_prot,c_prot first and last residue of the mature precursor.
 #' @param pocket precursor coordinates the docked model puts in the pocket.
+#' @param seq the precursor sequence; needed only with `gap = TRUE`.
+#' @param gap label the residues between the peptide and its dibasic sites
+#'   `"gap"` ([lf_pepend_gap()]) instead of cleavage context.
 #' @return character vector, length 36.
 #' @export
 lf_pepend_labels <- function(w_start, pep_start, pep_end, n_prot, c_prot,
-                             pocket = integer(0)) {
+                             pocket = integer(0), seq = NULL, gap = FALSE) {
   r <- w_start + seq_len(LF_PEPEND$seq_len) - 1L
   lab <- ifelse(r < pep_start, "NT_cleavage_context",
          ifelse(r > pep_end,   "CT_cleavage_context",
          ifelse(r %in% pocket, "pep_pocket", "pep_other")))
+  if (gap) {
+    if (is.null(seq)) stop("lf_pepend_labels(gap = TRUE) needs the precursor sequence", call. = FALSE)
+    lab[r %in% lf_pepend_gap(seq, pep_start, pep_end, min(r), max(r))] <- "gap"
+  }
   lab[r < n_prot | r > c_prot] <- "padding"
   lab
+}
+
+#' Residues between a peptide and its nearest dibasic sites
+#'
+#' Kevin, 2026-11-12: "any residue between a dibasic site and the peptide
+#' (usually just a single G residue)". On each side, the nearest pair of basic
+#' residues (KK/KR/RK/RR) that starts within `[lo, hi]` -- the window -- and the
+#' residues between it and the peptide are the gap; a pair right next to the
+#' peptide leaves no gap, and a side with no pair in the window has none. On the
+#' 2026-11-12 known ends that is 30 C ends with one residue (always G), one with
+#' three (GFL), and 3 of 92 N ends (FA, QGP, HDEFER).
+#'
+#' @param seq precursor sequence.
+#' @param pep_start,pep_end the peptide, in precursor coordinates.
+#' @param lo,hi the precursor coordinates the search may reach (the window).
+#' @return integer precursor coordinates of the gap residues (possibly none).
+#' @export
+lf_pepend_gap <- function(seq, pep_start, pep_end, lo, hi) {
+  aa <- strsplit(seq, "", fixed = TRUE)[[1]]
+  basic <- function(i) i >= 1L && i <= length(aa) && aa[[i]] %in% c("K", "R")
+  out <- integer(0)
+  ## C side: the pair at (pep_end + g + 1, pep_end + g + 2), g residues after the end
+  for (g in seq_len(max(0L, hi - pep_end)) - 1L)
+    if (basic(pep_end + g + 1L) && basic(pep_end + g + 2L)) {
+      if (g > 0L) out <- c(out, pep_end + seq_len(g))
+      break
+    }
+  ## N side: the pair at (pep_start - g - 2, pep_start - g - 1), g residues before the start
+  for (g in seq_len(max(0L, pep_start - lo)) - 1L)
+    if (basic(pep_start - g - 2L) && basic(pep_start - g - 1L)) {
+      if (g > 0L) out <- c(out, pep_start - seq_len(g))
+      break
+    }
+  as.integer(out)
 }
 
 #' Candidate peptide-end anchors in one precursor
@@ -100,23 +152,17 @@ lf_pepend_candidates <- function(seq, n_prot) {
 #' A coarse label for the plots and diagnostics: the two residues after a C
 #' terminus (three when the first is an amidation G), the two before an N
 #' terminus.
-#' Under `amid_g = TRUE` (training sets built with 10_7 `--amid-g-anchor`) an
-#' amidated C end is anchored ON its G: a C anchor that IS a G followed by a
-#' dibasic pair is `"G + dibasic"`, and the residue before such a G -- the old
-#' anchor, no longer an end -- is `"other"`. Everything else is unchanged.
-#' @param amid_g the G-anchor convention for C ends (default: the old one).
 #' @return one of `"dibasic"`, `"G + dibasic"`, `"monobasic"`, `"terminus"`,
 #'   `"other"` per row.
 #' @export
-lf_pepend_motif <- function(seq, term, anchor, n_prot, amid_g = FALSE) {
+lf_pepend_motif <- function(seq, term, anchor, n_prot) {
   vapply(seq_along(seq), function(i) {
     s <- seq[[i]]; a <- anchor[[i]]
     if (term[[i]] == "C") {
       if (a >= nchar(s)) return("terminus")
       nxt <- substring(s, a + 1L, a + 3L)
-      if (amid_g && substring(s, a, a) == "G" && grepl("^(KK|KR|RK|RR)", nxt)) return("G + dibasic")
       if (grepl("^(KK|KR|RK|RR)", nxt)) return("dibasic")
-      if (grepl("^G(KK|KR|RK|RR)", nxt)) return(if (amid_g) "other" else "G + dibasic")
+      if (grepl("^G(KK|KR|RK|RR)", nxt)) return("G + dibasic")
       if (grepl("^G?[KR]", nxt)) return("monobasic")
     } else {
       if (a <= n_prot[[i]]) return("terminus")
@@ -145,10 +191,9 @@ lf_pepend_motif <- function(seq, term, anchor, n_prot, amid_g = FALSE) {
 #' @param term `"N"` or `"C"`.
 #' @param anchor integer vector of anchors, in precursor coordinates.
 #' @param n_prot first residue of the mature precursor.
-#' @param amid_g the G-anchor convention for C ends, as in [lf_pepend_motif()].
 #' @return character vector, one label per `anchor`.
 #' @export
-lf_pepend_motif_vec <- function(seq, term, anchor, n_prot, amid_g = FALSE) {
+lf_pepend_motif_vec <- function(seq, term, anchor, n_prot) {
   a  <- as.integer(anchor)
   aa <- strsplit(seq, "", fixed = TRUE)[[1]]
   L  <- length(aa)
@@ -164,15 +209,6 @@ lf_pepend_motif_vec <- function(seq, term, anchor, n_prot, amid_g = FALSE) {
   if (identical(as.character(term), "C")) {
     b1 <- basic(a + 1L); b2 <- basic(a + 2L); b3 <- basic(a + 3L)
     g1 <- at(a + 1L) %in% "G"
-    if (amid_g) {
-      g0 <- at(a) %in% "G"
-      return(
-      ifelse(a >= L,            "terminus",
-      ifelse(g0 & b1 & b2,      "G + dibasic",
-      ifelse(b1 & b2,           "dibasic",
-      ifelse(g1 & b2 & b3,      "other",
-      ifelse(b1 | (g1 & b2),    "monobasic", "other"))))))
-    }
     ifelse(a >= L,            "terminus",
     ifelse(b1 & b2,           "dibasic",
     ifelse(g1 & b2 & b3,      "G + dibasic",
