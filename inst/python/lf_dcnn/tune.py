@@ -12,7 +12,7 @@ known peptide ends that neither trained it nor chose its stopping epoch.
 
 ``R/in/<fold>/`` is what ``10_8_pepend_train.R --export-only`` writes for one
 fold: the array contract and the resolved Config that 10_8 would have trained,
-plus window metadata. inst/scripts/10_8t_pepend_tune.sh drives all of it.
+plus window metadata. inst/scripts/modeling/10_8t_pepend_tune.sh drives all of it.
 
 What is held out from what
 --------------------------
@@ -1140,7 +1140,7 @@ def report(root, objective: str | None = None, top: int = 15, verbose: int = 1) 
         f"{int(best['folds_better'])}/{len(plan['folds'])} folds).",
         "",
         "```",
-        f"Rscript inst/scripts/10_8_pepend_train.R --term {plan['term']} ... {best_json['flags_10_8']}",
+        f"Rscript inst/scripts/modeling/10_8_pepend_train.R --term {plan['term']} ... {best_json['flags_10_8']}",
         "```",
         "",
         f"## Top {top}",

@@ -15,9 +15,9 @@
 #
 #   nohup ./allsec_overnight.sh > allsec_overnight.log 2>&1 &
 set -u
+. ${0:A:h:h}/lf_paths.sh   # LF_SRC, the script folders, LF_RUN
 A2=~/AF2_analysis
-S=${0:A:h}
-L=$S/allsec_overnight.log
+L=$LF_RUN/allsec_overnight.log
 say() { echo "[$(date '+%F %H:%M:%S')] $*" }
 
 say "=== OVERNIGHT RUN START ==="
@@ -34,18 +34,18 @@ elif pgrep -f "lf_winxgb.scan_genes" > /dev/null; then
   # that gap would duplicate an in-flight job (its .npz does not exist yet, so
   # the skip-if-cached guard would not catch it).
   say "stage 1: a scan is already running -- waiting for its DONE marker"
-  while ! grep -q "ALL-SECRETOME SCAN DONE" $S/allsec_scan_driver.log 2>/dev/null; do
+  while ! grep -q "ALL-SECRETOME SCAN DONE" $LF_RUN/allsec_scan_driver.log 2>/dev/null; do
     sleep 60
     pgrep -f "lf_winxgb.scan_genes" > /dev/null && continue
     # no scan process and no DONE marker: it died, so take over and resume
-    grep -q "ALL-SECRETOME SCAN DONE" $S/allsec_scan_driver.log 2>/dev/null && break
+    grep -q "ALL-SECRETOME SCAN DONE" $LF_RUN/allsec_scan_driver.log 2>/dev/null && break
     say "stage 1: the running scan stopped without finishing -- resuming it here"
-    $S/allsec_scan.sh && break || { say "STAGE 1 FAILED -- rerun to resume"; exit 1; }
+    $LF_VIZ/allsec_scan.sh && break || { say "STAGE 1 FAILED -- rerun to resume"; exit 1; }
   done
   say "stage 1: scan finished"
 else
   say "stage 1: starting scans"
-  $S/allsec_scan.sh || { say "STAGE 1 FAILED -- rerun allsec_overnight.sh to resume"; exit 1; }
+  $LF_VIZ/allsec_scan.sh || { say "STAGE 1 FAILED -- rerun allsec_overnight.sh to resume"; exit 1; }
 fi
 [[ -f $POOLED_C && -f $POOLED_N ]] || { say "STAGE 1 INCOMPLETE: no pooled npz -- rerun to resume"; exit 1; }
 say "stage 1 done. disk free: $(df -h ~ | tail -1 | awk '{print $4}')"
@@ -66,7 +66,7 @@ say "stage 2: rendering (floor: stop if free disk drops under ${MIN_FREE_GB} GB)
     fi
   done
 ) & GUARD=$!
-PROCS=${PROCS:-4} CHUNK=${CHUNK:-25} $S/allsec_pages.sh
+PROCS=${PROCS:-4} CHUNK=${CHUNK:-25} $LF_VIZ/allsec_pages.sh
 kill $GUARD 2>/dev/null
 
 say "disk free after: $(df -h ~ | tail -1 | awk '{print $4}')"

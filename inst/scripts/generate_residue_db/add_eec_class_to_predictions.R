@@ -10,7 +10,7 @@
 # invitation to append a second one.
 #
 # Usage:
-#   Rscript inst/scripts/add_eec_class_to_predictions.R <predictions.csv> \
+#   Rscript inst/scripts/generate_residue_db/add_eec_class_to_predictions.R <predictions.csv> \
 #           <eec_gene_class.csv> [proteinatlas.tsv]
 
 suppressPackageStartupMessages(library(data.table))

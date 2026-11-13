@@ -4,7 +4,7 @@
 ##   ARM1=_curated_AAswap   -> AAswap vs ESM-C
 ##   GENES=NMS,RLN2,MSMB,INS (default)   OUT=<png>
 suppressMessages({library(data.table); library(ggplot2)})
-A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
+A2 <- path.expand("~/AF2_analysis"); S <- path.expand(Sys.getenv("LF_RUN", file.path(A2, "lf_run")))
 ARM1 <- Sys.getenv("ARM1", "")
 LAB1 <- if (ARM1 == "") "curated (26 hand-built)" else if (ARM1 == "_curated_AAswap") "AAswap" else sub("^_", "", ARM1)
 GEN <- strsplit(Sys.getenv("GENES", "NMS,RLN2,MSMB,INS"), ",")[[1]]

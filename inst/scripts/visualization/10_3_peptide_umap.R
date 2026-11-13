@@ -214,7 +214,7 @@ known_end_gap <- 5                  # anchor-to-boundary distance to accept; mat
 ## it and the score panel keeps a single "GPCR peptide" column.
 docked_ref    <- path.expand("~/AF2_analysis/knowns.rds")
 ## Where each gene peaks in the HPA v23 single-cell consensus (top_celltype,
-## its nTPM), written by inst/scripts/hpa_top_celltype.R -- the same table the
+## its nTPM), written by inst/scripts/generate_residue_db/hpa_top_celltype.R -- the same table the
 ## eec_* columns of the predictions CSV come from. Read out on hover and in the
 ## gene-search summary. NULL skips it.
 celltype_ref  <- path.expand("~/AF2_analysis/hpa_top_celltype.csv")
@@ -732,7 +732,7 @@ if (!is.null(celltype_ref) && file.exists(celltype_ref)) {
                   dplyr::n_distinct(params$gene[params$top_celltype %in% "Enteroendocrine cells"])))
   rm(.ct)
 } else if (!is.null(celltype_ref)) {
-  message("no ", celltype_ref, " -- run inst/scripts/hpa_top_celltype.R for the top-cell-type hover line")
+  message("no ", celltype_ref, " -- run inst/scripts/generate_residue_db/hpa_top_celltype.R for the top-cell-type hover line")
 }
 
 ## ---- final column order + write --------------------------------------------

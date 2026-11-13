@@ -31,7 +31,7 @@ because `10_8` refuses to drop the mask channel. **37 input channels**, in the
 order `padding, plm_01 … plm_36`.
 
 ```bash
-cd ~/AF2_analysis/lf_nomask_scripts_20261021
+cd ~/R_projects/ligandFinder/inst/scripts    # any checkout; lists and logs: $LF_RUN
 
 # 1. the embedding (only if esm_c_pca36.parquet is missing)
 ~/.virtualenvs/lf-plm/bin/python -m lf_plm reduce \
@@ -39,19 +39,19 @@ cd ~/AF2_analysis/lf_nomask_scripts_20261021
     --sequences ~/AF2_analysis/lf_plm/sequences.parquet \
     --k 36 --refit --out ~/AF2_analysis/lf_plm/esm_c_pca36.parquet
 
-./esmonly36_driver.sh                                   # 2. 10 trunks
-~/.virtualenvs/r-tensorflow/bin/python residues_esmonly36.py   # 3. 37-ch residue table
-./fullscan_esmonly36.sh                                 # 4. 10 full scans
-TAG=_nomask_flatten_esmonly36 Rscript tracks_esmonly36.R # 5. tracks rds
+modeling/esmonly36_driver.sh                                   # 2. 10 trunks
+~/.virtualenvs/r-tensorflow/bin/python generate_residue_db/residues_esmonly36.py   # 3. 37-ch residue table
+modeling/fullscan_esmonly36.sh                                 # 4. 10 full scans
+TAG=_nomask_flatten_esmonly36 Rscript modeling/tracks_esmonly36.R # 5. tracks rds
 
 # evaluation (defaults are TOL 4 now)
-ARM=_esmonly36 Rscript segments_roc.R                   # segment confusion + ROC
-ARM=_esmonly36 THRESH=0.5 Rscript segments_motif.R      # by cleavage motif
-Rscript metrics_final.R $PWD                            # ROC / normPR / recall, both arms
-~/.virtualenvs/lf-plm/bin/python final_metrics_plot_trunks.py ~/AF2_analysis/lf_headcmp
+ARM=_esmonly36 Rscript evaluation/segments_roc.R                   # segment confusion + ROC
+ARM=_esmonly36 THRESH=0.5 Rscript evaluation/segments_motif.R      # by cleavage motif
+Rscript evaluation/metrics_final.R $LF_RUN                            # ROC / normPR / recall, both arms
+~/.virtualenvs/lf-plm/bin/python visualization/final_metrics_plot_trunks.py ~/AF2_analysis/lf_headcmp
 
 # pages + gallery
-./esm_pages.sh                                          # 104 known-peptide pages + index
+visualization/esm_pages.sh                                          # 104 known-peptide pages + index
 ```
 
 `metrics_final.R` takes the scripts directory as its **first positional

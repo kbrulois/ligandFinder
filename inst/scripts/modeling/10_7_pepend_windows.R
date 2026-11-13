@@ -21,7 +21,7 @@
 ## cache, so a residue gets exactly the values the production windows give it
 ## (checked below against the cached production windows).
 ##
-##   /usr/local/bin/Rscript inst/scripts/10_7_pepend_windows.R
+##   /usr/local/bin/Rscript inst/scripts/modeling/10_7_pepend_windows.R
 ##   ... --n-ctrl 400 --random-frac 0.25 --seed 42
 ##   ... --near-n 100 --ct-pad --out ~/AF2_analysis/lf_pepend_nn_input_near_ctpad.rds
 ##
@@ -743,7 +743,7 @@ saveRDS(list(nn_input = nn_input, all_params3 = all_params3, class_names = pe_cl
                            near_n = near_n, near_lo = near_lo, near_hi = near_hi,
                            pad_match = pad_match, mono_match = mono_match, db_match = db_match,
                            amid_match = amid_match, gap_class = gap_class, dssp_index = cache_dssp_index,
-                           code_md5 = unname(tools::md5sum(c(file.path(ROOT, "inst/scripts/10_7_pepend_windows.R"),
+                           code_md5 = unname(tools::md5sum(c(file.path(ROOT, "inst/scripts/modeling/10_7_pepend_windows.R"),
                                                              file.path(ROOT, "R/pepend_windows.R")))),
                            git_rev = tryCatch(system2("git", c("-C", ROOT, "rev-parse", "HEAD"), stdout = TRUE),
                                               error = function(e) NA_character_),

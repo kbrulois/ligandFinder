@@ -320,7 +320,7 @@ def check_scan_windows():
 
     ``build_windows`` is the python twin of R's ``lf_pepend_slice``; the two are
     checked against each other on real data by
-    inst/scripts/10_8b_pepend_scan.R's caller. Here: the geometry on a synthetic
+    inst/scripts/modeling/10_8b_pepend_scan.R's caller. Here: the geometry on a synthetic
     precursor whose residue *r* carries the value *r*, so a misplaced residue is
     visible, plus the invariant that the chunk size is a memory knob only.
     """

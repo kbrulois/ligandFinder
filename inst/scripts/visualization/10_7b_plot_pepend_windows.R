@@ -17,7 +17,7 @@
 ## (~5 s each); without them it falls back to the dot. A build without
 ## --n-folds draws the dot, as it always did.
 ##
-##   /usr/local/bin/Rscript inst/scripts/10_7b_plot_pepend_windows.R
+##   /usr/local/bin/Rscript inst/scripts/visualization/10_7b_plot_pepend_windows.R
 ##   ... --in ~/AF2_analysis/lf_pepend_nn_input_cv5_f1.rds --out-dir ~/AF2_analysis/lf_viz_20261112
 ##
 ## Output: ~/AF2_analysis/pepend_windows_aligned_[ctpad_]<stamp>.{svg,png}

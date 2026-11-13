@@ -12,7 +12,7 @@
 ## kept, unlike 10_9p: that script drops them because the window TRAINING set
 ## does, but a page for a chemokine should still show its pocket.
 ##
-##   Rscript inst/scripts/10_9u_export_pocket_cache.R
+##   Rscript inst/scripts/visualization/10_9u_export_pocket_cache.R
 ##
 ## Output: ~/AF2_analysis/lf_pocket_by_peptide.rds
 ##   accession, pep_id, pep_start, pep_end, pocket (list of integer residues)

@@ -1,7 +1,7 @@
 # lf_dcnn
 
 The 1D-CNN that scores 36-residue peptide-cleavage windows, ported from
-`inst/scripts/10_1dcnn_new6.R`. Two models — terminus `N` and terminus `C` —
+`inst/scripts/analysis/archive/window_model/10_1dcnn_new6.R`. Two models — terminus `N` and terminus `C` —
 each carry a **global** ranking head and a supervised **per-index** class head.
 
 Everything upstream (data prep in `9.2_add_contact_data.R`) and everything
@@ -144,7 +144,7 @@ Config(trunk="unet", unet_filters=(16, 32, 64), unet_dropout=(0.2, 0.2, 0.2))   
 Config.r_exact()                                                # the pre-port R model
 ```
 
-The default was set on `inst/scripts/10_5_benchmark_window_model.R` (U-Net
+The default was set on `inst/scripts/analysis/archive/window_model/10_5_benchmark_window_model.R` (U-Net
 with vs without the position input, 5 seeds each, validation ROC/PR, top-hit
 violins and rank agreement); rerun it to revisit.
 
@@ -204,7 +204,7 @@ The first conv gains or loses exactly `conv_kernel × filters` weights
 (21,406 ↔ 21,454 for the U-Net, 2,390 ↔ 2,438 flat) and nothing else moves.
 
 Whether the ramp earns its place is an empirical question that
-`inst/scripts/10_5_benchmark_window_model.R` answers on the real windows: both
+`inst/scripts/analysis/archive/window_model/10_5_benchmark_window_model.R` answers on the real windows: both
 arms, `n_seeds` members per terminus, validation ROC/PR quoted as mean ± sd
 across seeds, plus the top-hit violin and rank agreement, written to one html.
 `Result.val_scores_members` / `pred_raw_members` (`(n_seeds, m)` / `(n_seeds, n)`)
@@ -216,12 +216,12 @@ number than the average of the per-seed AUCs, and a benchmark needs the latter.
 `lf_dcnn.tune` searches the learning rate, the U-Net width (filters per level,
 doubling down the trunk), the kernel size and early stopping (start epoch,
 patience, epoch budget, monitor) for one terminus over the cv5 folds.
-`inst/scripts/10_8t_pepend_tune.sh` runs it end to end:
+`inst/scripts/modeling/10_8t_pepend_tune.sh` runs it end to end:
 
 ```bash
-inst/scripts/10_8t_pepend_tune.sh                       # terminus C: export, plan, run, report
-STAGES=report inst/scripts/10_8t_pepend_tune.sh         # re-aggregate what has finished
-EXTEND="5:2,3" STAGES=extend,run,report inst/scripts/10_8t_pepend_tune.sh   # seeds 2,3 for the top 5
+inst/scripts/modeling/10_8t_pepend_tune.sh                       # terminus C: export, plan, run, report
+STAGES=report inst/scripts/modeling/10_8t_pepend_tune.sh         # re-aggregate what has finished
+EXTEND="5:2,3" STAGES=extend,run,report inst/scripts/modeling/10_8t_pepend_tune.sh   # seeds 2,3 for the top 5
 ```
 
 1. **export** -- `10_8_pepend_train.R --export-only DIR`, once per fold: the

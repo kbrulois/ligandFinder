@@ -46,7 +46,6 @@
 # halved its throughput from ~111,000 to ~57,000 residues/h. Killing the two
 # freed 15 GB of swap and took user CPU straight back to 17.5%.
 set -u
-S=${0:A:h}
 A2=~/AF2_analysis
 OUT=$A2/pepend_pages_allsec
 PROCS=${PROCS:-1}   # memory, not cores, is the limit -- see the note above
@@ -57,15 +56,15 @@ CAP=${CAP:-500}
 # (e.g. to leave out one gene that is already rendering in another process --
 # a page only counts as done once its .html exists, so an in-flight gene would
 # otherwise be started a second time and the two would fight over the file).
-GENES=${GENES:-$S/giant_genes.txt}
+GENES=${GENES:-$LF_RUN/giant_genes.txt}
 [[ -s $GENES ]] || { echo "no gene list at $GENES"; exit 1; }
 
 if [[ ${1:-} == one ]]; then
   g=$2
   MODE=cv5 NPZ_SFX=_all LF_PLOT_DIR=$OUT LF_POPUP_MAX=$CAP \
     LF_ENS_ONLY_MIN=$MIN LF_NO_ALIGN_MIN=$MIN PROV_N=0 \
-    LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $S/final_pages_giant.R $g \
-    >> $S/giant_$g.log 2>&1
+    LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $LF_VIZ/final_pages_giant.R $g \
+    >> $LF_RUN/giant_$g.log 2>&1
   rc=$?
   sz=$([[ -s $OUT/$g.html ]] && du -h $OUT/$g.html | cut -f1 || echo "-")
   echo "$g rc=$rc $sz"
@@ -82,7 +81,7 @@ echo "  recipe: no alignment + ensembles only above $MIN aa, popup cap $CAP, $PR
 # run actually tests the ordering rather than exiting before it
 order() {
   for g in $todo; do
-    printf "%s\t%s\n" "$(awk -F'\t' -v g=$g '$1==g{print $2}' $S/gene_lengths.txt)" "$g"
+    printf "%s\t%s\n" "$(awk -F'\t' -v g=$g '$1==g{print $2}' $LF_RUN/gene_lengths.txt)" "$g"
   done | sort -n
 }
 if [[ ${DRY:-0} == 1 ]]; then
@@ -95,19 +94,19 @@ order | cut -f2 | xargs -P $PROCS -n 1 ${0:A} one
 echo "GIANTS DONE $(date '+%F %H:%M:%S')"
 printf "%-10s %8s %s\n" GENE AA PAGE
 while read g; do
-  printf "%-10s %8s %s\n" $g "$(awk -F'\t' -v g=$g '$1==g{print $2}' $S/gene_lengths.txt)" \
+  printf "%-10s %8s %s\n" $g "$(awk -F'\t' -v g=$g '$1==g{print $2}' $LF_RUN/gene_lengths.txt)" \
     "$([[ -s $OUT/$g.html ]] && du -h $OUT/$g.html | cut -f1 || echo MISSING)"
-done < $S/giant_genes.txt
+done < $LF_RUN/giant_genes.txt
 # The main run builds the index when IT finishes, over whatever is on disk at
 # that moment. These pages may land afterwards, so rebuild it here -- same
 # command and same arguments as allsec_pages.sh, or the gallery would differ.
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 if [[ ${SKIP_INDEX:-0} != 1 ]]; then
   echo
   echo "rebuilding the gallery index over $(ls $OUT/*.html | grep -vc index.html) pages"
-  LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $W/inst/scripts/make_gallery_index.R \
+  LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $W/inst/scripts/visualization/make_gallery_index.R \
     --dir $OUT \
     --title "LigandFinder — peptide-end pages, linear window head (5-fold CV), all secretome" \
-    --blurb $S/final_blurb_tpfn.html --footer $S/final_footer.html --no-stock-desc \
+    --blurb $LF_RUN/final_blurb_tpfn.html --footer $LF_RUN/final_footer.html --no-stock-desc \
     || echo "INDEX FAILED (pages are fine; rerun make_gallery_index.R)"
 fi

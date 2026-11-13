@@ -13,7 +13,7 @@
 ## a re-run only picks up what is still missing.  Interrupt it freely.
 ##
 ## Usage:
-##   bash inst/scripts/upload_plots_s3.sh [src_dir] [bucket] [distribution_id]
+##   bash inst/scripts/visualization/upload_plots_s3.sh [src_dir] [bucket] [distribution_id]
 ##
 ##   src_dir     Directory of <gene>.html pages
 ##               (default: ~/AF2_analysis/ligandFinder_v3)
@@ -43,7 +43,7 @@
 ##   wc -l < ~/AF2_analysis/ligandFinder_v3/.s3_uploaded.log
 ##
 ## Example:
-##   caffeinate -i bash inst/scripts/upload_plots_s3.sh
+##   caffeinate -i bash inst/scripts/visualization/upload_plots_s3.sh
 ##
 ## Wall time is bound by upstream bandwidth: ~5 GB of compressed payload, so
 ## roughly 7 min on 100 Mbit, under a minute on gigabit.  Compression itself

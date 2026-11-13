@@ -17,7 +17,7 @@
 ## across the covering windows. The across-member sd is kept in the output table
 ## as `sd_member` for comparison, but it is not what is drawn.
 ##
-##   Rscript inst/scripts/10_9n_pepend_residue_tracks.R --gene NPY
+##   Rscript inst/scripts/visualization/10_9n_pepend_residue_tracks.R --gene NPY
 ##   ... --run ~/AF2_analysis/lf_pepend_run_C.rds --classes pep_pocket,pep_other
 ##
 ## Output: <out-dir>/lf_resid_tracks_<gene>_<term>.svg  (+ .png unless --no-png)

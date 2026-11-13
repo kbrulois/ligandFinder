@@ -5,7 +5,7 @@
 ## the same precursor on opposite sides, say -- cannot get it from there. This
 ## writes the accession and peps for each split, in the array row order.
 ##
-##   Rscript inst/scripts/10_9r_export_window_groups.R --term C
+##   Rscript inst/scripts/modeling/10_9r_export_window_groups.R --term C
 ## Output: ~/AF2_analysis/lf_pepend_window_groups_<term>.npz
 ## ------------------------------------------------------------------------------
 suppressMessages(library(dplyr))

@@ -1,8 +1,8 @@
 ## =============================================================================
 ## AlphaFold-predicted disulfides (afdsb) for every secretome accession.
 ##
-##   /usr/local/bin/Rscript inst/scripts/get_afdsb.R          # all accessions
-##   /usr/local/bin/Rscript inst/scripts/get_afdsb.R 200      # first 200 (bench)
+##   /usr/local/bin/Rscript inst/scripts/generate_residue_db/get_afdsb.R          # all accessions
+##   /usr/local/bin/Rscript inst/scripts/generate_residue_db/get_afdsb.R 200      # first 200 (bench)
 ##
 ## Writes a small table to ~/AF2_analysis/afdsb.rds rather than rewriting the
 ## 1.8 GB secretome.rds: plot_all.R merges it into secretome[["features"]] at

@@ -20,7 +20,7 @@ ap.add_argument("--labels-npz", default="~/AF2_analysis/lf_resid_labels.npz")
 a = ap.parse_args()
 
 ## lf_dcnn from the checkout this script sits in, or $LF_SRC (lf_paths.py)
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import lf_paths; lf_paths.add_python()
 from lf_dcnn.config import Config
 from lf_dcnn.pipeline import predict_all

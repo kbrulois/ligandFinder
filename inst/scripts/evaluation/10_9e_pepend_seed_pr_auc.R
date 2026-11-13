@@ -22,7 +22,7 @@
 ## grid. The two are different estimators of the same quantity, so they are kept
 ## in separate panels and never differenced.
 ##
-##   Rscript inst/scripts/10_9e_pepend_seed_pr_auc.R --term C
+##   Rscript inst/scripts/evaluation/10_9e_pepend_seed_pr_auc.R --term C
 ##
 ## Output: ~/AF2_analysis/lf_pepend_seed_pr_auc_<term>.{csv,svg,png}
 ## ------------------------------------------------------------------------------

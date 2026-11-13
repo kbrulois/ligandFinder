@@ -14,7 +14,7 @@
 # "Enteroendocrine cells" cluster; v24+ merges it into "neuroendocrine cells",
 # which pools gut EECs with lung and other neuroendocrine populations.
 #
-# Usage:  Rscript inst/scripts/enteroendocrine_expression.R [out_dir] [cache_dir]
+# Usage:  Rscript inst/scripts/generate_residue_db/enteroendocrine_expression.R [out_dir] [cache_dir]
 
 suppressPackageStartupMessages({
   library(data.table)

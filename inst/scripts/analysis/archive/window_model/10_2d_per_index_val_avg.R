@@ -19,7 +19,7 @@
 ## Reads the per-member arrays the isolated trainer leaves behind
 ## (<arm>/members/member_NNN_<term>.npz), so it needs no retraining.
 ##
-##   /usr/local/bin/Rscript inst/scripts/10_2d_per_index_val_avg.R
+##   /usr/local/bin/Rscript inst/scripts/analysis/archive/window_model/10_2d_per_index_val_avg.R
 ##   ... --arms unet_none_w1 --top 5 --n-neg 10 --band se
 ##
 ## Output, one per arm and averaging:

@@ -8,11 +8,10 @@
 #   4. the all-50 xgb/CNN tracks: mean over all 50 members, sd recovered exactly
 #      from each fold's 10-member mean and sd (ddof = 1)
 set -eu
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
-S=${0:A:h}
 TAG=_nomask_flatten
-export GENES=$(paste -sd, $S/page_genes.txt)
+export GENES=$(paste -sd, $LF_RUN/page_genes.txt)
 
 if [[ ${1:-} == scan ]]; then          # one fold/terminus scan (what xargs calls)
   k=$2 T=$3
@@ -23,7 +22,7 @@ if [[ ${1:-} == scan ]]; then          # one fold/terminus scan (what xargs call
     --run $A2/lf_pepend_run_${T}_cv5_f${k}${TAG}.rds \
     --groups $A2/lf_pepend_window_groups_${T}_cv5_f${k}.npz \
     --pm-rounds 100 --skip-stacked \
-    --out $A2/lf_winxgb_scan_${T}_cv5_f${k}${TAG}.npz > $S/cv5scan_${T}_f$k.log 2>&1
+    --out $A2/lf_winxgb_scan_${T}_cv5_f${k}${TAG}.npz > $LF_RUN/cv5scan_${T}_f$k.log 2>&1
   echo "scan $T f$k rc=$?"
   exit 0
 fi

@@ -27,10 +27,10 @@
 ## Cross-validated: fold k's ends on fold k's own profile, counts summed over
 ## folds; never seen: the all-50 profile.
 suppressMessages({library(data.table)})
-A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
+A2 <- path.expand("~/AF2_analysis"); S <- path.expand(Sys.getenv("LF_RUN", file.path(A2, "lf_run")))
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "lf_paths.R"))
 ## TOL and ARM are read from the environment so a second arm can be scored with
 ## the SAME code rather than a divergent copy. TOL=2 WITH ARM UNSET REPRODUCES
 ## THE ORIGINAL BEHAVIOUR EXACTLY -- the curated tracks, the unsuffixed output

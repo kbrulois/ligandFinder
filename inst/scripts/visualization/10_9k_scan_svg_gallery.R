@@ -15,7 +15,7 @@
 ## window (the track shape reads, the sequence letters do not) with a toggle to
 ## 1:1, where the panel scrolls horizontally and the letters are legible.
 ##
-##   Rscript inst/scripts/10_9k_scan_svg_gallery.R
+##   Rscript inst/scripts/visualization/10_9k_scan_svg_gallery.R
 ##
 ## Output: ~/AF2_analysis/lf_scan_gallery_<term>.html
 ## ------------------------------------------------------------------------------

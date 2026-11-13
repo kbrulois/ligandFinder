@@ -439,7 +439,7 @@ make_protein_plot_win <- function(old_nn_input,
           ## The peptide-end model's masked 3-way head: where the pocket sits in
           ## the window relative to the peptide's own end. Purely additive -- an
           ## input without these columns renders exactly as before. Join them on
-          ## `peps` upstream (see inst/scripts/10_9m_plot_protein_ins.R).
+          ## `peps` upstream (see inst/scripts/visualization/10_9m_plot_protein_ins.R).
           ## Suppress with options(lf.nn_show_ins = FALSE).
           .ins_cols <- c("ins_class", "ins_p_inserting", "ins_p_loop",
                          "ins_p_non_inserting")
@@ -1611,7 +1611,7 @@ make_protein_plot_win <- function(old_nn_input,
     ## Generated HERE, from the same data the plot uses, and inlined into the
     ## page: the HTML is then genuinely self-contained -- no .cxc to host, none
     ## read at view time, and the script cannot drift from what is plotted.
-    ## make_cm_script_text() lives in inst/scripts/generate_cm_sct.R, so it is
+    ## make_cm_script_text() lives in inst/scripts/visualization/generate_cm_sct.R, so it is
     ## reached through the search path once that file has been sourced; without
     ## it we fall back to opening the AlphaFold model and nothing else.
     nn_base_cxc <- NULL

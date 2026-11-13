@@ -3,9 +3,9 @@
 One command regenerates everything, at any threshold / tolerance:
 
 ```bash
-./candidate_pipeline.sh                       # the defaults: xgb_pm, T 0.5, tol 4, 8-60 aa
-THRESH=0.3 TOL=2 ./candidate_pipeline.sh      # another cut
-HEAD=cnn ./candidate_pipeline.sh              # the linear head instead
+modeling/candidate_pipeline.sh                       # the defaults: xgb_pm, T 0.5, tol 4, 8-60 aa
+THRESH=0.3 TOL=2 modeling/candidate_pipeline.sh      # another cut
+HEAD=cnn modeling/candidate_pipeline.sh              # the linear head instead
 ```
 
 Output `lf_headcmp/candidate_peptides_<HEAD>_T<THRESH>_tol<TOL>.csv`, with a
@@ -37,9 +37,9 @@ like a length cut near 29 aa. Kept only so that finding stays checkable.
 ```bash
 O=~/AF2_analysis/pepend_pages_cand_nocurated_mp0.6_nomp0.45
 FILTER='curated_relation == "none" & mp_best_score > 0.6 & xgb_nomp_score > 0.45' \
-  LF_EXTRA_BUNDLE=~/AF2_analysis/plot_bundle_extra.rds OUT=$O Rscript candidate_select.R
-GENES_FILE=$O/scan_genes.txt SFX=_cand_nocur_mp06_nomp045 ./arm_gene_scans.sh
-OUT=$O ./candidate_pages.sh                # FORCE=1 redraws pages that already exist
+  LF_EXTRA_BUNDLE=~/AF2_analysis/plot_bundle_extra.rds OUT=$O Rscript modeling/candidate_select.R
+GENES_FILE=$O/scan_genes.txt SFX=_cand_nocur_mp06_nomp045 modeling/arm_gene_scans.sh
+OUT=$O visualization/candidate_pages.sh                # FORCE=1 redraws pages that already exist
 ```
 
 - **`candidate_select.R`** evaluates FILTER, any R expression over the stage-6
@@ -92,7 +92,7 @@ track's right end no longer collapse to a few words per line.
   - Each card's note lists the known peptides among its gene's passing cuts.
 - **Genes `plot_bundle.rds` lacks.** About 430 secretome genes have no dibasic
   site after the signal peptide, which the old window model needed. Build their
-  entries with `inst/scripts/plot_bundle_extra.R`, then select with
+  entries with `inst/scripts/visualization/plot_bundle_extra.R`, then select with
   `LF_EXTRA_BUNDLE`. Those pages take make_protein_plot_win's no-window branch.
 - **COL18A1** has two accessions under one name, so the all-secretome scan
   skipped it. It is drawn from its own scan files (`NPZ_SFX=_col18a1`, built by

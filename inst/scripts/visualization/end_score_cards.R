@@ -23,7 +23,7 @@
 ## arm's scores everywhere -- so the blurb says to compare chips down a column.
 ##
 ## Writes <GALLERY>/end_scores.csv and rebuilds <GALLERY>/index.html through
-## inst/scripts/make_gallery_index.R (--card-html / --blurb / --footer), so the
+## inst/scripts/visualization/make_gallery_index.R (--card-html / --blurb / --footer), so the
 ## filter box and the cards are the stock ones.
 ##
 ##   ARM=esmonly36 LC_ALL=en_US.UTF-8 Rscript end_score_cards.R
@@ -33,11 +33,11 @@
 suppressMessages({library(data.table); library(reticulate)})
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "lf_paths.R"))
 ## arm_var(): the arm's settings, read out of arms/<arm>.sh
-source(file.path(Sys.getenv("LF_SCRIPTS", .lf_here), "arm_vars.R"))
+source(lf_src("inst/scripts/modeling/arm_vars.R"))
 
-A2  <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
+A2  <- path.expand("~/AF2_analysis"); S <- path.expand(Sys.getenv("LF_RUN", file.path(A2, "lf_run")))
 ARM <- sub("^_", "", Sys.getenv("ARM", ""))
 if (!nzchar(ARM) || !file.exists(file.path(.lf_scripts, "arms", paste0(ARM, ".sh"))))
   stop("ARM must name an arm in arms/, e.g. ARM=esmonly36", call. = FALSE)
@@ -208,7 +208,7 @@ footer <- sprintf(paste0(
 tmp <- tempfile("end_score_cards_"); dir.create(tmp)
 saveRDS(as.data.frame(cards), file.path(tmp, "cards.rds"))
 writeLines(blurb, file.path(tmp, "blurb.html")); writeLines(footer, file.path(tmp, "footer.html"))
-rc <- system2("/usr/local/bin/Rscript", shQuote(c(lf_src("inst/scripts/make_gallery_index.R"),
+rc <- system2("/usr/local/bin/Rscript", shQuote(c(lf_src("inst/scripts/visualization/make_gallery_index.R"),
   "--dir", GAL, "--out", INDEX, "--title", TITLE, "--no-stock-desc",
   "--blurb", file.path(tmp, "blurb.html"), "--footer", file.path(tmp, "footer.html"),
   "--card-html", file.path(tmp, "cards.rds"))), env = "LC_ALL=en_US.UTF-8")

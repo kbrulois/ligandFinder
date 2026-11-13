@@ -70,4 +70,4 @@ print(r[, .(before = sum(before), after = sum(after), dropped = sum(dropped),
             pct = round(100*sum(dropped)/sum(before), 2),
             pos_before = sum(pos_before), pos_after = sum(pos_after)),
         by = .(term, split)], row.names = FALSE)
-fwrite(r, file.path(A2, "lf_nomask_scripts_20261021", "nn_input_esmcov_report.csv"))
+fwrite(r, file.path(Sys.getenv("LF_RUN", file.path(A2, "lf_run")), "nn_input_esmcov_report.csv"))

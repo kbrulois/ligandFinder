@@ -21,7 +21,7 @@
 ## Reads only cached/derived artefacts and writes one CSV. Nothing feeds back
 ## into the pipeline; this is a diagnostic.
 ##
-## Usage:  source("inst/scripts/audit_known_peptides.R")
+## Usage:  source("inst/scripts/analysis/known_peptide_audit/audit_known_peptides.R")
 ## =============================================================================
 
 suppressPackageStartupMessages({library(dplyr); library(tibble)})

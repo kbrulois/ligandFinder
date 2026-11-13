@@ -16,7 +16,7 @@
 ## That was a different training set and a different window geometry, so it is a
 ## prior and not a conclusion about this one.
 ##
-##   Rscript inst/scripts/10_9l_head_ablation.R --n-seeds 10
+##   Rscript inst/scripts/analysis/head_ablation/10_9l_head_ablation.R --n-seeds 10
 ##
 ## Output: ~/AF2_analysis/lf_head_ablation_<term>.{csv,svg,png}
 ## ------------------------------------------------------------------------------

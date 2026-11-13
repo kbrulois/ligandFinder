@@ -12,7 +12,7 @@
 ## chunks in python -- lf_dcnn/scan.py -- and only the scalar window score comes
 ## back.
 ##
-##   Rscript inst/scripts/10_8b_pepend_scan.R --term C
+##   Rscript inst/scripts/modeling/10_8b_pepend_scan.R --term C
 ##   ... --chunk-windows 200000 --refresh-residues
 ##
 ## Needs 10_8_pepend_train.R to have run first: the scan rebuilds EVERY ensemble

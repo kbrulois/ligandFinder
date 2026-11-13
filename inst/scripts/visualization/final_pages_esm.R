@@ -18,7 +18,7 @@ suppressMessages({library(tidyverse); library(ggiraph); library(patchwork)})
 suppressWarnings(suppressMessages(library(ligandFinder)))
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "lf_paths.R"))
 WP <- lf_src("inst/python")
 MODE <- Sys.getenv("MODE", "cv5"); stopifnot(MODE %in% c("2fold", "cv5"))
 SFX  <- Sys.getenv("NPZ_SFX", "")        # which per-gene xgb npz set (see arm_post.sh)
@@ -59,7 +59,7 @@ local({
 ## (cv5_unseen_ends.csv -- ends whose gene no fold trained a window on), one row
 ## per END; rebuilt here into one span per peptide.
 never_seen <- local({
-  u <- utils::read.csv(path.expand("~/AF2_analysis/lf_nomask_scripts_20261021/cv5_unseen_ends.csv"),
+  u <- utils::read.csv(file.path(path.expand(Sys.getenv("LF_RUN", "~/AF2_analysis/lf_run")), "cv5_unseen_ends.csv"),
                        stringsAsFactors = FALSE)
   u$start <- ifelse(u$term == "N", u$anchor, u$anchor - u$len + 1L)
   u$end   <- ifelse(u$term == "N", u$anchor + u$len - 1L, u$anchor)
@@ -71,7 +71,7 @@ never_seen <- local({
 })
 ## the ChimeraX helpers, definitions only (sourcing the file whole runs a batch)
 local({
-  e <- parse(lf_src("inst/scripts/generate_cm_sct.R"))
+  e <- parse(lf_src("inst/scripts/visualization/generate_cm_sct.R"))
   isfn <- vapply(e, function(x) {
     if (!is.call(x) || length(x) < 3) return(FALSE)
     op <- tryCatch(as.character(x[[1]])[1], error = function(...) "")

@@ -24,11 +24,11 @@
 ##   export LF_SRC=~/R_projects/ligandFinder
 ##
 ## This file lives at inst/scripts/lf_paths.R and serves every script under
-## inst/scripts/. inst/scripts/lf_nomask_scripts_20261021/lf_paths.R is a
-## forwarder to it, so the 2026-10-21 scripts source it by their own
-## directory's name exactly as they always did, and there is still only one
-## copy of the resolution logic. lf_paths.sh is the shell twin and stayed in
-## that directory, where its only callers are.
+## inst/scripts/. A script in inst/scripts/<folder>/ sources it one level up,
+##   source(file.path(.lf_here, "..", "lf_paths.R"))
+## with one ".." per folder level. lf_paths.sh beside it is the shell twin; it
+## also names the script folders (LF_MOD, LF_EVAL, ...) and LF_RUN, the arm
+## pipeline's run directory (lists, blurbs, logs). See PACKAGE_MAP.md.
 ##
 ## Use it as lf_src("R/pepend_tracks.R"), lf_src("inst/extdata/ligand_list.rds"),
 ## lf_src("inst/python") -- paths relative to the top of the source tree.

@@ -22,9 +22,8 @@
 # GENES_FILE); on success the suffix is written to arm_scan_sfx.txt beside
 # GENES_FILE, where candidate_pages.sh reads it.
 set -u
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
-S=${0:A:h}
 SFX=${SFX:?set SFX -- never empty, the un-suffixed files are the 104-gene scans of each arm}
 GENES_FILE=${GENES_FILE:?one GENE or GENE@ACCESSION per line}
 GENES_FILE=${~GENES_FILE}
@@ -88,7 +87,7 @@ done; done; done
 # own per-fold sd (xgb_pm_sd), looked up by the gene's accession; the CNN keys
 # stay the per-gene scan's. Idempotent.
 source ~/.virtualenvs/r-tensorflow/bin/activate
-ARMS_LIST="${ARMS[*]}" ORDER=${ORDER:-$A2/lf_nomask_scripts_20261021/residues_accession_order.txt} python -I - <<'EOF' \
+ARMS_LIST="${ARMS[*]}" ORDER=${ORDER:-$LF_RUN/residues_accession_order.txt} python -I - <<'EOF' \
   || { echo "XGB SWAP FAILED -- not pooling; re-run to redo it"; exit 1; }
 import numpy as np, os
 A2 = os.path.expanduser("~/AF2_analysis"); SFX = os.environ["SFX"]

@@ -36,7 +36,7 @@ mk_plm() {
                   path.expand("~/AF2_analysis/lf_plm/precursor_seqs.tsv"),
                   sep="\t", quote=FALSE, row.names=FALSE)'\' || return 1
   fi
-  $PY_PLM $S/motif_ind_build.py --out $PLM
+  $PY_PLM $LF_RDB/motif_ind_build.py --out $PLM
 }
 
 # how to build the arm's residue table (stage 2). This arm keeps all 26 curated

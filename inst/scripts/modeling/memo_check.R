@@ -6,7 +6,7 @@
 ## and the never-seen ends on every fold (all out-of-sample), so all three are
 ## single-fold numbers. Same call rule as end_calls.R (T = 0.2, +/-2).
 suppressMessages({library(data.table)})
-A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
+A2 <- path.expand("~/AF2_analysis"); S <- path.expand(Sys.getenv("LF_RUN", file.path(A2, "lf_run")))
 TOL <- 2L; thr <- 0.2
 segments <- function(b, s, thr) {
   up <- !is.na(s) & s >= thr

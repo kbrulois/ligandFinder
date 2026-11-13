@@ -3,7 +3,7 @@
 # verified 104-gene gallery already has (HCRT, NPPA) and 2 it does not, scanned
 # and pooled exactly as allsec_scan.sh does but into a _vtest npz set.
 set -u
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis; S=${0:A:h}; TAG=_nomask_flatten; SFX=_vtest
 G=HCRT,NPPA,MUSTN1,DEFB113
 if [[ ${1:-} == one ]]; then
@@ -13,7 +13,7 @@ if [[ ${1:-} == one ]]; then
     --run $A2/lf_pepend_run_${T}_cv5_f${k}${TAG}.rds \
     --groups $A2/lf_pepend_window_groups_${T}_cv5_f${k}.npz \
     --pm-rounds 100 --skip-stacked \
-    --out $A2/lf_winxgb_scan_${T}_cv5_f${k}${TAG}${SFX}.npz > $S/vtest_${T}_f$k.log 2>&1
+    --out $A2/lf_winxgb_scan_${T}_cv5_f${k}${TAG}${SFX}.npz > $LF_RUN/vtest_${T}_f$k.log 2>&1
   echo "vtest $T f$k rc=$?"
   exit 0
 fi

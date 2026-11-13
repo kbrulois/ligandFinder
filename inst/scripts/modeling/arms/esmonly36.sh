@@ -23,7 +23,7 @@ mk_plm() {
 # this arm CANNOT use lf_winxgb.plm_residues: that appends to all 26 curated
 # channels and gives 62, while these trunks expect 37. residues_esmonly36.py
 # builds `padding` + the 36 and asserts the order against the model.
-mk_resid() { $PY_TF $S/residues_esmonly36.py }
+mk_resid() { $PY_TF $LF_RDB/residues_esmonly36.py }
 
 # ESM-C's segment optimum, found by the T sweep at tolerance 4 (stable across
 # cells over 0.575-0.725). It is the more liberal scorer -- mean score ~1.8x the

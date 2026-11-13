@@ -2,8 +2,8 @@
 ## Plot proteins in a FRESH R session. No training, no secretome_aa, no keras.
 ## Needs only the bundle written by save_plot_bundle.R.
 ##
-##   Rscript inst/scripts/plot_only.R            # plots every gene in the bundle
-##   Rscript inst/scripts/plot_only.R ANO8 NPY   # or just these
+##   Rscript inst/scripts/visualization/plot_only.R            # plots every gene in the bundle
+##   Rscript inst/scripts/visualization/plot_only.R ANO8 NPY   # or just these
 ## =============================================================================
 ## The Rscript first on PATH may be a pixi install with no packages; say so
 ## plainly instead of dying on `library(tidyverse)`.
@@ -14,7 +14,7 @@ local({
     stop("missing package(s): ", paste(missing, collapse = ", "),
          "\n  R being used: ", file.path(R.home("bin"), "Rscript"),
          "\n  if that is not the R you install packages into, run it explicitly:",
-         "\n    /usr/local/bin/Rscript inst/scripts/plot_only.R", call. = FALSE)
+         "\n    /usr/local/bin/Rscript inst/scripts/visualization/plot_only.R", call. = FALSE)
 })
 suppressMessages({library(tidyverse); library(ggiraph); library(patchwork)})
 suppressWarnings(suppressMessages(library(ligandFinder)))
@@ -26,7 +26,7 @@ if (!file.exists(path.expand(bundle_path)))
   stop(bundle_path, " does not exist.\n",
        "  It is written by 10_4_plot_proteins.R, which needs a session with\n",
        "  nn_input_comb, secretome, secretome_aa and peps_tp:\n",
-       "    source(\"inst/scripts/10_4_plot_proteins.R\")\n",
+       "    source(\"inst/scripts/visualization/10_4_plot_proteins.R\")\n",
        "  Run that once; afterwards this script re-renders with no keras.",
        call. = FALSE)
 

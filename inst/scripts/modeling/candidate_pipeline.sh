@@ -46,7 +46,7 @@
 # Writes <output>.manifest.txt beside the CSV: parameters, inputs with their
 # size and mtime, tool versions, the exact mmseqs command, and row counts.
 set -u
-S=${0:A:h}
+. ${0:A:h:h}/lf_paths.sh   # LF_SRC, the script folders, LF_RUN
 A2=~/AF2_analysis
 R="LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript"
 
@@ -66,14 +66,14 @@ MAN=$A2/lf_headcmp/candidate_peptides_${HEAD}_T${THRESH}_tol${TOL}${ARM}.manifes
 O=$A2/mmseq_cand
 
 # the exact search settings, and why: candidate_mmseqs_args.sh
-. $S/candidate_mmseqs_args.sh
+. $LF_MOD/candidate_mmseqs_args.sh
 
 echo "=== CANDIDATE PIPELINE  HEAD=$HEAD THRESH=$THRESH TOL=$TOL LEN=[$LEN_MIN,$LEN_MAX] ARM=${ARM:-(curated)} ==="
 echo "--- stage 1: assemble candidates from paired end segments"
-eval $R $S/candidate_peptides.R || { echo "STAGE 1 FAILED"; exit 1; }
+eval $R $LF_MOD/candidate_peptides.R || { echo "STAGE 1 FAILED"; exit 1; }
 
 echo "--- stage 2: MMseqs2 against known peptides"
-eval $R $S/candidate_mmseqs_prep.R || { echo "STAGE 2a FAILED"; exit 1; }
+eval $R $LF_MOD/candidate_mmseqs_prep.R || { echo "STAGE 2a FAILED"; exit 1; }
 rm -rf $O/tmp $O/res.m8 $O/res_all.m8
 mmseqs easy-search $O/cand.fasta $O/known.fasta $O/res_all.m8 $O/tmp "${MMSEQS_ARGS[@]}" > $O/mmseqs.log 2>&1 \
   || { echo "mmseqs FAILED, see $O/mmseqs.log"; exit 1; }
@@ -96,28 +96,28 @@ echo "    kept $(wc -l < $O/res.m8 | tr -d ' ') best-per-type hits for stage 3"
 rm -f $O/res_all.m8
 
 echo "--- stage 3: merge best hit + derived columns"
-eval $R $S/candidate_annotate.R || { echo "STAGE 3 FAILED"; exit 1; }
+eval $R $LF_MOD/candidate_annotate.R || { echo "STAGE 3 FAILED"; exit 1; }
 
 echo "--- stage 4: MultiPep bioactivity classes"
-$S/candidate_multipep.sh || { echo "STAGE 4 FAILED"; exit 1; }
+$LF_MOD/candidate_multipep.sh || { echo "STAGE 4 FAILED"; exit 1; }
 
 if [[ ${WITH_PDEEPPP:-0} == 1 ]]; then
   echo "--- stage 4b: PDeepPP neuro head (off by default; see the header)"
   TASK=neuro ~/.virtualenvs/pdeeppp/bin/python -I $A2/pdeeppp_run/score_candidates.py \
-    && eval TASK=neuro $R $S/candidate_pdeeppp_merge.R || echo "  stage 4b failed, continuing"
+    && eval TASK=neuro $R $LF_MOD/candidate_pdeeppp_merge.R || echo "  stage 4b failed, continuing"
 fi
 
 echo "--- stage 5: the logistic ranker"
-eval $R $S/candidate_logistic.R || { echo "STAGE 5 FAILED"; exit 1; }
+eval $R $LF_MOD/candidate_logistic.R || { echo "STAGE 5 FAILED"; exit 1; }
 
 echo "--- stage 6: the xgboost classifier and the scored table"
-eval $R $S/candidate_xgb.R || { echo "STAGE 6 FAILED"; exit 1; }
+eval $R $LF_MOD/candidate_xgb.R || { echo "STAGE 6 FAILED"; exit 1; }
 
 echo "--- stage 7: the best cuts per group"
-eval $R $S/candidate_best_per_group.R || { echo "STAGE 7 FAILED"; exit 1; }
+eval $R $LF_MOD/candidate_best_per_group.R || { echo "STAGE 7 FAILED"; exit 1; }
 
 # ---- provenance (its own script, so it can be refreshed alone) --------------
-HEAD=$HEAD THRESH=$THRESH TOL=$TOL LEN_MIN=$LEN_MIN LEN_MAX=$LEN_MAX ARM=$ARM $S/candidate_manifest.sh
+HEAD=$HEAD THRESH=$THRESH TOL=$TOL LEN_MIN=$LEN_MIN LEN_MAX=$LEN_MAX ARM=$ARM $LF_MOD/candidate_manifest.sh
 
 echo
 echo "=== DONE ==="

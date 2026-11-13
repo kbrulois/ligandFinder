@@ -9,13 +9,13 @@
 ##     66 genes land on opposite sides), so the window fold letter must never pick
 ##     the residue fold.
 ##
-##       Rscript inst/scripts/10_9w_cv_fold_pages.R
+##       Rscript inst/scripts/visualization/10_9w_cv_fold_pages.R
 ##
 ##   fixed fold -- every track from one fold, for genes that are not knowns (e.g.
 ##     CXCL14, CXCL17), where both folds are out-of-sample and both are worth a
 ##     page. Refuses a gene either fold trained on, window or residue side.
 ##
-##       Rscript inst/scripts/10_9w_cv_fold_pages.R --genes CXCL14,CXCL17 --fold A
+##       Rscript inst/scripts/visualization/10_9w_cv_fold_pages.R --genes CXCL14,CXCL17 --fold A
 ##
 ##     The fold xgb npz files (lf_winxgb_cv_*) only cover the knowns, so score the
 ##     xgb head for new genes first, into a suffixed file that leaves them alone:

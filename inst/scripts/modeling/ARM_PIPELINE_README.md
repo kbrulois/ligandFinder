@@ -46,13 +46,15 @@ because the token also lands in R env vars and `paste0`-built file names.
 ## Running it
 
 ```bash
-cd ~/AF2_analysis/lf_nomask_scripts_20261021
-export LF_SRC=~/R_projects/ligandFinder               # the code; the data is here (last section)
+export LF_SRC=~/R_projects/ligandFinder      # the code: a checkout
+export LF_RUN=~/AF2_analysis/lf_run          # its lists, blurbs and logs (this is the default)
+P=$LF_SRC/inst/scripts/modeling/pepend_arm_pipeline.sh
+cd $LF_RUN
 
-./pepend_arm_pipeline.sh                              # the default arm, all stages
-ARM=esmonly36 ./pepend_arm_pipeline.sh                # another arm
-STAGES=5,6 ARM=curated_wAAid ./pepend_arm_pipeline.sh # re-evaluate and re-plot
-STAGES=shap ./pepend_arm_pipeline.sh                  # just the attribution
+zsh $P                                       # the default arm, all stages
+ARM=esmonly36 zsh $P                         # another arm
+STAGES=5,6 ARM=curated_wAAid zsh $P          # re-evaluate and re-plot
+STAGES=shap zsh $P                           # just the attribution
 ```
 
 Stages take a number **or** a name:
@@ -194,7 +196,7 @@ arm. It now lives in the package:
 | file | what it is |
 |---|---|
 | `R/gallery_tpfn.R` | `lf_gallery_tpfn_index()`, `lf_tpfn_arm()`, `lf_tpfn_default_arms()`, `lf_tpfn_pick_head()`, `lf_tpfn_cards()`, `lf_tpfn_blurb()`, `lf_tpfn_fold_notes()` |
-| `inst/scripts/make_tpfn_index.R` | its command-line face |
+| `inst/scripts/visualization/make_tpfn_index.R` | its command-line face |
 
 **An arm is data.** To add one, add an `lf_tpfn_arm()` entry to
 `lf_tpfn_default_arms()` — key, label, file-name suffix, threshold — and
@@ -203,11 +205,11 @@ new arm appears in the index without touching the pipeline either.
 
 ```bash
 # the usual: three arms, the defaults
-Rscript $W/inst/scripts/make_tpfn_index.R --dir ~/AF2_analysis/pepend_pages_arms \
+Rscript $W/inst/scripts/visualization/make_tpfn_index.R --dir ~/AF2_analysis/pepend_pages_arms \
   --blurb final_blurb.html --footer final_footer.html
 
 # or an explicit arm set, key:label:suffix:threshold ("-" = the empty suffix)
-Rscript $W/inst/scripts/make_tpfn_index.R --dir <gallery> \
+Rscript $W/inst/scripts/visualization/make_tpfn_index.R --dir <gallery> \
   --arms 'cur:curated:-:0.2,waa:curated+AAid:_curated_wAAid:0.5'
 ```
 
@@ -248,7 +250,7 @@ present = peptide". It had: ~45% of positive windows carry padding against ~20%
 of negatives, and the AAswap trunks scored 17% of unlabelled extracellular
 anchors AT a precursor terminus > 0.5, against 0.1–0.2% of interior ones. He
 asked, the same day, to replace Aminode conservation (`cons_rs_n`) with
-conservation scored from each precursor's MSA (`inst/scripts/msa_cons/`;
+conservation scored from each precursor's MSA (`inst/scripts/generate_residue_db/msa_cons/`;
 AFDB's MSAs are 403, so ColabFold's).
 
 The first two such arms, `curated_AAswap_padg` (the windows alone) and
@@ -291,7 +293,7 @@ The five fold inputs of a window set are built from the checkout root, e.g.
 
 ```bash
 for k in 1 2 3 4 5; do
-  LC_ALL=en_US.UTF-8 Rscript inst/scripts/10_7_pepend_windows.R --n-folds 5 --fold $k \
+  LC_ALL=en_US.UTF-8 Rscript inst/scripts/modeling/10_7_pepend_windows.R --n-folds 5 --fold $k \
     --near-n 100 --seed 42 --pad-match --mono-match \
     --out ~/AF2_analysis/lf_pepend_nn_input_cv5_f${k}<sfx>.rds
 done
@@ -349,9 +351,9 @@ set. An arm with its own windows is drawn alone beside the curated baseline;
 `final_pages_arms.R` needs an `ARM_REG` row for it. A gallery for such an arm:
 
 ```bash
-PLM=<the arm's PLM parquet> LC_ALL=en_US.UTF-8 Rscript plm_pagegenes.R  # -> *_pagegenes.rds
-ARM=<arm> PROCS=3 ./cv5_post_esmonly36.sh
-ARM=<arm> PROCS=3 TITLE="..." ./esm_pages.sh
+PLM=<the arm's PLM parquet> LC_ALL=en_US.UTF-8 Rscript generate_residue_db/plm_pagegenes.R  # -> *_pagegenes.rds
+ARM=<arm> PROCS=3 modeling/cv5_post_esmonly36.sh
+ARM=<arm> PROCS=3 TITLE="..." visualization/esm_pages.sh
 ```
 
 The MSA-conservation gallery of 2026-11-11
@@ -365,13 +367,15 @@ arm on its own windows.
 
 ### The source tree, and the capability guard
 
-The working copy in `~/AF2_analysis` ran these as `W=<worktree> ./...`. Here
-every runner sources `lf_paths.sh`, so the same thing is `LF_SRC=<checkout>`,
-and each child — the xargs re-entries, the stage scripts — resolves it again.
-The runners also read data from their own directory — `page_genes.txt`, the
-blurb and footer html, and (stage 5 hands it to `metrics_final.R`)
-`cv5_unseen_ends*.csv` — which a checkout does not hold, so they run from the
-working copy; a copy there without `LF_SRC` is refused by `lf_paths.sh`.
+Every runner sources `inst/scripts/lf_paths.sh`, which finds the source tree
+(`LF_SRC`, or the checkout the script sits in) and names the folders the stages
+live in (`$LF_MOD`, `$LF_EVAL`, `$LF_VIZ`, `$LF_RDB`); each child (the xargs
+re-entries, the stage scripts) resolves it again. The data the runners read,
+`page_genes.txt`, the blurb and footer html and (stage 5 hands it to
+`metrics_final.R`) `cv5_unseen_ends*.csv`, and the logs they write live in
+`$LF_RUN` (default `~/AF2_analysis/lf_run`). Until 2026-11 both sat in a working
+copy of the scripts in `~/AF2_analysis/lf_nomask_scripts_20261021`; nothing runs
+from a copy now.
 
 An arm file may refuse a source tree that predates what it needs, testing the
 capability, not the checkout's name: `arms/msa.sh` and `arms/msa_gap.sh` want

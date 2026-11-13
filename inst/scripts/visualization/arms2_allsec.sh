@@ -27,8 +27,7 @@
 # reads scripts as it goes, and every chunk sources R/ afresh, so editing a
 # checkout under a running render kills it or mixes two page versions.
 set -u
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
-S=${0:A:h}
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
 OUT=${OUT:-$A2/pepend_pages_allsec_arms2}
 OUT=${~OUT}
@@ -48,7 +47,7 @@ say "$PROCS page processes, chunks of $CHUNK, $(free_gb) GB free, floor $MIN_FRE
 # ---- 1 gene lists --------------------------------------------------------
 # the renderable list, plus the two names it left out for colliding on
 # <gene>.html: the bundle holds one accession of each, so they do not
-L=${LISTS:-$A2/lf_nomask_scripts_20261021}
+L=${LISTS:-$LF_RUN}
 EXTRA=(COL18A1@P39060 OTOA@Q7RTW8)
 mkdir -p $OUT/.render
 rm -f $OUT/.render/STOP
@@ -64,7 +63,7 @@ if [[ -s $OUT/arm_scan_sfx.txt ]]; then
 else
   say "stage 2: arm scans, $SCAN_PROCS at a time"
   ARMS="${ARMS//,/ }" GENES_FILE=$OUT/scan_genes.txt SFX=$SFX PROCS=$SCAN_PROCS LOGDIR=$OUT/.render/armscan \
-    $S/arm_gene_scans.sh || { say "STAGE 2 FAILED -- re-run to resume"; exit 1; }
+    $LF_MOD/arm_gene_scans.sh || { say "STAGE 2 FAILED -- re-run to resume"; exit 1; }
 fi
 
 # ---- 3, 4 pages ----------------------------------------------------------
@@ -80,16 +79,16 @@ trap 'kill $GUARD 2>/dev/null' EXIT
 
 common=(OUT=$OUT ARMS_ONLY=1 ARMS=$ARMS SKIP_INDEX=1)
 say "stage 3: pages"
-env $common PROCS=$PROCS CHUNK=$CHUNK $S/candidate_pages.sh
+env $common PROCS=$PROCS CHUNK=$CHUNK $LF_VIZ/candidate_pages.sh
 if [[ -e $OUT/.render/STOP ]]; then say "STOPPED before stage 4 -- re-run to resume"; exit 0; fi
 say "stage 4: giants, one at a time"
 env $common GENES=$OUT/giant_genes.txt PROCS=1 CHUNK=1 CAP=$GIANT_CAP \
-  LF_ENS_ONLY_MIN=$GIANT_MIN LF_NO_ALIGN_MIN=$GIANT_MIN $S/candidate_pages.sh
+  LF_ENS_ONLY_MIN=$GIANT_MIN LF_NO_ALIGN_MIN=$GIANT_MIN $LF_VIZ/candidate_pages.sh
 if [[ -e $OUT/.render/STOP ]]; then say "STOPPED before stage 5 -- re-run to resume"; exit 0; fi
 
 # ---- 5 index, check ------------------------------------------------------
 say "stage 5: index"
-LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $S/candidate_gallery_index.R --dir $OUT \
+LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript $LF_VIZ/candidate_gallery_index.R --dir $OUT \
   --key xgb_pm_T0.5_tol4_arms3 --arms-only --title "LigandFinder — all secretome, AAswap and ESM-C only" \
   || say "INDEX FAILED (pages are fine; rerun candidate_gallery_index.R)"
 

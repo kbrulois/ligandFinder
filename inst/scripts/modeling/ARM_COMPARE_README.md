@@ -50,7 +50,7 @@ comparison is `anchor_confusion_curated_AAswap_tol4.csv`, from `anchors_roc.R`.
 
 The two never-seen scripts read data only, all under `~/AF2_analysis`: the tracks
 rds files, `lf_pepend_residue_cache.rds`, `lf_plm/esm_c_pca36.parquet` and
-`lf_nomask_scripts_20261021/cv5_unseen_ends.csv`. They read nothing from the
+`lf_run/cv5_unseen_ends.csv` ($LF_RUN). They read nothing from the
 source tree, so they run from any directory and need no `LF_SRC`.
 
 `final_metrics.csv` is one shared file, keyed by the arms of the last
@@ -62,26 +62,26 @@ curated (`flatten`) rows, so a folder without them prints `n = 0`.
 ## Commands
 
 ```bash
-cd ~/R_projects/ligandFinder/inst/scripts/lf_nomask_scripts_20261021   # any checkout
+cd ~/R_projects/ligandFinder/inst/scripts                              # any checkout
 H=~/AF2_analysis/lf_headcmp
 PY=~/.virtualenvs/lf-plm/bin/python
 
 # anchor-level confusion for AAswap (ESM-C's existed) -> $H/anchor_confusion_curated_AAswap_tol4.csv
-LC_ALL=en_US.UTF-8 TOL=4 ARM=_curated_AAswap Rscript anchors_roc.R
+LC_ALL=en_US.UTF-8 TOL=4 ARM=_curated_AAswap Rscript evaluation/anchors_roc.R
 
 # metrics table + recall vs rank
-ARMS=curated_AAswap,esmonly36 $PY final_metrics_plot_trunks.py $H
+ARMS=curated_AAswap,esmonly36 $PY visualization/final_metrics_plot_trunks.py $H
 
 # threshold sweeps: segment auc_T, segment F1, anchor F1
-LC_ALL=en_US.UTF-8 ARM1=curated_AAswap ARM2=esmonly36 Rscript segment_T_sweep_plot.R
-LC_ALL=en_US.UTF-8 ARM1=curated_AAswap ARM2=esmonly36 METRIC=F1 Rscript segment_T_sweep_plot.R
-LC_ALL=en_US.UTF-8 ARM1=curated_AAswap ARM2=esmonly36 METRIC=F1 LEVEL=anchor Rscript segment_T_sweep_plot.R
+LC_ALL=en_US.UTF-8 ARM1=curated_AAswap ARM2=esmonly36 Rscript visualization/segment_T_sweep_plot.R
+LC_ALL=en_US.UTF-8 ARM1=curated_AAswap ARM2=esmonly36 METRIC=F1 Rscript visualization/segment_T_sweep_plot.R
+LC_ALL=en_US.UTF-8 ARM1=curated_AAswap ARM2=esmonly36 METRIC=F1 LEVEL=anchor Rscript visualization/segment_T_sweep_plot.R
 
 # attribution profile
-$PY shap_positions_plot.py $H curated_AAswap esmonly36
+$PY visualization/shap_positions_plot.py $H curated_AAswap esmonly36
 
 # never-seen examples
-LC_ALL=en_US.UTF-8 Rscript neverseen_examples_pair.R
+LC_ALL=en_US.UTF-8 Rscript visualization/neverseen_examples_pair.R
 ```
 
 Where the output goes:

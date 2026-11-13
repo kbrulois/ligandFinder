@@ -1,7 +1,7 @@
 # Port the 1D-CNN modeling from R/Keras3 to a native Python package
 
 ## Task
-`~/R_projects/ligandFinder/inst/scripts/10_1dcnn_new6.R` (1120 lines) trains two
+`~/R_projects/ligandFinder/inst/scripts/analysis/archive/window_model/10_1dcnn_new6.R` (1120 lines) trains two
 Keras models (terms `N` and `C`) that score 36-residue peptide-cleavage windows.
 The R code drives Keras through reticulate, so it is already Python semantics in
 R syntax. Port **only the modeling** to a real Python package, keep everything

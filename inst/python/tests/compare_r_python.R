@@ -51,7 +51,7 @@ if (file.exists(path.expand(CACHE))) {
   .cc <- readRDS(path.expand(CACHE)); nn_input <- .cc$nn_input; all_params3 <- .cc$all_params3
 } else {
   message("building nn_input via 9.2_add_contact_data.R (needs ~/AF2_analysis/nn_dat_cache.rds) ...")
-  suppressMessages(source(file.path(ROOT, "inst/scripts/putative_peptide/generate_residue_db_untested/9.2_add_contact_data.R")))
+  suppressMessages(source(file.path(ROOT, "inst/scripts/generate_residue_db/9.2_add_contact_data.R")))
   saveRDS(list(nn_input = nn_input, all_params3 = all_params3), path.expand(CACHE))
   message("cached to ", CACHE)
 }

@@ -37,7 +37,7 @@
 ##
 ## RENDERABLE = in plot_bundle.rds (final_pages.R stops on a gene it cannot
 ## find there) or in the extra bundle LF_EXTRA_BUNDLE names (built by
-## inst/scripts/plot_bundle_extra.R for genes the old window model never
+## inst/scripts/visualization/plot_bundle_extra.R for genes the old window model never
 ## scored), once, and with no "/" in the name (it becomes a filename).
 suppressMessages({library(data.table)})
 A2   <- path.expand("~/AF2_analysis")

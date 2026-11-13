@@ -5,7 +5,7 @@
 ## be used as a mask over the scan with no further joining -- the same contract
 ## 10_9z_motif_codes.R follows.
 ##
-##   Rscript inst/scripts/10_9z_relasa_window.R --term C --half 3
+##   Rscript inst/scripts/analysis/cleavage_motifs/10_9z_relasa_window.R --term C --half 3
 ##
 ## Writes ~/AF2_analysis/lf_pepend_relasa_<term>.npz (asa_w, half).
 ## ------------------------------------------------------------------------------

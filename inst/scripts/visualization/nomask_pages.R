@@ -22,7 +22,7 @@ suppressMessages({library(tidyverse); library(ggiraph); library(patchwork)})
 suppressWarnings(suppressMessages(library(ligandFinder)))
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "lf_paths.R"))
 WP <- lf_src("inst/python")
 plot_dir <- Sys.getenv("LF_PLOT_DIR", "~/AF2_analysis/pepend_pages_nomask")
 .b <- readRDS("~/AF2_analysis/plot_bundle.rds")
@@ -34,7 +34,7 @@ source(lf_src("R/plot_proteins_win_new.R")); source(lf_src("R/pepend_tracks.R"))
 ## the ChimeraX helpers, definitions only (see cv5_pages.R: sourcing the file
 ## whole runs a batch that errors on this bundle)
 local({
-  e <- parse(lf_src("inst/scripts/generate_cm_sct.R"))
+  e <- parse(lf_src("inst/scripts/visualization/generate_cm_sct.R"))
   isfn <- vapply(e, function(x) {
     if (!is.call(x) || length(x) < 3) return(FALSE)
     op <- tryCatch(as.character(x[[1]])[1], error = function(...) "")

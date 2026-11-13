@@ -35,9 +35,8 @@
 #   ./fullscan_esmonly36x.sh one K T  -> one scan
 #   PROCS=4 ./fullscan_esmonly36x.sh  -> raise the parallelism
 set -u
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
-S=${0:A:h}
 TAG=_nomask_flatten_esmonly36x
 PROCS=${PROCS:-2}
 RESID=$A2/lf_pepend_residues_esmonly36.npz
@@ -53,14 +52,14 @@ if [[ ${1:-} == one ]]; then
   [[ -s $GRP ]] || { echo "$T f$k SKIPPED: no $(basename $GRP) -- run groups_esmcov.sh"; exit 1; }
   source ~/.virtualenvs/r-tensorflow/bin/activate
   cd $W/inst/python
-  echo "### $T f$k start $(date '+%F %H:%M:%S')" > $S/fsesm36x_${T}_f$k.log
+  echo "### $T f$k start $(date '+%F %H:%M:%S')" > $LF_RUN/fsesm36x_${T}_f$k.log
   python -m lf_winxgb.full_scan --term $T \
     --run $RUN \
     --residues-npz $RESID \
     --groups $A2/lf_pepend_window_groups_${T}_cv5_f${k}_esmcov.npz \
-    --pm-rounds 100 --skip-stacked --out $OUT >> $S/fsesm36x_${T}_f$k.log 2>&1
+    --pm-rounds 100 --skip-stacked --out $OUT >> $LF_RUN/fsesm36x_${T}_f$k.log 2>&1
   rc=$?
-  echo "### $T f$k rc=$rc $(date '+%F %H:%M:%S')" >> $S/fsesm36x_${T}_f$k.log
+  echo "### $T f$k rc=$rc $(date '+%F %H:%M:%S')" >> $LF_RUN/fsesm36x_${T}_f$k.log
   echo "scan $T f$k rc=$rc"
   exit 0
 fi

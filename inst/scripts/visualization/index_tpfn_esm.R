@@ -7,10 +7,10 @@
 ## blurb with the counts, then runs the repo's make_gallery_index.R.
 ##   THRESH=0.2 Rscript index_tpfn.R
 suppressMessages({library(data.table); library(tibble)})
-A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
+A2 <- path.expand("~/AF2_analysis"); S <- path.expand(Sys.getenv("LF_RUN", file.path(A2, "lf_run")))
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "lf_paths.R"))
 ARM <- Sys.getenv("ARM", "esmonly36")
 D  <- file.path(A2, paste0("pepend_pages_", ARM))
 ## Each arm at its OWN operating point: the curated model at the threshold its
@@ -140,7 +140,7 @@ blurb <- sub(old, paste0(style, new), blurb, fixed = TRUE)
 writeLines(blurb, file.path(S, "final_blurb_tpfn.html"))
 
 ## the cards say which ends are FN now; let a "FN" search find them
-args <- c(lf_src("inst/scripts/make_gallery_index.R"), "--dir", D,
+args <- c(lf_src("inst/scripts/visualization/make_gallery_index.R"), "--dir", D,
           "--title", "LigandFinder — peptide-end pages, curated vs ESM-C-only (5-fold CV)",
           "--notes", file.path(S, "index_notes.rds"), "--card-html", file.path(S, "index_cards.rds"),
           "--blurb", file.path(S, "final_blurb_tpfn.html"), "--footer", file.path(S, "final_footer.html"),

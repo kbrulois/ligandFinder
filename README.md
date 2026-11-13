@@ -135,9 +135,9 @@ python -m lf_dcnn train --input-dir arrays/ --output-dir results/
 |---|---|
 | `R/` | package functions: residue database, peptide-end windows and tracks, plotting, the Python bridge. The AlphaPulldown / AlphaFold-metrics code is now the separate package fap |
 | `inst/python/lf_dcnn/` | the 1-D CNN: config, model, losses, sampler, calibration |
-| `inst/scripts/putative_peptide/` | the pipeline, in run order |
-| `inst/scripts/10_1dcnn_new6.R` | window scoring + downstream analysis |
-| `inst/scripts/10_3_peptide_umap.R` | the UMAP figure pipeline |
+| `inst/scripts/generate_residue_db/` | the residue database pipeline, in run order |
+| `inst/scripts/analysis/archive/window_model/10_1dcnn_new6.R` | window scoring + downstream analysis |
+| `inst/scripts/visualization/10_3_peptide_umap.R` | the UMAP figure pipeline |
 | `terraform/` | S3 + CloudFront hosting for the generated pages |
 
 ## Tests

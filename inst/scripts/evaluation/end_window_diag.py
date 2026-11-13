@@ -24,7 +24,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 warnings.filterwarnings("ignore")
 
-A2 = os.path.expanduser("~/AF2_analysis"); S = A2 + "/lf_nomask_scripts_20261021"
+A2 = os.path.expanduser("~/AF2_analysis"); S = os.environ.get("LF_RUN", A2 + "/lf_run")
 z = np.load(S + "/end_windows.npz"); SH = list(z["shifts"])
 meta = list(csv.DictReader(open(S + "/end_windows_meta.csv")))
 rows_out = []

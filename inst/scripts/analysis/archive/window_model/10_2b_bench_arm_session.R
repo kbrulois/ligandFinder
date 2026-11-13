@@ -15,9 +15,9 @@
 ##
 ## Default: the `t5` preset's ProtT5 arm, C terminus, both analyses.
 ##
-##   /usr/local/bin/Rscript inst/scripts/10_2b_bench_arm_session.R
-##   /usr/local/bin/Rscript inst/scripts/10_2b_bench_arm_session.R --what per_index
-##   /usr/local/bin/Rscript inst/scripts/10_2b_bench_arm_session.R --arm unet_base --input base
+##   /usr/local/bin/Rscript inst/scripts/analysis/archive/window_model/10_2b_bench_arm_session.R
+##   /usr/local/bin/Rscript inst/scripts/analysis/archive/window_model/10_2b_bench_arm_session.R --what per_index
+##   /usr/local/bin/Rscript inst/scripts/analysis/archive/window_model/10_2b_bench_arm_session.R --arm unet_base --input base
 ##
 ## Output under ~/AF2_analysis, stamped:
 ##   <out-prefix>_<group>[_<term>]_<stamp>.svg          (saliency, as 10_2)
@@ -150,12 +150,12 @@ if (length(plm_cols)) {
 }
 
 ## ---- the 10_2 figures ------------------------------------------------------------
-source(file.path(ROOT, "inst/scripts/10_2_model_importance.R"))
+source(file.path(ROOT, "inst/scripts/analysis/archive/window_model/10_2_model_importance.R"))
 }
 
 if ("per_index" %in% what) {
   ## per-residue class curves for the knowns + val accuracy / confusion (uses
   ## `models` for the diagnostic and nn_input_comb$per_index for the curves)
-  source(file.path(ROOT, "inst/scripts/10_2_per_ind_profiles.R"))
+  source(file.path(ROOT, "inst/scripts/analysis/archive/window_model/10_2_per_ind_profiles.R"))
 }
 message("done: ~/AF2_analysis/", out_prefix, "_*_", stamp, "*")

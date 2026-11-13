@@ -25,7 +25,7 @@
 suppressPackageStartupMessages({library(dplyr)})
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "lf_paths.R"))
 A2  <- path.expand("~/AF2_analysis")
 S   <- dirname(normalizePath(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[1])))
 PLM <- path.expand(Sys.getenv("PLM", file.path(A2, "lf_plm", "aa_onehot.parquet")))

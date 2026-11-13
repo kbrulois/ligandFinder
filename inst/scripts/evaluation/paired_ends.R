@@ -14,7 +14,7 @@
 ## Writes lf_headcmp/paired_ends_<arm>_T0.5_tol4.csv (one row per end per head)
 ## and prints the contingency tables.
 suppressMessages({library(data.table)})
-A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
+A2 <- path.expand("~/AF2_analysis"); S <- path.expand(Sys.getenv("LF_RUN", file.path(A2, "lf_run")))
 TOL <- as.integer(Sys.getenv("TOL", "4")); THR <- as.numeric(Sys.getenv("THR", "0.5"))
 ARMS <- strsplit(trimws(Sys.getenv("ARMS", "_esmonly36")), "\\s+")[[1]]
 

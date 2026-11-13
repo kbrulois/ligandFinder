@@ -9,7 +9,7 @@
 ## Twice the number of predictions, as asked: 86 C ends and 92 N ends, each
 ## appearing once per fold.
 ##
-##   Rscript inst/scripts/10_9v_compile_cv_predictions.R
+##   Rscript inst/scripts/evaluation/10_9v_compile_cv_predictions.R
 ##
 ## Output: ~/AF2_analysis/lf_cv_known_predictions.csv  (+ .rds)
 ## ------------------------------------------------------------------------------

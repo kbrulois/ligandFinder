@@ -22,10 +22,10 @@
 ##   TOL=4 Rscript anchors_roc.R                  -> lf_headcmp/anchor_confusion_tol4.csv (curated)
 ## segment_T_sweep_plot.R LEVEL=anchor draws them.
 suppressMessages({library(data.table)})
-A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
+A2 <- path.expand("~/AF2_analysis"); S <- path.expand(Sys.getenv("LF_RUN", file.path(A2, "lf_run")))
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "lf_paths.R"))
 TOL  <- as.integer(Sys.getenv("TOL", "4"))
 ARM  <- Sys.getenv("ARM", "")              # which tracks to read ("" = curated)
 GRID <- sort(unique(round(c(seq(0, 1, by = 0.025), seq(0.1, 0.5, by = 0.05)), 3)))   # segments_roc.R's

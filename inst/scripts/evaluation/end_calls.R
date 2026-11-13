@@ -8,7 +8,7 @@
 ## Both heads. Writes lf_headcmp/end_calls_T<thr>.csv.
 ##   THRESH=0.2 Rscript end_calls.R
 suppressMessages({library(data.table)})
-A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
+A2 <- path.expand("~/AF2_analysis"); S <- path.expand(Sys.getenv("LF_RUN", file.path(A2, "lf_run")))
 ## ARM selects which arm's tracks to call on and suffixes the output; TOL is
 ## no longer fixed at 2. TOL=2 with ARM unset reproduces the original exactly.
 TOL <- as.integer(Sys.getenv("TOL", "4"))

@@ -6,19 +6,18 @@
 #   train_final.sh            -> runs the queue
 #   train_final.sh one K T    -> one job (what xargs calls)
 set -u
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
-S=${0:A:h}
 if [[ ${1:-} == one ]]; then
   k=$2 T=$3
   {
     echo "### $T f$k start $(date +%H:%M:%S)"
-    cd $W && LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript inst/scripts/10_8_pepend_train.R \
+    cd $W && LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript inst/scripts/modeling/10_8_pepend_train.R \
       --term $T --n-seeds 10 --no-mask --global-head flatten \
       --input $A2/lf_pepend_nn_input_cv5_f$k.rds \
       --out $A2/lf_pepend_run_${T}_cv5_f${k}_nomask_flatten.rds
     echo "### $T f$k rc=$? $(date +%H:%M:%S)"
-  } > $S/final_${T}_f$k.log 2>&1
+  } > $LF_RUN/final_${T}_f$k.log 2>&1
   exit 0
 fi
 for k in 1 2 3 4 5; do for T in C N; do echo "$k $T"; done; done |

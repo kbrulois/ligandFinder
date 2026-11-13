@@ -16,14 +16,13 @@
 # mismatch for --positives ("pass the same --positives you trained with"); the
 # same applies to --input. So: same inputs as training, distinct --out.
 set -u
-. ${0:A:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
+. ${0:A:h:h}/lf_paths.sh          # W = the ligandFinder checkout (LF_SRC, or the one this sits in)
 A2=~/AF2_analysis
-S=${0:A:h}
 for k in 1 2 3 4 5; do for T in C N; do
   out=$A2/lf_pepend_window_groups_${T}_cv5_f${k}_esmcov.npz
   if [[ -s $out ]]; then echo "$T f$k cached"; continue; fi
   echo "--- $T f$k"
-  cd $W && LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript inst/scripts/10_9r_export_window_groups.R \
+  cd $W && LC_ALL=en_US.UTF-8 /usr/local/bin/Rscript inst/scripts/modeling/10_9r_export_window_groups.R \
     --term $T \
     --input $A2/lf_pepend_nn_input_cv5_f${k}_esmcov.rds \
     --out $out 2>&1 | grep -v "built under R version"

@@ -3,8 +3,8 @@
 ## no models, no retraining -- the 5-seed ensemble predictions are already saved.
 ##
 ## Run from the repo root:
-##   /usr/local/bin/Rscript inst/scripts/plot_all.R
-##   /usr/local/bin/Rscript inst/scripts/plot_all.R ANO8 NPY PENK   # just these
+##   /usr/local/bin/Rscript inst/scripts/visualization/plot_all.R
+##   /usr/local/bin/Rscript inst/scripts/visualization/plot_all.R ANO8 NPY PENK   # just these
 ##
 ## Output dir and inputs can be overridden with env vars:
 ##   LF_PLOT_DIR, LF_NN_INPUT_COMB, LF_SECRETOME, LF_SECRETOME_AA
@@ -13,7 +13,7 @@
 ## needs plot_bundle.rds -- which this script rewrites at the end, covering every
 ## gene it rendered. So: run this once, then use plot_only.R for touch-ups.
 ## =============================================================================
-if (!file.exists("inst/scripts/10_4_plot_proteins.R"))
+if (!file.exists("inst/scripts/visualization/10_4_plot_proteins.R"))
   stop("run this from the repo root (", getwd(), " is not it)", call. = FALSE)
 
 .env <- function(k, default) { v <- Sys.getenv(k); if (nzchar(v)) v else default }
@@ -69,7 +69,7 @@ local({
   f <- path.expand(.env("LF_AFDSB", "~/AF2_analysis/afdsb.rds"))
   if (!file.exists(f)) {
     message("no afdsb.rds -- disulfides will be UniProt-only. ",
-            "Run: Rscript inst/scripts/get_afdsb.R")
+            "Run: Rscript inst/scripts/generate_residue_db/get_afdsb.R")
     return(invisible())
   }
   af <- readRDS(f)
@@ -103,4 +103,4 @@ if (!write_bundle)
 
 message("rendering ", if (length(.want)) length(.want) else dplyr::n_distinct(nn_input_comb$gene),
         " gene(s) -> ", plot_dir)
-source("inst/scripts/10_4_plot_proteins.R")
+source("inst/scripts/visualization/10_4_plot_proteins.R")

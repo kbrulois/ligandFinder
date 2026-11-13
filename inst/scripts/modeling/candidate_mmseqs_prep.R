@@ -17,10 +17,10 @@
 ## known_id is <gene>x<start>x<end> -- the same shape as a candidate peptide_id,
 ## so a hit can be compared with a candidate directly.
 suppressMessages({library(data.table)})
-A2 <- path.expand("~/AF2_analysis"); S <- file.path(A2, "lf_nomask_scripts_20261021")
+A2 <- path.expand("~/AF2_analysis"); S <- path.expand(Sys.getenv("LF_RUN", file.path(A2, "lf_run")))
 ## package source tree: $LF_SRC, or the checkout these scripts sit in (lf_paths.R)
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "lf_paths.R"))
 HEAD <- Sys.getenv("HEAD", "xgb_pm"); ARM <- Sys.getenv("ARM", "")   # "" = curated, else e.g. "_esmonly36"
 thr  <- as.numeric(Sys.getenv("THRESH", "0.5"))
 TOL  <- as.integer(Sys.getenv("TOL", "4"))

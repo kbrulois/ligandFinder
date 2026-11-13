@@ -19,7 +19,7 @@
 ##   * LINKED HOVER. Every track keys its points by residue, so hovering one
 ##     track marks the same residue on all of them.
 ##
-##   Rscript inst/scripts/10_9t_protein_page_v2.R --gene VIP
+##   Rscript inst/scripts/visualization/10_9t_protein_page_v2.R --gene VIP
 ##   ... --run-c ~/AF2_analysis/lf_pepend_run_C_near.rds --out page.html
 ##
 ## Output: one self-contained HTML.

@@ -29,9 +29,9 @@ AP and lift are still not comparable between groups -- the prevalence floor
 moves with the group -- so the companion plot leads with precision at a matched
 within-group recall.
 
-  Rscript inst/scripts/10_9z_motif_codes.R --term C --tables <tables>
-  python  inst/scripts/10_9z_motif_pr.py   --term C --tables <tables>
-  Rscript inst/scripts/10_9z_motif_pr_plot.R
+  Rscript inst/scripts/analysis/cleavage_motifs/10_9z_motif_codes.R --term C --tables <tables>
+  python  inst/scripts/analysis/cleavage_motifs/10_9z_motif_pr.py   --term C --tables <tables>
+  Rscript inst/scripts/analysis/cleavage_motifs/10_9z_motif_pr_plot.R
 
 <tables> also supplies knowns_near.csv (accession, gene, term, anchor, split,
 pep_name), ligand_list.csv and uniprot_peptides.csv -- the same tables

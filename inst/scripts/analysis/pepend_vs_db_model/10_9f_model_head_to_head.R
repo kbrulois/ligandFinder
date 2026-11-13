@@ -29,7 +29,7 @@
 ## 10_9 measured that: as-is and +1-aligned rank these windows at Spearman 0.996,
 ## so scoring as-is costs essentially nothing. It is scored as-is here.
 ##
-##   Rscript inst/scripts/10_9f_model_head_to_head.R
+##   Rscript inst/scripts/analysis/pepend_vs_db_model/10_9f_model_head_to_head.R
 ##
 ## Output: ~/AF2_analysis/lf_model_head_to_head_<term>.{csv,svg,png}
 ## ------------------------------------------------------------------------------

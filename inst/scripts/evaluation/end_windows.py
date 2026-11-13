@@ -15,12 +15,12 @@ import csv, os, sys
 import numpy as np
 
 ## lf_dcnn from the checkout this script sits in, or $LF_SRC (lf_paths.py)
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import lf_paths; lf_paths.add_python()  # noqa: E402
 from lf_dcnn.config import Config, PEPEND_ANCHOR  # noqa: E402
 from lf_dcnn.scan import Residues, build_windows  # noqa: E402
 
-A2 = os.path.expanduser("~/AF2_analysis"); S = A2 + "/lf_nomask_scripts_20261021"
+A2 = os.path.expanduser("~/AF2_analysis"); S = os.environ.get("LF_RUN", A2 + "/lf_run")
 acc = [l.strip() for l in open(S + "/residues_accession_order.txt")]
 res = Residues.from_npz(A2 + "/lf_pepend_residues.npz")
 assert len(acc) == len(res), (len(acc), len(res))

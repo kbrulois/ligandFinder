@@ -25,7 +25,7 @@ suppressMessages({library(data.table)})
 .args <- commandArgs(trailingOnly = TRUE)
 .opt  <- function(flag, default) { i <- match(flag, .args); if (is.na(i)) default else .args[i + 1] }
 .lf_here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
-source(file.path(.lf_here, "lf_paths.R"))
+source(file.path(.lf_here, "..", "lf_paths.R"))
 A2  <- path.expand("~/AF2_analysis")
 dir <- path.expand(.opt("--dir", file.path(A2, "pepend_pages_candidates_arms3")))
 key <- .opt("--key", "xgb_pm_T0.5_tol4_arms3")
@@ -199,7 +199,7 @@ writeLines(sprintf('Candidate set <code>%s</code> (candidate_pipeline.sh stages 
                    esc(key), esc(commit)), file.path(tmp, "footer.html"))
 
 rc <- system2(file.path(R.home("bin"), "Rscript"),
-              c(lf_src("inst/scripts/make_gallery_index.R"), "--dir", shQuote(dir), "--title", shQuote(ttl),
+              c(lf_src("inst/scripts/visualization/make_gallery_index.R"), "--dir", shQuote(dir), "--title", shQuote(ttl),
                 "--card-html", file.path(tmp, "cards.rds"), "--card-href", file.path(tmp, "href.rds"),
                 "--blurb", file.path(tmp, "blurb.html"), "--footer", file.path(tmp, "footer.html"),
                 if (nrow(foc)) c("--card-order", file.path(tmp, "order.rds"), "--only-ranked"),
