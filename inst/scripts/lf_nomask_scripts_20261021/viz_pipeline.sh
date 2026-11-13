@@ -30,6 +30,10 @@
 #   shap     attribution (shap_positions.py, TensorFlow) for any arm that has none
 #            yet, then per-position by family, the AA identity heatmap and global
 #            SHAP per model (arm_compare_shap_plots.R)
+#   motif    amino-acid enrichment of the known ends against the mature secretome,
+#            as a heatmap and as Kullback-Leibler logos (also zoomed past the
+#            cleavage motif), drawn under the shap stage's AA-identity heatmap
+#            (arm_compare_motif_enrichment.R)
 #   index    index.html over every figure in OUT, with OUT/takeaways.tsv's line
 #            (file <TAB> takeaway) under each one that has it
 #
@@ -74,6 +78,10 @@ UNSEEN_SETS=${UNSEEN_SETS-$(in_sfx $LAST)}
 U1=${UNSEEN_SETS%%,*}
 HEADCMP=${HEADCMP:-$A2/lf_headcmp${U1:+/unseen$U1}}
 LABELS=${LABELS:-${ARMS//,/;}}
+## the metrics figure takes one label per arm; the other figures take arm=label
+## pairs (and must not see the plain list, or an arm can come out unlabelled)
+labs=(${(s:;:)LABELS}); ARM_LABELS=""
+for i in {1..${#arms}}; do ARM_LABELS+="${ARM_LABELS:+;}${arms[$i]}=${${labs[$i]:-${arms[$i]}}## }"; done
 GROUPS=""; for a in $arms; do s=$(in_sfx $a); [[ -n $s ]] && GROUPS+="${GROUPS:+,}$a:$s"; done
 DATA=$OUT/${TAG}_data
 mkdir -p $OUT $DATA
@@ -92,7 +100,7 @@ if run trunks; then
   tarms=(); for a in $arms; do tarms+=$(tshort $a); done
   tpairs=(); for p in ${(s:,:)PAIRS}; do tpairs+="$(tshort ${p%%:*}):$(tshort ${p##*:})"; done
   (cd $S && ARMS=$ARMS PAIR= HEADCMP=$DATA $R trunk_val_compare.R) >> $LOG 2>&1 \
-    && RANKS=$DATA/trunk_val_ranks.csv PAIRS=${(j:,:)tpairs} ARMS=${(j:,:)tarms} OUT=$OUT NAME=paired_ranks_${TAG}_trunks \
+    && RANKS=$DATA/trunk_val_ranks.csv PAIRS=${(j:,:)tpairs} ARMS=${(j:,:)tarms} LABELS= OUT=$OUT NAME=paired_ranks_${TAG}_trunks \
          RANK_DESC="from the trunk summaries: rank among the ~40k candidate windows (superseded by the scan stage)" \
          $R $S/arm_compare_paired_ranks.R >> $LOG 2>&1 \
     && say "trunks: paired_ranks_${TAG}_trunks{,_by_motif}.png" || say "trunks FAILED, see $LOG"
@@ -141,11 +149,11 @@ if run scan; then
       $R $S/arm_compare_scan_tables.R >> $LOG 2>&1 || say "scan tables FAILED, see $LOG"
     if [[ -s $DATA/end_ranks.csv ]]; then
       tr=(${(u)${(s:,:)${PAIRS//:/,}}}); (( ${#tr} > 3 )) && tr=(${tr[-3,-1]})
-      DATA=$DATA OUT=$OUT TAG=$TAG ARMS=$ARMS TRACK_ARMS=${(j:,:)tr} $R $S/arm_compare_scan_plots.R >> $LOG 2>&1 \
+      DATA=$DATA OUT=$OUT TAG=$TAG ARMS=$ARMS TRACK_ARMS=${(j:,:)tr} LABELS=$ARM_LABELS $R $S/arm_compare_scan_plots.R >> $LOG 2>&1 \
         || say "scan plots FAILED, see $LOG"
-      RANKS=$DATA/end_ranks.csv PAIRS=$PAIRS ARMS=$ARMS OUT=$OUT NAME=paired_ranks_$TAG \
+      RANKS=$DATA/end_ranks.csv PAIRS=$PAIRS ARMS=$ARMS LABELS=$ARM_LABELS OUT=$OUT NAME=paired_ranks_$TAG \
         $R $S/arm_compare_paired_ranks.R >> $LOG 2>&1 || say "paired ranks FAILED, see $LOG"
-      RANKS=$DATA/end_ranks.csv RANK_COL=rank_ho PAIRS=$PAIRS ARMS=$ARMS OUT=$OUT NAME=paired_ranks_${TAG}_heldout \
+      RANKS=$DATA/end_ranks.csv RANK_COL=rank_ho PAIRS=$PAIRS ARMS=$ARMS LABELS=$ARM_LABELS OUT=$OUT NAME=paired_ranks_${TAG}_heldout \
         RANK_DESC="rank against held-out negatives only (anchors no training window of any compared arm reaches)" \
         $R $S/arm_compare_paired_ranks.R >> $LOG 2>&1 || say "paired ranks (held-out) FAILED, see $LOG"
       say "scan: recall_rank_$TAG, fp_motif_$TAG, tracks_examples_$TAG, paired_ranks_$TAG{,_heldout}"
@@ -169,6 +177,13 @@ if run shap; then
   SHAP_DIRS=$SHAP_DIR:$A2/lf_headcmp ARMS=$ARMS OUT=$OUT TAG=$TAG $R $S/arm_compare_shap_plots.R >> $LOG 2>&1 \
     && say "shap: shap_global_$TAG, shap_positions_by_family_$TAG{,_signed}, shap_aa_heatmap_$TAG" \
     || say "shap plots FAILED, see $LOG"
+fi
+
+# ---- motif: what is enriched at real ends, under what the models use ------------------
+if run motif; then
+  SEQS=$DATA/prec_seqs.rds OUT=$OUT TAG=$TAG $R $S/arm_compare_motif_enrichment.R >> $LOG 2>&1 \
+    && say "motif: motif_logo_$TAG{,_zoom}, motif_enrichment_$TAG, motif_logo_known_ends{,_zoom}" \
+    || say "motif FAILED, see $LOG"
 fi
 
 # ---- index: one page over every figure in OUT ----------------------------------------

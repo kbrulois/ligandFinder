@@ -37,7 +37,7 @@ NAME <- Sys.getenv("NAME", "paired_ranks_msa_arms")
 RANK_DESC <- Sys.getenv("RANK_DESC", "rank among every non-end anchor of the proteome")
 lab_env <- Sys.getenv("LABELS", "")
 LAB <- if (nzchar(lab_env)) {
-  kv <- strsplit(trimws(strsplit(lab_env, ";")[[1]]), "=")
+  kv <- strsplit(grep("=", trimws(strsplit(lab_env, ";")[[1]]), value = TRUE, fixed = TRUE), "=")   # arm=label entries only
   setNames(vapply(kv, `[`, "", 2), vapply(kv, `[`, "", 1))
 } else character(0)
 lab <- function(a) unname(ifelse(a %in% names(LAB), LAB[a], a))

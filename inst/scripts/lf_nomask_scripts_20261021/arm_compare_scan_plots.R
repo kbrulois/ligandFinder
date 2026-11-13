@@ -31,7 +31,7 @@ TRACK_ARMS <- strsplit(Sys.getenv("TRACK_ARMS", "curated_AAswap,msa,msa_gap"), "
 lab_env <- Sys.getenv("LABELS", paste("curated=curated (original)", "curated_AAswap=curated_AAswap (site)",
                                       "curated_AAswap_msacons_padg=msacons_padg (previous MSA arm)",
                                       "msa=msa", "msa_gap=msa_gap", sep = ";"))
-kv <- strsplit(trimws(strsplit(lab_env, ";")[[1]]), "=")
+kv <- strsplit(grep("=", trimws(strsplit(lab_env, ";")[[1]]), value = TRUE, fixed = TRUE), "=")   # arm=label entries only
 LAB <- setNames(vapply(kv, `[`, "", 2), vapply(kv, `[`, "", 1))
 lab <- function(a) unname(ifelse(a %in% names(LAB), LAB[a], a))
 acol <- arm_cols(ARMS, lab(ARMS))
