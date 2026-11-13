@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Candidate peptides</title>
+<style>
+ :root{--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--grid:#e6e5e1;--accent:#197EC0}
+ *{box-sizing:border-box}
+ body{margin:0;background:var(--surface);color:var(--ink);
+      font:14px/1.55 ui-sans-serif,system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif}
+ header,main{max-width:1100px;margin:0 auto;padding:0 22px}
+ header{padding-top:26px}
+ h1{margin:0 0 6px;font-size:20px;letter-spacing:-0.01em}
+ .sub{color:var(--ink2);font-size:12.5px;max-width:820px;margin:0 0 6px}
+ .sub code{background:#f1f0ec;padding:1px 4px;border-radius:3px;font-size:11.5px}
+ .controls{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:14px 0 8px;font-size:12.5px}
+ select,input[type=search]{padding:6px 9px;border:1px solid var(--grid);border-radius:6px;font:inherit;background:#fff;color:inherit}
+ input[type=search]{width:190px}
+ #shown{color:var(--ink2);font-variant-numeric:tabular-nums}
+ #legend{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
+ #legend button{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border:1px solid var(--grid);border-radius:6px;
+   background:#fff;color:var(--ink);font:12px inherit;cursor:pointer}
+ #legend button[aria-pressed=false]{color:var(--ink2);background:transparent;text-decoration:line-through}
+ #legend button[aria-pressed=false] i{opacity:.25}
+ #legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+ #legend span{color:var(--ink2);font-variant-numeric:tabular-nums}
+ #plot{position:relative;background:#fff;border:1px solid var(--grid);border-radius:7px;touch-action:manipulation}
+ canvas{position:absolute;left:0;top:0;display:block}
+ #over{cursor:crosshair}
+ #tip{position:fixed;z-index:10;max-width:340px;padding:9px 11px;background:#fff;border:1px solid #cfcec8;border-radius:7px;
+   box-shadow:0 3px 12px rgba(0,0,0,.14);font-size:11.5px;line-height:1.45;pointer-events:none;display:none}
+ #tip b{font-size:13px}
+ #tip code{font-family:ui-monospace,Menlo,monospace;font-size:11px}
+ #tip .seq{font-family:ui-monospace,Menlo,monospace;font-size:11px;overflow-wrap:anywhere;margin:3px 0 5px}
+ #tip table{border-collapse:collapse;margin:3px 0 5px;font-variant-numeric:tabular-nums}
+ #tip th{font-weight:500;color:var(--ink2);text-align:right;padding:0 0 0 9px}
+ #tip th:first-child,#tip td:first-child{text-align:left;padding-left:0}
+ #tip td{text-align:right;padding:0 0 0 9px}
+ #tip .k{color:var(--ink2)} #tip .hint{color:var(--ink2);margin-top:4px}
+ #to-known{color:var(--accent);font-weight:600}
+ #tip i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px}
+ table.counts{border-collapse:collapse;font-size:12px;margin:14px 0 30px;font-variant-numeric:tabular-nums}
+ table.counts th,table.counts td{padding:3px 12px 3px 0;text-align:right;border-bottom:1px solid var(--grid)}
+ table.counts th{font-weight:500;color:var(--ink2)}
+ table.counts th:first-child,table.counts td:first-child{text-align:left}
+</style></head>
+<body>
+<header>
+  <h1>Candidate peptides: end score against MultiPep</h1>
+  <p class="sub" id="about"></p>
+  <p class="sub"><a id="to-known" href="#known" target="_blank" hidden>Known peptides: each arm&rsquo;s score at every known end &rarr;</a></p>
+</header>
+<main>
+  <div class="controls">
+    <label>Colour by <select id="by"></select></label>
+    <input type="search" id="q" placeholder="filter by gene" autocomplete="off" aria-label="filter by gene">
+    <span id="shown"></span>
+  </div>
+  <div id="legend"></div>
+  <div id="plot"><canvas id="base"></canvas><canvas id="over"></canvas></div>
+  <table class="counts" id="counts"></table>
+</main>
+<div id="tip" role="tooltip"></div>
+<script>const KNOWN=__KNOWN__;</script>
+<script>const D=__DATA__;</script>
+<script>
+(function () {
+  "use strict";
+  /* The known-peptide index lives in this file and opens in a tab of its own at
+     #known. It has to wait for the parser: document.open is a no-op until then. */
+  if (KNOWN !== null) {
+    if (location.hash === "#known") {
+      document.body.style.display = "none";
+      document.addEventListener("DOMContentLoaded", function () {
+        document.open(); document.write(KNOWN); document.close();
+      });
+      return;
+    }
+    document.getElementById("to-known").hidden = false;
+  }
+  var N = D.x.length, NC = D.ncand, THR = Math.round(D.thr * 1000), NEUTRAL = "#bdbcb5";
+  var X = Int16Array.from(D.x), Y = Int16Array.from(D.y), R = Uint8Array.from(D.r);
+  var NS = Int16Array.from(D.n), CS = Int16Array.from(D.c), G = Int32Array.from(D.g);
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  var f3 = function (v) { return v < 0 ? "&ndash;" : (v / 1000).toFixed(3); };
+  var num = function (n) { return n.toLocaleString("en-US"); };
+
+  /* Colours from the validated categorical slots: three hues at most in a
+     scatter, grey for the class nobody is looking for. N and C sit near the
+     green and orange they have on the pages. */
+  var MOTIF_COL = { "dibasic": "#2a78d6", "G + dibasic": "#eb6834", "monobasic": "#1baf7a",
+                    "terminus": "#4a3aa7", "other": NEUTRAL };
+  var tt = (D.thr).toFixed(1);
+  var SCHEMES = {
+    end: { label: "End score type", of: function (i) { return D.et[i]; }, cats: [
+      { k: "both ends above " + tt, c: "#2a78d6" }, { k: "N end only above " + tt, c: "#1baf7a" },
+      { k: "C end only above " + tt, c: "#eb6834" }, { k: "neither above " + tt, c: NEUTRAL }] },
+    motif: { label: "C-end motif", of: function (i) { return D.cm[i]; },
+      cats: D.motif.map(function (m) { return { k: m, c: MOTIF_COL[m] || NEUTRAL }; }) }
+  };
+  Object.keys(SCHEMES).forEach(function (k) {
+    SCHEMES[k].hidden = SCHEMES[k].cats.map(function () { return false; });
+    var o = document.createElement("option"); o.value = k; o.textContent = SCHEMES[k].label; $("by").appendChild(o);
+  });
+
+  var by = "end", S = SCHEMES.end, cat = new Uint8Array(N), hit = null;
+  /* a grid of panels, two across where there is room, each with its own axes */
+  var M = { l: 46, r: 12 }, PH = 210, HEAD = 22, FOOT = 40, GAP = 18, LAST = D.rel.length - 1;
+  var W = 0, H = 0, dpr = 1, inner = 0, across = 2, colW = 0;
+  var base = $("base"), over = $("over"), ctx = base.getContext("2d"), otx = over.getContext("2d");
+  var panelTop = function (p) { return HEAD + (HEAD + PH + FOOT) * Math.floor(p / across); };
+  var panelLeft = function (p) { return (p % across) * (colW + GAP) + M.l; };
+  var px = function (i) { return panelLeft(R[i]) + (X[i] + 10) / 1020 * inner; };
+  var py = function (i) { return panelTop(R[i]) + PH - (Y[i] + 10) / 1020 * PH; };
+  var visible = function (i) { return !S.hidden[cat[i]] && (hit === null || hit[i]); };
+
+  function recat() { S = SCHEMES[by]; for (var i = 0; i < N; i++) cat[i] = S.of(i); }
+
+  function frame() {
+    ctx.textBaseline = "middle";
+    var ticks = [0, 0.2, 0.4, 0.6, 0.8, 1];
+    D.rel.forEach(function (name, p) {
+      var t = panelTop(p), l = panelLeft(p);
+      ctx.fillStyle = "#0b0b0b"; ctx.textAlign = "left"; ctx.font = '600 12px ui-sans-serif,system-ui,sans-serif';
+      ctx.fillText(p === LAST ? name + ": the best end of each gene" : name, l, t - HEAD / 2 + 1);
+      ctx.font = '11px ui-sans-serif,system-ui,sans-serif';
+      ctx.strokeStyle = "#e6e5e1"; ctx.lineWidth = 1; ctx.fillStyle = "#52514e";
+      ticks.forEach(function (v) {
+        var y = Math.round(t + PH - (v * 1000 + 10) / 1020 * PH) + 0.5;
+        var x = Math.round(l + (v * 1000 + 10) / 1020 * inner) + 0.5;
+        ctx.beginPath(); ctx.moveTo(l, y); ctx.lineTo(l + inner, y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x, t); ctx.lineTo(x, t + PH); ctx.stroke();
+        ctx.textAlign = "right"; ctx.fillText(v.toFixed(1), l - 7, y);
+        ctx.textAlign = "center"; ctx.fillText(v.toFixed(1), x, t + PH + 12);
+      });
+      ctx.fillText(p === LAST ? "position of that end along the precursor (no peptide, so no MultiPep)"
+                              : "mp_best_score", l + inner / 2, t + PH + 28);
+      if (p % across === 0) {
+        ctx.save(); ctx.translate(l - 36, t + PH / 2); ctx.rotate(-Math.PI / 2);
+        ctx.fillText("end_score_max", 0, 0); ctx.restore();
+      }
+    });
+  }
+
+  /* one Int32 linked list per cell, rebuilt whenever what is drawn changes */
+  var CELL = 10, cols = 0, rows = 0, head = null, next = new Int32Array(N);
+  function index() {
+    cols = Math.ceil(W / CELL) + 1; rows = Math.ceil(H / CELL) + 1;
+    head = new Int32Array(cols * rows).fill(-1);
+    for (var i = 0; i < N; i++) {
+      if (!visible(i)) continue;
+      var c = Math.floor(px(i) / CELL) + cols * Math.floor(py(i) / CELL);
+      next[i] = head[c]; head[c] = i;
+    }
+  }
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+    frame();
+    /* the threshold the colours are cut at */
+    if (by === "end") {
+      ctx.strokeStyle = "#52514e"; ctx.setLineDash([4, 3]); ctx.lineWidth = 1;
+      D.rel.forEach(function (n, p) {
+        var y = Math.round(panelTop(p) + PH - (THR + 10) / 1020 * PH) + 0.5;
+        ctx.beginPath(); ctx.moveTo(panelLeft(p), y); ctx.lineTo(panelLeft(p) + inner, y); ctx.stroke();
+      });
+      ctx.setLineDash([]);
+    }
+    var n = S.cats.length, counts = new Int32Array(n), i;
+    for (i = 0; i < N; i++) counts[cat[i]]++;
+    /* commonest first, so the rare classes are not buried */
+    var order = S.cats.map(function (c, k) { return k; }).sort(function (a, b) { return counts[b] - counts[a]; });
+    var size = hit ? 6 : 2.6, half = size / 2;
+    ctx.globalAlpha = hit ? 0.95 : 0.62;
+    order.forEach(function (k) {
+      if (S.hidden[k]) return;
+      ctx.fillStyle = S.cats[k].c;
+      for (var j = 0; j < N; j++) if (cat[j] === k && (hit === null || hit[j])) ctx.fillRect(px(j) - half, py(j) - half, size, size);
+    });
+    ctx.globalAlpha = 1;
+    index();
+    legend(); table();
+  }
+
+  function legend() {
+    var c = new Int32Array(S.cats.length), shown = 0, i;
+    for (i = 0; i < N; i++) if (hit === null || hit[i]) { c[cat[i]]++; if (!S.hidden[cat[i]]) shown++; }
+    $("legend").innerHTML = S.cats.map(function (x, k) {
+      return '<button type="button" data-k="' + k + '" aria-pressed="' + !S.hidden[k] + '"><i style="background:' + x.c +
+             '"></i>' + esc(x.k) + ' <span>' + num(c[k]) + '</span></button>'; }).join("");
+    $("shown").textContent = num(shown) + " of " + num(N) + " points shown";
+  }
+  function table() {
+    var n = S.cats.length, t = D.rel.map(function () { return new Int32Array(n); }), i;
+    for (i = 0; i < N; i++) if (hit === null || hit[i]) t[R[i]][cat[i]]++;
+    $("counts").innerHTML = "<tr><th>relation to known peptides</th>" +
+      S.cats.map(function (c) { return "<th>" + esc(c.k) + "</th>"; }).join("") + "<th>all</th></tr>" +
+      D.rel.map(function (r, p) { var s = 0; for (var k = 0; k < n; k++) s += t[p][k];
+        return "<tr><td>" + esc(r) + "</td>" + Array.prototype.map.call(t[p], function (v) { return "<td>" + num(v) + "</td>"; }).join("") +
+               "<td>" + num(s) + "</td></tr>"; }).join("");
+  }
+
+  function resize() {
+    var w = $("plot").clientWidth; if (!w) return;
+    W = w; across = W >= 760 ? 2 : 1; colW = (W - GAP * (across - 1)) / across;
+    inner = colW - M.l - M.r; H = panelTop(LAST) + PH + FOOT;
+    $("plot").style.height = H + "px";
+    dpr = window.devicePixelRatio || 1;
+    [base, over].forEach(function (c) { c.width = W * dpr; c.height = H * dpr; c.style.width = W + "px"; c.style.height = H + "px"; });
+    otx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  /* the nearest drawn point within 8 px of the cursor */
+  var RAD = 8, cur = -1;
+  function nearest(mx, my) {
+    var best = -1, bd = RAD * RAD + 1, near = 0;
+    var cx = Math.floor(mx / CELL), cy = Math.floor(my / CELL);
+    for (var a = cx - 1; a <= cx + 1; a++) for (var b = cy - 1; b <= cy + 1; b++) {
+      if (a < 0 || b < 0 || a >= cols || b >= rows) continue;
+      for (var i = head[a + cols * b]; i >= 0; i = next[i]) {
+        var dx = px(i) - mx, dy = py(i) - my, d = dx * dx + dy * dy;
+        if (d <= RAD * RAD) { near++; if (d < bd) { bd = d; best = i; } }
+      }
+    }
+    return { i: best, near: near };
+  }
+  var pep = function (i) { return D.genes[G[i]] + "x" + D.s[i] + "x" + D.e[i]; };
+  var href = function (i) { var g = encodeURIComponent(D.genes[G[i]]);
+    return D.base + g + ".html#" + g + "x" + D.s[i] + "x" + D.e[i]; };
+
+  /* why a gene has no candidate peptide, from its end segments */
+  function why(n, c) {
+    if (n && c) return "ends on both termini (" + n + " N, " + c + " C), but no N&ndash;C pair of 8&ndash;60 aa";
+    if (n) return n + " N end segment" + (n > 1 ? "s" : "") + ", no C end segment to pair with";
+    if (c) return c + " C end segment" + (c > 1 ? "s" : "") + ", no N end segment to pair with";
+    return "no end reaches its arm&rsquo;s segment cut";
+  }
+  function tipHtml(i, near) {
+    var g = G[i], s = D.s[i], e = D.e[i], c = S.cats[cat[i]];
+    var row = function (lab, pos, score, a, b, d, m) {
+      return "<tr><td>" + lab + " " + pos + "</td><td><b style='font-size:11.5px'>" + f3(score) + "</b></td><td>" + f3(a) + "</td><td>" + f3(b) +
+             "</td><td>" + f3(d) + "</td><td>" + esc(m) + "</td></tr>"; };
+    var scores = "<table><tr><th>end</th><th>score</th><th>curated</th><th>ESM-C</th><th>AAswap</th><th>motif</th></tr>" +
+      row("N", s, NS[i], D.nc[i], D.ne[i], D.nw[i], D.motif[D.nm[i]]) +
+      row("C", e, CS[i], D.cc[i], D.ce[i], D.cw[i], D.motif[D.cm[i]]) + "</table>";
+    var swatch = "<div><i style='background:" + c.c + "'></i>" + esc(c.k) + "</div>";
+    if (i >= NC) return "<b>" + esc(D.genes[g]) + "</b> no candidate peptide<br>" +
+      why(D.sn[i - NC], D.sc[i - NC]) + swatch + scores +
+      '<div class="k">The best N and best C end on this precursor. They are not one peptide.</div>' +
+      '<div class="hint">' + (near > 1 ? num(near - 1) + " more under the cursor. " : "") + "Click to open both ends.</div>";
+    var rel = D.rel[R[i]], cm = D.cur[D.cu[i]], um = D.uni[D.un[i]], hitn = D.hits[D.hi[i]];
+    return "<b>" + esc(D.genes[g]) + "</b> <code>" + esc(pep(i)) + "</code><br>residues " + s + "&ndash;" + e + " &middot; " + (e - s + 1) + " aa" +
+      '<div class="seq">' + esc(D.seqs[g].substring(s - 1, e)) + "</div>" +
+      swatch + scores +
+      '<div><span class="k">MultiPep</span> ' + esc(D.mpc[D.mc[i]]) + " " + f3(X[i]) +
+      ' &nbsp;<span class="k">xgb</span> ' + f3(D.xs[i]) + ' &nbsp;<span class="k">xgb no MultiPep</span> ' + f3(D.xn[i]) + "</div>" +
+      '<div><span class="k">known</span> ' + esc(rel) + (cm ? ": " + esc(cm) : um ? ": " + esc(um) : "") + "</div>" +
+      (hitn ? '<div><span class="k">closest known</span> ' + esc(hitn) + " (similarity " + (D.si[i] / 100).toFixed(2) + ")</div>" : "") +
+      '<div class="hint">' + (near > 1 ? num(near - 1) + " more under the cursor. " : "") + "Click to open this candidate.</div>";
+  }
+
+  var tip = $("tip");
+  function move(ev) {
+    var r = over.getBoundingClientRect(), f = nearest(ev.clientX - r.left, ev.clientY - r.top);
+    otx.clearRect(0, 0, W, H);
+    cur = f.i;
+    if (cur < 0) { tip.style.display = "none"; over.style.cursor = "crosshair"; return; }
+    over.style.cursor = "pointer";
+    otx.beginPath(); otx.arc(px(cur), py(cur), 5, 0, 7);
+    otx.lineWidth = 3; otx.strokeStyle = "#fff"; otx.stroke();
+    otx.lineWidth = 1.5; otx.strokeStyle = "#0b0b0b"; otx.stroke();
+    tip.innerHTML = tipHtml(cur, f.near);
+    tip.style.display = "block";
+    var w = tip.offsetWidth, h = tip.offsetHeight, x = ev.clientX + 16, y = ev.clientY + 14;
+    if (x + w > innerWidth - 8) x = ev.clientX - w - 16;
+    if (y + h > innerHeight - 8) y = Math.max(8, innerHeight - h - 8);
+    tip.style.left = Math.max(8, x) + "px"; tip.style.top = y + "px";
+  }
+  over.addEventListener("pointermove", move);
+  over.addEventListener("pointerleave", function () { otx.clearRect(0, 0, W, H); tip.style.display = "none"; cur = -1; });
+  over.addEventListener("click", function (ev) {
+    /* open the point the tooltip names. Picking again at the click's own
+       coordinates lands on a neighbour where points overlap: a click and the
+       last pointermove can differ by a fraction of a pixel. A tap with no
+       hover first has nothing named yet, so that alone picks here. */
+    if (cur < 0) move(ev);
+    if (cur >= 0) window.open(href(cur), "_blank");
+  });
+
+  $("by").addEventListener("change", function () { by = this.value; recat(); draw(); });
+  $("legend").addEventListener("click", function (ev) {
+    var b = ev.target.closest("button"); if (!b) return;
+    var k = +b.dataset.k; S.hidden[k] = !S.hidden[k]; draw();
+  });
+  var timer = 0;
+  $("q").addEventListener("input", function () {
+    var q = this.value.trim().toLowerCase();
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      if (!q) hit = null;
+      else {
+        var keep = D.genes.map(function (g) { return g.toLowerCase().indexOf(q) >= 0; });
+        hit = new Uint8Array(N); for (var i = 0; i < N; i++) hit[i] = keep[G[i]] ? 1 : 0;
+      }
+      draw();
+    }, 120);
+  });
+
+  $("about").innerHTML = num(NC) + " candidates on " + num(D.ngc) + " genes, set <code>" + esc(D.key) + "</code>, and in the last panel the " +
+    num(N - NC) + " genes with no candidate peptide, each as its best end. " +
+    "Each end score is the highest all-50 mean of the curated, ESM-C and AAswap arms at that end; hover a point for each arm&rsquo;s. " +
+    "<b>Click a point</b> to open its gene&rsquo;s page at that candidate, with the N window at its first residue and the C window at its last; " +
+    "a gene with no candidate opens at its best N and best C ends. " +
+    "A page&rsquo;s candidate track draws 20 deep, so the candidate&rsquo;s own bar may not be on it. " +
+    "Click a legend entry to hide that class. " + num(D.dropped) + " candidates on genes with no page are left out.";
+  recat();
+  resize();
+  new ResizeObserver(function () { if ($("plot").clientWidth !== W) resize(); }).observe($("plot"));
+})();
+</script>
+</body></html>

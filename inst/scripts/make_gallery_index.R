@@ -181,7 +181,7 @@ html <- sprintf('<!doctype html>
    if (!m) return;
    for (var i = 0; i < cards.length; i++) {
      var h = cards[i].getAttribute("href").split("#")[0];
-     if (h.replace(/[.]html$/, "").toUpperCase() === m[1].toUpperCase()) {
+     if (h.split("/").pop().replace(/[.]html$/, "").toUpperCase() === m[1].toUpperCase()) {
        /* the page parses its fragment with a lower-case "x" only */
        location.href = h + "#" + encodeURIComponent(m[1] + "x" + m[2] + "x" + m[3]); return;
      }
