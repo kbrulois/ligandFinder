@@ -25,6 +25,9 @@
 ##                 wins (~/AF2_analysis/lf_shap:~/AF2_analysis/lf_headcmp)
 ##      OUT  ~/AF2_analysis/lf_viz_20261113   TAG  msa_arms   MIN_WINDOWS  4   TOP  12
 suppressMessages({library(data.table); library(ggplot2); library(patchwork)})
+## the shared arm colours (arm_compare_style.R, beside this script)
+.here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
+source(file.path(.here, "arm_compare_style.R"))
 A2 <- path.expand("~/AF2_analysis")
 ARMS <- strsplit(Sys.getenv("ARMS", "curated,curated_AAswap,msa,msa_gap"), ",")[[1]]
 DIRS <- path.expand(strsplit(Sys.getenv("SHAP_DIRS", paste(file.path(A2, "lf_shap"), file.path(A2, "lf_headcmp"),
@@ -44,7 +47,7 @@ if (length(miss <- setdiff(ARMS, have)))
   message("no attribution yet for ", paste(miss, collapse = ", "), " (run shap_positions.py --arm <arm>)")
 if (!length(have)) stop("no attribution tables for any of ", paste(ARMS, collapse = ", "), call. = FALSE)
 ARMS <- have
-acol <- setNames(c("grey55", "#7F8C8D", "#2E86C1", "#C0392B", "#8E44AD", "#16A085")[seq_along(ARMS)], ARMS)
+acol <- arm_cols(ARMS)
 th <- theme_bw(base_size = 10.5) +
   theme(legend.position = "top", strip.text = element_text(face = "bold"), plot.title = element_text(face = "bold"),
         panel.grid.minor = element_blank())
@@ -67,7 +70,7 @@ for (v in c("abs", "signed")) {
          y = if (v == "abs") "mean |SHAP| of the family's cells (logit)" else "mean signed SHAP (logit)",
          title = sprintf("Where along the window each channel family matters (%s SHAP, held-out known ends)",
                          if (v == "abs") "absolute" else "signed"),
-         subtitle = paste0("Expected-gradients SHAP on each member's logit against the arm's own candidate windows; every known end ",
+         subtitle = paste0("Expected-gradients SHAP on each member's logit against the arm's own candidate windows; every known end\n",
                            "explained by the fold that did not train on it. Families ordered by total |SHAP|; per-panel y scales.")) +
     th + theme(strip.placement = "outside", strip.text.y.left = element_text(angle = 0, hjust = 1))
   ggsave(file.path(OUT, sprintf("shap_positions_by_family_%s%s.png", TAG, if (v == "signed") "_signed" else "")), g,

@@ -17,6 +17,9 @@
 ##      TRACK_ARMS  curated_AAswap,msa,msa_gap      HEAD  cnn      TAG  msa_arms (in the file names)
 ##      LABELS arm=label pairs separated by ";"
 suppressMessages({library(data.table); library(ggplot2); library(patchwork)})
+## the shared arm colours (arm_compare_style.R, beside this script)
+.here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
+source(file.path(.here, "arm_compare_style.R"))
 A2 <- path.expand("~/AF2_analysis")
 DATA <- path.expand(Sys.getenv("DATA", file.path(A2, "lf_viz_20261113/msa_arms_data")))
 OUT <- path.expand(Sys.getenv("OUT", file.path(A2, "lf_viz_20261113")))
@@ -31,7 +34,7 @@ lab_env <- Sys.getenv("LABELS", paste("curated=curated (original)", "curated_AAs
 kv <- strsplit(trimws(strsplit(lab_env, ";")[[1]]), "=")
 LAB <- setNames(vapply(kv, `[`, "", 2), vapply(kv, `[`, "", 1))
 lab <- function(a) unname(ifelse(a %in% names(LAB), LAB[a], a))
-acol <- setNames(c("grey65", "#7F8C8D", "#2E86C1", "#C0392B", "#8E44AD", "#16A085")[seq_along(ARMS)], lab(ARMS))
+acol <- arm_cols(ARMS, lab(ARMS))
 comma <- scales::label_comma()
 hd_lab <- c(cnn = "CNN head", xgb_pm = "xgb head")[[HEAD]]
 th <- theme_bw(base_size = 10.5) +

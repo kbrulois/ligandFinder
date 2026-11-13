@@ -26,6 +26,9 @@
 ## Writes <OUT>/<NAME>.png, <OUT>/<NAME>_by_motif.png and <OUT>/<NAME>.csv
 ## (one row per end and pair, with both ranks).
 suppressMessages({library(data.table); library(ggplot2); library(ggrepel)})
+## the shared arm colours (arm_compare_style.R, beside this script)
+.here <- c(dirname(sub("^--file=", "", grep("^--file=", commandArgs(), value = TRUE))), getwd())[1]
+source(file.path(.here, "arm_compare_style.R"))
 A2 <- path.expand("~/AF2_analysis")
 RANKS <- path.expand(Sys.getenv("RANKS", file.path(A2, "lf_viz_20261113/msa_arms_data/end_ranks.csv")))
 PAIRS <- strsplit(strsplit(Sys.getenv("PAIRS", "curated_AAswap:msa,msa:msa_gap"), ",")[[1]], ":")
@@ -127,8 +130,7 @@ bm[, motif_n := sprintf("%s (n=%d)", motif, n)]
 g2 <- ggplot(bm, aes(med, motif, colour = arm)) +
   geom_pointrange(aes(xmin = q25, xmax = q75), position = position_dodge(width = 0.6), size = 0.35) +
   scale_x_log10(labels = scales::label_comma()) +
-  scale_colour_manual(values = setNames(c("grey65", "#7F8C8D", "#2E86C1", "#C0392B", "#8E44AD")[seq_along(ARMS)],
-                                        lab(ARMS)), name = NULL) +
+  scale_colour_manual(values = arm_cols(ARMS, lab(ARMS)), name = NULL) +
   facet_wrap(~term) +
   labs(x = "held-out rank of the known ends (median, bar = quartiles; log; lower = better)", y = NULL,
        title = "Where the gain comes from: held-out rank by the motif flanking the end",
