@@ -181,8 +181,8 @@ res <- res %>%
             by = "ensembl") %>%
   mutate(is_secreted = !is.na(secretome_location) & nzchar(secretome_location))
 
-gpcr_env <- new.env()
-load(file.path("R", "sysdata.rda"), envir = gpcr_env)
+## gpcr_list: the same table as fap's internal one (R/sysdata.rda moved to fap)
+gpcr_env <- list(gpcr_list = readRDS(file.path("inst", "extdata", "gpcr_list.rds")))
 res <- res %>%
   mutate(is_gpcr = gene %in% gpcr_env$gpcr_list$gene_name_primary) %>%
   select(-protein_class) %>%

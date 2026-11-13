@@ -4,7 +4,7 @@ Title: Finds Ligands for GPCRs
 Version: 0.1.0
 Author: Kevin Brulois
 Maintainer: The package maintainer <kevin.brulois@gmail.com>
-Description: Run and Analyze AlphaFold2 predictions of GPCRs with putative ligands.
+Description: Scores candidate peptide-hormone precursor ends across the human secretome with 1-D CNN models of per-residue features, builds the residue database behind them, and renders the protein pages. The AlphaPulldown / AlphaFold-metrics code is the separate package fap.
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true

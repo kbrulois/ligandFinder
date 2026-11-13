@@ -15,7 +15,7 @@
 ##     terminus, ties by iptm -- the model the pocket labels were built from
 ##   * contacts with area > 1 and dist < 6, one row per peptide residue,
 ##     IC_dist = first(IC_dist)  (9.2's clean_contacts)
-##   * IC_dist (R/afpd_metric_processing.R) is the residue's Ca projected on the
+##   * IC_dist (fap: R/afpd_metric_processing.R) is the residue's Ca projected on the
 ##     receptor's EC->IC axis, as distance to the INTRACELLULAR reference over
 ##     receptor length: 1 = extracellular surface, 0 = intracellular end, > 1 =
 ##     above the receptor. Plotted as depth = 1 - IC_dist (deeper = larger,

@@ -133,7 +133,7 @@ python -m lf_dcnn train --input-dir arrays/ --output-dir results/
 
 | path | what |
 |---|---|
-| `R/` | package functions — AlphaFold access, metric processing, plotting, the Python bridge |
+| `R/` | package functions: residue database, peptide-end windows and tracks, plotting, the Python bridge. The AlphaPulldown / AlphaFold-metrics code is now the separate package fap |
 | `inst/python/lf_dcnn/` | the 1-D CNN: config, model, losses, sampler, calibration |
 | `inst/scripts/putative_peptide/` | the pipeline, in run order |
 | `inst/scripts/10_1dcnn_new6.R` | window scoring + downstream analysis |
