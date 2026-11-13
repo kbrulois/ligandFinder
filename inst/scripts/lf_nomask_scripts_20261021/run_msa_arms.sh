@@ -158,38 +158,23 @@ if [[ -s $M ]]; then
   $R -e '
     m <- data.table::fread(commandArgs(TRUE)[1])
     print(data.table::dcast(m, term + set + head ~ trunk, value.var = "norm_pr_auc"), digits = 3)' $M >> $LOG 2>&1
-  ## the morning figure: normalised PR, ROC, best F1, anchors for 50% recall --
-  ## the original AAswap arm for reference, msa the comparator, msa_gap in red
-  HEADCMP=$A2/lf_headcmp/unseen_msa ARMS=curated_AAswap,msa,msa_gap \
-    LABELS="original windows, Aminode cons. (AAswap); MSA; MSA + gap class" \
-    OUT=$A2/lf_viz_20261113 NAME=cv_metrics_msa_arms \
-    TITLE="MSA arms (motif-matched negatives, mature anchors, v2 features): full-proteome scan metrics" \
-    $R $S/arm_metrics_compare_plot.R >> $LOG 2>&1 && say "figure: $A2/lf_viz_20261113/cv_metrics_msa_arms.png" \
-    || say "  the metrics figure FAILED (the CSVs are fine)"
-  ## and every comparison figure across the reference arms (Kevin, 2026-11-13:
-  ## "make this plot cv_metrics_old_vs_new_conservation. for all these plots, have
-  ## it be default that it's produced"): old (Aminode) vs new (MSA) conservation,
-  ## with the previous MSA arm and the original curated arm for reference; the
-  ## metrics table; per-end ranks, top false positives and tracks for all five
-  ## arms on the never-seen ends no arm's negatives touch (_msa AND _padg); the
-  ## paired ends; the gap class. Stage 6 has drawn each arm against curated_AAswap.
+  ## the figures, through the visualization pipeline (Kevin, 2026-11-13: "make
+  ## this plot cv_metrics_old_vs_new_conservation. for all these plots, have it be
+  ## default that it's produced", "all these scripts should be part of a
+  ## visualization pipeline"). First old (Aminode) vs new (MSA) conservation, the
+  ## previous MSA arm and the original curated arm for reference; then all five
+  ## arms, msa_gap under test and msa its comparator, on the never-seen ends no
+  ## arm's negatives touch (_msa AND _padg) wherever the ranking is done here.
+  ## Stage 6 has already drawn each of msa and msa_gap against curated_AAswap.
   F=$A2/lf_viz_20261113
-  HEADCMP=$A2/lf_headcmp/unseen_msa ARMS=flatten,curated_AAswap_msacons_padg,curated_AAswap,msa \
+  ARMS=flatten,curated_AAswap_msacons_padg,curated_AAswap,msa TAG=old_vs_new_conservation STAGES=metrics \
     LABELS="original curated arm (Aminode cons.); previous MSA arm (msacons_padg, _padg windows); curated_AAswap (Aminode cons., the site); msa (MSA cons., motif-matched negatives, v2 features)" \
-    OUT=$F NAME=cv_metrics_old_vs_new_conservation \
     TITLE="Old (Aminode) vs new (MSA) conservation: full-proteome scan metrics" \
-    $R $S/arm_metrics_compare_plot.R >> $LOG 2>&1 || say "  cv_metrics_old_vs_new_conservation FAILED"
-  HEADCMP=$A2/lf_headcmp/unseen_msa ARMS=curated_AAswap,msa,msa_gap LABELS="AAswap (site);msa;msa_gap" OUT=$F \
-    NAME=cv_metrics_msa_arms_table $R $S/arm_compare_metrics_table.R >> $LOG 2>&1 || say "  the metrics table FAILED"
-  ALL5=curated,curated_AAswap,curated_AAswap_msacons_padg,msa,msa_gap
-  RETICULATE_PYTHON=$PY_PLM ARMS=$ALL5 UNSEEN_SETS=_msa,_padg OUT=$F/msa_arms_data \
-    $R $S/arm_compare_scan_tables.R >> $LOG 2>&1 || say "  arm_compare_scan_tables FAILED"
-  DATA=$F/msa_arms_data OUT=$F TAG=msa_arms ARMS=$ALL5 TRACK_ARMS=curated_AAswap,msa,msa_gap \
-    $R $S/arm_compare_scan_plots.R >> $LOG 2>&1 || say "  arm_compare_scan_plots FAILED"
-  RANKS=$F/msa_arms_data/end_ranks.csv PAIRS=curated_AAswap:msa,msa:msa_gap ARMS=$ALL5 OUT=$F NAME=paired_ranks_msa_arms \
-    $R $S/arm_compare_paired_ranks.R >> $LOG 2>&1 || say "  paired ranks FAILED"
-  RETICULATE_PYTHON=$PY_PLM ARMS=msa_gap,msa OUT=$F NAME=gap_class_msa_arms \
-    $R $S/arm_compare_gap_class.R >> $LOG 2>&1 || say "  gap class FAILED"
-  say "figures: $F"
+    HEADCMP=$A2/lf_headcmp/unseen_msa OUT=$F zsh $S/viz_pipeline.sh >> $LOG 2>&1 || say "  viz_pipeline (old vs new conservation) FAILED"
+  ARMS=curated,curated_AAswap,curated_AAswap_msacons_padg,msa,msa_gap PAIRS=curated_AAswap:msa,msa:msa_gap \
+    LABELS="original curated arm;curated_AAswap (the site);msacons_padg (previous MSA arm);msa;msa + gap class" \
+    UNSEEN_SETS=_msa,_padg HEADCMP=$A2/lf_headcmp/unseen_msa TAG=msa_arms OUT=$F \
+    zsh $S/viz_pipeline.sh >> $LOG 2>&1 || say "  viz_pipeline (msa arms) FAILED"
+  say "figures: $F/index.html"
 fi
 say "=== done ==="
