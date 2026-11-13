@@ -117,12 +117,20 @@ if [[ ! -s $PLM_V2 ]]; then
 fi
 
 ## ---- 1. train ----------------------------------------------------------------
+## Training is resumable, and a member can fail on a TensorFlow fault that a
+## retry clears ("Incompatible shapes: [0] vs. [32,36]" in masked_cat_accuracy,
+## seen in the 2026-11-10/11 runs too; lf_dcnn retries a member 3 times). On
+## 2026-11-12 one member failed all three and the whole night stopped at 9 of 10
+## trunks, so an arm's training is re-entered up to three times before giving up.
 for ARM in msa msa_gap; do
-  say "phase 1: training $ARM"
-  (cd $S && ARM=$ARM STAGES=1 PROCS=$PROCS zsh ./pepend_arm_pipeline.sh) >> $A2/run_msa_arms_$ARM.log 2>&1 \
-    || die "training $ARM, see run_msa_arms_$ARM.log"
-  n=$(ls $A2/lf_pepend_run_[NC]_cv5_f*_nomask_flatten_${ARM}.rds 2>/dev/null | wc -l | tr -d ' ')
-  [[ $n -eq 10 ]] || die "$ARM: $n of 10 trunks"
+  for attempt in 1 2 3; do
+    say "phase 1: training $ARM (attempt $attempt)"
+    (cd $S && ARM=$ARM STAGES=1 PROCS=$PROCS zsh ./pepend_arm_pipeline.sh) >> $A2/run_msa_arms_$ARM.log 2>&1
+    n=$(ls $A2/lf_pepend_run_[NC]_cv5_f*_nomask_flatten_${ARM}.rds 2>/dev/null | wc -l | tr -d ' ')
+    [[ $n -eq 10 ]] && break
+    say "  $ARM: $n of 10 trunks after attempt $attempt"
+  done
+  [[ $n -eq 10 ]] || die "$ARM: $n of 10 trunks after 3 attempts, see run_msa_arms_$ARM.log"
   say "  $ARM: 10 trunks"
 done
 
