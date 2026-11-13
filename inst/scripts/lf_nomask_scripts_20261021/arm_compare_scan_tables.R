@@ -84,8 +84,11 @@ seqs <- readRDS(sq_p)
 ll <- as.data.table(readRDS(lf_src("inst/extdata/ligand_list.rds")))[!is.na(start) & !is.na(end)]
 up <- fread(file.path(A2, "pepend_locus", "uniprot_peptides.csv"))[type %in% c("peptide", "propeptide")]
 un_all <- fread(file.path(S, "cv5_unseen_ends.csv"))     # every never-seen end, of any set
+## the never-seen csvs repeat an end once per isoform name (CXCL12's N end x4), and
+## the intersection join would square that (x16): one row per end before joining
+un1 <- function(s) unique(fread(file.path(S, paste0("cv5_unseen_ends", s, ".csv"))), by = c("term", "accession", "anchor"))
 un <- Reduce(function(a, b) a[b[, .(term, accession, anchor)], on = .(term, accession, anchor), nomatch = 0L],
-             lapply(US, function(s) fread(file.path(S, paste0("cv5_unseen_ends", s, ".csv")))))
+             lapply(US, un1))
 un[, set := fifelse(grepl("^never seen", set), "never seen: peptides", "never seen: large products")]
 message("never-seen set = intersection of ", paste0("cv5_unseen_ends", US, ".csv", collapse = ", "), ": ",
         paste(un[, .N, by = .(term, set)][, sprintf("%s %s %d", term, set, N)], collapse = "; "))
